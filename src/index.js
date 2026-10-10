@@ -15,7 +15,7 @@ const MEDIA = {
   service_ashoo: { type: "photo", url: MEDIA_BASE + "ashoo-original.jpg" },
   reviews: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
   order: { type: "animation", url: MEDIA_BASE + "order.gif" },
-  faq: { type: "animation", url: MEDIA_BASE + "faq.gif" }
+  faq: { type: "animation", url: MEDIA_BASE + "faq.mp4" }
 };
 const FALLBACK_PHOTOS = {
   service_city: MEDIA_BASE + "intimcity.png",
