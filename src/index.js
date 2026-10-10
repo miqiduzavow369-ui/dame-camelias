@@ -102,14 +102,11 @@ async function sendPage(env, chatId, key) {
   const photo = PHOTO_URLS[key];
   if (photo && PAGES[key].length <= 1024) {
     try {
-      const head = await fetch(photo, { method: "HEAD" });
-      if (head.ok) {
-        return await telegram(env, "sendPhoto", {
-          ...payload, photo, caption: PAGES[key]
-        });
-      }
+      return await telegram(env, "sendPhoto", {
+        ...payload, photo, caption: PAGES[key]
+      });
     } catch (err) {
-      console.error("Photo unavailable, using text page:", key, err);
+      console.error("Telegram photo delivery failed; using text fallback:", key, err);
     }
   }
   return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
