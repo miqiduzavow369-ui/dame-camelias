@@ -5,6 +5,12 @@ const MAIN = [
   [{ text: "❓ Вопросы и ответы", callback_data: "faq" }, { text: "💬 Связь с менеджером", url: MANAGER_URL }]
 ];
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
+const PHOTO_URLS = {
+  home: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/welcome.png",
+  service_city: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/intimcity.png",
+  service_ashoo: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/ashoo.png",
+  reviews: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/reviews.png"
+};
 const PAGES = {
   home: "✦ <b>DAME CAMELIAS</b> ✦\n\n🌹 <i>Продвижение и оформление анкет на Intimcity и ASHOO</i>\n\nПомогаем представить вашу анкету ярко, грамотно и с вниманием к деталям.\n\n💎 Услуги и цены — в нашем каталоге.\n✨ Порядок сотрудничества — всего в четырёх шагах.\n\n<b>Выберите интересующий раздел ниже. 💗</b>",
   how: "✨ <b>КАК МЫ РАБОТАЕМ</b>\n\n<i>Четыре простых шага</i>\n\n<b>01 ✦ Заявка</b>\nУказываете площадку, ссылку на анкету, нужные услуги и пожелания.\n\n<b>02 ✦ Подготовка</b>\nСогласовываем материалы, стоимость и график работы.\n\n<b>03 ✦ Оплата</b>\nВы оплачиваете заказ после согласования всех деталей.\n\n<b>04 ✦ Выполнение</b>\nРаботаем по утверждённому плану. Менеджер остаётся на связи.\n\n🌹 <b>Всё понятно заранее — без лишних этапов.</b>",
@@ -87,16 +93,42 @@ function keyboard(key, env) {
   }
   return {inline_keyboard:back};
 }
+// Send a new page then remove the previous one: works for both photo and text messages.
+async function sendPage(env, chatId, key) {
+  const payload = {
+    chat_id: chatId, parse_mode: "HTML",
+    reply_markup: keyboard(key, env)
+  };
+  const photo = PHOTO_URLS[key];
+  if (photo && PAGES[key].length <= 1024) {
+    try {
+      const head = await fetch(photo, { method: "HEAD" });
+      if (head.ok) {
+        return await telegram(env, "sendPhoto", {
+          ...payload, photo, caption: PAGES[key]
+        });
+      }
+    } catch (err) {
+      console.error("Photo unavailable, using text page:", key, err);
+    }
+  }
+  return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
+}
 async function handle(update, env) {
   if (update.callback_query) {
     const cb = update.callback_query;
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
     const key = Object.hasOwn(PAGES, cb.data) ? cb.data : "home";
-    await telegram(env, "editMessageText", {
-      chat_id: cb.message.chat.id, message_id: cb.message.message_id,
-      text: PAGES[key], parse_mode: "HTML", reply_markup: keyboard(key, env)
-    });
+    await sendPage(env, cb.message.chat.id, key);
+    try {
+      await telegram(env, "deleteMessage", {
+        chat_id: cb.message.chat.id,
+        message_id: cb.message.message_id
+      });
+    } catch (err) {
+      console.error("Could not remove previous menu:", err);
+    }
     return;
   }
   if (!update.message?.chat?.id) return;
@@ -107,7 +139,7 @@ async function handle(update, env) {
     return;
   }
   const key = map[cmd] || "home";
-  await telegram(env, "sendMessage", { chat_id: update.message.chat.id, text: PAGES[key], parse_mode: "HTML", reply_markup: keyboard(key, env) });
+  await sendPage(env, update.message.chat.id, key);
 }
 export default {
   async fetch(request, env, ctx) {
