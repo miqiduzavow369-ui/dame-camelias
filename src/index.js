@@ -58,6 +58,28 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
+    if (request.method === "GET" && url.pathname === "/connect-telegram") {
+      // Temporary setup route: only registers this Worker's fixed production webhook.
+      // It never exposes BOT_TOKEN or WEBHOOK_SECRET in a URL or response.
+      if (url.hostname !== "dame-camelias.gptjjjgpt.workers.dev")
+        return new Response("Use the production Worker URL", { status: 400 });
+      if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET)
+        return new Response("Missing Cloudflare secrets", { status: 503 });
+      if (!/^[A-Za-z0-9_-]{1,256}$/.test(env.WEBHOOK_SECRET))
+        return new Response("WEBHOOK_SECRET contains unsupported characters", { status: 400 });
+      try {
+        await telegram(env, "setWebhook", {
+          url: "https://dame-camelias.gptjjjgpt.workers.dev/webhook",
+          secret_token: env.WEBHOOK_SECRET,
+          allowed_updates: ["message", "callback_query"]
+        });
+        return new Response("DAME CAMELIAS: Telegram webhook connected");
+      } catch (err) {
+        console.error("Telegram setup failed", err);
+        return new Response("Telegram setup failed; verify BOT_TOKEN", { status: 502 });
+      }
+    }
+
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
     if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
