@@ -10,7 +10,7 @@ const MEDIA = {
   home: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
   how: { type: "animation", url: MEDIA_BASE + "how.gif" },
   how_terms: { type: "photo", url: MEDIA_BASE + "how-infographic.jpg" },
-  services: { type: "animation", url: MEDIA_BASE + "services.gif" },
+  services: "💎 <b>НАШИ УСЛУГИ</b>\n\n🌹 <b>Intimcity</b>\n\nПодготовка текстов, публикация отзывов и оценок под анкетой. Составление описания для анкеты.\n\n💗 <b>ASHOO</b>\n\nСоставление и публикация текстов отзывов под анкетой.\n\n<b>Выберите площадку ниже, чтобы посмотреть услуги и цены. 💌</b>",
   service_city: { type: "photo", url: MEDIA_BASE + "intimcity-original.jpg" },
   service_ashoo: { type: "photo", url: MEDIA_BASE + "ashoo-original.jpg" },
   reviews: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
