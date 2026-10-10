@@ -8,14 +8,14 @@ const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
 const MEDIA = {
   home: { type: "photo", url: MEDIA_BASE + "welcome.png" },
-  how: { type: "video", url: MEDIA_BASE + "how.mp4" },
+  how: { type: "animation", url: MEDIA_BASE + "how.gif" },
   how_terms: { type: "photo", url: MEDIA_BASE + "how-infographic.jpg" },
-  services: { type: "video", url: MEDIA_BASE + "services.mp4" },
+  services: { type: "animation", url: MEDIA_BASE + "services.gif" },
   service_city: { type: "photo", url: MEDIA_BASE + "intimcity-original.jpg" },
   service_ashoo: { type: "photo", url: MEDIA_BASE + "ashoo-original.jpg" },
   reviews: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
-  order: { type: "video", url: MEDIA_BASE + "order.mp4" },
-  faq: { type: "video", url: MEDIA_BASE + "faq.mp4" }
+  order: { type: "animation", url: MEDIA_BASE + "order.gif" },
+  faq: { type: "animation", url: MEDIA_BASE + "faq.gif" }
 };
 const FALLBACK_PHOTOS = {
   service_city: MEDIA_BASE + "intimcity.png",
@@ -112,10 +112,10 @@ async function sendPage(env, chatId, key) {
   const media = MEDIA[key];
   if (media && PAGES[key].length <= 1024) {
     try {
-      const method = media.type === "video" ? "sendVideo" : "sendPhoto";
+      const method = media.type === "animation" ? "sendAnimation" : "sendPhoto";
       const data = { ...payload, caption: PAGES[key] };
       data[media.type] = media.url;
-      if (media.type === "video") data.supports_streaming = true;
+      
       return await telegram(env, method, data);
     } catch (err) {
       console.error("Primary media unavailable:", key, err);
