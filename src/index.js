@@ -5,11 +5,22 @@ const MAIN = [
   [{ text: "❓ Вопросы и ответы", callback_data: "faq" }, { text: "💬 Связь с менеджером", url: MANAGER_URL }]
 ];
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
-const PHOTO_URLS = {
-  home: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/welcome.png",
-  service_city: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/intimcity.png",
-  service_ashoo: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/ashoo.png",
-  reviews: "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/reviews.png"
+const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
+const MEDIA = {
+  home: { type: "photo", url: MEDIA_BASE + "welcome.png" },
+  how: { type: "video", url: MEDIA_BASE + "how.mp4" },
+  how_terms: { type: "photo", url: MEDIA_BASE + "how-infographic.jpg" },
+  services: { type: "video", url: MEDIA_BASE + "services.mp4" },
+  service_city: { type: "photo", url: MEDIA_BASE + "intimcity-original.jpg" },
+  service_ashoo: { type: "photo", url: MEDIA_BASE + "ashoo-original.jpg" },
+  reviews: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
+  order: { type: "video", url: MEDIA_BASE + "order.mp4" },
+  faq: { type: "video", url: MEDIA_BASE + "faq.mp4" }
+};
+const FALLBACK_PHOTOS = {
+  service_city: MEDIA_BASE + "intimcity.png",
+  service_ashoo: MEDIA_BASE + "ashoo.png",
+  reviews: MEDIA_BASE + "reviews.png"
 };
 const PAGES = {
   home: "✦ <b>DAME CAMELIAS</b> ✦\n\n🌹 Добро пожаловать!\n\n💎 <b>Выберите интересующий раздел ниже.</b>",
@@ -94,17 +105,30 @@ function keyboard(key, env) {
 // Send a new page then remove the previous one: works for both photo and text messages.
 async function sendPage(env, chatId, key) {
   const payload = {
-    chat_id: chatId, parse_mode: "HTML",
+    chat_id: chatId,
+    parse_mode: "HTML",
     reply_markup: keyboard(key, env)
   };
-  const photo = PHOTO_URLS[key];
-  if (photo && PAGES[key].length <= 1024) {
+  const media = MEDIA[key];
+  if (media && PAGES[key].length <= 1024) {
+    try {
+      const method = media.type === "video" ? "sendVideo" : "sendPhoto";
+      const data = { ...payload, caption: PAGES[key] };
+      data[media.type] = media.url;
+      if (media.type === "video") data.supports_streaming = true;
+      return await telegram(env, method, data);
+    } catch (err) {
+      console.error("Primary media unavailable:", key, err);
+    }
+  }
+  const fallback = FALLBACK_PHOTOS[key];
+  if (fallback && PAGES[key].length <= 1024) {
     try {
       return await telegram(env, "sendPhoto", {
-        ...payload, photo, caption: PAGES[key]
+        ...payload, photo: fallback, caption: PAGES[key]
       });
     } catch (err) {
-      console.error("Telegram photo delivery failed; using text fallback:", key, err);
+      console.error("Fallback image unavailable:", key, err);
     }
   }
   return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
