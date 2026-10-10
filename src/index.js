@@ -51,6 +51,25 @@ async function telegram(env, method, data) {
   if (!result.ok) throw new Error("Telegram API: " + result.description);
   return result.result;
 }
+async function sendPhotoFile(env, data, url) {
+  const imageResponse = await fetch(url);
+  if (!imageResponse.ok) throw new Error("Image fetch HTTP " + imageResponse.status);
+  const imageData = await imageResponse.arrayBuffer();
+  if (!imageData.byteLength || imageData.byteLength > 10 * 1024 * 1024)
+    throw new Error("Image missing or too large");
+  const form = new FormData();
+  for (const [key, value] of Object.entries(data)) {
+    form.append(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+  }
+  form.append("photo", new Blob([imageData], {type: "image/jpeg"}), "dame-camelias.jpg");
+  const response = await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendPhoto", {
+    method: "POST", body: form
+  });
+  if (!response.ok) throw new Error("Telegram upload HTTP " + response.status);
+  const result = await response.json();
+  if (!result.ok) throw new Error("Telegram upload: " + result.description);
+  return result.result;
+}
 function keyboard(key, env) {
   if (key === "home") return { inline_keyboard: MAIN };
   if (key === "how") return {inline_keyboard:[
@@ -116,6 +135,14 @@ async function sendPage(env, chatId, key) {
       const data = { ...payload, caption: PAGES[key] };
       data[media.type] = media.url;
       
+      if (key === "home") {
+        try {
+          const { photo, ...fields } = data;
+          return await sendPhotoFile(env, fields, photo);
+        } catch (uploadError) {
+          console.error("Home photo direct upload failed:", uploadError);
+        }
+      }
       return await telegram(env, method, data);
     } catch (err) {
       console.error("Primary media unavailable:", key, err);
