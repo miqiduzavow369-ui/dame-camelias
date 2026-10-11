@@ -115,7 +115,7 @@ function keyboard(key, env) {
   if (key === "order") {
     const buttons=[];
     if (env.FORM_URL && /^https:\/\//.test(env.FORM_URL))
-      buttons.push([{text:"📝 Открыть анкету",url:env.FORM_URL}]);
+      buttons.push([{text:"📝 Открыть анкету",web_app:{url:env.FORM_URL}}]);
     buttons.push([{text:"💬 Написать менеджеру",url:MANAGER_URL}],...back);
     return {inline_keyboard:buttons};
   }
@@ -232,7 +232,8 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
-    if (request.method === "POST" && url.pathname === "/api/order") return receiveOrder(request, env);
+    if (url.pathname === "/api/order" && request.method === "OPTIONS") return new Response(null, {status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type"}});
+    if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
     if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
