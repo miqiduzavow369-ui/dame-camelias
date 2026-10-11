@@ -1,7 +1,7 @@
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
-  [{ text: "✨ Как мы работаем", callback_data: "how" }, { text: "💖 Зачем мне это?", callback_data: "reviews" }],
-  [{ text: "❓ Популярные вопросы", callback_data: "faq" }, { text: "💎 Цены", callback_data: "services" }],
+  [{ text: "✨ Как работаем", callback_data: "how" }, { text: "💖 Зачем это?", callback_data: "reviews" }],
+  [{ text: "❓ Вопросы", callback_data: "faq" }, { text: "💎 Цены", callback_data: "services" }],
   [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }]
 ]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
