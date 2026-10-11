@@ -231,6 +231,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
+    if (request.method === "GET" && url.pathname === "/order") {
+      const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/order/index.html");
+      if (!result.ok) return new Response("Form unavailable", { status: 502 });
+      return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+    }
     if (url.pathname === "/api/order" && request.method === "OPTIONS") return new Response(null, {status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type"}});
     if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
