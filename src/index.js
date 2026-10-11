@@ -292,7 +292,7 @@ async function quickReply(env,update){
 async function handle(update, env) {
   if (update.callback_query) {
     const cb = update.callback_query;
-    await trackVisitor(env,cb.from,cb.message?.chat).catch(err=>console.error("Visitor tracking:",err));
+    await trackVisitor(env,cb.from,cb.message?.chat,visitorInterest(update)).catch(err=>console.error("Visitor tracking:",err));
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
     if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{startId:cb.message.message_id}}); return; }
@@ -327,7 +327,7 @@ async function handle(update, env) {
     return;
   }
   if (!update.message?.chat?.id) return;
-  await trackVisitor(env,update.message.from,update.message.chat).catch(err=>console.error("Visitor tracking:",err));
+  await trackVisitor(env,update.message.from,update.message.chat,visitorInterest(update)).catch(err=>console.error("Visitor tracking:",err));
   const cmd = (update.message.text || "").split(" ")[0].split("@")[0];
   if (cmd === "/start" && /^cancel_\d+$/.test((update.message.text||"").split(/\s+/)[1]||"")) {
     const first=Number((update.message.text||"").split(/\s+/)[1].slice(7));
@@ -436,19 +436,40 @@ function reportSlot(now) {
 function moscowTime(value) {
   return new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
 }
-async function trackVisitor(env, person, chat) {
-  if(!env.VISITORS_KV || !person || person.is_bot || chat?.type!=="private" || !Number.isSafeInteger(person.id))return;
-  const id=String(person.id);
-  const firstKey="first:"+id;
-  const first=await env.VISITORS_KV.get(firstKey,"json");
-  const now=new Date().toISOString();
-  const firstSeen=first?.firstSeen||now;
-  if(!first)await env.VISITORS_KV.put(firstKey,JSON.stringify({firstSeen}));
-  const slot=reportSlot(new Date());
-  const entryKey="visit:"+slot+":"+id;
-  if(await env.VISITORS_KV.get(entryKey))return;
-  const entry={id,username:person.username||"",name:[person.first_name,person.last_name].filter(Boolean).join(" "),firstSeen,visitedAt:now};
-  await env.VISITORS_KV.put(entryKey,JSON.stringify(entry),{expirationTtl:90*86400});
+function visitorInterest(update) {
+ const action=update.callback_query?.data || (update.message?.text||"").split(/\s+/)[0].split("@")[0];
+ const groups={
+  how:"Как мы работаем",how_terms:"Условия",how_deadlines:"Сроки",
+  services:"Цены и услуги",service_city:"Цены Intimcity",service_ashoo:"Цены ASHOO",
+  reviews:"Отзывы и оценки",review_text:"Тексты отзывов",review_profile:"Описания анкет",
+  faq:"Популярные вопросы",faq_safe:"Безопасность",faq_accounts:"Репутация",
+  faq_schedule:"Сроки",faq_writing:"Тексты отзывов",faq_payment:"Оплата",
+  faq_about:"О компании",order:"Оформление заказа",quick_order:"Заказ через бота",
+  "/how":"Как мы работаем","/services":"Цены и услуги","/reviews":"Отзывы и оценки",
+  "/faq":"Популярные вопросы","/order":"Оформление заказа","/quick":"Заказ через бота",
+  "/manager":"Связь с менеджером"
+ };
+ if(action?.startsWith("quick:"))return "Заполнял заказ через бота";
+ return groups[action]||null;
+}
+async function trackVisitor(env, person, chat, interest) {
+ if(!env.VISITORS_KV || !person || person.is_bot || chat?.type!=="private" || !Number.isSafeInteger(person.id))return;
+ const id=String(person.id),now=new Date().toISOString();
+ const firstKey="first:"+id;
+ const first=await env.VISITORS_KV.get(firstKey,"json");
+ const firstSeen=first?.firstSeen||now;
+ if(!first)await env.VISITORS_KV.put(firstKey,JSON.stringify({firstSeen}));
+ const key="visit:"+reportSlot(new Date())+":"+id;
+ const existing=await env.VISITORS_KV.get(key,"json");
+ const interests=Array.isArray(existing?.interests)?existing.interests:[];
+ if(existing && (!interest || interests.includes(interest)))return;
+ const entry={
+  id,username:person.username||existing?.username||"",
+  name:[person.first_name,person.last_name].filter(Boolean).join(" ")||existing?.name||"",
+  firstSeen,visitedAt:existing?.visitedAt||now,
+  interests:interest?[...interests,interest].slice(0,8):interests
+ };
+ await env.VISITORS_KV.put(key,JSON.stringify(entry),{expirationTtl:90*86400});
 }
 async function scheduledVisitorReport(env, at) {
   if(!env.VISITORS_KV || !env.BOT_TOKEN){console.error("Visitor reports need VISITORS_KV and BOT_TOKEN");return;}
@@ -470,7 +491,7 @@ async function scheduledVisitorReport(env, at) {
   const lines=visitors.map((p,i)=>{
     const link=p.username && /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(p.username)?'https://t.me/'+p.username:'tg://user?id='+p.id;
     const label=p.username?'@'+p.username:p.name||"Открыть профиль";
-    return (i+1)+". <a href=\""+link+"\">"+reportEscape(label)+"</a>\n   🕐 Первый контакт: "+reportEscape(moscowTime(p.firstSeen));
+    return (i+1)+". <a href=\""+link+"\">"+reportEscape(label)+"</a>\n   🕐 Первый контакт: "+reportEscape(moscowTime(p.firstSeen))+"\n   💎 Интересовался: "+reportEscape((p.interests||[]).join(", ")||"пока только заходил");
   });
   let current=header;
   for(const line of lines){
