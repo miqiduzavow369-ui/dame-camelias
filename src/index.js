@@ -237,7 +237,7 @@ const QUICK_VISUALS = {
  role:"12_role.png",name:"13_contact.png",notes:"14_notes.png",confirm:"15_confirmation.png"
 };
 async function quickVisual(env,chatId,stage,profileIndex){
- const filename=stage==="profiles_count"?"02_bot_start.png":stage==="url"&&profileIndex>1?"11_next_profile.png":QUICK_VISUALS[stage];
+ const filename=stage==="profiles_count"?"01_order_bot_entry.png":stage==="url"&&profileIndex>1?"11_next_profile.png":QUICK_VISUALS[stage];
  if(!filename)return;
  try{
   await telegram(env,"sendPhoto",{chat_id:chatId,photo:QUICK_VISUAL_BASE+filename});
