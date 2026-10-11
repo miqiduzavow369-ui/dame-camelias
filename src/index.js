@@ -161,11 +161,11 @@ async function sendPage(env, chatId, key) {
   return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
 }
 
-const QUICK_STEPS=["platform","profiles_count","url","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
+const QUICK_STEPS=["profiles_count","url","platform","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
 const QUICK_QUESTIONS={
- platform:"🌹 Добро пожаловать в DAME CAMELIAS! Начнём с выбора площадки для первой анкеты.",
- profiles_count:"💎 Отлично! На сколько анкет распределим ваш заказ? Укажите число от 1 до 5 — каждую анкету мы оформим отдельно.",
- url:"🔗 Отлично! Уточним условия по этой анкете. Пришлите её ссылку или ID.",
+ platform:"🌹 На какой площадке размещена анкета <b>{id}</b>? Выберите подходящий вариант ниже.",
+ profiles_count:"💎 Для начала подскажите, сколько анкет вы хотите включить в заказ? Укажите число от 1 до 5. Каждую анкету мы внимательно оформим отдельно.",
+ url:"🔗 Отлично! Давайте начнём с анкеты №{n}. Пришлите, пожалуйста, её ID или ссылку — так мы сможем уточнить все детали заказа.",
  kind:"✍️ Кто подготовит тексты отзывов? Мы составим их для вас или вы пришлёте свои?",
  count:"💬 Сколько отзывов вы хотите заказать для этой анкеты?",
  review_text:"📝 Пришлите текст отзыва №{n} из {total}. Мы бережно добавим его к вашей заявке.",
@@ -180,6 +180,7 @@ const QUICK_QUESTIONS={
 const quickEsc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const quickClean=v=>String(v??"").trim();
 const quickProfile=d=>d.current || {};
+const quickId=url=>{const raw=String(url||"").trim().replace(/\/+$/,"");return raw.includes("/")?raw.split("/").pop().split(/[?#]/)[0]||raw:raw;};
 const quickPrice=p=>(Number(p.count)||0)*(p.platform==="ASHOO"?(p.kind==="Свой текст"?800:1000):(p.kind==="Свой текст"?400:500))+(p.platform==="Intimcity"?(Number(p.ratings)||0)*500+(p.description==="да"?2000:0):0);
 const quickPositions=p=>(Number(p.count)||0)+(p.platform==="Intimcity"?(Number(p.ratings)||0)+(p.description==="да"?1:0):0);
 const quickList=d=>[...(d.profiles||[]),...(d.current?.url?[d.current]:[])];
@@ -200,10 +201,10 @@ async function quickPrompt(env,chatId,state,prefix=""){
  const d=state.d,stage=QUICK_STEPS[state.i],p=quickProfile(d);
  const index=(d.profiles||[]).length+1;
  const cost=stage==="count"?(p.platform==="ASHOO"?(p.kind==="Свой текст"?800:1000):(p.kind==="Свой текст"?400:500)):500;
- const question=stage==="review_text"?QUICK_QUESTIONS[stage].replace("{n}",String((p.reviewTexts||[]).length+1)).replace("{total}",String(p.count)):QUICK_QUESTIONS[stage];
+ const question=stage==="review_text"?QUICK_QUESTIONS[stage].replace("{n}",String((p.reviewTexts||[]).length+1)).replace("{total}",String(p.count)):QUICK_QUESTIONS[stage].replace("{n}",String(index)).replace("{id}",quickEsc(quickId(p.url)));
  const priceHint=stage==="count"?"\n💰 Цена одного отзыва: "+cost+" ₽.":stage==="ratings"?"\n💰 Одна оценка — 500 ₽.":stage==="description"?"\n💰 Описание — 2 000 ₽.":"";
- const intro=state.i===0?"🌹 <b>ВАЖНО:</b> минимальный заказ — <b>8 позиций</b> (отдельных услуг или в сумме по всем анкетам).\n\n":"";
- const profileIntro=["platform","url","kind","count","review_text","ratings","description","dates"].includes(stage)?"🌹 <b>Анкета №"+index+" из "+(d.profiles_count||1)+"</b>\n":"";
+ const intro=state.i===0?"🌹 <b>ВАЖНО:</b> минимальный заказ — <b>8 позиций</b> (отдельных услуг или в сумме по всем анкетам).\n\n💎 <b>ДОБРО ПОЖАЛОВАТЬ В DAME CAMELIAS!</b>\n\n💖 Мы позаботились о том, чтобы оформление было простым и удобным. Просто отвечайте на вопросы, а мы бережно поможем вам оформить заказ.\n\n":"";
+ const profileIntro=["kind","count","review_text","ratings","description","dates"].includes(stage)?"🌹 <b>"+quickEsc(p.platform)+" · Анкета "+quickEsc(quickId(p.url))+"</b>\n":"";
  const all=quickList(d),total=quickTotals(d);
  const recap=stage==="confirm"?[
    "🌹 <b>ПРОВЕРЬТЕ ЗАКАЗ</b>",
@@ -211,7 +212,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "","👤 "+quickEsc(d.name)+" — "+quickEsc(d.role),"💌 "+quickEsc(d.notes),
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
- const transition=stage==="platform" && index>1?"✅ <b>Анкета №"+(index-1)+" оформлена!</b>\n\nПерейдём к анкете №"+index+". Для неё можно выбрать другую площадку.\n\n":"";
+ const transition=stage==="url" && index>1?"✅ <b>Готово! Данные первой анкеты сохранены.</b>\n\n🌹 Перейдём к анкете №"+index+". Сейчас также всё аккуратно оформим — начнём с её ссылки или ID.\n\n":"";
  const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+transition+recap+profileIntro+question+priceHint+
  '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">&#8288;</a>';
  const options={
@@ -266,15 +267,15 @@ async function quickReply(env,update){
    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
    return true;
  }
- if(stage==="platform"){d.current={platform:value};}
- else if(stage==="profiles_count"){d.profiles_count=value;d.profiles=[];}
+ if(stage==="platform"){d.current.platform=value;}
+ else if(stage==="profiles_count"){d.profiles_count=value;d.profiles=[];d.current={};}
  else if(stage==="review_text"){
    d.current.reviewTexts=[...(d.current.reviewTexts||[]),value];
    if(d.current.reviewTexts.length<d.current.count){await quickPrompt(env,msg.chat.id,state);return true;}
  }else if(["url","kind","count","ratings","description","dates"].includes(stage)){d.current[stage]=value;}
  else d[stage]=value;
  state.i++;
- if(stage==="platform" && d.profiles_count)state.i=QUICK_STEPS.indexOf("url");
+
  if(stage==="count"){
    if(d.current.kind==="Свой текст"&&value>0)state.i=QUICK_STEPS.indexOf("review_text");
    else state.i=QUICK_STEPS.indexOf(d.current.platform==="ASHOO"?"dates":"ratings");
@@ -282,7 +283,7 @@ async function quickReply(env,update){
  if(stage==="review_text")state.i=QUICK_STEPS.indexOf(d.current.platform==="ASHOO"?"dates":"ratings");
  if(stage==="dates"){
    d.profiles.push(d.current);d.current=null;
-   if(d.profiles.length<d.profiles_count){state.i=QUICK_STEPS.indexOf("platform");d.current={};}
+   if(d.profiles.length<d.profiles_count){state.i=QUICK_STEPS.indexOf("url");d.current={};}
    else state.i=QUICK_STEPS.indexOf("role");
  }
  await quickPrompt(env,msg.chat.id,state);
