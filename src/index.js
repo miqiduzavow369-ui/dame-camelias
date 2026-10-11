@@ -203,7 +203,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
  const question=stage==="review_text"?QUICK_QUESTIONS[stage].replace("{n}",String((p.reviewTexts||[]).length+1)).replace("{total}",String(p.count)):QUICK_QUESTIONS[stage];
  const priceHint=stage==="count"?"\n💰 Цена одного отзыва: "+cost+" ₽.":stage==="ratings"?"\n💰 Одна оценка — 500 ₽.":stage==="description"?"\n💰 Описание — 2 000 ₽.":"";
  const intro=state.i===0?"🌹 <b>ВАЖНО:</b> минимальный заказ — <b>8 позиций</b> (отдельных услуг или в сумме по всем анкетам).\n\n":"";
- const profileIntro=["url","kind","count","review_text","ratings","description","dates"].includes(stage)?"<b>Анкета "+index+" из "+(d.profiles_count||1)+"</b>\n":"";
+ const profileIntro=["platform","url","kind","count","review_text","ratings","description","dates"].includes(stage)?"<b>Анкета "+index+" из "+(d.profiles_count||1)+"</b>\n":"";
  const all=quickList(d),total=quickTotals(d);
  const recap=stage==="confirm"?[
    "🌹 <b>ПРОВЕРЬТЕ ЗАКАЗ</b>",
@@ -268,7 +268,7 @@ async function quickReply(env,update){
    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
    return true;
  }
- if(stage==="platform"){d.platform=value;d.current={platform:value};}
+ if(stage==="platform"){d.current={platform:value};}
  else if(stage==="profiles_count"){d.profiles_count=value;d.profiles=[];}
  else if(stage==="review_text"){
    d.current.reviewTexts=[...(d.current.reviewTexts||[]),value];
@@ -278,12 +278,12 @@ async function quickReply(env,update){
  state.i++;
  if(stage==="count"){
    if(d.current.kind==="Свой текст"&&value>0)state.i=QUICK_STEPS.indexOf("review_text");
-   else state.i=QUICK_STEPS.indexOf(d.platform==="ASHOO"?"dates":"ratings");
+   else state.i=QUICK_STEPS.indexOf(d.current.platform==="ASHOO"?"dates":"ratings");
  }
- if(stage==="review_text")state.i=QUICK_STEPS.indexOf(d.platform==="ASHOO"?"dates":"ratings");
+ if(stage==="review_text")state.i=QUICK_STEPS.indexOf(d.current.platform==="ASHOO"?"dates":"ratings");
  if(stage==="dates"){
    d.profiles.push(d.current);d.current=null;
-   if(d.profiles.length<d.profiles_count){state.i=QUICK_STEPS.indexOf("url");d.current={platform:d.platform};}
+   if(d.profiles.length<d.profiles_count){state.i=QUICK_STEPS.indexOf("platform");d.current={};}
    else state.i=QUICK_STEPS.indexOf("role");
  }
  await quickPrompt(env,msg.chat.id,state);
