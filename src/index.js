@@ -257,7 +257,10 @@ async function quickReply(env,update){
    for(const part of parts){
      if(part.length>3500){await telegram(env,"sendMessage",{chat_id:msg.chat.id,text:"⚠️ Слишком длинные тексты. Уменьшите объём и попробуйте снова."});return true;}
    }
-   for(const part of parts){await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text:part,parse_mode:"HTML",disable_web_page_preview:true});}
+   const batches=[];let joined="";
+   for(const part of parts){if(joined.length+part.length+2>3500){batches.push(joined);joined="";}joined+=(joined?"\n\n":"")+part;}
+   if(joined)batches.push(joined);
+   for(const text of batches){await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text,parse_mode:"HTML",disable_web_page_preview:true});}
    for(const message_id of new Set(d.cleanup)){try{await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id});}catch{}}
    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
    return true;
