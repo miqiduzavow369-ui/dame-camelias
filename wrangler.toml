@@ -2,3 +2,7 @@ name = "dame-camelias"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
 # GitHub connection restored: request a new Cloudflare deployment
+
+# Daily visitor summaries: 10:00, 16:00, 22:00 Moscow (UTC+3)
+[triggers]
+crons = ["0 7 * * *", "0 13 * * *", "0 19 * * *"]
