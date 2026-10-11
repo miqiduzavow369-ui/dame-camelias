@@ -114,7 +114,7 @@ function keyboard(key, env) {
   ]};
   if (key === "order") {
     const buttons=[];
-    buttons.push([{text:"👩‍💻Самостоятельно заполнить заказ",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/order"}}]);
+    buttons.push([{text:"👩‍💻 Заполнить заказ",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/order"}}]);
     buttons.push([{text:"💬 Написать менеджеру",url:MANAGER_URL}],...back);
     return {inline_keyboard:buttons};
   }
