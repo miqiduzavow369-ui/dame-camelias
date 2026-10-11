@@ -208,8 +208,18 @@ async function quickPrompt(env, chatId, state, prefix="") {
   const text=(prefix ? quickEsc(prefix)+"\n\n" : "")+preview+
     "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+QUICK_QUESTIONS[stage]+
     '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a> Для отмены: /cancel';
-  await telegram(env,"sendMessage",{chat_id:chatId,text,parse_mode:"HTML",disable_web_page_preview:true,
-    reply_markup:{force_reply:true,input_field_placeholder:"Напишите ответ здесь",selective:false}});
+  const choices = {
+    platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
+    kind:[["✍️ Наш текст","Наш текст"],["📝 Свой текст","Свой текст"]],
+    description:[["✅ Да","Да"],["❌ Нет","Нет"]],
+    role:[["🌹 Индивидуалка","Индивидуалка"],["👩‍💼 Менеджер","Менеджер"]],
+    confirm:[["✅ Отправить","ОТПРАВИТЬ"],["❌ Отменить","ОТМЕНА"]],
+    dates:[["📅 Помогите подобрать","Помогите подобрать"]]
+  };
+  const items=choices[stage];
+  const markup=items ? {inline_keyboard:[...items.map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"✖ Отменить заказ",callback_data:"quick:ОТМЕНА"}]]}
+    : {force_reply:true,input_field_placeholder:"Напишите ответ здесь",selective:false};
+  await telegram(env,"sendMessage",{chat_id:chatId,text,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
 }
 function quickValidate(stage, answer, data) {
   const value=answer.trim().slice(0,700);
@@ -269,6 +279,19 @@ async function handle(update, env) {
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
     if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{}}); return; }
+    if (cb.data?.startsWith("quick:")) {
+      const selected=cb.data.slice(6);
+      if (selected==="ОТМЕНА") {
+        await telegram(env,"sendMessage",{chat_id:cb.message.chat.id,text:"Заказ отменён.",reply_markup:keyboard("order",env)});
+        return;
+      }
+      if (!quickState(cb.message)) {
+        await telegram(env,"sendMessage",{chat_id:cb.message.chat.id,text:"⚠️ Шаг устарел. Нажмите «💬 Быстрый заказ», чтобы начать снова."});
+        return;
+      }
+      await quickReply(env,{message:{chat:cb.message.chat,from:cb.from,text:selected,reply_to_message:cb.message}});
+      return;
+    }
     const key = Object.hasOwn(PAGES, cb.data) ? cb.data : "home";
     await sendPage(env, cb.message.chat.id, key);
     try {
