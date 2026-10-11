@@ -1,9 +1,9 @@
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
-  [{ text: "✨ Как мы работаем", callback_data: "how" }, { text: "💎 Наши услуги", callback_data: "services" }],
-  [{ text: "⭐ Отзывы и оценки", callback_data: "reviews" }, { text: "📝 Оставить заявку", callback_data: "order" }],
-  [{ text: "❓ Вопросы и ответы", callback_data: "faq" }, { text: "💬 Связь с менеджером", url: MANAGER_URL }]
-];
+  [{ text: "✨ Как мы работаем", callback_data: "how" }, { text: "💖 Зачем мне это?", callback_data: "reviews" }],
+  [{ text: "❓ Популярные вопросы", callback_data: "faq" }, { text: "💎 Цены", callback_data: "services" }],
+  [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }]
+]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
 const MEDIA = {
