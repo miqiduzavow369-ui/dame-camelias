@@ -6,7 +6,25 @@ const MAIN = [
 ]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
+const VISUAL_BASE = MEDIA_BASE + "visual-v2/";
 const MEDIA = {
+  welcome: { type: "photo", url: VISUAL_BASE + "01_welcome_square.jpg" },
+  home: { type: "photo", url: VISUAL_BASE + "02_main_menu_square.jpg" },
+  how: { type: "photo", url: VISUAL_BASE + "03_how_we_work_square.jpg" },
+  reviews: { type: "photo", url: VISUAL_BASE + "04_why_this_square.jpg" },
+  faq: { type: "photo", url: VISUAL_BASE + "05_faq_square.jpg" },
+  services: { type: "photo", url: VISUAL_BASE + "06_prices_square.jpg" },
+  service_city: { type: "photo", url: VISUAL_BASE + "07_intimcity_square.jpg" },
+  service_ashoo: { type: "photo", url: VISUAL_BASE + "08_ashoo_square.jpg" },
+  order: { type: "photo", url: VISUAL_BASE + "09_order_square.jpg" },
+  faq_safe: { type: "photo", url: VISUAL_BASE + "25_faq_security_square.jpg" },
+  faq_accounts: { type: "photo", url: VISUAL_BASE + "26_faq_accounts_square.jpg" },
+  faq_schedule: { type: "photo", url: VISUAL_BASE + "27_faq_schedule_square.jpg" },
+  faq_writing: { type: "photo", url: VISUAL_BASE + "28_faq_writing_square.jpg" },
+  faq_payment: { type: "photo", url: VISUAL_BASE + "29_faq_payment_square.jpg" },
+  faq_about: { type: "photo", url: VISUAL_BASE + "30_faq_about_square.jpg" }
+};
+const LEGACY_MEDIA = {
   welcome: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
   home: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
   how: { type: "animation", url: MEDIA_BASE + "how.mp4" },
@@ -149,6 +167,17 @@ async function sendPage(env, chatId, key) {
       return await telegram(env, method, data);
     } catch (err) {
       console.error("Primary media unavailable:", key, err);
+    }
+  }
+  const legacy = LEGACY_MEDIA[key];
+  if (legacy && PAGES[key] && PAGES[key].length <= 1024) {
+    try {
+      const method = legacy.type === "animation" ? "sendAnimation" : "sendPhoto";
+      const legacyData = { ...payload, caption: PAGES[key] };
+      legacyData[legacy.type] = legacy.url;
+      return await telegram(env, method, legacyData);
+    } catch (err) {
+      console.error("Legacy media fallback unavailable:", key, err);
     }
   }
   const fallback = FALLBACK_PHOTOS[key];
