@@ -292,6 +292,7 @@ async function quickReply(env,update){
 async function handle(update, env) {
   if (update.callback_query) {
     const cb = update.callback_query;
+    await trackVisitor(env,cb.from,cb.message?.chat).catch(err=>console.error("Visitor tracking:",err));
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
     if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{startId:cb.message.message_id}}); return; }
@@ -326,6 +327,7 @@ async function handle(update, env) {
     return;
   }
   if (!update.message?.chat?.id) return;
+  await trackVisitor(env,update.message.from,update.message.chat).catch(err=>console.error("Visitor tracking:",err));
   const cmd = (update.message.text || "").split(" ")[0].split("@")[0];
   if (cmd === "/start" && /^cancel_\d+$/.test((update.message.text||"").split(/\s+/)[1]||"")) {
     const first=Number((update.message.text||"").split(/\s+/)[1].slice(7));
@@ -420,7 +422,69 @@ async function receiveOrder(request, env) {
   catch(e){console.error("Order delivery failed",e);return new Response("Delivery failed", {status:502});}
   return Response.json({ok:true});
 }
+
+const VISITOR_REPORT_CHAT_ID = 5866034656;
+const reportEscape = value => String(value??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function reportSlot(now) {
+  const moscow=new Date(now.getTime()+3*3600000);
+  const hour=moscow.getUTCHours();
+  const ending=hour<10?10:hour<16?16:hour<22?22:10;
+  if(hour>=22)moscow.setUTCDate(moscow.getUTCDate()+1);
+  const date=moscow.toISOString().slice(0,10);
+  return date+"_"+String(ending).padStart(2,"0");
+}
+function moscowTime(value) {
+  return new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
+}
+async function trackVisitor(env, person, chat) {
+  if(!env.VISITORS_KV || !person || person.is_bot || chat?.type!=="private" || !Number.isSafeInteger(person.id))return;
+  const id=String(person.id);
+  const firstKey="first:"+id;
+  const first=await env.VISITORS_KV.get(firstKey,"json");
+  const now=new Date().toISOString();
+  const firstSeen=first?.firstSeen||now;
+  if(!first)await env.VISITORS_KV.put(firstKey,JSON.stringify({firstSeen}));
+  const slot=reportSlot(new Date());
+  const entryKey="visit:"+slot+":"+id;
+  if(await env.VISITORS_KV.get(entryKey))return;
+  const entry={id,username:person.username||"",name:[person.first_name,person.last_name].filter(Boolean).join(" "),firstSeen,visitedAt:now};
+  await env.VISITORS_KV.put(entryKey,JSON.stringify(entry),{expirationTtl:90*86400});
+}
+async function scheduledVisitorReport(env, at) {
+  if(!env.VISITORS_KV || !env.BOT_TOKEN){console.error("Visitor reports need VISITORS_KV and BOT_TOKEN");return;}
+  const slot=reportSlot(new Date(at-60000));
+  const prefix="visit:"+slot+":";
+  const visitors=[];let cursor;
+  do{
+    const page=await env.VISITORS_KV.list({prefix,limit:1000,...(cursor?{cursor}:{})});
+    for(const key of page.keys){
+      const record=await env.VISITORS_KV.get(key.name,"json");
+      if(record)visitors.push(record);
+    }
+    cursor=page.list_complete?undefined:page.cursor;
+  }while(cursor && visitors.length<10000);
+  visitors.sort((a,b)=>a.visitedAt.localeCompare(b.visitedAt));
+  const end=slot.slice(11);
+  const start=end==="10"?"22:00 предыдущего дня":end==="16"?"10:00":"16:00";
+  const header="💎 <b>DAME CAMELIAS — ОТЧЁТ ПО ПОСЕТИТЕЛЯМ</b>\n📅 "+slot.slice(0,10)+" · "+start+"–"+end+":00 (МСК)\n👥 <b>Уникальных посетителей: "+visitors.length+"</b>";
+  const lines=visitors.map((p,i)=>{
+    const link=p.username && /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(p.username)?'https://t.me/'+p.username:'tg://user?id='+p.id;
+    const label=p.username?'@'+p.username:p.name||"Открыть профиль";
+    return (i+1)+". <a href=\""+link+"\">"+reportEscape(label)+"</a>\n   🕐 Первый контакт: "+reportEscape(moscowTime(p.firstSeen));
+  });
+  let current=header;
+  for(const line of lines){
+    if(current.length+line.length+2>3500){
+      await telegram(env,"sendMessage",{chat_id:VISITOR_REPORT_CHAT_ID,text:current,parse_mode:"HTML",disable_web_page_preview:true});
+      current="📋 <b>Продолжение списка</b>\n"+line;
+    }else current+="\n\n"+line;
+  }
+  await telegram(env,"sendMessage",{chat_id:VISITOR_REPORT_CHAT_ID,text:current,parse_mode:"HTML",disable_web_page_preview:true});
+}
 export default {
+  async scheduled(controller,env,ctx) {
+    ctx.waitUntil(scheduledVisitorReport(env,controller.scheduledTime).catch(err=>console.error("Scheduled visitor report failed",err)));
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
