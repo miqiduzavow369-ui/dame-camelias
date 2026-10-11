@@ -212,8 +212,8 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
  const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+
- '<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">Шаг '+(state.i+1)+" из "+QUICK_STEPS.length+"</a>\n"+question+priceHint+
- "\n\n✏️ Для ввода текста нажмите «Ответить» на это сообщение.";
+ "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+priceHint+
+ '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️</a> Ответьте на сообщение бота ниже.';
  const options={
  platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
  kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
@@ -226,7 +226,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
  const markup={inline_keyboard:buttons};
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
  if (!options[stage] || stage==="dates") {
-   const replyText='<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️ Введите ответ для шага '+(state.i+1)+'</a>';
+   const replyText='<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️</a> Напишите ответ:';
    await telegram(env,"sendMessage",{
      chat_id:chatId,text:replyText,parse_mode:"HTML",disable_web_page_preview:true,
      reply_markup:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Введите ответ"}
