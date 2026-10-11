@@ -7,6 +7,7 @@ const MAIN = [
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
 const MEDIA = {
+  welcome: { type: "photo", url: MEDIA_BASE + "welcome.png" },
   home: { type: "photo", url: MEDIA_BASE + "reviews-workspace.jpg" },
   how: { type: "animation", url: MEDIA_BASE + "how.mp4" },
   how_terms: { type: "photo", url: MEDIA_BASE + "how-infographic.jpg" },
@@ -23,6 +24,7 @@ const FALLBACK_PHOTOS = {
   reviews: MEDIA_BASE + "reviews.png"
 };
 const PAGES = {
+  welcome: "✦ <b>DAME CAMELIAS</b> ✦\n\n🌹 <b>ДОБРО ПОЖАЛОВАТЬ!</b> 🌹\n\n✨ Ваша репутация заслуживает особого внимания.\n\n💎 Мы помогаем вашим анкетам выделяться, укреплять доверие клиентов и привлекать новые обращения.\n\n⭐ Написание и публикация отзывов\n💎 Работа с оценками и рейтингом\n✍️ Повышение привлекательности анкет\n\n🌹 <b>DAME CAMELIAS — искусство безупречной репутации.</b>",
   home: "✦ <b>DAME CAMELIAS</b> ✦\n\n🌹 <b>ПРОДВИЖЕНИЕ ВАШИХ АНКЕТ С ПОМОЩЬЮ ОТЗЫВОВ И ОЦЕНОК</b>\n\n⭐ Публикация текстов отзывов\n\n💎 Работа с оценками и репутацией\n\n✍️ Продающие описания анкет\n\n<b>INTIMCITY • ASHOO</b>",
   how: "✨ <b>КАК МЫ РАБОТАЕМ</b>\n\n<i>Четыре простых шага</i>\n\n<b>01 ✦ Заявка</b>\nУказываете площадку, ссылку на анкету, нужные услуги и пожелания.\n\n<b>02 ✦ Подготовка</b>\nСогласовываем материалы, стоимость и график работы.\n\n<b>03 ✦ Оплата</b>\nВы оплачиваете заказ после согласования всех деталей.\n\n<b>04 ✦ Выполнение</b>\nРаботаем по утверждённому плану. Менеджер остаётся на связи.\n\n🌹 <b>Всё понятно заранее — без лишних этапов.</b>",
   how_terms: "📋 <b>УСЛОВИЯ СОТРУДНИЧЕСТВА</b>\n\n🌹 <b>Сначала согласование — потом оплата.</b>\n\n1️⃣ Заполняете заявку и указываете анкеты.\n\n2️⃣ Мы согласуем объём редакционных работ, материалы и календарь.\n\n3️⃣ Уточняем стоимость.\n\n4️⃣ После подтверждения приступаем к согласованным работам.\n\n💬 Готовые тексты обсуждаются до завершения заказа.\n\n🖋 Описание профиля Intimcity готовится как законченный материал; по представленным условиям после передачи изменения не предусмотрены.\n\n🛡 Для публикации любой обратной связи важно соблюдать правила площадки и не представлять заказной материал как независимое свидетельство посещения.\n\n💎 Детали вашего заказа уточнит менеджер.",
@@ -71,6 +73,7 @@ async function sendPhotoFile(env, data, url) {
   return result.result;
 }
 function keyboard(key, env) {
+  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}]]};
   if (key === "home") return { inline_keyboard: MAIN };
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
@@ -354,7 +357,7 @@ async function handle(update, env) {
     await telegram(env,"sendMessage",{chat_id:update.message.chat.id,text:"💬 Для быстрого заказа нажимайте предложенные кнопки, а текстовые ответы отправляйте через «Ответить» на вопрос бота. Если оформление прервалось, нажмите «💬 Быстрый заказ» и начните заново.",reply_markup:keyboard("order",env)});
     return;
   }
-  const key = map[cmd] || "home";
+  const key = cmd === "/start" ? "welcome" : (map[cmd] || "home");
   await sendPage(env, update.message.chat.id, key);
 }
 const ORDER_MANAGER_CHAT_ID = 5866034656;
