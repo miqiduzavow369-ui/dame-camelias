@@ -187,10 +187,52 @@ async function handle(update, env) {
   const key = map[cmd] || "home";
   await sendPage(env, update.message.chat.id, key);
 }
+const ORDER_MANAGER_CHAT_ID = 5866034656;
+const encoder = new TextEncoder();
+const toHex = bytes => [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, "0")).join("");
+const plain = value => String(value ?? "").slice(0, 2000).replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+async function validWebApp(initData, token) {
+  if (!initData || initData.length > 12000) return false;
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  const date = Number(params.get("auth_date"));
+  if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !Number.isSafeInteger(date) || Math.abs(Date.now()/1000 - date) > 600) return false;
+  params.delete("hash");
+  const data = [...params.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => k + "=" + v).join("\n");
+  const secret = await crypto.subtle.sign("HMAC", await crypto.subtle.importKey("raw", encoder.encode("WebAppData"), { name:"HMAC", hash:"SHA-256" }, false, ["sign"]), encoder.encode(token));
+  const key = await crypto.subtle.importKey("raw", secret, { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
+  return toHex(await crypto.subtle.sign("HMAC", key, encoder.encode(data))) === hash.toLowerCase();
+}
+async function receiveOrder(request, env) {
+  if (!env.BOT_TOKEN) return new Response("Not configured", {status:503});
+  if (Number(request.headers.get("content-length") || 0) > 50000) return new Response("Too large", {status:413});
+  let input;
+  try { input = await request.json(); } catch { return new Response("Invalid JSON", {status:400}); }
+  if (!await validWebApp(input.initData, env.BOT_TOKEN)) return new Response("Telegram authorization required", {status:403});
+  const order = input.order;
+  if (!order || !Array.isArray(order.profiles) || order.profiles.length < 1 || order.profiles.length > 10 || !plain(order.name) || !plain(order.telegram)) return new Response("Invalid order", {status:400});
+  const lines = ["💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎", "", "👤 <b>Клиент:</b> " + plain(order.name), "📲 <b>Telegram:</b> " + plain(order.telegram), "📋 <b>Статус:</b> " + plain(order.role), ""];
+  const escape = s => plain(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const message = lines.map(escape).join("\n");
+  const blocks = order.profiles.map((p, i) => {
+    if (!["intimcity","ashoo"].includes(p.platform) || !p.url || !["create","edit"].includes(p.kind)) throw Error("Invalid profile");
+    const dates = Object.entries(p.schedule || {}).filter(([date,mode]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && ["review","rating","both"].includes(mode)).sort(([a],[b]) => a.localeCompare(b)).slice(0,100).map(([date,mode]) => date+" — "+({review:"отзыв",rating:"оценка",both:"отзыв + оценка"}[mode]));
+    return ["🌹 <b>АНКЕТА №"+(i+1)+" — "+(p.platform === "ashoo" ? "ASHOO" : "Intimcity")+"</b>", "🔗 "+escape(p.url), "💬 Отзывов: "+escape(p.count)+" ("+(p.kind === "create" ? "подготовка" : "текст клиента")+")", ...(p.platform === "intimcity" ? ["⭐ Оценок: "+escape(p.ratings), "✍️ Описание: "+(p.description?"да":"нет")] : []), "📅 Даты: "+escape(dates.join("; ") || "не выбраны"), "💌 Пожелания: "+escape(p.services || "—"), "📝 Тексты: "+escape((p.reviewTexts || []).join(" | ") || "—"), "📋 Ответы: "+escape(p.answers || "—")].join("\n");
+  });
+  const tail = "💬 <b>Общие пожелания:</b> "+escape(order.notes || "—")+"\n💰 <b>Предварительная сумма:</b> "+escape(order.total)+" ₽";
+  const parts = [message,...blocks,tail];
+  const batches=[];let current="";
+  for(const part of parts){if(part.length>3400)return new Response("Order field too long", {status:400});if(current && current.length+part.length+2>3600){batches.push(current);current="";}current+=(current?"\n\n":"")+part;}
+  if(current)batches.push(current);
+  try {for(const text of batches) await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text,parse_mode:"HTML",disable_web_page_preview:true});}
+  catch(e){console.error("Order delivery failed",e);return new Response("Delivery failed", {status:502});}
+  return Response.json({ok:true});
+}
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
+    if (request.method === "POST" && url.pathname === "/api/order") return receiveOrder(request, env);
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
     if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
