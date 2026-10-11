@@ -229,6 +229,20 @@ function quickState(message){
  return st;
  }catch{return null;}
 }
+const QUICK_VISUAL_BASE = MEDIA_BASE + "order-bot-visuals/";
+const QUICK_VISUALS = {
+ profiles_count:"03_profiles_count.png",url:"04_profile_link.png",platform:"05_platform.png",
+ kind:"06_text_author.png",count:"07_reviews_count.png",review_text:"06_text_author.png",
+ ratings:"08_ratings.png",description:"09_description.png",dates:"10_schedule.png",
+ role:"12_role.png",name:"13_contact.png",notes:"14_notes.png",confirm:"15_confirmation.png"
+};
+async function quickVisual(env,chatId,stage,profileIndex){
+ const filename=stage==="profiles_count"?"02_bot_start.png":stage==="url"&&profileIndex>1?"11_next_profile.png":QUICK_VISUALS[stage];
+ if(!filename)return;
+ try{
+  await telegram(env,"sendPhoto",{chat_id:chatId,photo:QUICK_VISUAL_BASE+filename});
+ }catch(err){console.error("Quick order image unavailable:",stage,err);}
+}
 async function quickPrompt(env,chatId,state,prefix=""){
  const d=state.d,stage=QUICK_STEPS[state.i],p=quickProfile(d);
  const index=(d.profiles||[]).length+1;
@@ -257,6 +271,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
  };
  const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
  const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Напишите ваш ответ",selective:false};
+ if (!prefix && !(stage==="review_text" && (p.reviewTexts||[]).length>0)) await quickVisual(env,chatId,stage,index);
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
  return result?.result?.message_id;
 }
