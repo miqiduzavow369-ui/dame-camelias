@@ -121,12 +121,12 @@ function keyboard(key, env) {
     [{text:"← Отзывы и оценки",callback_data:"reviews"}],...back
   ]};
   if (key === "faq") return {inline_keyboard:[
-    [{text:"🛡 Безопасность и конфиденциальность",callback_data:"faq_safe"}],
-    [{text:"👤 Аккаунты и репутация",callback_data:"faq_accounts"}],
-    [{text:"⏳ Сроки и график",callback_data:"faq_schedule"}],
-    [{text:"✍️ Подготовка текстов",callback_data:"faq_writing"}],
-    [{text:"💳 Оплата и условия",callback_data:"faq_payment"}],
-    [{text:"🌹 О компании",callback_data:"faq_about"}],
+    [{text:"🛡 Безопасность вашей анкеты",callback_data:"faq_safe"}],
+    [{text:"👤 Как выглядят аккаунты?",callback_data:"faq_accounts"}],
+    [{text:"⏳ Сроки публикации",callback_data:"faq_schedule"}],
+    [{text:"✍️ Формирование отзывов",callback_data:"faq_writing"}],
+    [{text:"💳 Условия оплаты",callback_data:"faq_payment"}],
+    [{text:"🌹 Кто мы такие?",callback_data:"faq_about"}],
     [{text:"💬 Задать вопрос",url:MANAGER_URL}], ...back
   ]};
   if (key.startsWith("faq_")) return {inline_keyboard:[
