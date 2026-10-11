@@ -276,6 +276,7 @@ async function quickReply(env,update){
  }else if(["url","kind","count","ratings","description","dates"].includes(stage)){d.current[stage]=value;}
  else d[stage]=value;
  state.i++;
+ if(stage==="platform" && d.profiles_count)state.i=QUICK_STEPS.indexOf("url");
  if(stage==="count"){
    if(d.current.kind==="Свой текст"&&value>0)state.i=QUICK_STEPS.indexOf("review_text");
    else state.i=QUICK_STEPS.indexOf(d.current.platform==="ASHOO"?"dates":"ratings");
