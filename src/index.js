@@ -161,136 +161,128 @@ async function sendPage(env, chatId, key) {
   return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
 }
 
-const QUICK_STEPS = ["platform","url","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
-const QUICK_QUESTIONS = {
-  platform:"🌹 Выберите площадку: напишите Intimcity или ASHOO.",
-  url:"🔗 Отправьте ссылку на вашу анкету.",
-  kind:"💬 Как подготовить тексты отзывов? Выберите кнопку ниже.",
-  count:"💬 Сколько отзывов нужно? Напишите число от 0 до 100.",
-  review_text:"📝 Пришлите текст отзыва №{n} из {total}. Этот ответ обязателен.",
-  ratings:"⭐ Сколько оценок нужно? Напишите число от 0 до 100.",
-  description:"✍️ Нужно составить описание анкеты? Ответьте Да или Нет.",
-  dates:"📅 Укажите желаемые даты и распределение услуг ответом на это сообщение (например: 15.10 — отзыв; 17.10 — оценка). Или НАЖМИТЕ кнопку «📅 Помогите подобрать» ниже — бот продолжит оформление.",
-  role:"👤 Ваш статус: Индивидуалка или Менеджер?",
-  name:"🌹 Как к вам обращаться?",
-  notes:"💌 Напишите пожелания или слово Нет.",
-  confirm:"✅ Напишите ОТПРАВИТЬ для отправки заявки менеджеру или ОТМЕНА."
+const QUICK_STEPS=["platform","profiles_count","url","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
+const QUICK_QUESTIONS={
+ platform:"🌹 Выберите площадку:",
+ profiles_count:"👥 На сколько анкет распределить заказ? Введите число от 1 до 5.",
+ url:"🔗 Отправьте ссылку или ID вашей анкеты.",
+ kind:"💬 Кто подготовит тексты отзывов?",
+ count:"💬 Сколько отзывов нужно?",
+ review_text:"📝 Пришлите полный текст отзыва №{n} из {total}. Пропустить нельзя.",
+ ratings:"⭐ Сколько оценок нужно?",
+ description:"✍️ Нужно составить красивое и продающее описание анкеты?",
+ dates:"📅 Укажите желаемые даты и распределение услуг ответом на это сообщение, например:\n15.10 — отзыв;\n17.10 — оценка и отзыв;\n18.10 — отзыв.\n\nИли нажмите «📅 Помогите подобрать».",
+ role:"👤 Ваш статус:",
+ name:"🌹 Как к вам обращаться?",
+ notes:"💌 Напишите пожелания или слово Нет.",
+ confirm:"✅ Проверьте заказ и подтвердите отправку."
 };
-const quickEsc = value => String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-function quickUrl(state) {
-  return "https://dame-camelias.gptjjjgpt.workers.dev/order?draft="+encodeURIComponent(JSON.stringify(state));
+const quickEsc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const quickClean=v=>String(v??"").trim();
+const quickProfile=d=>d.current || {};
+const quickPrice=p=>(Number(p.count)||0)*(p.platform==="ASHOO"?(p.kind==="Свой текст"?800:1000):(p.kind==="Свой текст"?400:500))+(p.platform==="Intimcity"?(Number(p.ratings)||0)*500+(p.description==="да"?2000:0):0);
+const quickPositions=p=>(Number(p.count)||0)+(p.platform==="Intimcity"?(Number(p.ratings)||0)+(p.description==="да"?1:0):0);
+const quickList=d=>[...(d.profiles||[]),...(d.current?.url?[d.current]:[])];
+const quickTotals=d=>({sum:quickList(d).reduce((x,p)=>x+quickPrice(p),0),positions:quickList(d).reduce((x,p)=>x+quickPositions(p),0)});
+function quickUrl(state){return "https://dame-camelias.gptjjjgpt.workers.dev/order?draft="+encodeURIComponent(JSON.stringify(state));}
+function quickState(message){
+ const entity=(message?.entities||[]).find(e=>e.type==="text_link"&&e.url?.includes("/order?draft="));
+ if(!entity)return null;
+ try{
+ const u=new URL(entity.url);
+ if(u.origin!=="https://dame-camelias.gptjjjgpt.workers.dev"||u.pathname!=="/order")return null;
+ const st=JSON.parse(u.searchParams.get("draft"));
+ if(!st||!Number.isInteger(st.i)||st.i<0||st.i>=QUICK_STEPS.length||!st.d||typeof st.d!=="object")return null;
+ return st;
+ }catch{return null;}
 }
-function quickState(message) {
-  const entity=(message?.entities || []).find(e=>e.type==="text_link" && e.url?.includes("/order?draft="));
-  if(!entity)return null;
-  try {
-    const u=new URL(entity.url);
-    if(u.origin!=="https://dame-camelias.gptjjjgpt.workers.dev" || u.pathname!=="/order")return null;
-    const state=JSON.parse(u.searchParams.get("draft"));
-    if(!state || !Number.isInteger(state.i) || state.i<0 || state.i>=QUICK_STEPS.length || typeof state.d!=="object" || !state.d || Object.keys(state.d).length>12)return null;
-    return state;
-  } catch { return null; }
+async function quickPrompt(env,chatId,state,prefix=""){
+ const d=state.d,stage=QUICK_STEPS[state.i],p=quickProfile(d);
+ const index=(d.profiles||[]).length+1;
+ const cost=stage==="count"?(p.platform==="ASHOO"?(p.kind==="Свой текст"?800:1000):(p.kind==="Свой текст"?400:500)):500;
+ const question=stage==="review_text"?QUICK_QUESTIONS[stage].replace("{n}",String((p.reviewTexts||[]).length+1)).replace("{total}",String(p.count)):QUICK_QUESTIONS[stage];
+ const priceHint=stage==="count"?"\n💰 Цена одного отзыва: "+cost+" ₽.":stage==="ratings"?"\n💰 Одна оценка — 500 ₽.":stage==="description"?"\n💰 Описание — 2 000 ₽.":"";
+ const intro=state.i===0?"🌹 <b>ВАЖНО:</b> минимальный заказ — <b>8 позиций</b> (отдельных услуг или в сумме по всем анкетам).\n\n":"";
+ const profileIntro=["url","kind","count","review_text","ratings","description","dates"].includes(stage)?"<b>Анкета "+index+" из "+(d.profiles_count||1)+"</b>\n":"";
+ const all=quickList(d),total=quickTotals(d);
+ const recap=stage==="confirm"?[
+   "🌹 <b>ПРОВЕРЬТЕ ЗАКАЗ</b>",
+   ...all.flatMap((x,i)=>["","<b>Анкета №"+(i+1)+" — "+quickEsc(x.platform)+"</b>","🔗 "+quickEsc(x.url),"💬 Отзывов: "+quickEsc(x.count)+" ("+quickEsc(x.kind)+")",...(x.platform==="Intimcity"?["⭐ Оценок: "+quickEsc(x.ratings),"✍️ Описание: "+quickEsc(x.description)]:[]),"📅 Даты: "+quickEsc(x.dates),"💰 Сумма анкеты: "+quickPrice(x).toLocaleString("ru-RU")+" ₽"]),
+   "","👤 "+quickEsc(d.name)+" — "+quickEsc(d.role),"💌 "+quickEsc(d.notes),
+   "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
+ ].join("\n")+"\n":"";
+ const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+"<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+priceHint+
+ '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a>';
+ const options={
+ platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
+ kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
+ description:[["✅ Да","Да"],["❌ Нет","Нет"]],
+ role:[["🌹 Индивидуалка","Индивидуалка"],["👩‍💼 Менеджер","Менеджер"]],
+ dates:[["📅 Помогите подобрать","Помогите подобрать"]],
+ confirm:[["✅ Отправить заказ","ОТПРАВИТЬ"]]
+ };
+ const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
+ const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:"Ваш ответ",selective:false};
+ const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
+ return result?.result?.message_id;
 }
-async function quickPrompt(env, chatId, state, prefix="") {
-  const stage=QUICK_STEPS[state.i];
-  const preview=stage==="confirm" ? [
-    "🌹 <b>Проверьте заявку:</b>",
-    "Площадка: "+quickEsc(state.d.platform),
-    "Анкета: "+quickEsc(state.d.url),
-    "Отзывы: "+quickEsc(state.d.count)+" ("+quickEsc(state.d.kind)+")",
-    ...(state.d.platform==="Intimcity"?["Оценки: "+quickEsc(state.d.ratings),"Описание: "+quickEsc(state.d.description)]:[]),
-    "Даты: "+quickEsc(state.d.dates),
-    "Статус: "+quickEsc(state.d.role),
-    "Имя: "+quickEsc(state.d.name),
-    "Пожелания: "+quickEsc(state.d.notes),
-    ...(state.d.kind==="Свой текст"?["Тексты отзывов:\n"+(state.d.reviewTexts||[]).map((x,i)=>(i+1)+". "+quickEsc(x)).join("\n")]:[]),
-    "",
-    "💰 Стоимость уточнит менеджер после согласования."
-  ].join("\n")+"\n\n" : "";
-  const question=stage==="review_text" ? QUICK_QUESTIONS[stage].replace("{n}",String((state.d.reviewTexts||[]).length+1)).replace("{total}",String(state.d.count)) : QUICK_QUESTIONS[stage];
-  const text=(prefix ? quickEsc(prefix)+"\n\n" : "")+preview+
-    "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+
-    '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a> Для отмены: /cancel';
-  const choices = {
-    platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
-    kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
-    description:[["✅ Да","Да"],["❌ Нет","Нет"]],
-    role:[["🌹 Индивидуалка","Индивидуалка"],["👩‍💼 Менеджер","Менеджер"]],
-    confirm:[["✅ Отправить","ОТПРАВИТЬ"],["❌ Отменить","ОТМЕНА"]],
-    dates:[["📅 Помогите подобрать","Помогите подобрать"]]
-  };
-  const items=choices[stage];
-  const markup=items ? {inline_keyboard:[...items.map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"✖ Отменить заказ",callback_data:"quick:ОТМЕНА"}]]}
-    : {force_reply:true,input_field_placeholder:"Напишите ответ здесь",selective:false};
-  await telegram(env,"sendMessage",{chat_id:chatId,text,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
+function quickValidate(stage,answer){
+ const v=answer.trim().slice(0,1500);
+ if(!v)return null;
+ if(stage==="platform")return /^(intimcity|интимсити)$/i.test(v)?"Intimcity":/^(ashoo|ашу)$/i.test(v)?"ASHOO":null;
+ if(stage==="profiles_count")return /^[1-5]$/.test(v)?Number(v):null;
+ if(stage==="url")return v.length>=4?v:null;
+ if(stage==="kind")return /^(наш текст|мы составляем)$/i.test(v)?"Наш текст":/^(свой текст|вы присылаете свой)$/i.test(v)?"Свой текст":null;
+ if(stage==="count"||stage==="ratings")return /^\d{1,2}$/.test(v)?Number(v):null;
+ if(stage==="description")return /^(да|нет)$/i.test(v)?v.toLowerCase():null;
+ if(stage==="role")return /^(индивидуалка|менеджер)$/i.test(v)?v:null;
+ if(stage==="review_text")return v.length>=5&&!/^(нет|пропустить)$/i.test(v)?v:null;
+ if(stage==="confirm")return /^отправить$/i.test(v)?"send":null;
+ return v;
 }
-function quickValidate(stage, answer, data) {
-  const value=answer.trim().slice(0,700);
-  if(!value)return null;
-  if(stage==="platform")return /^(intimcity|интимсити)$/i.test(value)?"Intimcity":/^(ashoo|ашу)$/i.test(value)?"ASHOO":null;
-  if(stage==="url")return /^(https?:\/\/\S+|\S+\.\S+|\d{4,})$/i.test(value)?value:null;
-  if(stage==="kind")return /^(наш( текст)?|подготовка)$/i.test(value)?"Наш текст":/^(свой( текст)?|мой текст)$/i.test(value)?"Свой текст":null;
-  if(stage==="count" || stage==="ratings")return /^\d{1,3}$/.test(value) && Number(value)<=100?String(Number(value)):null;
-  if(stage==="description")return /^(да|нет)$/i.test(value)?value.toLowerCase():null;
-  if(stage==="review_text")return value.length>=5 && !/^(нет|пропустить|—|-)$/i.test(value) ? value : null;
-  if(stage==="role")return /^(индивидуалка|менеджер)$/i.test(value)?value:null;
-  if(stage==="confirm")return /^отправить$/i.test(value)?"send":null;
-  return value;
+async function quickReply(env,update){
+ const msg=update.message,state=quickState(msg.reply_to_message);
+ if(!state)return false;
+ const d=state.d,stage=QUICK_STEPS[state.i],value=quickValidate(stage,msg.text||"");
+ if(value===null){await quickPrompt(env,msg.chat.id,state,"⚠️ Проверьте ответ и попробуйте снова.");return true;}
+ const ids=[...(d.cleanup||[]),msg.reply_to_message?.message_id,msg.message_id].filter(Number.isInteger);
+ d.cleanup=ids.slice(-85);
+ if(stage==="confirm"){
+   const all=quickList(d),totals=quickTotals(d);
+   if(totals.positions<8){await quickPrompt(env,msg.chat.id,state,"⚠️ Минимум 8 позиций. Сейчас "+totals.positions+". Отправка невозможна, начните заказ заново с большим количеством.");return true;}
+   const date=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",dateStyle:"short",timeStyle:"short"}).format(new Date());
+   const user=msg.from?.username;
+   const contact=user?'<a href="https://t.me/'+user+'">@'+user+'</a>':'<a href="tg://user?id='+msg.from.id+'">Написать клиенту</a>';
+   const parts=["💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎","📅 <b>Дата и время:</b> "+date+" (МСК)","💬 <b>Способ:</b> Быстрый заказ","👤 <b>Клиент:</b> "+quickEsc(d.name),"📲 <b>Telegram:</b> "+contact,"📋 <b>Статус:</b> "+quickEsc(d.role),...all.map((p,i)=>["🌹 <b>АНКЕТА №"+(i+1)+" — "+p.platform+"</b>","🔗 "+quickEsc(p.url),"💬 Отзывов: "+quickEsc(p.count)+" ("+quickEsc(p.kind)+")",...(p.platform==="Intimcity"?["⭐ Оценок: "+quickEsc(p.ratings),"✍️ Описание: "+quickEsc(p.description)]:[]),"📅 Даты:\n"+quickEsc(p.dates),...(p.kind==="Свой текст"?["📝 Тексты:\n"+(p.reviewTexts||[]).map((t,j)=>(j+1)+". "+quickEsc(t)).join("\n")]:[]),"💰 Сумма анкеты: "+quickPrice(p).toLocaleString("ru-RU")+" ₽"].join("\n")),"💌 <b>Пожелания:</b> "+quickEsc(d.notes),"📦 <b>Позиций:</b> "+totals.positions,"💰 <b>Итого: "+totals.sum.toLocaleString("ru-RU")+" ₽</b>"];
+   for(const part of parts){
+     if(part.length>3500){await telegram(env,"sendMessage",{chat_id:msg.chat.id,text:"⚠️ Слишком длинные тексты. Уменьшите объём и попробуйте снова."});return true;}
+   }
+   for(const part of parts){await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text:part,parse_mode:"HTML",disable_web_page_preview:true});}
+   for(const message_id of new Set(d.cleanup)){try{await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id});}catch{}}
+   await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
+   return true;
+ }
+ if(stage==="platform"){d.platform=value;d.current={platform:value};}
+ else if(stage==="profiles_count"){d.profiles_count=value;d.profiles=[];}
+ else if(stage==="review_text"){
+   d.current.reviewTexts=[...(d.current.reviewTexts||[]),value];
+   if(d.current.reviewTexts.length<d.current.count){await quickPrompt(env,msg.chat.id,state);return true;}
+ }else if(["url","kind","count","ratings","description","dates"].includes(stage)){d.current[stage]=value;}
+ else d[stage]=value;
+ state.i++;
+ if(stage==="count"){
+   if(d.current.kind==="Свой текст"&&value>0)state.i=QUICK_STEPS.indexOf("review_text");
+   else state.i=QUICK_STEPS.indexOf(d.platform==="ASHOO"?"dates":"ratings");
+ }
+ if(stage==="review_text")state.i=QUICK_STEPS.indexOf(d.platform==="ASHOO"?"dates":"ratings");
+ if(stage==="dates"){
+   d.profiles.push(d.current);d.current=null;
+   if(d.profiles.length<d.profiles_count){state.i=QUICK_STEPS.indexOf("url");d.current={platform:d.platform};}
+   else state.i=QUICK_STEPS.indexOf("role");
+ }
+ await quickPrompt(env,msg.chat.id,state);
+ return true;
 }
-async function quickReply(env, update) {
-  const msg=update.message, state=quickState(msg.reply_to_message);
-  if(!state)return false;
-  const stage=QUICK_STEPS[state.i];
-  const value=quickValidate(stage,msg.text || "",state.d);
-  if(value===null){await quickPrompt(env,msg.chat.id,state,"⚠️ Не удалось распознать ответ. Попробуйте ещё раз.");return true;}
-  if(stage==="confirm") {
-    const d=state.d;
-    const now=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",dateStyle:"short",timeStyle:"short"}).format(new Date());
-    const handleName=(msg.from?.username || "").replace(/[^a-zA-Z0-9_]/g,"");
-    const contact=handleName ? '<a href="https://t.me/'+handleName+'">@'+handleName+'</a>' : '<a href="tg://user?id='+msg.from.id+'">Написать клиенту</a>';
-    const content=[
-      "💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎",
-      "📅 <b>Дата и время:</b> "+now+" (МСК)",
-      "💬 <b>Способ:</b> Быстрый заказ",
-      "",
-      "👤 <b>Клиент:</b> "+quickEsc(d.name),
-      "📲 <b>Telegram:</b> "+contact,
-      "📋 <b>Статус:</b> "+quickEsc(d.role),
-      "",
-      "🌹 <b>АНКЕТА №1 — "+quickEsc(d.platform)+"</b>",
-      "🔗 "+quickEsc(d.url),
-      "💬 Отзывов: "+quickEsc(d.count)+" ("+quickEsc(d.kind)+")",
-      ...(d.platform==="Intimcity"?["⭐ Оценок: "+quickEsc(d.ratings),"✍️ Описание: "+quickEsc(d.description)]:[]),
-      "📅 <b>Даты:</b>\n"+quickEsc(d.dates),
-      ...(d.kind==="Свой текст"?["📝 <b>Тексты отзывов:</b>\n"+(d.reviewTexts||[]).map((x,i)=>"<b>Отзыв №"+(i+1)+":</b> "+quickEsc(x)).join("\n\n")]:[]),
-      "💌 <b>Пожелания:</b> "+quickEsc(d.notes),
-      "",
-      "💰 <b>Предварительная сумма:</b> уточняется"
-    ].join("\n");
-    await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text:content,parse_mode:"HTML",disable_web_page_preview:true});
-    const oldIds=[...(d.cleanup||[]),msg.reply_to_message?.message_id,msg.message_id].filter(x=>Number.isInteger(x));
-    for(const message_id of new Set(oldIds)) {
-      try { await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id}); } catch(e) { console.log("Quick order cleanup skipped",message_id); }
-    }
-    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами для уточнения деталей.",reply_markup:keyboard("order",env)});
-    return true;
-  }
-  state.d.cleanup=[...(state.d.cleanup||[]),msg.reply_to_message?.message_id,msg.message_id].filter(x=>Number.isInteger(x)).slice(-80);
-  if(stage==="review_text") {
-    state.d.reviewTexts=[...(state.d.reviewTexts||[]),value];
-    if(state.d.reviewTexts.length<Number(state.d.count)) { await quickPrompt(env,msg.chat.id,state); return true; }
-  } else state.d[stage]=value;
-  state.i++;
-  if(stage==="count") {
-    if(state.d.kind==="Свой текст" && Number(value)>0) state.i=QUICK_STEPS.indexOf("review_text");
-    else if(state.d.platform==="ASHOO") state.i=QUICK_STEPS.indexOf("dates");
-    else state.i=QUICK_STEPS.indexOf("ratings");
-  }
-  if(stage==="review_text")state.i=state.d.platform==="ASHOO"?QUICK_STEPS.indexOf("dates"):QUICK_STEPS.indexOf("ratings");
-  await quickPrompt(env,msg.chat.id,state);
-  return true;
-}
-
 async function handle(update, env) {
   if (update.callback_query) {
     const cb = update.callback_query;
