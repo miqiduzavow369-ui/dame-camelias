@@ -165,11 +165,11 @@ const QUICK_STEPS = ["platform","url","kind","count","ratings","description","da
 const QUICK_QUESTIONS = {
   platform:"🌹 Выберите площадку: напишите Intimcity или ASHOO.",
   url:"🔗 Отправьте ссылку на вашу анкету.",
-  kind:"💬 Кто подготовит текст отзывов? Ответьте: Наш текст или Свой текст.",
+  kind:"💬 Как подготовить тексты отзывов? Выберите кнопку ниже.",
   count:"💬 Сколько отзывов нужно? Напишите число от 0 до 100.",
   ratings:"⭐ Сколько оценок нужно? Напишите число от 0 до 100.",
   description:"✍️ Нужно составить описание анкеты? Ответьте Да или Нет.",
-  dates:"📅 Напишите желаемые даты и распределение услуг. Например: 15.10 — отзыв; 17.10 — оценка. Или напишите Помогите подобрать.",
+  dates:"📅 Укажите желаемые даты и распределение услуг ответом на это сообщение (например: 15.10 — отзыв; 17.10 — оценка). Или НАЖМИТЕ кнопку «📅 Помогите подобрать» ниже — бот продолжит оформление.",
   role:"👤 Ваш статус: Индивидуалка или Менеджер?",
   name:"🌹 Как к вам обращаться?",
   notes:"💌 Напишите пожелания или слово Нет.",
@@ -210,7 +210,7 @@ async function quickPrompt(env, chatId, state, prefix="") {
     '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a> Для отмены: /cancel';
   const choices = {
     platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
-    kind:[["✍️ Наш текст","Наш текст"],["📝 Свой текст","Свой текст"]],
+    kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
     description:[["✅ Да","Да"],["❌ Нет","Нет"]],
     role:[["🌹 Индивидуалка","Индивидуалка"],["👩‍💼 Менеджер","Менеджер"]],
     confirm:[["✅ Отправить","ОТПРАВИТЬ"],["❌ Отменить","ОТМЕНА"]],
@@ -312,6 +312,10 @@ async function handle(update, env) {
   const map = { "/start": "home", "/menu": "home", "/how": "how", "/services": "services", "/reviews": "reviews", "/order": "order", "/faq": "faq" };
   if (cmd === "/manager") {
     await telegram(env, "sendMessage", { chat_id: update.message.chat.id, text: "💬 Менеджер: @DameCamelias", reply_markup: { inline_keyboard: [[{ text: "Написать менеджеру", url: MANAGER_URL }], ...back] } });
+    return;
+  }
+  if (!map[cmd] && !cmd.startsWith("/")) {
+    await telegram(env,"sendMessage",{chat_id:update.message.chat.id,text:"💬 Для быстрого заказа нажимайте предложенные кнопки, а текстовые ответы отправляйте через «Ответить» на вопрос бота. Если оформление прервалось, нажмите «💬 Быстрый заказ» и начните заново.",reply_markup:keyboard("order",env)});
     return;
   }
   const key = map[cmd] || "home";
