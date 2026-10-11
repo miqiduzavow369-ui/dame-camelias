@@ -211,8 +211,9 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "","👤 "+quickEsc(d.name)+" — "+quickEsc(d.role),"💌 "+quickEsc(d.notes),
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
- const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+"<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+priceHint+
- '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a>';
+ const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+
+ '<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">Шаг '+(state.i+1)+" из "+QUICK_STEPS.length+"</a>\n"+question+priceHint+
+ "\n\n✏️ Для ввода текста нажмите «Ответить» на это сообщение.";
  const options={
  platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
  kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
