@@ -211,9 +211,11 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "","👤 "+quickEsc(d.name)+" — "+quickEsc(d.role),"💌 "+quickEsc(d.notes),
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
+ const startId=Number.isInteger(d.startId)?d.startId:0;
+ const cancelLink=startId>0?'<a href="https://t.me/DameCameliasConsultantBot?start=cancel_'+startId+'">❌ Отмена</a>':'/cancel';
  const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+
  "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+priceHint+
- '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️</a> Ответьте на сообщение бота ниже.';
+ '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">&#8288;</a>'+cancelLink;
  const options={
  platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
  kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
@@ -222,16 +224,9 @@ async function quickPrompt(env,chatId,state,prefix=""){
  dates:[["📅 Помогите подобрать","Помогите подобрать"]],
  confirm:[["✅ Отправить заказ","ОТПРАВИТЬ"]]
  };
- const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
- const markup={inline_keyboard:buttons};
+ const buttons=(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]);
+ const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Введите ответ",selective:false};
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
- if (!options[stage] || stage==="dates") {
-   const replyText='<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️</a> Напишите ответ:';
-   await telegram(env,"sendMessage",{
-     chat_id:chatId,text:replyText,parse_mode:"HTML",disable_web_page_preview:true,
-     reply_markup:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Введите ответ"}
-   });
- }
  return result?.result?.message_id;
 }
 function quickValidate(stage,answer){
@@ -299,7 +294,7 @@ async function handle(update, env) {
     const cb = update.callback_query;
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
-    if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{}}); return; }
+    if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{startId:cb.message.message_id}}); return; }
     if (cb.data?.startsWith("quick:")) {
       const selected=cb.data.slice(6);
       if (selected==="ОТМЕНА") {
@@ -327,8 +322,19 @@ async function handle(update, env) {
   }
   if (!update.message?.chat?.id) return;
   const cmd = (update.message.text || "").split(" ")[0].split("@")[0];
+  if (cmd === "/start" && /^cancel_\\d+$/.test((update.message.text||"").split(/\\s+/)[1]||"")) {
+    const first=Number((update.message.text||"").split(/\\s+/)[1].slice(7));
+    const last=update.message.message_id;
+    if (Number.isSafeInteger(first) && first>0 && last>=first && last-first<=150) {
+      for (let id=first;id<=last;id++) {
+        try { await telegram(env,"deleteMessage",{chat_id:update.message.chat.id,message_id:id}); } catch {}
+      }
+    }
+    await sendPage(env,update.message.chat.id,"order");
+    return;
+  }
   if (cmd === "/cancel") { await telegram(env,"sendMessage",{chat_id:update.message.chat.id,text:"Заказ отменён. Чтобы начать заново, нажмите «💬 Быстрый заказ».",reply_markup:keyboard("order",env)}); return; }
-  if (cmd === "/quick") { await quickPrompt(env,update.message.chat.id,{i:0,d:{}}); return; }
+  if (cmd === "/quick") { await quickPrompt(env,update.message.chat.id,{i:0,d:{startId:update.message.message_id}}); return; }
   if (!cmd.startsWith("/") && await quickReply(env,update)) return;
   const map = { "/start": "home", "/menu": "home", "/how": "how", "/services": "services", "/reviews": "reviews", "/order": "order", "/faq": "faq" };
   if (cmd === "/manager") {
