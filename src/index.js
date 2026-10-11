@@ -161,12 +161,13 @@ async function sendPage(env, chatId, key) {
   return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
 }
 
-const QUICK_STEPS = ["platform","url","kind","count","ratings","description","dates","role","name","notes","confirm"];
+const QUICK_STEPS = ["platform","url","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
 const QUICK_QUESTIONS = {
   platform:"🌹 Выберите площадку: напишите Intimcity или ASHOO.",
   url:"🔗 Отправьте ссылку на вашу анкету.",
   kind:"💬 Как подготовить тексты отзывов? Выберите кнопку ниже.",
   count:"💬 Сколько отзывов нужно? Напишите число от 0 до 100.",
+  review_text:"📝 Пришлите текст отзыва №{n} из {total}. Этот ответ обязателен.",
   ratings:"⭐ Сколько оценок нужно? Напишите число от 0 до 100.",
   description:"✍️ Нужно составить описание анкеты? Ответьте Да или Нет.",
   dates:"📅 Укажите желаемые даты и распределение услуг ответом на это сообщение (например: 15.10 — отзыв; 17.10 — оценка). Или НАЖМИТЕ кнопку «📅 Помогите подобрать» ниже — бот продолжит оформление.",
@@ -202,11 +203,13 @@ async function quickPrompt(env, chatId, state, prefix="") {
     "Статус: "+quickEsc(state.d.role),
     "Имя: "+quickEsc(state.d.name),
     "Пожелания: "+quickEsc(state.d.notes),
+    ...(state.d.kind==="Свой текст"?["Тексты отзывов:\n"+(state.d.reviewTexts||[]).map((x,i)=>(i+1)+". "+quickEsc(x)).join("\n")]:[]),
     "",
     "💰 Стоимость уточнит менеджер после согласования."
   ].join("\n")+"\n\n" : "";
+  const question=stage==="review_text" ? QUICK_QUESTIONS[stage].replace("{n}",String((state.d.reviewTexts||[]).length+1)).replace("{total}",String(state.d.count)) : QUICK_QUESTIONS[stage];
   const text=(prefix ? quickEsc(prefix)+"\n\n" : "")+preview+
-    "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+QUICK_QUESTIONS[stage]+
+    "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+
     '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✦</a> Для отмены: /cancel';
   const choices = {
     platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
@@ -229,6 +232,7 @@ function quickValidate(stage, answer, data) {
   if(stage==="kind")return /^(наш( текст)?|подготовка)$/i.test(value)?"Наш текст":/^(свой( текст)?|мой текст)$/i.test(value)?"Свой текст":null;
   if(stage==="count" || stage==="ratings")return /^\d{1,3}$/.test(value) && Number(value)<=100?String(Number(value)):null;
   if(stage==="description")return /^(да|нет)$/i.test(value)?value.toLowerCase():null;
+  if(stage==="review_text")return value.length>=5 && !/^(нет|пропустить|—|-)$/i.test(value) ? value : null;
   if(stage==="role")return /^(индивидуалка|менеджер)$/i.test(value)?value:null;
   if(stage==="confirm")return /^отправить$/i.test(value)?"send":null;
   return value;
@@ -258,17 +262,31 @@ async function quickReply(env, update) {
       "💬 Отзывов: "+quickEsc(d.count)+" ("+quickEsc(d.kind)+")",
       ...(d.platform==="Intimcity"?["⭐ Оценок: "+quickEsc(d.ratings),"✍️ Описание: "+quickEsc(d.description)]:[]),
       "📅 <b>Даты:</b>\n"+quickEsc(d.dates),
+      ...(d.kind==="Свой текст"?["📝 <b>Тексты отзывов:</b>\n"+(d.reviewTexts||[]).map((x,i)=>"<b>Отзыв №"+(i+1)+":</b> "+quickEsc(x)).join("\n\n")]:[]),
       "💌 <b>Пожелания:</b> "+quickEsc(d.notes),
       "",
       "💰 <b>Предварительная сумма:</b> уточняется"
     ].join("\n");
     await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text:content,parse_mode:"HTML",disable_web_page_preview:true});
-    await telegram(env,"sendMessage",{chat_id:msg.chat.id,text:"✅ Заявка отправлена менеджеру! Скоро с вами свяжутся.",reply_markup:keyboard("order",env)});
+    const oldIds=[...(d.cleanup||[]),msg.reply_to_message?.message_id,msg.message_id].filter(x=>Number.isInteger(x));
+    for(const message_id of new Set(oldIds)) {
+      try { await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id}); } catch(e) { console.log("Quick order cleanup skipped",message_id); }
+    }
+    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами для уточнения деталей.",reply_markup:keyboard("order",env)});
     return true;
   }
-  state.d[stage]=value;
+  state.d.cleanup=[...(state.d.cleanup||[]),msg.reply_to_message?.message_id,msg.message_id].filter(x=>Number.isInteger(x)).slice(-80);
+  if(stage==="review_text") {
+    state.d.reviewTexts=[...(state.d.reviewTexts||[]),value];
+    if(state.d.reviewTexts.length<Number(state.d.count)) { await quickPrompt(env,msg.chat.id,state); return true; }
+  } else state.d[stage]=value;
   state.i++;
-  if(stage==="count" && state.d.platform==="ASHOO")state.i=QUICK_STEPS.indexOf("dates");
+  if(stage==="count") {
+    if(state.d.kind==="Свой текст" && Number(value)>0) state.i=QUICK_STEPS.indexOf("review_text");
+    else if(state.d.platform==="ASHOO") state.i=QUICK_STEPS.indexOf("dates");
+    else state.i=QUICK_STEPS.indexOf("ratings");
+  }
+  if(stage==="review_text")state.i=state.d.platform==="ASHOO"?QUICK_STEPS.indexOf("dates"):QUICK_STEPS.indexOf("ratings");
   await quickPrompt(env,msg.chat.id,state);
   return true;
 }
