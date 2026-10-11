@@ -210,15 +210,39 @@ async function receiveOrder(request, env) {
   if (!await validWebApp(input.initData, env.BOT_TOKEN)) return new Response("Telegram authorization required", {status:403});
   const order = input.order;
   if (!order || !Array.isArray(order.profiles) || order.profiles.length < 1 || order.profiles.length > 10 || !plain(order.name) || !plain(order.telegram)) return new Response("Invalid order", {status:400});
-  const lines = ["💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎", "", "👤 <b>Клиент:</b> " + plain(order.name), "📲 <b>Telegram:</b> " + plain(order.telegram), "📋 <b>Статус:</b> " + plain(order.role), ""];
   const escape = s => plain(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const message = lines.map((line, index) => index <= 1 ? line : line.replace(/(:<\/b> )(.+)$/, (_, label, value) => label + escape(value))).join("\n");
+  const empty = value => plain(value) || "нет пожеланий";
+  const receivedAt = new Intl.DateTimeFormat("ru-RU", {timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date());
+  const telegramName = plain(order.telegram);
+  const handleName = telegramName.replace(/^https?:\/\/t\.me\//i,"").replace(/^@/,"").split(/[/?#]/)[0];
+  const telegramLink = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(handleName)
+    ? '<a href="https://t.me/'+handleName+'">'+escape(telegramName)+'</a>'
+    : escape(telegramName);
+  const rawRole = plain(order.role).toLowerCase();
+  const role = /самостоятель|индивидуал|сама|self/.test(rawRole) ? "Индивидуалка" : /менеджер|manager/.test(rawRole) ? "Менеджер" : plain(order.role);
+  const message = [
+    "💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎",
+    "📅 <b>Дата и время:</b> "+receivedAt+" (МСК)",
+    "",
+    "👤 <b>Клиент:</b> "+escape(order.name),
+    "📲 <b>Telegram:</b> "+telegramLink,
+    "📋 <b>Статус:</b> "+escape(role)
+  ].join("\n");
   const blocks = order.profiles.map((p, i) => {
     if (!["intimcity","ashoo"].includes(p.platform) || !p.url || !["create","edit"].includes(p.kind)) throw Error("Invalid profile");
-    const dates = Object.entries(p.schedule || {}).filter(([date,mode]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && ["review","rating","both"].includes(mode)).sort(([a],[b]) => a.localeCompare(b)).slice(0,100).map(([date,mode]) => date+" — "+({review:"отзыв",rating:"оценка",both:"отзыв + оценка"}[mode]));
-    return ["🌹 <b>АНКЕТА №"+(i+1)+" — "+(p.platform === "ashoo" ? "ASHOO" : "Intimcity")+"</b>", "🔗 "+escape(p.url), "💬 Отзывов: "+escape(p.count)+" ("+(p.kind === "create" ? "подготовка" : "текст клиента")+")", ...(p.platform === "intimcity" ? ["⭐ Оценок: "+escape(p.ratings), "✍️ Описание: "+(p.description?"да":"нет")] : []), "📅 Даты: "+escape(dates.join("; ") || "не выбраны"), "💌 Пожелания: "+escape(p.services || "—"), "📝 Тексты: "+escape((p.reviewTexts || []).join(" | ") || "—"), "📋 Ответы: "+escape(p.answers || "—")].join("\n");
+    const dates = Object.entries(p.schedule || {}).filter(([date,mode]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && ["review","rating","both"].includes(mode)).sort(([a],[b]) => a.localeCompare(b)).slice(0,100).map(([date,mode]) => escape(date)+" — "+({review:"отзыв",rating:"оценка",both:"отзыв + оценка"}[mode]));
+    return [
+      "🌹 <b>АНКЕТА №"+(i+1)+" — "+(p.platform === "ashoo" ? "ASHOO" : "Intimcity")+"</b>",
+      "🔗 "+escape(p.url),
+      "💬 Отзывов: "+escape(p.count)+" ("+(p.kind === "create" ? "подготовка" : "текст клиента")+")",
+      ...(p.platform === "intimcity" ? ["⭐ Оценок: "+escape(p.ratings), "✍️ Описание: "+(p.description?"да":"нет")] : []),
+      "📅 Даты:\n"+(dates.join("\n") || "не выбраны"),
+      "💌 Пожелания: "+escape(empty(p.services)),
+      "📝 Тексты: "+escape(empty((p.reviewTexts || []).join(" | "))),
+      "📋 Ответы: "+escape(empty(p.answers))
+    ].join("\n\n");
   });
-  const tail = "💬 <b>Общие пожелания:</b> "+escape(order.notes || "—")+"\n💰 <b>Предварительная сумма:</b> "+escape(order.total)+" ₽";
+  const tail = "💬 <b>Общие пожелания:</b> "+escape(plain(order.notes) || "нету")+"\n\n💰 <b>Предварительная сумма: "+escape(order.total)+" ₽</b>";
   const parts = [message,...blocks,tail];
   const batches=[];let current="";
   for(const part of parts){if(part.length>3400)return new Response("Order field too long", {status:400});if(current && current.length+part.length+2>3600){batches.push(current);current="";}current+=(current?"\n\n":"")+part;}
