@@ -163,19 +163,19 @@ async function sendPage(env, chatId, key) {
 
 const QUICK_STEPS=["platform","profiles_count","url","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
 const QUICK_QUESTIONS={
- platform:"🌹 Выберите площадку:",
- profiles_count:"👥 На сколько анкет распределить заказ? Введите число от 1 до 5.",
- url:"🔗 Отправьте ссылку или ID вашей анкеты.",
- kind:"💬 Кто подготовит тексты отзывов?",
- count:"💬 Сколько отзывов нужно?",
- review_text:"📝 Пришлите полный текст отзыва №{n} из {total}. Пропустить нельзя.",
- ratings:"⭐ Сколько оценок нужно?",
+ platform:"🌹 Добро пожаловать в DAME CAMELIAS! Начнём с выбора площадки для первой анкеты.",
+ profiles_count:"💎 Отлично! На сколько анкет распределим ваш заказ? Укажите число от 1 до 5 — каждую анкету мы оформим отдельно.",
+ url:"🔗 Отлично! Уточним условия по этой анкете. Пришлите её ссылку или ID.",
+ kind:"✍️ Кто подготовит тексты отзывов? Мы составим их для вас или вы пришлёте свои?",
+ count:"💬 Сколько отзывов вы хотите заказать для этой анкеты?",
+ review_text:"📝 Пришлите текст отзыва №{n} из {total}. Мы бережно добавим его к вашей заявке.",
+ ratings:"⭐ С отзывами определились! Сколько оценок добавить для этой анкеты?",
  description:"✍️ Нужно составить красивое и продающее описание анкеты?",
- dates:"📅 Укажите желаемые даты и распределение услуг ответом на это сообщение, например:\n15.10 — отзыв;\n17.10 — оценка и отзыв;\n18.10 — отзыв.\n\nИли нажмите «📅 Помогите подобрать».",
- role:"👤 Ваш статус:",
- name:"🌹 Как к вам обращаться?",
- notes:"💌 Напишите пожелания или слово Нет.",
- confirm:"✅ Проверьте заказ и подтвердите отправку."
+ dates:"📅 Осталось согласовать даты для этой анкеты. Например:\n15.10 — отзыв\n17.10 — оценка и отзыв\n18.10 — отзыв\n\nЕсли нужна помощь, нажмите «📅 Помогите подобрать».",
+ role:"🌹 Все анкеты заполнены! Уточните, пожалуйста, ваш статус.",
+ name:"💌 Подскажите, как к вам обращаться?",
+ notes:"✨ Есть ли особые пожелания? Напишите их или ответьте «Нет».",
+ confirm:"💎 Всё готово! Проверьте состав заказа и предварительную стоимость. Если всё верно, отправьте заявку менеджеру."
 };
 const quickEsc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const quickClean=v=>String(v??"").trim();
@@ -203,7 +203,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
  const question=stage==="review_text"?QUICK_QUESTIONS[stage].replace("{n}",String((p.reviewTexts||[]).length+1)).replace("{total}",String(p.count)):QUICK_QUESTIONS[stage];
  const priceHint=stage==="count"?"\n💰 Цена одного отзыва: "+cost+" ₽.":stage==="ratings"?"\n💰 Одна оценка — 500 ₽.":stage==="description"?"\n💰 Описание — 2 000 ₽.":"";
  const intro=state.i===0?"🌹 <b>ВАЖНО:</b> минимальный заказ — <b>8 позиций</b> (отдельных услуг или в сумме по всем анкетам).\n\n":"";
- const profileIntro=["platform","url","kind","count","review_text","ratings","description","dates"].includes(stage)?"<b>Анкета "+index+" из "+(d.profiles_count||1)+"</b>\n":"";
+ const profileIntro=["platform","url","kind","count","review_text","ratings","description","dates"].includes(stage)?"🌹 <b>Анкета №"+index+" из "+(d.profiles_count||1)+"</b>\n":"";
  const all=quickList(d),total=quickTotals(d);
  const recap=stage==="confirm"?[
    "🌹 <b>ПРОВЕРЬТЕ ЗАКАЗ</b>",
@@ -211,11 +211,8 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "","👤 "+quickEsc(d.name)+" — "+quickEsc(d.role),"💌 "+quickEsc(d.notes),
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
- const startId=Number.isInteger(d.startId)?d.startId:0;
- const cancelLink=startId>0?'<a href="https://t.me/DameCameliasConsultantBot?start=cancel_'+startId+'">❌ Отмена</a>':'/cancel';
- const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+recap+profileIntro+
- "<b>Шаг "+(state.i+1)+" из "+QUICK_STEPS.length+"</b>\n"+question+priceHint+
- '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">&#8288;</a>'+cancelLink;
+ const transition=stage==="platform" && index>1?"✅ <b>Анкета №"+(index-1)+" оформлена!</b>\n\nПерейдём к анкете №"+index+". Для неё можно выбрать другую площадку.\n\n":"";
+ const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+transition+recap+profileIntro+question+priceHint;
  const options={
  platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
  kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
@@ -224,8 +221,8 @@ async function quickPrompt(env,chatId,state,prefix=""){
  dates:[["📅 Помогите подобрать","Помогите подобрать"]],
  confirm:[["✅ Отправить заказ","ОТПРАВИТЬ"]]
  };
- const buttons=(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]);
- const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Введите ответ",selective:false};
+ const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
+ const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Напишите ваш ответ",selective:false};
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
  return result?.result?.message_id;
 }
