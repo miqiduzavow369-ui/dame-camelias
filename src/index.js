@@ -225,6 +225,13 @@ async function quickPrompt(env,chatId,state,prefix=""){
  const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
  const markup={inline_keyboard:buttons};
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
+ if (!options[stage] || stage==="dates") {
+   const replyText='<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">✏️ Введите ответ для шага '+(state.i+1)+'</a>';
+   await telegram(env,"sendMessage",{
+     chat_id:chatId,text:replyText,parse_mode:"HTML",disable_web_page_preview:true,
+     reply_markup:{force_reply:true,input_field_placeholder:stage==="profiles_count"?"Например: 2":"Введите ответ"}
+   });
+ }
  return result?.result?.message_id;
 }
 function quickValidate(stage,answer){
