@@ -212,7 +212,8 @@ async function quickPrompt(env,chatId,state,prefix=""){
    "📦 <b>Всего позиций: "+total.positions+"</b>","💰 <b>Итого: "+total.sum.toLocaleString("ru-RU")+" ₽</b>",""
  ].join("\n")+"\n":"";
  const transition=stage==="platform" && index>1?"✅ <b>Анкета №"+(index-1)+" оформлена!</b>\n\nПерейдём к анкете №"+index+". Для неё можно выбрать другую площадку.\n\n":"";
- const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+transition+recap+profileIntro+question+priceHint;
+ const content=(prefix?quickEsc(prefix)+"\n\n":"")+intro+transition+recap+profileIntro+question+priceHint+
+ '\n\n<a href="'+quickUrl(state).replace(/&/g,"&amp;")+'">&#8288;</a>';
  const options={
  platform:[["🌹 Intimcity","Intimcity"],["💗 ASHOO","ASHOO"]],
  kind:[["✍️ Мы составляем","Наш текст"],["📝 Вы присылаете свой","Свой текст"]],
@@ -296,7 +297,12 @@ async function handle(update, env) {
     if (cb.data?.startsWith("quick:")) {
       const selected=cb.data.slice(6);
       if (selected==="ОТМЕНА") {
-        await telegram(env,"sendMessage",{chat_id:cb.message.chat.id,text:"Заказ отменён.",reply_markup:keyboard("order",env)});
+        const state=quickState(cb.message),start=state?.d?.startId;
+        if (Number.isInteger(start) && cb.message.message_id-start<=120 && cb.message.message_id>=start) {
+          for(let id=start;id<=cb.message.message_id;id+=10)
+            await Promise.all(Array.from({length:Math.min(10,cb.message.message_id-id+1)},(_,i)=>telegram(env,"deleteMessage",{chat_id:cb.message.chat.id,message_id:id+i}).catch(()=>{})));
+        }
+        await sendPage(env,cb.message.chat.id,"order");
         return;
       }
       if (!quickState(cb.message)) {
