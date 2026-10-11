@@ -322,12 +322,14 @@ async function handle(update, env) {
   }
   if (!update.message?.chat?.id) return;
   const cmd = (update.message.text || "").split(" ")[0].split("@")[0];
-  if (cmd === "/start" && /^cancel_\\d+$/.test((update.message.text||"").split(/\\s+/)[1]||"")) {
-    const first=Number((update.message.text||"").split(/\\s+/)[1].slice(7));
+  if (cmd === "/start" && /^cancel_\d+$/.test((update.message.text||"").split(/\s+/)[1]||"")) {
+    const first=Number((update.message.text||"").split(/\s+/)[1].slice(7));
     const last=update.message.message_id;
     if (Number.isSafeInteger(first) && first>0 && last>=first && last-first<=150) {
-      for (let id=first;id<=last;id++) {
-        try { await telegram(env,"deleteMessage",{chat_id:update.message.chat.id,message_id:id}); } catch {}
+      for (let id=first;id<=last;id+=10) {
+        await Promise.all(Array.from({length:Math.min(10,last-id+1)},(_,i)=>
+          telegram(env,"deleteMessage",{chat_id:update.message.chat.id,message_id:id+i}).catch(()=>{})
+        ));
       }
     }
     await sendPage(env,update.message.chat.id,"order");
