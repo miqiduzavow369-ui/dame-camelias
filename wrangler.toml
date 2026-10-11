@@ -6,3 +6,7 @@ compatibility_date = "2026-09-01"
 # Daily visitor summaries: 10:00, 16:00, 22:00 Moscow (UTC+3)
 [triggers]
 crons = ["0 7 * * *", "0 13 * * *", "0 19 * * *"]
+
+[[kv_namespaces]]
+binding = "VISITORS_KV"
+id = "a323fba4c8c84a7fb37e1e6a3a8264aa"
