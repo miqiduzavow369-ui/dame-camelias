@@ -212,7 +212,7 @@ async function receiveOrder(request, env) {
   if (!order || !Array.isArray(order.profiles) || order.profiles.length < 1 || order.profiles.length > 10 || !plain(order.name) || !plain(order.telegram)) return new Response("Invalid order", {status:400});
   const lines = ["💎 <b>DAME CAMELIAS — НОВАЯ ЗАЯВКА</b> 💎", "", "👤 <b>Клиент:</b> " + plain(order.name), "📲 <b>Telegram:</b> " + plain(order.telegram), "📋 <b>Статус:</b> " + plain(order.role), ""];
   const escape = s => plain(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const message = lines.map(escape).join("\n");
+  const message = lines.map((line, index) => index === 0 ? line : escape(line)).join("\n");
   const blocks = order.profiles.map((p, i) => {
     if (!["intimcity","ashoo"].includes(p.platform) || !p.url || !["create","edit"].includes(p.kind)) throw Error("Invalid profile");
     const dates = Object.entries(p.schedule || {}).filter(([date,mode]) => /^\d{4}-\d{2}-\d{2}$/.test(date) && ["review","rating","both"].includes(mode)).sort(([a],[b]) => a.localeCompare(b)).slice(0,100).map(([date,mode]) => date+" — "+({review:"отзыв",rating:"оценка",both:"отзыв + оценка"}[mode]));
