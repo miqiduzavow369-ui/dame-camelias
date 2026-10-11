@@ -222,7 +222,7 @@ async function quickPrompt(env,chatId,state,prefix=""){
  confirm:[["✅ Отправить заказ","ОТПРАВИТЬ"]]
  };
  const buttons=[...(options[stage]||[]).map(([label,value])=>[{text:label,callback_data:"quick:"+value}]),[{text:"❌ Отмена",callback_data:"quick:ОТМЕНА"}]];
- const markup=options[stage]?{inline_keyboard:buttons}:{force_reply:true,input_field_placeholder:"Ваш ответ",selective:false};
+ const markup={inline_keyboard:buttons};
  const result=await telegram(env,"sendMessage",{chat_id:chatId,text:content,parse_mode:"HTML",disable_web_page_preview:true,reply_markup:markup});
  return result?.result?.message_id;
 }
