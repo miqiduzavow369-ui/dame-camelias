@@ -311,6 +311,7 @@ async function quickReply(env,update){
    if(joined)batches.push(joined);
    for(const text of batches){await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text,parse_mode:"HTML",disable_web_page_preview:true});}
    for(const message_id of new Set(d.cleanup)){try{await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id});}catch{}}
+   try { await telegram(env,"sendPhoto",{chat_id:msg.chat.id,photo:QUICK_VISUAL_BASE+"16_order_success.jpg"}); } catch (err) { console.error("Quick order success image unavailable:",err); }
    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
    return true;
  }
