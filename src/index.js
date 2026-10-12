@@ -1,3 +1,5 @@
+import { reminderCall } from "./reminders.js";
+export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
   [{ text: "✨ Как работаем", callback_data: "how" }, { text: "💖 Зачем это?", callback_data: "reviews" }],
@@ -310,6 +312,7 @@ async function quickReply(env,update){
    for(const part of parts){if(joined.length+part.length+2>3500){batches.push(joined);joined="";}joined+=(joined?"\n\n":"")+part;}
    if(joined)batches.push(joined);
    for(const text of batches){await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text,parse_mode:"HTML",disable_web_page_preview:true});}
+   await reminderCall(env,msg.from,msg.chat,{type:"complete"});
    for(const message_id of new Set(d.cleanup)){try{await telegram(env,"deleteMessage",{chat_id:msg.chat.id,message_id});}catch{}}
    try { await telegram(env,"sendPhoto",{chat_id:msg.chat.id,photo:QUICK_VISUAL_BASE+"16_order_success.jpg"}); } catch (err) { console.error("Quick order success image unavailable:",err); }
    await telegram(env,"sendMessage",{chat_id:msg.chat.id,parse_mode:"HTML",text:"🌹 <b>DAME CAMELIAS</b> 🌹\n\n✅ <b>Ваш заказ успешно отправлен!</b>\n\n💌 Спасибо за обращение. Наш менеджер скоро свяжется с вами.",reply_markup:keyboard("order",env)});
@@ -338,11 +341,19 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  const person = update.callback_query?.from || update.message?.from;
+  const chat = update.callback_query?.message?.chat || update.message?.chat;
+  const action = update.callback_query?.data || (update.message?.text || "").split(/\s+/)[0].split("@")[0];
+  await reminderCall(env,person,chat,{type:"activity",updateId:update.update_id,opensOrder:["order","quick_order","/order","/quick"].includes(action),navigation:!!update.callback_query && !action?.startsWith("reminder:") || action.startsWith("/")});
   if (update.callback_query) {
     const cb = update.callback_query;
     await trackVisitor(env,cb.from,cb.message?.chat,visitorInterest(update)).catch(err=>console.error("Visitor tracking:",err));
     await telegram(env, "answerCallbackQuery", { callback_query_id: cb.id });
     if (!cb.message) return;
+    if (cb.data?.startsWith("reminder:")) {
+      await reminderCall(env,cb.from,cb.message.chat,{type:"reply",reason:cb.data.slice(9),eventId:"callback:"+cb.id});
+      return;
+    }
     if (cb.data === "quick_order") { await quickPrompt(env,cb.message.chat.id,{i:0,d:{startId:cb.message.message_id}}); return; }
     if (cb.data?.startsWith("quick:")) {
       const selected=cb.data.slice(6);
@@ -393,6 +404,12 @@ async function handle(update, env) {
   if (cmd === "/cancel") { await telegram(env,"sendMessage",{chat_id:update.message.chat.id,text:"Заказ отменён. Чтобы начать заново, нажмите «💬 Быстрый заказ».",reply_markup:keyboard("order",env)}); return; }
   if (cmd === "/quick") { await quickPrompt(env,update.message.chat.id,{i:0,d:{startId:update.message.message_id}}); return; }
   if (!cmd.startsWith("/") && await quickReply(env,update)) return;
+  if (!cmd.startsWith("/") && update.message.text) {
+    const reply = await reminderCall(env,update.message.from,update.message.chat,{
+      type:"reply",text:update.message.text,replyTo:update.message.reply_to_message?.message_id,eventId:"message:"+update.message.message_id
+    });
+    if (reply.handled) return;
+  }
   const map = { "/start": "home", "/menu": "home", "/how": "how", "/services": "services", "/reviews": "reviews", "/order": "order", "/faq": "faq" };
   if (cmd === "/manager") {
     await telegram(env, "sendMessage", { chat_id: update.message.chat.id, text: "💬 Менеджер: @DameCamelias", reply_markup: { inline_keyboard: [[{ text: "Написать менеджеру", url: MANAGER_URL }], ...back] } });
@@ -409,12 +426,12 @@ const ORDER_MANAGER_CHAT_ID = 5866034656;
 const encoder = new TextEncoder();
 const toHex = bytes => [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, "0")).join("");
 const plain = value => String(value ?? "").slice(0, 2000).replace(/[\u0000-\u001f\u007f]/g, " ").trim();
-async function validWebApp(initData, token) {
+async function validWebApp(initData, token, maxAge = 600) {
   if (!initData || initData.length > 12000) return false;
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   const date = Number(params.get("auth_date"));
-  if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !Number.isSafeInteger(date) || Math.abs(Date.now()/1000 - date) > 600) return false;
+  if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !Number.isSafeInteger(date) || Math.abs(Date.now()/1000 - date) > maxAge) return false;
   params.delete("hash");
   const data = [...params.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => k + "=" + v).join("\n");
   const secret = await crypto.subtle.sign("HMAC", await crypto.subtle.importKey("raw", encoder.encode("WebAppData"), { name:"HMAC", hash:"SHA-256" }, false, ["sign"]), encoder.encode(token));
@@ -468,6 +485,8 @@ async function receiveOrder(request, env) {
   if(current)batches.push(current);
   try {for(const text of batches) await telegram(env,"sendMessage",{chat_id:ORDER_MANAGER_CHAT_ID,text,parse_mode:"HTML",disable_web_page_preview:true});}
   catch(e){console.error("Order delivery failed",e);return new Response("Delivery failed", {status:502});}
+  const person = JSON.parse(new URLSearchParams(input.initData).get("user") || "null");
+  await reminderCall(env,person,{id:person?.id,type:"private"},{type:"complete"});
   return Response.json({ok:true});
 }
 
@@ -563,6 +582,14 @@ export default {
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
     }
     if (url.pathname === "/api/order" && request.method === "OPTIONS") return new Response(null, {status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type"}});
+    if (url.pathname === "/api/order/activity" && request.method === "POST") {
+      let input;
+      try { input = await request.json(); } catch { return new Response("Invalid JSON",{status:400}); }
+      if (!await validWebApp(input.initData,env.BOT_TOKEN,86400)) return new Response("Forbidden",{status:403});
+      const person = JSON.parse(new URLSearchParams(input.initData).get("user") || "null");
+      await reminderCall(env,person,{id:person?.id,type:"private"},{type:"activity",opensOrder:true,navigation:true});
+      return Response.json({ok:true});
+    }
     if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
@@ -573,3 +600,4 @@ export default {
     return new Response("ok");
   }
 };
+

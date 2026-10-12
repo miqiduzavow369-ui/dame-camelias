@@ -10,3 +10,12 @@ crons = ["0 7 * * *", "0 13 * * *", "0 19 * * *"]
 [[kv_namespaces]]
 binding = "VISITORS_KV"
 id = "a323fba4c8c84a7fb37e1e6a3a8264aa"
+
+[[durable_objects.bindings]]
+name = "ORDER_REMINDERS"
+class_name = "OrderReminder"
+
+[[migrations]]
+tag = "order-reminders-v1"
+new_sqlite_classes = ["OrderReminder"]
+
