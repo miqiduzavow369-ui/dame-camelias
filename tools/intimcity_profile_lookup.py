@@ -81,7 +81,12 @@ def extract(page, profile_id):
         const heading = title || normalize(document.querySelector('meta[property="og:title"]')?.content);
         const container = h1?.closest('section,article,.anketa,.profile') || document.body;
         const excerpt = normalize(container.innerText).slice(0,12000);
-        return {heading, excerpt};
+        // Select only a photo explicitly attached to the profile gallery,
+        // not advertisements, icons or unrelated images elsewhere on page.
+        const images=[...document.querySelectorAll('.anketa .gallery img,.profile .gallery img,.anketa .photos img,.profile .photos img,[id*="anketa"] .photo img,[id*="profile"] .photo img')]
+          .filter(img=>img.naturalWidth>=120 && img.naturalHeight>=120);
+        const photo=images.length?images[0].currentSrc||images[0].src:'';
+        return {heading, excerpt, photo};
     }""")
     title = raw["heading"]
     if not title:
@@ -99,8 +104,15 @@ def extract(page, profile_id):
     if not 18 <= years <= 99:
         return None
     location = metro.group(1).strip() if metro else ""
+    # Avoid foreign image hosts and ambiguous or authenticated image endpoints.
+    photo = raw.get("photo", "")
+    target = urlparse(photo)
+    if (target.scheme != "https" or target.hostname != OWNER_HOST or
+            target.username or target.password or target.port or
+            not re.search(r"\\.(?:jpg|jpeg|png|webp)$",target.path,re.I)):
+        photo = ""
     return {"id": profile_id, "name": name, "age": years, "metro": location,
-            "url": f"https://{OWNER_HOST}/indi/anketa{profile_id}.htm"}
+            "url": f"https://{OWNER_HOST}/indi/anketa{profile_id}.htm", "photoUrl": photo}
 
 def inspect(pid, mode='profile'):
     host = required("PROXY_HOST")

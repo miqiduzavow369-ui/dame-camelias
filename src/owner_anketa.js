@@ -280,7 +280,15 @@ function validProfile(data, id, host) {
       !Number.isInteger(data.age) || data.age < 18 || data.age > 99 ||
       typeof data.metro !== "string" || data.metro.length > 100 ||
       data.url !== `https://${host}/indi/anketa${id}.htm`) return null;
-  return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
+  let photoUrl="";
+  if(typeof data.photoUrl==="string" && data.photoUrl.length<1600){
+    try{
+      const u=new URL(data.photoUrl);
+      if(u.protocol==="https:" && u.hostname===host && !u.username && !u.password && !u.port &&
+          /\\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))photoUrl=u.href;
+    }catch{}
+  }
+  return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url,photoUrl};
 }
 async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip") {
   if (!env.DC_ACTIONS_TOKEN) return {ok:false,reason:"Отсутствует DC_ACTIONS_TOKEN в Cloudflare"};
