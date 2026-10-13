@@ -137,27 +137,35 @@ def inspect(pid):
                 page.wait_for_load_state("domcontentloaded", timeout=15000)
             except Exception:
                 pass
-            print("LOOKUP_STAGE: open-profile")
-            result_links = page.locator(f'a[href*="anketa{pid}.htm"]')
-            result_links.first.wait_for(state="visible", timeout=12000)
-            visible_links = [item for item in result_links.all() if item.is_visible()]
-            ids = set()
-            for item in page.locator('a[href*="/indi/anketa"][href$=".htm"]').all():
-                match = re.search(r"anketa(\d+)\.htm", item.get_attribute("href") or "")
-                if match and item.is_visible():
-                    ids.add(match.group(1))
-            if not visible_links or ids != {pid}:
-                raise RuntimeError("Profile search results ambiguous")
-            visible_links[0].click(timeout=10000)
-            try:
-                page.wait_for_load_state("domcontentloaded", timeout=15000)
-            except Exception:
-                pass
-            target=urlparse(page.url)
-            if target.hostname not in ("a.intimcity.rip", "intimcity.rip") or target.path != f"/indi/anketa{pid}.htm":
+            print("LOOKUP_STAGE: wait-for-result-card")
+            card = page.locator(f"#ankcrd{pid}")
+            card.wait_for(state="visible", timeout=20000)
+            results = page.locator("#idBigSearchFindCount")
+            if results.count() and results.first.get_attribute("data-arrid") not in (None, pid):
+                raise RuntimeError("Search result ID does not match requested profile")
+            print("LOOKUP_STAGE: locate-profile-link")
+            link = card.locator(f'a[href$="/indi/anketa{pid}.htm"]')
+            visible_links = [item for item in link.all() if item.is_visible()]
+            if not visible_links:
+                raise RuntimeError("Requested profile link missing in result card")
+            # Search cards use target=_blank. Selecting the original page after click
+            # incorrectly leaves us on search_ext.php, so switch to the popup.
+            print("LOOKUP_STAGE: open-profile-tab")
+            selected = visible_links[0]
+            if (selected.get_attribute("target") or "").lower() == "_blank":
+                with page.expect_popup(timeout=15000) as popup:
+                    selected.click(timeout=10000)
+                profile_page = popup.value
+            else:
+                selected.click(timeout=10000)
+                profile_page = page
+            profile_page.wait_for_load_state("domcontentloaded", timeout=45000)
+            target = urlparse(profile_page.url)
+            if target.hostname not in (OWNER_HOST, "intimcity.rip") or target.path != f"/indi/anketa{pid}.htm":
                 raise RuntimeError("Unexpected profile location")
             print("LOOKUP_STAGE: extract-profile")
-            return extract(page,pid)
+            profile_page.wait_for_timeout(1800)
+            return extract(profile_page,pid)
         finally:
             ctx.close()
             browser.close()
