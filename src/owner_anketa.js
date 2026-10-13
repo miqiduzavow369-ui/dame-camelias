@@ -4,6 +4,16 @@ const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const ID_PATTERN = /^\d{1,9}$/;
 const TTL_SECONDS = 1800;
+const HOST_PATTERN = /^[a-z0-9-]+\.intimcity\.rip$/;
+function parseProfileLink(input) {
+  try {
+    const url = new URL(String(input).trim());
+    if (url.protocol!=="https:" || url.username || url.password || url.port || url.search || url.hash ||
+        !HOST_PATTERN.test(url.hostname)) return null;
+    const match = /^\/indi\/anketa(\d{1,9})\.htm$/.exec(url.pathname);
+    return match ? {id:match[1],host:url.hostname} : null;
+  } catch { return null; }
+}
 
 export function ownerAllowed(update) {
   const from = update.callback_query?.from ?? update.message?.from;
@@ -56,15 +66,15 @@ function ratingSummary(state) {
     "\n\n💕 Нажмите ◯, чтобы отметить категорию. Повторное нажатие снимет отметку."+
     "\n✨ Для вариантов с текстом можно выбрать значение отдельно.\n\n🌷 Пока это только черновик.";
 }
-function validProfile(data, id) {
+function validProfile(data, id, host) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
       !data.name.trim() || data.name.length > 100 ||
       !Number.isInteger(data.age) || data.age < 18 || data.age > 99 ||
       typeof data.metro !== "string" || data.metro.length > 100 ||
-      data.url !== `https://a.intimcity.rip/indi/anketa${id}.htm`) return null;
+      data.url !== `https://${host}/indi/anketa${id}.htm`) return null;
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
-async function dispatchLookup(env,id,nonce,mode="profile") {
+async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip") {
   if (!env.DC_ACTIONS_TOKEN) return {ok:false,reason:"Отсутствует DC_ACTIONS_TOKEN в Cloudflare"};
   if (!env.ANKETA_CALLBACK_TOKEN) return {ok:false,reason:"Отсутствует ANKETA_CALLBACK_TOKEN в Cloudflare"};
   const response=await fetch(
@@ -75,7 +85,7 @@ async function dispatchLookup(env,id,nonce,mode="profile") {
       "User-Agent":"dame-camelias-worker",
       "X-GitHub-Api-Version":"2022-11-28",
       "Content-Type":"application/json"},
-    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode}}),
+    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost}}),
     signal:AbortSignal.timeout(15000)});
   if(response.status===204) return {ok:true};
   const descriptions={401:"GitHub отклонил токен (401)",403:"GitHub запретил запуск: проверь Actions Write и срок токена (403)",404:"GitHub не нашёл workflow или у токена нет доступа к репозиторию (404)",422:"GitHub не принял параметры запуска (422)",429:"GitHub ограничил число запросов (429)"};
@@ -100,19 +110,19 @@ export async function handleAnketaLookupResult(request,env,send) {
     const catalog = raw.slice(0,60).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
       .map(x => ({label:x.label.slice(0,90),options:x.options.filter(v=>typeof v==="string").slice(0,12).map(v=>v.slice(0,50))}));
     if(data.status!=="found" || !catalog.length || !data.profile || String(data.profile.id)!==id) {
-      await statePut(env,{step:"chosen",profile,nonce:current.previousNonce});
+      await statePut(env,{step:"chosen",profile,nonce:current.previousNonce,host:current.host});
       await say(env,send,"🌷 Сейчас не удалось загрузить категории оценок для анкеты №"+id+
         ".\n\n💕 Пожалуйста, попробуйте немного позже.",buttons([NEW_NUMBER]));
       return Response.json({ok:true,found:false});
     }
-    const next={step:"ratings",profile,nonce:current.previousNonce,catalog,selected:{}};
+    const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog,selected:{}};
     await statePut(env,next);
     await say(env,send,"🌹 ВСЁ ГОТОВО!\\n\\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
       ".\\n\\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
   }
-  const found=validProfile(data.profile,id);
+  const found=validProfile(data.profile,id,current.host);
   if(!found) {
     await statePut(env,{step:"number"});
     const empty = data.status === "not_found";
@@ -124,7 +134,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     return Response.json({ok:true,found:false});
   }
   const decision=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  await statePut(env,{step:"confirm",profile:found,nonce:decision});
+  await statePut(env,{step:"confirm",profile:found,host:current.host,nonce:decision});
   const location=found.metro?"\n📍 м. "+found.metro:"";
   await say(env,send,"🌹 АНКЕТА НАЙДЕНА\n\n👤 "+found.name+
     "\n🎂 Возраст: "+found.age+" лет"+location+"\n🆔 Номер анкеты: №"+id+"\n🔗 "+
@@ -138,27 +148,29 @@ async function askNumber(env,send) {
     await say(env,send,"⚠️ Хранилище состояния не настроено. Ввод анкеты сейчас недоступен.");
     return;
   }
-  await say(env,send,"🔐 АНКЕТА\nОтправь номер анкеты одним сообщением, например: 750206");
+  await say(env,send,"🔐 АНКЕТА\n\n🌹 Пришлите ссылку на анкету одним сообщением.\n\nНапример: https://b.intimcity.rip/indi/anketa750206.htm\n\n✨ Я открою указанный домен и найду анкету через поиск по её номеру.");
 }
-async function inspect(env,send,id) {
-  if (!ID_PATTERN.test(id)) {
-    await say(env,send,"Введите номер анкеты цифрами, например 750206.");
+async function inspect(env,send,urlText) {
+  const link=parseProfileLink(urlText);
+  if (!link) {
+    await say(env,send,"🌷 Пришлите полную ссылку на анкету Intimcity, например:\\nhttps://b.intimcity.rip/indi/anketa750206.htm");
     return;
   }
+  const {id,host}=link;
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  if(!await statePut(env,{step:"loading",id,nonce})) {
+  if(!await statePut(env,{step:"loading",id,host,nonce})) {
     await say(env,send,"⚠️ Хранилище недоступно.");
     return;
   }
   let dispatched;
-  try {dispatched=await dispatchLookup(env,id,nonce);}
+  try {dispatched=await dispatchLookup(env,id,nonce,"profile",host);}
   catch {dispatched={ok:false,reason:"Не удалось связаться с GitHub API"};}
   if(!dispatched?.ok) {
     await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Автоматическая проверка не запущена.\nПричина: "+dispatched.reason);
+    await say(env,send,"⚠️ Автоматическая проверка не запущена.\\nПричина: "+dispatched.reason);
     return;
   }
-  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\n🔎 Проверяю анкету №"+id+"…");
+  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\\n🔎 Проверяю анкету №"+id+" через "+host+"…");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -169,9 +181,9 @@ export async function handleOwnerAnketa(update,env,send) {
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
-  const typedNumber=owner && Boolean(state) && Boolean(msg?.text) &&
-    /^(?:№\s*)?\d{1,9}$/.test(txt);
-  if (!ownerAction && !typedNumber) return false;
+  const typedLink=owner && state?.step==="number" && Boolean(msg?.text) &&
+    (Boolean(parseProfileLink(txt)) || /^https?:\/\//i.test(txt));
+  if (!ownerAction && !typedLink) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
     return true;
@@ -182,14 +194,14 @@ export async function handleOwnerAnketa(update,env,send) {
     await askNumber(env,send); return true;
   }
   if (command==="/anketa") {
-    const id=txt.split(/\s+/)[1] ?? "";
-    await inspect(env,send,id); return true;
+    const url=txt.split(/\s+/)[1] ?? "";
+    await inspect(env,send,url); return true;
   }
-  if (typedNumber) {
+  if (typedLink) {
     // Only remove the owner's ID input while in the owner-only number entry step.
     // Never delete arbitrary messages in other conversations or flows.
     try { await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id}); } catch (_) {}
-    await inspect(env,send,txt.replace(/^№\s*/,""));
+    await inspect(env,send,txt);
     return true;
   }
   const current=await stateGet(env);
@@ -205,7 +217,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⏳ Подтверждение устарело. Нажми 🔐 АНКЕТА и введи номер заново.");
       return true;
     }
-    await statePut(env,{step:"chosen",profile:current.profile,nonce});
+    await statePut(env,{step:"chosen",profile:current.profile,host:current.host,nonce});
     await say(env,send,"✅ Анкета подтверждена: "+current.profile.name+
       ", №"+current.profile.id+"\nВыберите действие:",
       buttons([[{text:"⭐ Оценки",callback_data:"owner_anketa:rating:"+nonce}],
@@ -304,9 +316,9 @@ export async function handleOwnerAnketa(update,env,send) {
     if(match[1]==="rating") {
       const lookupNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
       await statePut(env,{step:"ratings_loading",id:current.profile.id,nonce:lookupNonce,
-        previousNonce:current.nonce,profile:current.profile});
+        previousNonce:current.nonce,profile:current.profile,host:current.host});
       let launched=false;
-      try { launched=(await dispatchLookup(env,current.profile.id,lookupNonce,"ratings")).ok; } catch {}
+      try { launched=(await dispatchLookup(env,current.profile.id,lookupNonce,"ratings",current.host)).ok; } catch {}
       if(!launched) {
         await statePut(env,current);
         await say(env,send,"🌷 Не удалось начать загрузку оценок. Попробуйте ещё раз немного позже.");

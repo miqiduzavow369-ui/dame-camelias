@@ -12,7 +12,9 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from playwright.sync_api import sync_playwright
 
-OWNER_HOST = "a.intimcity.rip"
+OWNER_HOST = os.environ.get("INTIMCITY_SITE_HOST","a.intimcity.rip")
+if not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip", OWNER_HOST):
+    raise RuntimeError("Invalid site host")
 
 class EmptySearch(Exception):
     pass
@@ -94,7 +96,7 @@ def inspect(pid, mode='profile'):
             if seen != ipaddress.ip_address(required("EXPECTED_EGRESS_IP")):
                 raise RuntimeError("Proxy egress mismatch")
             print("LOOKUP_STAGE: open-site")
-            page.goto("https://a.intimcity.rip/",wait_until="domcontentloaded",timeout=45000)
+            page.goto(f"https://{OWNER_HOST}/",wait_until="domcontentloaded",timeout=45000)
             print("LOOKUP_STAGE: locate-login")
             found=False
             for form in page.locator("form").all():
@@ -184,7 +186,7 @@ def inspect(pid, mode='profile'):
                 profile_page = page
             profile_page.wait_for_load_state("domcontentloaded", timeout=45000)
             target = urlparse(profile_page.url)
-            if target.hostname not in (OWNER_HOST, "intimcity.rip") or target.path != f"/indi/anketa{pid}.htm":
+            if target.hostname != OWNER_HOST or target.path != f"/indi/anketa{pid}.htm":
                 raise RuntimeError("Unexpected profile location")
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
