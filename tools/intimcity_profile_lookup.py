@@ -25,6 +25,28 @@ def required(name):
         raise RuntimeError("Required runtime configuration missing")
     return value
 
+def load_private_dryfill(pid, nonce):
+    url=required("ANKETA_CALLBACK_URL")
+    parsed=urlparse(url)
+    if parsed.scheme!="https" or parsed.path!="/api/anketa/result" or not parsed.netloc:
+        raise RuntimeError("Invalid private payload host")
+    from urllib.parse import urlencode
+    address=parsed._replace(path="/api/anketa/dryfill-payload",
+                             query=urlencode({"profile_id":pid,"nonce":nonce}),
+                             fragment="").geturl()
+    req=Request(address,headers={
+        "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
+        "Accept":"application/json",
+        "User-Agent":"DameCameliasBot/1.0"
+    })
+    with urlopen(req,timeout=20) as response:
+        if response.status!=200:
+            raise RuntimeError("Private rating payload unavailable")
+        payload=json.loads(response.read(25000).decode("utf-8"))
+    if not isinstance(payload,dict) or not isinstance(payload.get("selections"),list):
+        raise RuntimeError("Invalid private rating payload")
+    return payload
+
 def callback(data):
     url = required("ANKETA_CALLBACK_URL")
     parsed = urlparse(url)
@@ -435,6 +457,9 @@ def main():
     if mode not in ("profile","ratings","mapping","dryfill"):
         raise RuntimeError("Invalid lookup mode")
     try:
+        if mode=="dryfill":
+            # Never put selected ratings into workflow_dispatch or Actions logs.
+            os.environ["ANKETA_DRYFILL_SELECTIONS"]=json.dumps(load_private_dryfill(pid,nonce),ensure_ascii=False)
         result=inspect(pid,mode)
         if result:
             status="found"

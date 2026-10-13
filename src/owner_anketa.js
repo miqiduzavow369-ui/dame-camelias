@@ -194,7 +194,7 @@ function validProfile(data, id, host) {
       data.url !== `https://${host}/indi/anketa${id}.htm`) return null;
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
-async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip",selectionsJson="[]") {
+async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip") {
   if (!env.DC_ACTIONS_TOKEN) return {ok:false,reason:"Отсутствует DC_ACTIONS_TOKEN в Cloudflare"};
   if (!env.ANKETA_CALLBACK_TOKEN) return {ok:false,reason:"Отсутствует ANKETA_CALLBACK_TOKEN в Cloudflare"};
   const response=await fetch(
@@ -205,11 +205,34 @@ async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.
       "User-Agent":"dame-camelias-worker",
       "X-GitHub-Api-Version":"2022-11-28",
       "Content-Type":"application/json"},
-    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost,selections_json:mode==="dryfill"?selectionsJson:"[]"}}),
+    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost}}),
     signal:AbortSignal.timeout(15000)});
   if(response.status===204) return {ok:true};
   const descriptions={401:"GitHub отклонил токен (401)",403:"GitHub запретил запуск: проверь Actions Write и срок токена (403)",404:"GitHub не нашёл workflow или у токена нет доступа к репозиторию (404)",422:"GitHub не принял параметры запуска (422)",429:"GitHub ограничил число запросов (429)"};
   return {ok:false,reason:descriptions[response.status]||("GitHub HTTP "+response.status)};
+}
+export async function ownerDryfillPayload(request,env) {
+  if (!env.ANKETA_CALLBACK_TOKEN ||
+      request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+    return new Response("Forbidden",{status:403});
+  const url=new URL(request.url);
+  const id=url.searchParams.get("profile_id")||"";
+  const nonce=url.searchParams.get("nonce")||"";
+  if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
+    return new Response("Invalid request",{status:400});
+  const state=await stateGet(env);
+  if(!state || state.step!=="dryfill_loading" || String(state.id)!==id ||
+      state.nonce!==nonce || !state.profile || String(state.profile.id)!==id ||
+      Date.now()-Number(state.agreedAt||0)>20*60*1000)
+    return new Response("Stale",{status:409});
+  const selections=Object.keys(state.selected||{}).map(Number).sort((a,b)=>a-b).map(i=>({
+    index:i,label:state.catalog?.[i]?.label,value:state.selected[i]
+  }));
+  if(selections.length===0 || selections.length>120 ||
+      selections.some(x=>!Number.isInteger(x.index)||!x.label||typeof x.value!=="string"))
+    return new Response("Invalid state",{status:409});
+  return Response.json({selections,metElsewhere:state.metElsewhere===true},
+    {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
@@ -506,7 +529,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await say(env,send,"🌹 ПОДГОТОВКА К ПУБЛИКАЦИИ\n\n💎 Ваши оценки приняты.\n\n🔐 Проверяю правильность заполнения всех выбранных полей.\n🌏 Нахожу вашу анкету через поиск по району. \n\n⏳ Пожалуйста, подождите немного.\n\n🌷 Пока ничего на сайт не отправляется.");
     let started=false;
-    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify({selections:picks,metElsewhere:current.metElsewhere===true}))).ok;}catch{}
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host)).ok;}catch{}
     if(!started){
       await statePut(env,approved);
       await say(env,send,"⚠️ Не удалось запустить подготовку. Ничего не опубликовано.");
@@ -549,7 +572,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const pending={...current,step:"dryfill_loading",id:current.profile.id,previousNonce:current.nonce,nonce};
     await statePut(env,pending);
     let started=false;
-    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify({selections:picks,metElsewhere:current.metElsewhere===true}))).ok;}catch{}
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host)).ok;}catch{}
     if(!started){
       await statePut(env,current);
       await say(env,send,"🌷 Тестовый запуск не удался. Ничего не опубликовано.");return true;
