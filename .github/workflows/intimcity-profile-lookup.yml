@@ -6,6 +6,10 @@ on:
         description: "Profile number (digits)"
         required: true
         type: string
+      site_host:
+        description: "Validated host from profile URL"
+        required: true
+        type: string
       mode:
         description: "Read-only profile or ratings catalog"
         required: false
@@ -42,7 +46,8 @@ jobs:
           INTIMCITY_PASSWORD: ${{ secrets.INTIMCITY_PASSWORD }}
           ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
           ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
-          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}\n          INTIMCITY_SITE_HOST: ${{ inputs.site_host }}
+          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
+          INTIMCITY_SITE_HOST: ${{ inputs.site_host }}\n          INTIMCITY_SITE_HOST: ${{ inputs.site_host }}
           ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
           ANKETA_LOOKUP_MODE: ${{ inputs.mode }}
         run: python tools/intimcity_profile_lookup.py
