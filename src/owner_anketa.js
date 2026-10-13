@@ -124,7 +124,7 @@ async function profileKeyboard(env,id){
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
 ]);}
 async function showLibrary(env,send){
-  await cleanAnketaChat(env,send);
+  // Keep important audit and publication reports in the conversation.
   const ids=await libraryGet(env);
   await navigationSay(env,send,ids.length?
     "🌹 МОИ АНКЕТЫ DAME CAMELIAS\n\n💕 Выберите сохранённую анкету — проверять её повторно не потребуется.\n\n✨ Или добавьте новую по актуальной ссылке.":
