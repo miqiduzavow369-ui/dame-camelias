@@ -59,9 +59,12 @@ def extract(page, profile_id):
     title = raw["heading"]
     if not title:
         return None
-    # All identifying details must be found on the selected profile itself.
+    # Read profile details from profile-specific fields, not the site's 18+ footer.
     name = re.split(r"[,|—]", title)[0].strip()
-    age = re.search(r"(?<!\d)(\d{2})\s*(?:год|года|лет)\b", title+" "+raw["excerpt"])
+    name = re.sub(r"^(?:Проститутки\s+Москвы\s*)?(?:Девушка\s*)", "", name, flags=re.I).strip()
+    # On Intimcity the search card uses "Возраст: 23"; the site-wide 18+
+    # notice is not a person's age. Require a profile-specific age label.
+    age = re.search(r"\bВозраст\s*[:：]?\s*(\d{2})\b", raw["excerpt"], re.I)
     metro = re.search(r"(?:м\.|метро)\s*([^,;\n•|]{2,55})", title+" "+raw["excerpt"], re.I)
     if not name or len(name) > 100 or not age:
         return None
