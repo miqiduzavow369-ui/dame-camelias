@@ -169,7 +169,7 @@ function organizeCatalog(catalog) {
     const siteGroup=String(field.group||"").toLowerCase();
     const sourceSubgroup=String(field.subgroup||"").toLowerCase();
     let next=null;
-    if(low==="отношение к клиенту")next="Секс";
+    if(low==="классический секс")next="Секс";
     else if(/^(классический|расслабляющий)$/.test(low) ||
       /массаж/.test(siteGroup))next="Массаж";
     else if(low==="игры" || /(?:бдсм|bdsm)/.test(siteGroup))next="БДСМ";
@@ -177,7 +177,7 @@ function organizeCatalog(catalog) {
       /^(?:другое|другие услуги|дополнительные услуги)$/.test(siteGroup))next="Другое";
     // Explicit field boundaries win over previously cached heuristic subgroups.
     // Unambiguous source section captions are a fallback for other profiles.
-    else if(/^(?:секс|массаж|бдсм|другое)$/.test(sourceSubgroup))
+    else if(/^(?:массаж|бдсм|другое)$/.test(sourceSubgroup))
       next=sourceSubgroup==="секс"?"Секс":sourceSubgroup==="массаж"?"Массаж":
         sourceSubgroup==="бдсм"?"БДСМ":"Другое";
     if(next && stageIndex(next)>stageIndex(section))section=next;
