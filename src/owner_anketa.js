@@ -181,8 +181,11 @@ export async function handleOwnerAnketa(update,env,send) {
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
-  const typedLink=owner && state?.step==="number" && Boolean(msg?.text) &&
-    (Boolean(parseProfileLink(txt)) || /^https?:\/\//i.test(txt));
+  // Intimcity profile links take priority over general order free-text routing,
+  // including when the previous owner prompt came from an older Worker version.
+  const isProfileLink=owner && Boolean(msg?.text) && Boolean(parseProfileLink(txt));
+  const typedLink=owner && Boolean(msg?.text) &&
+    (isProfileLink || (state?.step==="number" && /^https?:\/\//i.test(txt)));
   if (!ownerAction && !typedLink) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
@@ -198,9 +201,8 @@ export async function handleOwnerAnketa(update,env,send) {
     await inspect(env,send,url); return true;
   }
   if (typedLink) {
-    // Only remove the owner's ID input while in the owner-only number entry step.
-    // Never delete arbitrary messages in other conversations or flows.
-    try { await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id}); } catch (_) {}
+    // Keep the supplied link in history for easy verification and retry.
+    // Do not route a profile URL into the customer order conversation.
     await inspect(env,send,txt);
     return true;
   }
