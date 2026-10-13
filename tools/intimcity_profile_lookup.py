@@ -113,19 +113,24 @@ def inspect(pid, mode='profile'):
             if not found:
                 print("LOOKUP_LOGIN_DIAG: login_form=missing")
                 raise RuntimeError("Login form not found")
-            print("LOOKUP_STAGE: verify-login")
+            print("LOOKUP_STAGE: verify-login-wait",flush=True)
             try:
                 page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
-                pass
+                print("LOOKUP_LOGIN_DIAG: networkidle=timeout_or_unavailable",flush=True)
+            print("LOOKUP_STAGE: verify-login-settle",flush=True)
             page.wait_for_timeout(2500)
-            if urlparse(page.url).hostname not in ("a.intimcity.rip", "intimcity.rip"):
+            print("LOOKUP_STAGE: verify-login-host",flush=True)
+            host = urlparse(page.url).hostname
+            if host not in ("a.intimcity.rip", "intimcity.rip"):
+                print("LOOKUP_LOGIN_DIAG: host=unexpected",flush=True)
                 raise RuntimeError("Unexpected login destination")
+            print("LOOKUP_STAGE: verify-login-elements",flush=True)
             logout = page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count() > 0
             account = page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count() > 0
             password_visible = any(el.is_visible() for el in page.locator('input[type="password"]').all())
             print("LOOKUP_LOGIN_DIAG: logout_link=%s; account_link=%s; password_visible=%s; site_host_ok=true" %
-                  (str(logout).lower(),str(account).lower(),str(password_visible).lower()))
+                  (str(logout).lower(),str(account).lower(),str(password_visible).lower()),flush=True)
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
             print("LOOKUP_STAGE: search-profile")
@@ -249,7 +254,7 @@ def main():
         category = ("timeout" if "Timeout" in type(e).__name__ else
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
-        print("LOOKUP: failed to verify profile identity; category=" + category)
+        print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
     profile=result.get("profile") if mode=="ratings" and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode=="ratings" and isinstance(result,dict) else []
     callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"mode":mode,"status":status})
