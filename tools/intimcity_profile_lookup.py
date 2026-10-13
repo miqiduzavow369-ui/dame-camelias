@@ -122,8 +122,12 @@ def inspect(pid, mode='profile'):
             page.wait_for_timeout(2500)
             print("LOOKUP_STAGE: verify-login-host",flush=True)
             host = urlparse(page.url).hostname
-            if host not in ("a.intimcity.rip", "intimcity.rip"):
-                print("LOOKUP_LOGIN_DIAG: host=unexpected",flush=True)
+            # Login can legitimately redirect between subdomains of the same site.
+            # Do not trust lookalike domains or any unrelated external host.
+            host_ok = bool(host and (host == "intimcity.rip" or host.endswith(".intimcity.rip")))
+            print("LOOKUP_LOGIN_DIAG: host_scope=%s" %
+                  ("site" if host_ok else "external_or_unexpected"),flush=True)
+            if not host_ok:
                 raise RuntimeError("Unexpected login destination")
             print("LOOKUP_STAGE: verify-login-elements",flush=True)
             logout = page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count() > 0
