@@ -126,7 +126,7 @@ async function profileKeyboard(env,id){
 async function showLibrary(env,send){
   await cleanAnketaChat(env,send);
   const ids=await libraryGet(env);
-  await say(env,send,ids.length?
+  await navigationSay(env,send,ids.length?
     "🌹 МОИ АНКЕТЫ DAME CAMELIAS\n\n💕 Выберите сохранённую анкету — проверять её повторно не потребуется.\n\n✨ Или добавьте новую по актуальной ссылке.":
     "🌹 DAME CAMELIAS\n\n💕 Пока нет сохранённых анкет. Приглашаю добавить первую!",
     libraryKeyboard(ids));
@@ -134,10 +134,25 @@ async function showLibrary(env,send){
 async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
-  await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+  await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",accountPicker(id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
+const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
+// Navigation has one active message; audit, publication and result messages
+// are sent through say() and are never removed by navigation cleanup.
+async function navigationSay(env,send,text,reply_markup){
+  const response=await say(env,send,text,reply_markup);
+  const id=response?.message_id;
+  if(!Number.isSafeInteger(id)||!env.VISITORS_KV)return response;
+  let previous=null;
+  try{previous=await env.VISITORS_KV.get(NAV_MESSAGE_KEY,"json");}catch{}
+  try{await env.VISITORS_KV.put(NAV_MESSAGE_KEY,JSON.stringify({id,at:Date.now()}),{expirationTtl:172800});}catch{}
+  if(Number.isSafeInteger(previous?.id)&&previous.id!==id&&Date.now()-Number(previous.at)<47*3600000){
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
+  }
+  return response;
+}
 async function trackAnketaMessage(env,id){
   if(!env.VISITORS_KV || !Number.isSafeInteger(id) || id<=0)return;
   try{
@@ -534,9 +549,10 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   if (typedLink) {
     await trackAnketaMessage(env,msg?.message_id);
-    // Keep the supplied link in history for easy verification and retry.
+    // Remove the submitted URL when it has been processed; state retains the profile.
     // Do not route a profile URL into the customer order conversation.
     await inspect(env,send,txt);
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     return true;
   }
   const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
@@ -548,14 +564,14 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await chooseAccount(env,account1[1])){
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
-    await say(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Анкета №"+account1[1]+
+    await navigationSay(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Анкета №"+account1[1]+
       "\n🔐 Используется основной аккаунт Intimcity и закреплённый прокси."+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
   }
   const account2=/^owner_anketa:account2:(\d{1,9})$/.exec(data);
   if(account2){
-    await say(env,send,"🔒 Ян Второй пока не подключён.\n\n" +
+    await navigationSay(env,send,"🔒 Ян Второй пока не подключён.\n\n" +
       "Его отдельный логин и прокси настроим позже. Сейчас отправка через этот аккаунт недоступна.",
       accountPicker(account2[1]));
     return true;
@@ -596,7 +612,7 @@ export async function handleOwnerAnketa(update,env,send) {
   const deleteAsk=/^owner_anketa:deleteask:(\d{1,9})$/.exec(data);
   if(deleteAsk){
     if(!await savedGet(env,deleteAsk[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"🌷 Удалить анкету №"+deleteAsk[1]+" из вашего списка и хранилища DAME CAMELIAS?\n\nЭто действие нельзя отменить.",
+    await navigationSay(env,send,"🌷 Удалить анкету №"+deleteAsk[1]+" из вашего списка и хранилища DAME CAMELIAS?\n\nЭто действие нельзя отменить.",
       buttons([[{text:"🗑 Да, удалить",callback_data:"owner_anketa:deleteyes:"+deleteAsk[1]}],
         [{text:"↩️ Оставить анкету",callback_data:"owner_anketa:saved:"+deleteAsk[1]}]]));
     return true;
@@ -606,7 +622,6 @@ export async function handleOwnerAnketa(update,env,send) {
     await savedDelete(env,deleteYes[1]);
     const currentState=await stateGet(env);
     if(String(currentState?.profile?.id||currentState?.id)===deleteYes[1])await env.VISITORS_KV.delete(PREFIX+OWNER_ID);
-    await say(env,send,"🌷 Анкета №"+deleteYes[1]+" удалена из сохранённых данных.");
     await showLibrary(env,send);
     return true;
   }
