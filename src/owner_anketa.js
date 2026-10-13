@@ -114,6 +114,23 @@ const libraryKeyboard=ids=>buttons([
   ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
   [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}]
 ]);
+// v1 publication records belong exclusively to yan_first. Never copy their
+// statuses to yan_second; its history will use account-scoped keys at rollout.
+async function availabilitySummary(env,id,account){
+  if(account!=="yan_first")return "⭐ Оценки — 🔒 НЕ ПОДКЛЮЧЁН\n✍️ Отзывы — 🔒 НЕ ПОДКЛЮЧЁН";
+  // On storage errors never present an unknown slot as available.
+  if(!env.VISITORS_KV)return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+  try{
+    const [rating,review]=await Promise.all([
+      publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
+    ]);
+    const label=status=>status?.status==="published"?"✅ ВЫ ОПУБЛИКОВАЛИ":
+      status?"🔒 ТРЕБУЕТ ПРОВЕРКИ":"🟢 ДОСТУПНО";
+    return "⭐ Оценки — "+label(rating)+"\n✍️ Отзывы — "+label(review);
+  }catch{
+    return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+  }
+}
 async function profileKeyboard(env,id){
   const rating=await publicationStatus(env,id,"rating");
   const review=await publicationStatus(env,id,"review");
@@ -564,16 +581,17 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await chooseAccount(env,account1[1])){
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
-    await navigationSay(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Анкета №"+account1[1]+
-      "\n🔐 Используется основной аккаунт Intimcity и закреплённый прокси."+
+    const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
+    await navigationSay(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
+      "\n\nДля данной анкеты доступны:\n\n"+summary+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
   }
   const account2=/^owner_anketa:account2:(\d{1,9})$/.exec(data);
   if(account2){
-    await navigationSay(env,send,"🔒 Ян Второй пока не подключён.\n\n" +
-      "Его отдельный логин и прокси настроим позже. Сейчас отправка через этот аккаунт недоступна.",
-      accountPicker(account2[1]));
+    await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
+      "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
+      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",accountPicker(account2[1]));
     return true;
   }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
