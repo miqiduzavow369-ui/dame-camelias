@@ -213,7 +213,7 @@ def inspect(pid, mode='profile'):
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
             profile = extract(profile_page,pid)
-            if mode not in ("ratings","mapping","dryfill") or not profile:
+            if mode not in ("ratings","mapping","dryfill","publish") or not profile:
                 return profile
             print("LOOKUP_STAGE: read-visible-rating-criteria")
             form = profile_page.locator("#checked_form")
@@ -317,7 +317,7 @@ def inspect(pid, mode='profile'):
               }
               return fields.slice(0,120);
             }""")
-            if mode == "dryfill":
+            if mode in ("dryfill","publish"):
                 # Perform value assignment only in the ephemeral browser DOM; no events,
                 # requests, form submission or persistent browser storage.
                 payload=json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
@@ -467,6 +467,42 @@ def inspect(pid, mode='profile'):
                 print("DRYFILL_FORM_CONTRACT: same_host=%s; method=%s; hidden_fields=%s; submit_controls=%s" %
                       (str(form_contract["sameHost"]).lower(),form_contract["method"],
                        form_contract["hiddenFields"],len(form_contract["submitControls"])),flush=True)
+                if mode=="publish":
+                    # This is the first and only external form submission attempt.
+                    # Fail closed before clicking if the audit or checkbox fails.
+                    publication={"attempted":False,"confirmed":False,"confirmedBy":""}
+                    if (not report.get("finalAudit",{}).get("ok") or
+                        report.get("verified")!=len(requested) or
+                        (extra_flag and not report.get("extraFlag",{}).get("ok"))):
+                        print("PUBLISH: blocked by final audit",flush=True)
+                        return {"profile":profile,"catalog":[],"publication":publication}
+                    btn=form.locator('button[type="submit"],input[type="submit"],input[type="image"]')
+                    if btn.count()!=1 or not btn.first.is_visible():
+                        print("PUBLISH: submit control unavailable",flush=True)
+                        return {"profile":profile,"catalog":[],"publication":publication}
+                    print("PUBLISH: sending one submission attempt",flush=True)
+                    # Mark attempted *before* click, since timeout/network error can
+                    # happen after the server has received the form.
+                    publication["attempted"]=True
+                    try:
+                        btn.first.click(timeout=15000,no_wait_after=True)
+                        profile_page.wait_for_timeout(3000)
+                        # Positive acknowledgement must be an explicit visible success
+                        # message, not merely HTTP 200 or lack of an error.
+                        ack=profile_page.evaluate(r"""() => {
+                          const els=[...document.querySelectorAll(
+                            '[role="alert"],.alert-success,.success,.message-success,.notification-success')];
+                          const visible=els.filter(e=>e.getClientRects().length);
+                          const text=visible.map(e=>(e.textContent||'').trim().toLowerCase()).join(' ');
+                          return /успешно (добавлен|отправлен|сохранен|сохранён|опубликован)|спасибо за (оценк|отзыв)|оценк[аиуы] (сохранен|сохранён|добавлен|принят)/.test(text);
+                        }""")
+                        if ack:
+                            publication["confirmed"]=True
+                            publication["confirmedBy"]="visible-success-alert"
+                    except Exception as e:
+                        print("PUBLISH: uncertain after attempt; exception_type="+type(e).__name__,flush=True)
+                    print("PUBLISH: result="+("confirmed" if publication["confirmed"] else "unconfirmed"),flush=True)
+                    return {"profile":profile,"catalog":[],"publication":publication}
                 return {"profile":profile,"catalog":[],"dryfill":report}
             print("LOOKUP_RATINGS_DIAG: fields=%s; sections=%s" %
                   (len(catalog),len(set(x.get("group","") for x in catalog))),flush=True)
@@ -483,10 +519,10 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings","mapping","dryfill"):
+    if mode not in ("profile","ratings","mapping","dryfill","publish"):
         raise RuntimeError("Invalid lookup mode")
     try:
-        if mode=="dryfill":
+        if mode in ("dryfill","publish"):
             # Never put selected ratings into workflow_dispatch or Actions logs.
             os.environ["ANKETA_DRYFILL_SELECTIONS"]=json.dumps(load_private_dryfill(pid,nonce),ensure_ascii=False)
         result=inspect(pid,mode)
@@ -501,9 +537,9 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
-    profile=result.get("profile") if mode in ("ratings","mapping","dryfill") and isinstance(result,dict) else result
+    profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"mode":mode,"status":status})
+    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":
