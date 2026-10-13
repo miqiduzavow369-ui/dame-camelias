@@ -22,23 +22,10 @@ async function statePut(env, state) {
 }
 function buttons(rows) { return {inline_keyboard:rows}; }
 const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback_data:"owner_anketa:change"}];
-// Keep one editable owner-facing message for the questionnaire, separate from state.
-const UI_KEY = "owner_anketa_ui:" + OWNER_ID;
+// Keep meaningful bot replies and found-profile cards in Telegram history.
+// Only the transient progress message is updated; owner-entered IDs are cleaned up.
 async function say(env, send, text, reply_markup) {
-  const kv = env.VISITORS_KV;
-  const last = kv ? await kv.get(UI_KEY, "json") : null;
-  const payload = {chat_id:OWNER_ID,text, ...(reply_markup?{reply_markup}:{reply_markup:{inline_keyboard:[]}})};
-  if (last?.message_id) {
-    try {
-      await send(env, "editMessageText", {...payload,message_id:last.message_id});
-      return;
-    } catch (_) {
-      // The previous message may have expired, been deleted or become uneditable.
-      try { await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:last.message_id}); } catch (_) {}
-    }
-  }
-  const sent = await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
-  if (kv && sent?.message_id) await kv.put(UI_KEY,JSON.stringify({message_id:sent.message_id}),{expirationTtl:86400});
+  return await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
 }
 function validProfile(data, id) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
