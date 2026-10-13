@@ -390,7 +390,7 @@ export async function handleAnketaLookupResult(request,env,send) {
   }
   if(auditLoading) {
     const selected=current.selected||{};
-    const restored={step:"ratings_agreed",profile:current.profile,host:current.host,
+    const restored={step:"ratings_agreed",account:current.account,profile:current.profile,host:current.host,
       nonce:current.previousNonce,catalog:current.catalog,selected,
       metElsewhere:current.metElsewhere===true,draftReady:true,agreedAt:current.agreedAt};
     await statePut(env,restored);
@@ -443,7 +443,10 @@ export async function handleAnketaLookupResult(request,env,send) {
       return Response.json({ok:true,found:false});
     }
     const orderedCatalog=organizeCatalog(catalog);
-    const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
+    if(current.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,id)){
+      await say(env,send,"🌷 Выбор аккаунта устарел. Откройте анкету и выберите 👨‍💻 Ян Первый.");return Response.json({ok:false},{status:409});
+    }
+    const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
     await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
     await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
@@ -820,6 +823,12 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const match=/^owner_anketa:(rating|review):([a-f0-9]{12})$/.exec(data);
   if(match) {
+    if(!current?.profile?.id || !await selectedAccount(env,current.profile.id) ||
+       current.account!==ACTIVE_ACCOUNT){
+      if(current?.profile?.id)await showSaved(env,send,current.profile.id);
+      else await showLibrary(env,send);
+      return true;
+    }
     if(current?.step==="ratings" && current.nonce===match[2]) {
       if(match[1]==="rating") await say(env,send,ratingSummary(current),ratingMenu(current));
       else await say(env,send,"✍️ Раздел отзывов пока подготавливается.\n\n💕 Спасибо за терпение!");
@@ -830,7 +839,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(match[1]==="rating") {
       const lookupNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-      await statePut(env,{step:"ratings_loading",id:current.profile.id,nonce:lookupNonce,
+      await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:current.profile.id,nonce:lookupNonce,
         previousNonce:current.nonce,profile:current.profile,host:current.host});
       let launched=false;
       try { launched=(await dispatchLookup(env,current.profile.id,lookupNonce,"ratings",current.host)).ok; } catch {}
