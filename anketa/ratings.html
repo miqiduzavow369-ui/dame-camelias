@@ -57,7 +57,7 @@ function draw(){
       const btn=document.createElement('button');btn.type='button';btn.className='choice';
       btn.textContent=opt==='5'?'5⭐':opt;btn.setAttribute('aria-pressed',selection[item.i]===opt?'true':'false');
       if(isPhoto(item))btn.disabled=true;
-      btn.addEventListener('click',()=>{if(selection[item.i]===opt)delete selection[item.i];else selection[item.i]=opt;draw();});
+      if(!isPhoto(item))btn.addEventListener('click',()=>{if(selection[item.i]===opt)delete selection[item.i];else selection[item.i]=opt;draw();});
       opts.append(btn);
     }
     row.append(opts);section.append(row);
