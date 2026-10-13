@@ -4,6 +4,39 @@ const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const ID_PATTERN = /^\d{1,9}$/;
 const TTL_SECONDS = 1800;
+// Owner verified this live publication on 2026-10-13. Historical backfill:
+// immutable even if the bot's chat or Cloudflare KV data are cleared.
+const VERIFIED_FIRST_PUBLICATION = "652282";
+const PUBLICATION_KEY = "owner_anketa_publication_v1:";
+async function publicationStatus(env,id,kind) {
+  if(!ID_PATTERN.test(String(id)) || !["rating","review"].includes(kind))return null;
+  if(kind==="rating" && String(id)===VERIFIED_FIRST_PUBLICATION)
+    return {status:"published",at:"2026-10-13",source:"owner-public-verification"};
+  return await env.VISITORS_KV?.get(PUBLICATION_KEY+kind+":"+id,"json")||null;
+}
+async function recordPublication(env,id,kind,status,source) {
+  if(!env.VISITORS_KV || !ID_PATTERN.test(String(id)) ||
+      !["rating","review"].includes(kind) ||
+      !["publishing","published","needs_verification"].includes(status))
+    return false;
+  const key=PUBLICATION_KEY+kind+":"+id;
+  const before=await publicationStatus(env,id,kind);
+  if(before?.status==="published" || (before && status==="publishing"))return false;
+  await env.VISITORS_KV.put(key,JSON.stringify({
+    status,source,at:new Date().toISOString()
+  })); // no expiration: independent of chat, profile library, and 30-minute draft TTL
+  return true;
+}
+async function ensureNoRepeat(env,id,kind,send) {
+  const found=await publicationStatus(env,id,kind);
+  if(!found)return false;
+  await say(env,send,found.status==="published" ?
+    "✅ "+(kind==="rating"?"Оценка опубликована":"Отзыв опубликован")+
+    "\n\n🆔 Анкета №"+id+"\n🔒 Повторная публикация запрещена.":
+    "🔒 Повторная публикация временно заблокирована\n\n🆔 Анкета №"+id+
+    "\nРезультат предыдущей попытки ещё требует подтверждения.");
+  return true;
+}
 const HOST_PATTERN = /^[a-z0-9-]+\.intimcity\.rip$/;
 function parseProfileLink(input) {
   try {
@@ -60,9 +93,12 @@ const libraryKeyboard=ids=>buttons([
   ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
   [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}]
 ]);
-function profileKeyboard(id){return buttons([
-  [{text:"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}],
-  [{text:"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}],
+async function profileKeyboard(env,id){
+  const rating=await publicationStatus(env,id,"rating");
+  const review=await publicationStatus(env,id,"review");
+  return buttons([
+  [{text:rating?.status==="published"?"✅ Оценка опубликована":rating?"🔒 Оценка: проверка результата":"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}],
+  [{text:review?.status==="published"?"✅ Отзыв опубликован":review?"🔒 Отзыв: проверка результата":"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
 ]);}
@@ -79,7 +115,7 @@ async function showSaved(env,send,id) {
   if(!record){await showLibrary(env,send);return;}
   await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👤 "+record.profile.name+
     "\n🔗 "+record.profile.url+"\n\n💕 Что бы вы хотели подготовить?",
-    profileKeyboard(id));
+    await profileKeyboard(env,id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 async function trackAnketaMessage(env,id){
@@ -256,6 +292,12 @@ export async function handleAnketaLookupResult(request,env,send) {
     const wasStarted=current.submissionStartedAt>0;
     if(current.id!==id || current.nonce!==nonce || !wasStarted)
       return new Response("Stale",{status:409});
+    // A visible success alert alone is not proof of a matching public entry.
+    // The screenshot verifier (#57) will set "published" only after matching
+    // the exact profile and delivering the screenshot to Telegram.
+    await recordPublication(env,id,"rating","needs_verification",
+      attempt.confirmed===true?"site-ack-awaiting-screenshot":
+      attempt.attempted===true?"submission-unconfirmed":"submission-not-proven");
     const next={...current,step:"publication_result",publicationReport:{
       attempted:attempt.attempted===true,
       confirmed:attempt.confirmed===true,
@@ -478,12 +520,14 @@ export async function handleOwnerAnketa(update,env,send) {
   if(savedMenu){await showSaved(env,send,savedMenu[1]);return true;}
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
   if(savedReview){
+    if(await ensureNoRepeat(env,savedReview[1],"review",send))return true;
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",profileKeyboard(savedReview[1]));
+    await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",await profileKeyboard(env,savedReview[1]));
     return true;
   }
   const savedRating=/^owner_anketa:savedrating:(\d{1,9})$/.exec(data);
   if(savedRating){
+    if(await ensureNoRepeat(env,savedRating[1],"rating",send))return true;
     const rec=await savedGet(env,savedRating[1]);
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
@@ -539,6 +583,7 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const consent=/^owner_anketa:consent:([a-f0-9]{12})$/.exec(data);
   if(consent) {
+    if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="ratings" || current.nonce!==consent[1] || !current.draftReady) {
       await say(env,send,"🌷 Это подтверждение уже неактуально. Откройте форму оценок и проверьте выбор ещё раз.");
       return true;
@@ -569,9 +614,15 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const publishConfirm=/^owner_anketa:publish_confirm:([a-f0-9]{12})$/.exec(data);
   if(publishConfirm){
+    if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="prepublish_ready" || current.nonce!==publishConfirm[1] ||
         !current.readyAt || Date.now()-current.readyAt>15*60*1000){
       await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
+    }
+    // Permanent per-profile guard before the external submission is dispatched.
+    if(!await recordPublication(env,current.profile.id,"rating","publishing","owner-confirmation")){
+      await say(env,send,"🔒 Публикация уже была начата или завершена. Повтор запрещён.");
+      return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     const pending={...current,step:"publishing",id:current.profile.id,
@@ -602,6 +653,7 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const dryfill=/^owner_anketa:dryfill:([a-f0-9]{12})$/.exec(data);
   if(dryfill){
+    if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="ratings_agreed" || current.nonce!==dryfill[1] ||
         !Object.keys(current.selected||{}).length){
       await say(env,send,"🌷 Для теста подтвердите новый отчёт оценок.");return true;
@@ -627,6 +679,7 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const audit=/^owner_anketa:audit:([a-f0-9]{12})$/.exec(data);
   if(audit){
+    if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="ratings_agreed" || current.nonce!==audit[1] ||
         !Object.keys(current.selected||{}).length){
       await say(env,send,"🌷 Сначала подтвердите новый отчёт с оценками.");return true;
@@ -753,6 +806,8 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if(String(user?.id)!==OWNER_ID) return new Response("Forbidden",{status:403});
   const state=await stateGet(env);
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
+  const existingRating=await publicationStatus(env,state.profile?.id,"rating");
+  if(existingRating)return Response.json({error:"already_published_or_pending"},{status:409});
   if(input.action==="load") return Response.json({
     profile:state.profile,selected:state.selected||{},metElsewhere:state.metElsewhere===true,catalog:organizeCatalog(state.catalog).map(x=>({
       label:x.label,group:x.group||"Оценки анкеты",subgroup:x.subgroup||"",
