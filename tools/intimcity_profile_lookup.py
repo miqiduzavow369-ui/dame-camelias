@@ -107,15 +107,60 @@ def inspect(pid):
             if not found:
                 raise RuntimeError("Login form not found")
             print("LOOKUP_STAGE: verify-login")
-            page.wait_for_timeout(2200)
-            if not page.locator('a[href*="logout"], a[href*="exit"], a:has-text("Выйти"), a:has-text("Выход")').count():
+            try:
+                page.wait_for_load_state("networkidle",timeout=10000)
+            except Exception:
+                pass
+            page.wait_for_timeout(2500)
+            print("LOOKUP_STAGE: verify-login")
+            logout=page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count()>0
+            account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
+            password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
+            if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
-            url=f"https://{OWNER_HOST}/indi/anketa{pid}.htm"
-            print("LOOKUP_STAGE: open-profile")
-            page.goto(url,wait_until="domcontentloaded",timeout=45000)
+            print("LOOKUP_STAGE: search-profile")
+            search=page.locator('input#searchStr[name="phones"]')
+            visible=[el for el in search.all() if el.is_visible()]
+            if len(visible)!=1:
+                raise RuntimeError("Profile search field not found")
+            field=visible[0]
+            field.fill(pid)
+            form=field.locator("xpath=ancestor::form[1]")
+            if form.count()!=1:
+                raise RuntimeError("Profile search form missing")
+            button=form.locator('input#searchPS[name="phonesearch"][type="submit"]')
+            if button.count()!=1:
+                raise RuntimeError("Profile search submit missing")
+            button.first.click(timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded",timeout=15000)
+            except Exception:
+                pass
+            print("LOOKUP_STAGE: match-search-result")
+            results=page.locator(f'a[href*="anketa{pid}.htm"]')
+            results.first.wait_for(state="visible",timeout=12000)
+            visible_results=[el for el in results.all() if el.is_visible()]
+            if not visible_results:
+                raise RuntimeError("Requested profile search result not found")
+            other=page.locator('a[href*="/indi/anketa"][href$=".htm"]')
+            found_ids=set()
+            for el in other.all():
+                if not el.is_visible():
+                    continue
+                match=re.search(r"anketa(\\d+)\\.htm",el.get_attribute("href") or "")
+                if match:
+                    found_ids.add(match.group(1))
+            if found_ids!={pid}:
+                raise RuntimeError("Ambiguous search results")
+            print("LOOKUP_STAGE: open-profile-from-search")
+            visible_results[0].click(timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded",timeout=15000)
+            except Exception:
+                pass
             page.wait_for_timeout(1800)
             target=urlparse(page.url)
-            if target.hostname != OWNER_HOST or target.path != f"/indi/anketa{pid}.htm":
+            if target.hostname not in (OWNER_HOST,"intimcity.rip") or target.path!=f"/indi/anketa{pid}.htm":
                 raise RuntimeError("Unexpected profile location")
             print("LOOKUP_STAGE: extract-profile")
             return extract(page,pid)
