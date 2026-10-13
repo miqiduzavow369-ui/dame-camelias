@@ -519,7 +519,10 @@ export async function handleOwnerAnketa(update,env,send) {
         !current.readyAt || Date.now()-current.readyAt>15*60*1000){
       await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
     }
-    await say(env,send,"🌷 Ваше подтверждение получено. Фактическая публикация пока отключена и будет внедряться отдельным этапом.");
+    // Consume the confirmed intent now, even with real submission disabled:
+    // a repeated callback cannot be treated as another publication request.
+    await statePut(env,{...current,step:"publish_intent_recorded",readyAt:null,confirmedAt:Date.now()});
+    await say(env,send,"🌷 Подтверждение получено и сохранено. Повторная отправка этого подтверждения заблокирована. Реальная публикация пока отключена.");
     return true;
   }
   const publishCancel=/^owner_anketa:publish_cancel:([a-f0-9]{12})$/.exec(data);
