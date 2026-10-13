@@ -509,12 +509,21 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if(input.action!=="save" || !input.selected || typeof input.selected!=="object" || Array.isArray(input.selected))
     return new Response("Invalid request",{status:400});
   const safe={};
+  const photoIndices=new Set(state.catalog.map((f,i)=>/^(?:isFair|Фото соответствует)$/i.test(String(f.label||"").trim())?i:-1).filter(i=>i>=0));
   for(const [index,value] of Object.entries(input.selected)) {
+    if(photoIndices.has(Number(index)) && value!=="Фото соответствует")
+      return new Response("Invalid photo value",{status:400});
     if(!/^(0|[1-9]\d{0,2})$/.test(index)) return new Response("Invalid field",{status:400});
     const field=state.catalog[Number(index)];
     if(!field || typeof value!=="string" || !field.options.includes(value) ||
         /^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)) return new Response("Invalid choice",{status:400});
     safe[index]=value;
+  }
+  // The owner-only photo correspondence answer is fixed and never editable.
+  for(const i of photoIndices){
+    if(!state.catalog[i].options.includes("Фото соответствует"))
+      return new Response("Unavailable photo option",{status:409});
+    safe[i]="Фото соответствует";
   }
   await statePut(env,{...state,step:"ratings",selected:safe,draftReady:true,agreedAt:null});
   // Preserve source field order and group headings in the Telegram review.
