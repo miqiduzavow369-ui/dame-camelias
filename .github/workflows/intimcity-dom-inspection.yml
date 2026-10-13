@@ -1,0 +1,24 @@
+name: Intimcity DOM inspection (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Inspect login/search controls without signing in
+        env:
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+          EXPECTED_EGRESS_IP: ${{ secrets.EXPECTED_EGRESS_IP }}
+        run: python tools/intimcity_dom_inspection.py
