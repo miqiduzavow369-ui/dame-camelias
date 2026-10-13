@@ -23,7 +23,7 @@ on:
 # Serialize jobs for the same profile: later jobs cannot run simultaneously
 # and consume the same one-time publication grant.
 concurrency:
-  group: "intimcity-profile-\${{ inputs.profile_id }}"
+  group: "intimcity-profile-${{ inputs.profile_id }}"
   cancel-in-progress: false
 
 permissions:
