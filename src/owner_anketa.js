@@ -158,22 +158,34 @@ function ratingSubgroup(field) {
 // Build contiguous site-style service complexes without sorting any fields.
 // The category changes only when a source heading or distinctive first item appears.
 function organizeCatalog(catalog) {
+  // Section transitions follow the approved owner report sample.
+  // Never sort the criteria: retain their original website order.
   let section="Основной перечень";
+  const stages=["Основной перечень","Секс","Массаж","БДСМ","Другое"];
+  const stageIndex=name=>stages.indexOf(name);
   return catalog.map(field=>{
-    const label=String(field.label||"").trim(),low=label.toLowerCase();
-    const group=String(field.group||"").trim(),g=group.toLowerCase();
-    const nested=String(field.subgroup||"").trim().toLowerCase();
-    if(/массаж/.test(g+" "+nested)||/^(классический|расслабляющий)$/.test(low))section="Массаж";
-    else if(/бдсм|bdsm/.test(g+" "+nested)||low==="игры")section="БДСМ";
-    else if(/^(другое|другие услуги|дополнительные услуги)$/.test(g)||/^(другое|другие услуги|дополнительные услуги)$/.test(low))section="Другое";
-    else if(/основн|новая оценка/.test(g)) {
-      // The generic form title is not a section boundary after Massage/BDSM.
-      if(section==="Основной перечень")section="Основной перечень";
-    }
+    const label=String(field.label||"").trim();
+    const low=label.toLowerCase();
+    const siteGroup=String(field.group||"").toLowerCase();
+    const sourceSubgroup=String(field.subgroup||"").toLowerCase();
+    let next=null;
+    if(low==="отношение к клиенту")next="Секс";
+    else if(/^(классический|расслабляющий)$/.test(low) ||
+      /массаж/.test(siteGroup))next="Массаж";
+    else if(low==="игры" || /(?:бдсм|bdsm)/.test(siteGroup))next="БДСМ";
+    else if(low==="окончание в рот" ||
+      /^(?:другое|другие услуги|дополнительные услуги)$/.test(siteGroup))next="Другое";
+    // Explicit field boundaries win over previously cached heuristic subgroups.
+    // Unambiguous source section captions are a fallback for other profiles.
+    else if(/^(?:секс|массаж|бдсм|другое)$/.test(sourceSubgroup))
+      next=sourceSubgroup==="секс"?"Секс":sourceSubgroup==="массаж"?"Массаж":
+        sourceSubgroup==="бдсм"?"БДСМ":"Другое";
+    if(next && stageIndex(next)>stageIndex(section))section=next;
     return {...field,label:/^isFair$/i.test(label)?"Фото соответствует":label,
       group:"Оценки анкеты",subgroup:section};
   });
 }
+
 function validProfile(data, id, host) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
       !data.name.trim() || data.name.length > 100 ||
@@ -539,9 +551,9 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
     const group=field.group||"Оценки анкеты";
     if(group!==lastGroup){sections.push("\n━━━━━━━━━━━━\n💎 "+group);lastGroup=group;lastSubgroup="";}
     const subgroup=field.subgroup||"";
-    if(subgroup && subgroup!==lastSubgroup)sections.push("\n────────────\n✦ "+subgroup);
+    if(subgroup && subgroup!==lastSubgroup)sections.push("\n"+subgroup+"\n────────────");
     lastSubgroup=subgroup;
-    sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
+    sections.push(field.label==="Фото соответствует" && v==="Фото соответствует" ? "• Фото соответствует" : "• "+field.label+": "+(v==="5"?"5⭐":v));
   }
   if(metElsewhere)sections.push("\n☑️ Встречался по другой анкете");
   const intro="🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
