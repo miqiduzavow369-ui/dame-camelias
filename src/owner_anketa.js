@@ -269,22 +269,22 @@ export async function handleOwnerAnketa(update,env,send) {
     await inspect(env,send,txt);
     return true;
   }
-  const savedMenu=/^owner_anketa:saved:(\\d{1,9})$/.exec(data);
+  const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
   if(savedMenu){await showSaved(env,send,savedMenu[1]);return true;}
-  const savedReview=/^owner_anketa:savedreview:(\\d{1,9})$/.exec(data);
+  const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
   if(savedReview){
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"✍️ Раздел отзывов скоро появится.\\n\\n💕 Пока можно работать с оценками.",profileKeyboard(savedReview[1]));
+    await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",profileKeyboard(savedReview[1]));
     return true;
   }
-  const savedRating=/^owner_anketa:savedrating:(\\d{1,9})$/.exec(data);
+  const savedRating=/^owner_anketa:savedrating:(\d{1,9})$/.exec(data);
   if(savedRating){
     const rec=await savedGet(env,savedRating[1]);
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     if(rec.catalog?.length){
       await statePut(env,{step:"ratings",profile:rec.profile,host:rec.host,catalog:rec.catalog,selected:{},nonce});
-      await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\\n\\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\\n💕 Все отметки начинаются с чистого листа.",
+      await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
       return true;
@@ -293,18 +293,18 @@ export async function handleOwnerAnketa(update,env,send) {
     let started=false;
     try{started=(await dispatchLookup(env,rec.profile.id,nonce,"ratings",rec.host)).ok;}catch{}
     if(!started){await say(env,send,"🌷 Пока не получилось загрузить услуги. Попробуйте ещё раз позже.");return true;}
-    await say(env,send,"🌸 Первый раз собираю доступные услуги этой анкеты. Это займёт немного времени.\\n✨ В дальнейшем форма будет открываться сразу.");
+    await say(env,send,"🌸 Первый раз собираю доступные услуги этой анкеты. Это займёт немного времени.\n✨ В дальнейшем форма будет открываться сразу.");
     return true;
   }
-  const deleteAsk=/^owner_anketa:deleteask:(\\d{1,9})$/.exec(data);
+  const deleteAsk=/^owner_anketa:deleteask:(\d{1,9})$/.exec(data);
   if(deleteAsk){
     if(!await savedGet(env,deleteAsk[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"🌷 Удалить анкету №"+deleteAsk[1]+" из вашего списка и хранилища DAME CAMELIAS?\\n\\nЭто действие нельзя отменить.",
+    await say(env,send,"🌷 Удалить анкету №"+deleteAsk[1]+" из вашего списка и хранилища DAME CAMELIAS?\n\nЭто действие нельзя отменить.",
       buttons([[{text:"🗑 Да, удалить",callback_data:"owner_anketa:deleteyes:"+deleteAsk[1]}],
         [{text:"↩️ Оставить анкету",callback_data:"owner_anketa:saved:"+deleteAsk[1]}]]));
     return true;
   }
-  const deleteYes=/^owner_anketa:deleteyes:(\\d{1,9})$/.exec(data);
+  const deleteYes=/^owner_anketa:deleteyes:(\d{1,9})$/.exec(data);
   if(deleteYes){
     await savedDelete(env,deleteYes[1]);
     const currentState=await stateGet(env);
@@ -326,7 +326,8 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⏳ Подтверждение устарело. Нажми 🔐 АНКЕТА и введи номер заново.");
       return true;
     }
-    await savedPut(env,{profile:current.profile,host:current.host,catalog:[]});
+    const prior=await savedGet(env,current.profile.id);
+    await savedPut(env,{profile:current.profile,host:current.host,catalog:prior?.catalog||[]});
     await statePut(env,{step:"chosen",profile:current.profile,host:current.host,nonce});
     await showSaved(env,send,current.profile.id);
     return true;
