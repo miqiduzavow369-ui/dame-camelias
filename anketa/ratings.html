@@ -7,7 +7,7 @@ main{max-width:740px;margin:auto;padding:0 16px 90px}header{text-align:center;pa
 h2{font:normal 22px Georgia,serif;color:var(--gold);margin:0 0 8px}
 .card{background:linear-gradient(145deg,#241b14,#100e0c);border:1px solid var(--line);border-radius:18px;padding:16px;margin:16px 0;box-shadow:0 9px 25px #0004}
 .profile{color:#f3ddba}.minor{color:var(--muted);font-size:13px}.title{font:normal 20px Georgia,serif;color:var(--gold)}details{margin:14px 0;border:1px solid #493a2a;background:#16110e;border-radius:14px;overflow:hidden}summary{padding:15px 13px;cursor:pointer;color:var(--gold);font:normal 20px Georgia,serif}summary::marker{color:#d3a45d}
-.item{padding:14px;border-top:1px solid #403124}.subgroup{font:normal 17px Georgia,serif;color:#e7bd75;margin:10px 0 2px;padding:13px 14px 6px;border-top:1px solid #755639}.subgroup + .item{border-top:0}.name{font-size:15px;color:#f7e5cc;margin-bottom:10px}.choices{display:flex;gap:9px;flex-wrap:wrap}.choice{border:1px solid #6d5740;border-radius:999px;padding:10px 15px;color:#e9d6bc;background:#0c0b0a;font:inherit;min-height:43px;cursor:pointer}.choice[aria-pressed=true]{background:linear-gradient(110deg,#a77b45,#efca86);color:#24170b;border-color:#eec783;font-weight:700}.empty{color:var(--muted);font-size:12px;padding-top:8px}
+.item{padding:14px;border-top:1px solid #403124}.subgroup{font:normal 19px Georgia,serif;color:#e7bd75;margin:18px 0 4px;padding:18px 14px 8px;border-top:2px solid #977044;background:#261c14}.subgroup + .item{border-top:0}.name{font-size:15px;color:#f7e5cc;margin-bottom:10px}.choices{display:flex;gap:9px;flex-wrap:wrap}.choice{border:1px solid #6d5740;border-radius:999px;padding:10px 15px;color:#e9d6bc;background:#0c0b0a;font:inherit;min-height:43px;cursor:pointer}.choice[aria-pressed=true]{background:linear-gradient(110deg,#a77b45,#efca86);color:#24170b;border-color:#eec783;font-weight:700}.empty{color:var(--muted);font-size:12px;padding-top:8px}
 .sticky{position:sticky;bottom:0;background:#0b0908f5;border-top:1px solid #6b5031;padding:12px 0 10px;box-shadow:0 -9px 24px #0008}.btn{display:block;width:100%;padding:15px;border:0;border-radius:12px;background:linear-gradient(105deg,#b98543,#ffe0a0,#bd8b4d);color:#2a170a;font:700 17px system-ui;cursor:pointer}.btn:disabled{opacity:.6}.status{font-size:12px;min-height:18px;color:#e3c89c;text-align:center;margin:7px 0}.hint{line-height:1.55;color:#d6bf9e}.counter{color:var(--gold);font-weight:700}.hide{display:none}a{color:var(--gold)}
 </style><script src="https://telegram.org/js/telegram-web-app.js"></script></head>
 <body><header><div class="rose">🌹</div><h1>DAME CAMELIAS</h1><p>Оценки вашей анкеты</p></header>
@@ -68,6 +68,13 @@ async function boot(){
  if(!key||!initData){status.textContent='🌷 Откройте эту форму через кнопку бота в Telegram.';return;}
  try{
   const data=await api('load');catalog=data.catalog||[];selection=data.selected||{};
+  // Site defaults the correspondence choice to the affirmative value.
+  // Other values remain editable until the draft is submitted.
+  catalog.forEach((item,i)=>{
+    if(/^(?:isFair|Фото соответствует)$/i.test(clean(item.label)) &&
+       selection[i]===undefined && item.options.includes('Фото соответствует'))
+      selection[i]='Фото соответствует';
+  });
   document.getElementById('profile').textContent='👤 '+clean(data.profile?.name)+' · №'+clean(data.profile?.id);
   draw();done.disabled=false;status.textContent='🌸 Форма готова. Выбирайте в удобном темпе.';
  }catch(e){status.textContent=e.message;}
