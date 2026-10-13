@@ -355,7 +355,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
     return new Response("Invalid request",{status:400});
   const safe={};
   for(const [index,value] of Object.entries(input.selected)) {
-    if(!/^(0|[1-9]\d?)$/.test(index)) return new Response("Invalid field",{status:400});
+    if(!/^(0|[1-9]\d{0,2})$/.test(index)) return new Response("Invalid field",{status:400});
     const field=state.catalog[Number(index)];
     if(!field || typeof value!=="string" || !field.options.includes(value) ||
         /^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)) return new Response("Invalid choice",{status:400});
