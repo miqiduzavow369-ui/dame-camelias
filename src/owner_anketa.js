@@ -66,6 +66,17 @@ function ratingSummary(state) {
     "\n\n💕 Нажмите ◯, чтобы отметить категорию. Повторное нажатие снимет отметку."+
     "\n✨ Для вариантов с текстом можно выбрать значение отдельно.\n\n🌷 Пока это только черновик.";
 }
+function ratingSubgroup(field) {
+  const label=String(field.label||"").toLowerCase().trim();
+  const group=String(field.group||"").toLowerCase().trim();
+  // Use explicit site headings first. These two labels only fill in the
+  // site's nested captions when its HTML does not expose a heading.
+  if (/массаж/.test(group)) return "Массаж";
+  if (/бдсм|bdsm/.test(group)) return "БДСМ";
+  if (/^(классический|расслабляющий)$/.test(label)) return "Массаж";
+  if (label==="игры") return "БДСМ";
+  return "";
+}
 function validProfile(data, id, host) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
       !data.name.trim() || data.name.length > 100 ||
@@ -108,7 +119,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     const profile = current.profile;
     const raw = Array.isArray(data.catalog) ? data.catalog : [];
     const catalog = raw.slice(0,120).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
-      .map(x => ({label:x.label.slice(0,90),group:typeof x.group==="string" ? x.group.slice(0,90) : "Оценки анкеты",options:x.options.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,50))}));
+      .map(x => ({label:x.label.slice(0,90),group:typeof x.group==="string" ? x.group.slice(0,90) : "Оценки анкеты",subgroup:ratingSubgroup(x),options:x.options.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,50))}));
     if(data.status!=="found" || !catalog.length || !data.profile || String(data.profile.id)!==id) {
       await statePut(env,{step:"chosen",profile,nonce:current.previousNonce,host:current.host});
       await say(env,send,"🌷 Сейчас не удалось загрузить категории оценок для анкеты №"+id+
@@ -347,7 +358,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
     profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
-      label:x.label,group:x.group||"Оценки анкеты",
+      label:x.label,group:x.group||"Оценки анкеты",subgroup:x.subgroup||"",
       options:x.options.filter(v=>!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(v))
     }))
   },{headers:{"Cache-Control":"no-store"}});
@@ -366,10 +377,14 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]));
   const sections=[];
   let lastGroup="";
+  let lastSubgroup="";
   for(const [i,v] of selected){
     const field=state.catalog[Number(i)];
     const group=field.group||"Оценки анкеты";
-    if(group!==lastGroup){sections.push("\n💎 "+group);lastGroup=group;}
+    if(group!==lastGroup){sections.push("\n━━━━━━━━━━━━\n💎 "+group);lastGroup=group;lastSubgroup="";}
+    const subgroup=field.subgroup||"";
+    if(subgroup && subgroup!==lastSubgroup)sections.push("\n✦ "+subgroup);
+    lastSubgroup=subgroup;
     sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
   }
   const intro="🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+

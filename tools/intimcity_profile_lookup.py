@@ -265,6 +265,9 @@ def inspect(pid, mode='profile'):
                     .map(o=>normalize(o.textContent).slice(0,50)).filter(Boolean);
                   if(!label || !options.length)continue;
                   const id=node.id || node.name || label;
+                  // An individual one-option select does not represent the
+                  // full choice set; the site's radio controls may follow it.
+                  if(options.length<2 && form.querySelector('input[type="radio"][name="'+CSS.escape(node.name || node.id || '')+'"]'))continue;
                   if(seen.has('select:'+id))continue;
                   seen.add('select:'+id);
                   fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
@@ -278,11 +281,13 @@ def inspect(pid, mode='profile'):
                   if(!radios.length)continue;
                   const parent=node.closest('fieldset,.form-group,.rating-row,tr,.row') || node.parentElement?.parentElement;
                   const heading=parent?.querySelector('legend,th,.question,.label');
-                  const label=titleOf(heading) || labelOf(node) || normalize(node.name);
+                  const label=titleOf(heading) || normalize(node.name);
                   const options=radios.map(x=>{
                     const explicit=x.id && form.querySelector('label[for="'+CSS.escape(x.id)+'"]');
-                    return titleOf(explicit) || titleOf(x.closest('label')) || normalize(x.value);
-                  }).filter(Boolean).map(x=>x.slice(0,50));
+                    const labelEl=explicit || x.closest('label');
+                    const text=titleOf(labelEl);
+                    return (text || normalize(x.value)).slice(0,50);
+                  }).filter(Boolean);
                   if(!label || options.length<2)continue;
                   seen.add(key);
                   fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
