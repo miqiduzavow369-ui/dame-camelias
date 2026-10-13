@@ -320,7 +320,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   const state=await stateGet(env);
   if(!state || state.step!=="ratings" || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
-    profile:state.profile,catalog:state.catalog.map(x=>({
+    profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
       label:x.label,
       options:x.options.filter(v=>!/^\\s*(?:не знаю|отказано|[1-4])\\s*$/i.test(v))
     }))
