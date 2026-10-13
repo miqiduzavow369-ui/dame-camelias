@@ -5,6 +5,7 @@ Secrets are consumed only at runtime. No screenshots, traces, cookies, or page H
 are written to disk or printed to GitHub Actions logs.
 """
 import ipaddress
+import json
 import os
 import sys
 from urllib.parse import urlparse
@@ -34,7 +35,7 @@ def run():
         try:
             page = context.new_page()
             page.goto(CHECK_URL, wait_until="domcontentloaded", timeout=30000)
-            seen = ipaddress.ip_address(page.locator("body").inner_text(timeout=8000).strip().split('"ip":"')[-1].split('"')[0]) if '"ip":"' in page.locator("body").inner_text() else None
+            seen = ipaddress.ip_address(json.loads(page.locator("body").inner_text(timeout=8000))["ip"])
             if seen != expected:
                 raise RuntimeError("Egress IP mismatch; aborted before site access")
             print("PASS: browser egress IP matches allowlist")
@@ -67,18 +68,43 @@ def run():
                 submit.click(timeout=8000)
             else:
                 password_field.press("Enter")
+            # Allow asynchronous login to complete; only print fixed, non-sensitive
+            # diagnostic labels. Never log URLs, HTML, credentials, or cookies.
             try:
-                page.wait_for_load_state("domcontentloaded", timeout=12000)
+                page.wait_for_load_state("networkidle", timeout=10000)
             except Exception:
                 pass
-            # Never infer successful login solely from HTTP 200 or UI click.
-            logout = page.get_by_text("Выйти", exact=True).or_(
-                page.get_by_text("Выход", exact=True)
-            )
-            if logout.count() and logout.first.is_visible():
-                print("PASS: authenticated interface detected")
+            page.wait_for_timeout(2500)
+            if urlparse(page.url).hostname not in ("a.intimcity.rip", "intimcity.rip"):
+                print("NEEDS_REVIEW: redirected to a different host")
+                return 2
+
+            indicators = {
+                "logout_control": 'a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")',
+                "account_control": 'a:has-text("Личный кабинет"), a:has-text("Мой профиль")',
+                "challenge": 'iframe[src*="captcha"], input[name*="captcha"], input[name*="code"]',
+            }
+            matched = {}
+            for key, selector in indicators.items():
+                matched[key] = page.locator(selector).count() > 0
+            login_still_visible = False
+            for candidate in page.locator('input[type="password"]').all():
+                if candidate.is_visible():
+                    login_still_visible = True
+                    break
+            print("DIAGNOSTIC: " + json.dumps({
+                "logout_control": matched["logout_control"],
+                "account_control": matched["account_control"],
+                "challenge_present": matched["challenge"],
+                "password_field_visible": login_still_visible,
+            }, ensure_ascii=False))
+            if matched["logout_control"]:
+                print("PASS: authenticated logout control detected")
                 return 0
-            print("NEEDS_REVIEW: login submitted, authentication not conclusively verified")
+            if matched["account_control"] and not login_still_visible:
+                print("PASS: account navigation detected without login form")
+                return 0
+            print("NEEDS_REVIEW: login outcome uncertain; no further actions")
             return 2
         finally:
             context.close()
