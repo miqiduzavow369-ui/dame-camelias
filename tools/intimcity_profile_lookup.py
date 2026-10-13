@@ -147,7 +147,7 @@ def inspect(pid):
             for el in other.all():
                 if not el.is_visible():
                     continue
-                match=re.search(r"anketa(\\d+)\\.htm",el.get_attribute("href") or "")
+                match=re.search(r"anketa(\d+)\.htm",el.get_attribute("href") or "")
                 if match:
                     found_ids.add(match.group(1))
             if found_ids!={pid}:
