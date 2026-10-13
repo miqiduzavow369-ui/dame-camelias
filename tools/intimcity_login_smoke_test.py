@@ -112,6 +112,51 @@ def run():
                 print("NEEDS_REVIEW: login outcome uncertain; search not attempted")
                 return 2
 
+            if os.environ.get("INTIMCITY_INSPECT_RATINGS") == "1":
+                # Read-only discovery: actual profile DOM, after its scripts ran.
+                # Never submit either the rating form or the review form.
+                profile_id = os.environ.get("INTIMCITY_PROFILE_ID", PROFILE_ID)
+                if not profile_id.isdigit() or not (1 <= len(profile_id) <= 9):
+                    raise RuntimeError("Invalid profile ID")
+                page.goto(f"https://a.intimcity.rip/indi/anketa{profile_id}.htm",
+                          wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_timeout(2200)
+                parsed = urlparse(page.url)
+                if parsed.hostname != "a.intimcity.rip" or parsed.path != f"/indi/anketa{profile_id}.htm":
+                    print("NEEDS_REVIEW: unexpected profile destination")
+                    return 2
+                if not page.locator("#checked_form").count():
+                    print("NEEDS_REVIEW: rating form missing on requested profile")
+                    return 2
+                # Prefer opening the site's own button so JavaScript populates
+                # the form exactly as it would for a real visitor.
+                toggle = page.locator("#checked_star input[type=button]")
+                if toggle.count() and toggle.first.is_visible():
+                    toggle.first.click(timeout=8000)
+                    page.wait_for_timeout(650)
+                catalog = page.locator("#checked_form").evaluate("""form => {
+                  const out = [];
+                  for (const el of form.querySelectorAll('select')) {
+                    if (!el.id || el.disabled || !el.getClientRects().length) continue;
+                    const lbl = form.querySelector('label[for="' + el.id + '"]');
+                    const label = (lbl?.textContent || '').replace(/\\s+/g, ' ').trim().slice(0,90);
+                    if (!label) continue;
+                    const choices = [...el.options].map(o => ({v:o.value, t:o.textContent.trim().slice(0,45)}));
+                    out.push({id:el.id,label,choices});
+                  }
+                  return out.slice(0,100);
+                }""")
+                print("RATING_CATALOG: " + json.dumps({
+                    "profile_id": profile_id,
+                    "count": len(catalog),
+                    "fields": catalog
+                }, ensure_ascii=False))
+                if not catalog:
+                    print("NEEDS_REVIEW: no enabled visible fields")
+                    return 2
+                print("PASS: discovered enabled rating fields without submitting")
+                return 0
+
             search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
             if len(visible_search) != 1:
