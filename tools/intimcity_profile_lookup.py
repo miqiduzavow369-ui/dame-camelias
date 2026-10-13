@@ -111,6 +111,7 @@ def inspect(pid, mode='profile'):
                     found=True
                     break
             if not found:
+                print("LOOKUP_LOGIN_DIAG: login_form=missing")
                 raise RuntimeError("Login form not found")
             print("LOOKUP_STAGE: verify-login")
             try:
@@ -123,6 +124,8 @@ def inspect(pid, mode='profile'):
             logout = page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count() > 0
             account = page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count() > 0
             password_visible = any(el.is_visible() for el in page.locator('input[type="password"]').all())
+            print("LOOKUP_LOGIN_DIAG: logout_link=%s; account_link=%s; password_visible=%s; site_host_ok=true" %
+                  (str(logout).lower(),str(account).lower(),str(password_visible).lower()))
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
             print("LOOKUP_STAGE: search-profile")
