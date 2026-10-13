@@ -1,0 +1,34 @@
+name: Proxy IP preflight (manual)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-egress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required secrets are configured
+        env:
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+          EXPECTED_EGRESS_IP: ${{ secrets.EXPECTED_EGRESS_IP }}
+        run: |
+          for name in PROXY_HOST PROXY_USERNAME PROXY_PASSWORD EXPECTED_EGRESS_IP; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              exit 1
+            fi
+          done
+      - name: Check outgoing IP through proxy (no target website requests)
+        env:
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_PORT: "6408"
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+          EXPECTED_EGRESS_IP: ${{ secrets.EXPECTED_EGRESS_IP }}
+        run: python3 tools/proxy_ip_preflight.py
