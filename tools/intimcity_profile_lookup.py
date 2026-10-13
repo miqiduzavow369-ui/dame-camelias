@@ -9,6 +9,7 @@ import re
 import sys
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from playwright.sync_api import sync_playwright
 
 OWNER_HOST = "a.intimcity.rip"
@@ -28,13 +29,22 @@ def callback(data):
         "Authorization": "Bearer " + required("ANKETA_CALLBACK_TOKEN"),
         "Content-Type": "application/json",
     }, data=json.dumps(data,ensure_ascii=False).encode("utf-8"))
-    with urlopen(request, timeout=20) as res:
-        if res.status != 200:
-            raise RuntimeError("Callback failed")
+    try:
+        with urlopen(request, timeout=20) as res:
+            if res.status != 200:
+                raise RuntimeError("Callback response not successful")
+    except HTTPError as exc:
+        content_type = exc.headers.get("Content-Type", "").split(";")[0][:70]
+        cf_ray = bool(exc.headers.get("cf-ray"))
+        print(f"CALLBACK_HTTP_ERROR: status={exc.code}; content_type={content_type}; cloudflare_ray_present={cf_ray}")
+        raise RuntimeError("Callback rejected; inspect Cloudflare request logs") from None
+    except URLError:
+        print("CALLBACK_NETWORK_ERROR: connection failed")
+        raise RuntimeError("Callback network failure") from None
 
 def extract(page, profile_id):
     # Never infer missing fields from other profiles.
-    raw = page.evaluate("""() => {
+    raw = page.evaluate(r"""() => {
         const normalize = s => (s || '').replace(/\s+/g,' ').trim();
         const h1 = [...document.querySelectorAll('h1')].find(e => e.getClientRects().length);
         const title = normalize(h1?.textContent);
@@ -114,7 +124,10 @@ def main():
         result=inspect(pid)
         print("LOOKUP:", "profile identity detected" if result else "profile identity unavailable")
     except Exception as e:
-        print("LOOKUP: failed to verify profile identity")
+        category = ("timeout" if "Timeout" in type(e).__name__ else
+                    "proxy" if "Proxy" in type(e).__name__ else
+                    "navigation-or-login")
+        print("LOOKUP: failed to verify profile identity; category=" + category)
     callback({"profile_id":pid,"nonce":nonce,"profile":result})
     print("PASS: result delivered to existing bot")
 
