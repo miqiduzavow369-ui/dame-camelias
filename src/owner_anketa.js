@@ -112,7 +112,8 @@ async function savedDelete(env,id) {
 }
 const libraryKeyboard=ids=>buttons([
   ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
-  [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}]
+  [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}],
+  [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);
 // v1 publication records belong exclusively to yan_first. Never copy their
 // statuses to yan_second; its history will use account-scoped keys at rollout.
@@ -138,7 +139,8 @@ async function profileKeyboard(env,id){
   [{text:rating?.status==="published"?"✅ Оценка опубликована":rating?"🔒 Оценка: проверка результата":"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}],
   [{text:review?.status==="published"?"✅ Отзыв опубликован":review?"🔒 Отзыв: проверка результата":"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
-  [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
+  [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+  [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);}
 async function showLibrary(env,send){
   // Keep important audit and publication reports in the conversation.
@@ -159,11 +161,19 @@ const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
 async function navigationSay(env,send,text,reply_markup){
-  const response=await say(env,send,text,reply_markup);
+  const rows=Array.isArray(reply_markup?.inline_keyboard)?reply_markup.inline_keyboard:[];
+  const hasHome=rows.some(row=>row.some(button=>button.callback_data==="owner_anketa:home"));
+  const markup=buttons(hasHome?rows:[...rows,[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]);
+  let previous=null;
+  try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+  if(Number.isSafeInteger(previous?.id)){
+    try{const edited=await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:previous.id,text,reply_markup:markup});
+      if(edited)return edited;
+    }catch(e){if(String(e).includes("message is not modified"))return {message_id:previous.id};}
+  }
+  const response=await say(env,send,text,markup);
   const id=response?.message_id;
   if(!Number.isSafeInteger(id)||!env.VISITORS_KV)return response;
-  let previous=null;
-  try{previous=await env.VISITORS_KV.get(NAV_MESSAGE_KEY,"json");}catch{}
   try{await env.VISITORS_KV.put(NAV_MESSAGE_KEY,JSON.stringify({id,at:Date.now()}),{expirationTtl:172800});}catch{}
   if(Number.isSafeInteger(previous?.id)&&previous.id!==id&&Date.now()-Number(previous.at)<47*3600000){
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
@@ -492,7 +502,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
     await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
-    await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
+    await navigationSay(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
       ".\n\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
@@ -511,7 +521,7 @@ export async function handleAnketaLookupResult(request,env,send) {
   const decision=crypto.randomUUID().replace(/-/g,"").slice(0,12);
   await statePut(env,{step:"confirm",profile:found,host:current.host,nonce:decision});
   const location=found.metro?"\n📍 м. "+found.metro:"";
-  await say(env,send,"🌹 АНКЕТА НАЙДЕНА\n\n👤 "+found.name+
+  await navigationSay(env,send,"🌹 АНКЕТА НАЙДЕНА\n\n👤 "+found.name+
     "\n🎂 Возраст: "+found.age+" лет"+location+"\n🆔 Номер анкеты: №"+id+"\n🔗 "+
     found.url+"\n\n✅ Это нужная анкета?",
     buttons([[{text:"✅ Подтвердить анкету",callback_data:"owner_anketa:confirm:"+decision}],
@@ -523,7 +533,7 @@ async function askNumber(env,send) {
     await say(env,send,"⚠️ Хранилище состояния не настроено. Ввод анкеты сейчас недоступен.");
     return;
   }
-  await say(env,send,"🌹 ДОБРО ПОЖАЛОВАТЬ В DAME CAMELIAS!\n\n💕 Давайте найдём вашу анкету.\n\n🔗 Пришлите, пожалуйста, полную ссылку на анкету с актуальным доменом Intimcity одним сообщением.\n\n✨ Я бережно проверю данные и предложу дальнейшие шаги.");
+  await navigationSay(env,send,"🌹 ДОБРО ПОЖАЛОВАТЬ В DAME CAMELIAS!\n\n💕 Давайте найдём вашу анкету.\n\n🔗 Пришлите, пожалуйста, полную ссылку на анкету с актуальным доменом Intimcity одним сообщением.\n\n✨ Я бережно проверю данные и предложу дальнейшие шаги.");
 }
 async function inspect(env,send,urlText) {
   const link=parseProfileLink(urlText);
@@ -545,7 +555,7 @@ async function inspect(env,send,urlText) {
     await say(env,send,"🌷 Не получилось начать проверку анкеты.\n\n💕 Пожалуйста, попробуйте ещё раз чуть позже.\n\nТехническая информация: "+dispatched.reason);
     return;
   }
-  await say(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
+  await navigationSay(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -567,6 +577,7 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
+  if (data==="owner_anketa:home") {await showLibrary(env,send);return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
     await showLibrary(env,send); return true;
@@ -627,7 +638,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     if(rec.catalog?.length){
       await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
-      await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
+      await navigationSay(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
       return true;
@@ -636,7 +647,7 @@ export async function handleOwnerAnketa(update,env,send) {
     let started=false;
     try{started=(await dispatchLookup(env,rec.profile.id,nonce,"ratings",rec.host)).ok;}catch{}
     if(!started){await say(env,send,"🌷 Пока не получилось загрузить услуги. Попробуйте ещё раз позже.");return true;}
-    await say(env,send,"🌸 Первый раз собираю доступные услуги этой анкеты. Это займёт немного времени.\n✨ В дальнейшем форма будет открываться сразу.");
+    await navigationSay(env,send,"🌸 Первый раз собираю доступные услуги этой анкеты. Это займёт немного времени.\n✨ В дальнейшем форма будет открываться сразу.");
     return true;
   }
   const deleteAsk=/^owner_anketa:deleteask:(\d{1,9})$/.exec(data);
