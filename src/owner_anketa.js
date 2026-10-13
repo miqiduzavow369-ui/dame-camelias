@@ -221,9 +221,53 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  const auditLoading = current?.step === "audit_loading" && data.mode === "mapping";
   const ratingsLoading = current?.step === "ratings_loading" && data.mode === "ratings";
-  if(!current || (!ratingsLoading && current.step!=="loading") || current.id!==id || current.nonce!==nonce)
+  if(!current || (!ratingsLoading && !auditLoading && current.step!=="loading") || current.id!==id || current.nonce!==nonce)
     return new Response("Stale",{status:409});
+  if(auditLoading) {
+    const selected=current.selected||{};
+    const restored={step:"ratings_agreed",profile:current.profile,host:current.host,
+      nonce:current.previousNonce,catalog:current.catalog,selected,
+      metElsewhere:current.metElsewhere===true,draftReady:true,agreedAt:current.agreedAt};
+    await statePut(env,restored);
+    const raw=Array.isArray(data.catalog)?data.catalog:[];
+    if(data.status!=="found" || !data.profile || String(data.profile.id)!==id || !raw.length){
+      await say(env,send,"⚠️ Проверка полей анкеты №"+id+" не удалась. На сайте ничего не изменено.");
+      return Response.json({ok:true,audit:false});
+    }
+    const normalized=t=>String(t||"").trim().toLowerCase().replace(/\s+/g," ");
+    const source=organizeCatalog(raw);
+    const wanted=Object.keys(selected).map(Number).sort((a,b)=>a-b);
+    let matched=0;
+    const misses=[];
+    for(const i of wanted){
+      const local=current.catalog[i],remote=source[i],value=selected[i];
+      const choices=remote?.options||[];
+      const index=choices.findIndex(x=>normalized(x)===normalized(value));
+      const control=remote?.control;
+      const unique=control && ["radio","select"].includes(control.type) &&
+        (control.name||control.id) &&
+        source.filter(x=>x.control?.type===control.type &&
+          (x.control.name||x.control.id)===(control.name||control.id)).length===1;
+      if(local && remote && normalized(local.label)===normalized(remote.label) &&
+          index>=0 && unique && typeof control.values?.[index]==="string"){
+        matched++;
+      } else misses.push("• "+(local?.label||("Пункт "+(i+1)))+" — нет однозначного соответствия");
+    }
+    // The extra flag has no proven site control mapping yet.
+    if(current.metElsewhere===true)misses.push("• Встречался по другой анкете — элемент сайта не сопоставлен");
+    const extras=current.metElsewhere===true?1:0;
+    const total=wanted.length+extras;
+    await say(env,send,"🔎 ПРОВЕРКА ПОЛЕЙ САЙТА\n\n🆔 Анкета №"+id+
+      "\n✅ Совпали: "+matched+" из "+total+
+      "\n⚠️ Требуют проверки: "+(total-matched)+
+      (misses.length?"\n\n"+misses.slice(0,25).join("\n"):"")+
+      "\n\n🌷 Режим только чтения. Ни одно поле на сайте не изменено и ничего не опубликовано.",
+      buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
+    return Response.json({ok:true,audit:true,matched,total});
+  }
   if(ratingsLoading) {
     const profile = current.profile;
     const raw = Array.isArray(data.catalog) ? data.catalog : [];
@@ -402,7 +446,28 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{...current,step:"ratings_agreed",agreedAt:Date.now()});
     await say(env,send,"🌹 СПАСИБО!\n\n💕 Ваш выбор для анкеты "+current.profile.name+
       " подтверждён и сохранён.\n\n✨ Никакие оценки на сайт не отправлялись.",
-      buttons([NEW_NUMBER]));
+      buttons([[{text:"🔎 Сверить поля сайта (без публикации)",callback_data:"owner_anketa:audit:"+current.nonce}],NEW_NUMBER]));
+    return true;
+  }
+  const audit=/^owner_anketa:audit:([a-f0-9]{12})$/.exec(data);
+  if(audit){
+    if(!current || current.step!=="ratings_agreed" || current.nonce!==audit[1] ||
+        !Object.keys(current.selected||{}).length){
+      await say(env,send,"🌷 Сначала подтвердите новый отчёт с оценками.");return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const pending={...current,step:"audit_loading",id:current.profile.id,
+      previousNonce:current.nonce,nonce};
+    await statePut(env,pending);
+    let started=false;
+    try{started=(await dispatchLookup(env,pending.id,nonce,"mapping",current.host)).ok;}catch{}
+    if(!started){
+      await statePut(env,current);
+      await say(env,send,"🌷 Не удалось запустить проверку. Оценки на сайт не отправлялись.");
+      return true;
+    }
+    await say(env,send,"🔎 Проверяю технические поля Intimcity для анкеты №"+pending.id+
+      ".\n\n🌷 Это только диагностика — оценок на сайте не будет.");
     return true;
   }
   const toggle=/^owner_anketa:toggle:(\d+):([a-f0-9]{12})$/.exec(data);

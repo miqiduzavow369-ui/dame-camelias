@@ -191,7 +191,7 @@ def inspect(pid, mode='profile'):
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
             profile = extract(profile_page,pid)
-            if mode != "ratings" or not profile:
+            if mode not in ("ratings","mapping") or not profile:
                 return profile
             print("LOOKUP_STAGE: read-visible-rating-criteria")
             form = profile_page.locator("#checked_form")
@@ -270,7 +270,7 @@ def inspect(pid, mode='profile'):
                   if(options.length<2 && form.querySelector('input[type="radio"][name="'+CSS.escape(node.name || node.id || '')+'"]'))continue;
                   if(seen.has('select:'+id))continue;
                   seen.add('select:'+id);
-                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
+                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20),control:{type:"select",name:node.name||"",id:node.id||"",values:[...node.options].filter(o=>!o.disabled && o.value!=="").map(o=>o.value).slice(0,20)}});
                 }
                 if(node.matches?.('input[type="radio"]')){
                   if(node.disabled || !node.name)continue;
@@ -290,7 +290,7 @@ def inspect(pid, mode='profile'):
                   }).filter(Boolean);
                   if(!label || options.length<2)continue;
                   seen.add(key);
-                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
+                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20),control:{type:"radio",name:node.name||"",id:"",values:radios.map(x=>x.value).slice(0,20)}});
                 }
               }
               return fields.slice(0,120);
@@ -310,7 +310,7 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings"):
+    if mode not in ("profile","ratings","mapping"):
         raise RuntimeError("Invalid lookup mode")
     try:
         result=inspect(pid,mode)
@@ -325,8 +325,8 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
-    profile=result.get("profile") if mode=="ratings" and isinstance(result,dict) else result
-    catalog=result.get("catalog",[]) if mode=="ratings" and isinstance(result,dict) else []
+    profile=result.get("profile") if mode in ("ratings","mapping") and isinstance(result,dict) else result
+    catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
     callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
