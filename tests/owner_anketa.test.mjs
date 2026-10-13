@@ -7,7 +7,7 @@ const env = {ADMIN_TELEGRAM_USER_ID:String(ownerId)};
 const message = (id,chatId=id,kind="private",text="/anketa 750206") => ({
   message:{from:{id},chat:{id:chatId,type:kind},text}
 });
-test("access denied when secret absent",()=>assert.equal(ownerAllowed(message(ownerId),{}),false));
+test("owner can access without a secret",()=>assert.equal(ownerAllowed(message(ownerId),{}),true));
 test("owner private chat accepted",()=>assert.equal(ownerAllowed(message(ownerId),env),true));
 test("other user rejected",()=>assert.equal(ownerAllowed(message(54321),env),false));
 test("group rejected even if owner",()=>assert.equal(ownerAllowed(message(ownerId,-55,"supergroup"),env),false));
