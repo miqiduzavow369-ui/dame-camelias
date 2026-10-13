@@ -4,6 +4,7 @@
 :root{--gold:#e7bd75;--cream:#fff2d8;--muted:#c8b8a1;--line:#6d5237;--bg:#0b0908}
 *{box-sizing:border-box}body{margin:0;color:var(--cream);background:radial-gradient(ellipse at 85% 0%,#38251b 0,transparent 48%),var(--bg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:740px;margin:auto;padding:0 16px 90px}header{text-align:center;padding:36px 12px 22px;border-bottom:1px solid #493723}header h1{font:normal 32px Georgia,serif;letter-spacing:4px;color:var(--gold);margin:6px 0}header .rose{font-size:37px}header p{color:var(--muted);margin:9px 0}
+.extra-flag{display:flex;gap:12px;align-items:center;cursor:pointer;font-size:17px;color:var(--cream);min-height:46px}.extra-flag input{accent-color:#dbb46d;width:23px;height:23px;flex-shrink:0}
 h2{font:normal 22px Georgia,serif;color:var(--gold);margin:0 0 8px}
 .card{background:linear-gradient(145deg,#241b14,#100e0c);border:1px solid var(--line);border-radius:18px;padding:16px;margin:16px 0;box-shadow:0 9px 25px #0004}
 .profile{color:#f3ddba}.minor{color:var(--muted);font-size:13px}.title{font:normal 20px Georgia,serif;color:var(--gold)}details{margin:14px 0;border:1px solid #493a2a;background:#16110e;border-radius:14px;overflow:hidden}summary{padding:15px 13px;cursor:pointer;color:var(--gold);font:normal 20px Georgia,serif}summary::marker{color:#d3a45d}
@@ -12,7 +13,9 @@ h2{font:normal 22px Georgia,serif;color:var(--gold);margin:0 0 8px}
 </style><script src="https://telegram.org/js/telegram-web-app.js"></script></head>
 <body><header><div class="rose">🌹</div><h1>DAME CAMELIAS</h1><p>Оценки вашей анкеты</p></header>
 <main><div class="card"><div class="title" id="profile">Подготавливаем вашу анкету…</div><p class="hint">💕 Выберите подходящие значения. Всё можно проверить и изменить перед завершением.</p><p class="minor">◯ — не выбрано · 🔘 — выбрано</p></div>
-<section id="fields"></section><div class="card"><div class="title">💎 Ваш выбор</div><p class="hint">Неотмеченные пункты останутся без оценки. Ничего не публикуется автоматически.</p><div class="counter" id="count">Выбрано: 0</div></div>
+<section id="fields"></section>
+<div class="card"><label class="extra-flag"><input type="checkbox" id="metElsewhere"><span>Встречался по другой анкете</span></label><p class="minor">Отметьте, если это относится к вашей оценке.</p></div>
+<div class="card"><div class="title">💎 Ваш выбор</div><p class="hint">Неотмеченные пункты останутся без оценки. Ничего не публикуется автоматически.</p><div class="counter" id="count">Выбрано: 0</div></div>
 <div class="sticky"><button id="done" class="btn" disabled>✨ Готово — отправить черновик в Telegram</button><div class="status" id="status">Загрузка…</div></div></main>
 <script>
 const tg=window.Telegram?.WebApp;
@@ -20,7 +23,7 @@ tg?.ready();tg?.expand();
 const key=new URLSearchParams(location.search).get('key');
 const initData=tg?.initData||'';
 let catalog=[],selection={};
-const status=document.getElementById('status'),fields=document.getElementById('fields'),done=document.getElementById('done');
+const status=document.getElementById('status'),fields=document.getElementById('fields'),done=document.getElementById('done'),metElsewhere=document.getElementById('metElsewhere');
 const clean=s=>String(s??'').trim();
 const isPhoto=item=>/^(?:isFair|Фото соответствует)$/i.test(clean(item.label));
 function eligible(s){return s&&!/^(?:не знаю|отказано|[1-4])$/i.test(clean(s))}
@@ -69,7 +72,7 @@ function draw(){
 async function boot(){
  if(!key||!initData){status.textContent='🌷 Откройте эту форму через кнопку бота в Telegram.';return;}
  try{
-  const data=await api('load');catalog=data.catalog||[];selection=data.selected||{};
+  const data=await api('load');catalog=data.catalog||[];selection=data.selected||{};metElsewhere.checked=data.metElsewhere===true;
   // Photo correspondence is a fixed affirmative value in the owner draft.
   catalog.forEach((item,i)=>{
     if(isPhoto(item))
@@ -81,7 +84,7 @@ async function boot(){
 }
 done.addEventListener('click',async()=>{
  done.disabled=true;status.textContent='💕 Сохраняю ваш выбор…';
- try{await api('save',{selected:selection});status.textContent='✅ Готово! Черновик отправлен в Telegram.';tg?.HapticFeedback?.notificationOccurred('success');tg?.close();}
+ try{await api('save',{selected:selection,metElsewhere:metElsewhere.checked});status.textContent='✅ Готово! Черновик отправлен в Telegram.';tg?.HapticFeedback?.notificationOccurred('success');tg?.close();}
  catch(e){status.textContent=e.message;done.disabled=false;}
 });
 boot();

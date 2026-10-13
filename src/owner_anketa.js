@@ -501,13 +501,15 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   const state=await stateGet(env);
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
-    profile:state.profile,selected:state.selected||{},catalog:organizeCatalog(state.catalog).map(x=>({
+    profile:state.profile,selected:state.selected||{},metElsewhere:state.metElsewhere===true,catalog:organizeCatalog(state.catalog).map(x=>({
       label:x.label,group:x.group||"Оценки анкеты",subgroup:x.subgroup||"",
       options:x.options.filter(v=>!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(v))
     }))
   },{headers:{"Cache-Control":"no-store"}});
   if(input.action!=="save" || !input.selected || typeof input.selected!=="object" || Array.isArray(input.selected))
     return new Response("Invalid request",{status:400});
+  if(input.metElsewhere!==undefined && typeof input.metElsewhere!=="boolean")return new Response("Invalid checkbox",{status:400});
+  const metElsewhere=input.metElsewhere===true;
   const safe={};
   const photoIndices=new Set(state.catalog.map((f,i)=>/^(?:isFair|Фото соответствует)$/i.test(String(f.label||"").trim())?i:-1).filter(i=>i>=0));
   for(const [index,value] of Object.entries(input.selected)) {
@@ -525,7 +527,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
       return new Response("Unavailable photo option",{status:409});
     safe[i]="Фото соответствует";
   }
-  await statePut(env,{...state,step:"ratings",selected:safe,draftReady:true,agreedAt:null});
+  await statePut(env,{...state,step:"ratings",selected:safe,metElsewhere,draftReady:true,agreedAt:null});
   // Preserve source field order and group headings in the Telegram review.
   const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]));
   const orderedFields=organizeCatalog(state.catalog);
@@ -541,6 +543,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
     lastSubgroup=subgroup;
     sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
   }
+  if(metElsewhere)sections.push("\n☑️ Встречался по другой анкете");
   const intro="🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
     "\n🆔 №"+state.profile.id+"\n";
   const footer="\n🌷 Пожалуйста, проверьте выбор. Это только черновик, оценки на сайт не отправлялись.";
