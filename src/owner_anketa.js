@@ -117,8 +117,8 @@ export async function handleAnketaLookupResult(request,env,send) {
     }
     const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog,selected:{}};
     await statePut(env,next);
-    await say(env,send,"🌹 ВСЁ ГОТОВО!\\n\\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
-      ".\\n\\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
+    await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
+      ".\n\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
   }
@@ -148,12 +148,12 @@ async function askNumber(env,send) {
     await say(env,send,"⚠️ Хранилище состояния не настроено. Ввод анкеты сейчас недоступен.");
     return;
   }
-  await say(env,send,"🔐 АНКЕТА\n\n🌹 Пришлите ссылку на анкету одним сообщением.\n\nНапример: https://b.intimcity.rip/indi/anketa750206.htm\n\n✨ Я открою указанный домен и найду анкету через поиск по её номеру.");
+  await say(env,send,"🌹 ДОБРО ПОЖАЛОВАТЬ В DAME CAMELIAS!\n\n💕 Давайте найдём вашу анкету.\n\n🔗 Пришлите, пожалуйста, полную ссылку на анкету с актуальным доменом Intimcity одним сообщением.\n\n✨ Я бережно проверю данные и предложу дальнейшие шаги.");
 }
 async function inspect(env,send,urlText) {
   const link=parseProfileLink(urlText);
   if (!link) {
-    await say(env,send,"🌷 Пришлите полную ссылку на анкету Intimcity, например:\\nhttps://b.intimcity.rip/indi/anketa750206.htm");
+    await say(env,send,"🌷 Кажется, ссылка указана не полностью.\n\n💕 Пришлите, пожалуйста, прямую ссылку на вашу анкету с актуальным доменом Intimcity. Я помогу продолжить.");
     return;
   }
   const {id,host}=link;
@@ -167,10 +167,10 @@ async function inspect(env,send,urlText) {
   catch {dispatched={ok:false,reason:"Не удалось связаться с GitHub API"};}
   if(!dispatched?.ok) {
     await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Автоматическая проверка не запущена.\\nПричина: "+dispatched.reason);
+    await say(env,send,"🌷 Не получилось начать проверку анкеты.\n\n💕 Пожалуйста, попробуйте ещё раз чуть позже.\n\nТехническая информация: "+dispatched.reason);
     return;
   }
-  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\\n🔎 Проверяю анкету №"+id+" через "+host+"…");
+  await say(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -233,8 +233,8 @@ export async function handleOwnerAnketa(update,env,send) {
       return true;
     }
     await statePut(env,{...current,step:"ratings_agreed",agreedAt:Date.now()});
-    await say(env,send,"🌹 СПАСИБО!\\n\\n💕 Ваш выбор для анкеты "+current.profile.name+
-      " подтверждён и сохранён.\\n\\n✨ Никакие оценки на сайт не отправлялись.",
+    await say(env,send,"🌹 СПАСИБО!\n\n💕 Ваш выбор для анкеты "+current.profile.name+
+      " подтверждён и сохранён.\n\n✨ Никакие оценки на сайт не отправлялись.",
       buttons([NEW_NUMBER]));
     return true;
   }
