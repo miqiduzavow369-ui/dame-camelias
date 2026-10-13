@@ -2,25 +2,44 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {handleOwnerAnketa,ownerAllowed} from "../src/owner_anketa.js";
 
-const ownerId = 123456789;
-const env = {ADMIN_TELEGRAM_USER_ID:String(ownerId)};
-const message = (id,chatId=id,kind="private",text="/anketa 750206") => ({
-  message:{from:{id},chat:{id:chatId,type:kind},text}
+const OWNER = 5866034656;
+const memory = new Map();
+const env = {VISITORS_KV:{
+  get: async k => memory.has(k) ? JSON.parse(memory.get(k)) : null,
+  put: async (k,v) => {memory.set(k,v);}
+}};
+const message=(id,text="/anketa",chat=id,kind="private")=>({
+  message:{from:{id},chat:{id:chat,type:kind},text}
 });
-test("owner can access without a secret",()=>assert.equal(ownerAllowed(message(ownerId),{}),true));
-test("owner private chat accepted",()=>assert.equal(ownerAllowed(message(ownerId),env),true));
-test("other user rejected",()=>assert.equal(ownerAllowed(message(54321),env),false));
-test("group rejected even if owner",()=>assert.equal(ownerAllowed(message(ownerId,-55,"supergroup"),env),false));
-test("foreign callback rejected, without posting",async()=>{
-  const sent=[];
-  const update={callback_query:{id:"cb",from:{id:99},message:{chat:{id:99,type:"private"}},data:"owner_anketa:rating:750206"}};
-  assert.equal(await handleOwnerAnketa(update,env,async(_e,m,d)=>sent.push({m,d})),true);
+const callback=(id,data)=>({callback_query:{
+  id:"callback-test",from:{id},message:{chat:{id,type:"private"}},data
+}});
+function sentMessages(){const sent=[];return {
+  sent,send:async(_e,method,payload)=>sent.push({method,payload})
+};}
+test("owner verified by Telegram ID and private chat",()=>{
+  assert.equal(ownerAllowed(message(OWNER)),true);
+  assert.equal(ownerAllowed(message(123)),false);
+  assert.equal(ownerAllowed(message(OWNER,"/anketa",-1,"supergroup")),false);
+});
+test("owner entry asks for number only",async()=>{
+  memory.clear();
+  const {sent,send}=sentMessages();
+  assert.equal(await handleOwnerAnketa(callback(OWNER,"owner_anketa:open"),env,send),true);
+  assert.match(sent.at(-1).payload.text,/Отправь номер анкеты/);
+});
+test("number is accepted but identity never invented without lookup bridge",async()=>{
+  memory.clear();
+  let out=sentMessages();
+  await handleOwnerAnketa(callback(OWNER,"owner_anketa:open"),env,out.send);
+  out=sentMessages();
+  await handleOwnerAnketa(message(OWNER,"750206"),env,out.send);
+  assert.match(out.sent.at(-1).payload.text,/Не удалось проверить/);
+  assert.doesNotMatch(out.sent.at(-1).payload.text,/Саша/);
+});
+test("outsider cannot invoke owner callback",async()=>{
+  const {sent,send}=sentMessages();
+  await handleOwnerAnketa(callback(123,"owner_anketa:open"),env,send);
   assert.equal(sent.length,1);
-  assert.equal(sent[0].m,"answerCallbackQuery");
-});
-test("owner sees no publication action",async()=>{
-  const sent=[];
-  await handleOwnerAnketa(message(ownerId),env,async(_e,m,d)=>sent.push({m,d}));
-  assert.equal(sent[0].m,"sendMessage");
-  assert.ok(sent[0].d.text.includes("750206"));
+  assert.equal(sent[0].method,"answerCallbackQuery");
 });
