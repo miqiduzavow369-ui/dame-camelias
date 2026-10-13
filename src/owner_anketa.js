@@ -4,13 +4,13 @@ const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const ID_PATTERN = /^\d{1,9}$/;
 const TTL_SECONDS = 1800;
-const HOST_PATTERN = /^[a-z0-9-]+\\.intimcity\\.rip$/;
+const HOST_PATTERN = /^[a-z0-9-]+\.intimcity\.rip$/;
 function parseProfileLink(input) {
   try {
     const url = new URL(String(input).trim());
     if (url.protocol!=="https:" || url.username || url.password || url.port || url.search || url.hash ||
         !HOST_PATTERN.test(url.hostname)) return null;
-    const match = /^\\/indi\\/anketa(\\d{1,9})\\.htm$/.exec(url.pathname);
+    const match = /^\/indi\/anketa(\d{1,9})\.htm$/.exec(url.pathname);
     return match ? {id:match[1],host:url.hostname} : null;
   } catch { return null; }
 }
