@@ -67,6 +67,7 @@ function profileKeyboard(id){return buttons([
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
 ]);}
 async function showLibrary(env,send){
+  await cleanAnketaChat(env,send);
   const ids=await libraryGet(env);
   await say(env,send,ids.length?
     "🌹 МОИ АНКЕТЫ DAME CAMELIAS\n\n💕 Выберите сохранённую анкету — проверять её повторно не потребуется.\n\n✨ Или добавьте новую по актуальной ссылке.":
@@ -80,12 +81,39 @@ async function showSaved(env,send,id) {
     "\n🔗 "+record.profile.url+"\n\n💕 Что бы вы хотели подготовить?",
     profileKeyboard(id));
 }
+const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
+async function trackAnketaMessage(env,id){
+  if(!env.VISITORS_KV || !Number.isSafeInteger(id) || id<=0)return;
+  try{
+    const list=(await env.VISITORS_KV.get(CHAT_IDS_KEY,"json"))||[];
+    const recent=Array.isArray(list)?list.filter(x=>Number.isSafeInteger(x.id) && Date.now()-x.at<47*3600000 && x.id!==id):[];
+    recent.push({id,at:Date.now()});
+    await env.VISITORS_KV.put(CHAT_IDS_KEY,JSON.stringify(recent.slice(-150)),{expirationTtl:172800});
+  }catch(e){console.error("Owner anketa message tracking unavailable",e);}
+}
+async function cleanAnketaChat(env,send){
+  if(!env.VISITORS_KV)return;
+  let list=[];
+  try{list=await env.VISITORS_KV.get(CHAT_IDS_KEY,"json")||[];}catch{return;}
+  if(!Array.isArray(list))return;
+  // Telegram normally allows deleting private chat messages only within 48 hours.
+  // Never delete messages from other bot sections or from other chats.
+  const ids=[...new Set(list.filter(x=>Number.isSafeInteger(x.id)&&Date.now()-x.at<47*3600000).map(x=>x.id))];
+  const failed=[];
+  for(const id of ids){
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:id});}
+    catch{failed.push({id,at:Date.now()});}
+  }
+  try{await env.VISITORS_KV.delete(CHAT_IDS_KEY);}catch{}
+}
 function buttons(rows) { return {inline_keyboard:rows}; }
 const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback_data:"owner_anketa:change"}];
 // Keep meaningful bot replies and found-profile cards in Telegram history.
 // Only the transient progress message is updated; owner-entered IDs are cleaned up.
 async function say(env, send, text, reply_markup) {
-  return await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
+  const response=await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
+  await trackAnketaMessage(env,response?.message_id);
+  return response;
 }
 // One-screen editable draft. No Telegram action here publishes ratings.
 function ratingMenu(state) {
@@ -264,6 +292,7 @@ export async function handleOwnerAnketa(update,env,send) {
     await inspect(env,send,url); return true;
   }
   if (typedLink) {
+    await trackAnketaMessage(env,msg?.message_id);
     // Keep the supplied link in history for easy verification and retry.
     // Do not route a profile URL into the customer order conversation.
     await inspect(env,send,txt);
