@@ -221,10 +221,16 @@ export async function ownerDryfillPayload(request,env) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const state=await stateGet(env);
-  if(!state || state.step!=="dryfill_loading" || String(state.id)!==id ||
+  const publication=state?.step==="publishing" && state?.nonce===nonce &&
+    state?.dispatchPending===true;
+  if(!state || (!publication && state.step!=="dryfill_loading") || String(state.id)!==id ||
       state.nonce!==nonce || !state.profile || String(state.profile.id)!==id ||
       Date.now()-Number(state.agreedAt||0)>20*60*1000)
     return new Response("Stale",{status:409});
+  if(publication){
+    // Consume the grant before the external submission attempt. Never auto-retry.
+    await statePut(env,{...state,dispatchPending:false,submissionStartedAt:Date.now()});
+  }
   const selections=Object.keys(state.selected||{}).map(Number).sort((a,b)=>a-b).map(i=>({
     index:i,label:state.catalog?.[i]?.label,value:state.selected[i]
   }));
@@ -244,6 +250,27 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  const publishLoading=current?.step==="publishing" && data.mode==="publish";
+  if(publishLoading){
+    const attempt=data.publication||{};
+    const wasStarted=current.submissionStartedAt>0;
+    if(current.id!==id || current.nonce!==nonce || !wasStarted)
+      return new Response("Stale",{status:409});
+    const next={...current,step:"publication_result",publicationReport:{
+      attempted:attempt.attempted===true,
+      confirmed:attempt.confirmed===true,
+      confirmedBy:typeof attempt.confirmedBy==="string"?attempt.confirmedBy.slice(0,70):"",
+      at:Date.now()},readyAt:null,dispatchPending:false};
+    await statePut(env,next);
+    const title=attempt.confirmed===true?"✅ ПУБЛИКАЦИЯ ПОДТВЕРЖДЕНА":
+       attempt.attempted===true||!data.publication?"⚠️ РЕЗУЛЬТАТ ПУБЛИКАЦИИ НЕ ПОДТВЕРЖДЁН":
+       "❌ ПУБЛИКАЦИЯ НЕ ВЫПОЛНЕНА";
+    await say(env,send,title+"\n\n🆔 Анкета №"+id+
+      "\n🌷 Повторной отправки не будет."+
+      ((attempt.attempted===true||!data.publication)&&attempt.confirmed!==true?
+       "\nПожалуйста, проверьте результат на Intimcity вручную.":""));
+    return Response.json({ok:true});
+  }
   const dryfillLoading = current?.step === "dryfill_loading" && data.mode === "dryfill";
   const auditLoading = current?.step === "audit_loading" && data.mode === "mapping";
   const ratingsLoading = current?.step === "ratings_loading" && data.mode === "ratings";
@@ -546,10 +573,23 @@ export async function handleOwnerAnketa(update,env,send) {
         !current.readyAt || Date.now()-current.readyAt>15*60*1000){
       await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
     }
-    // Consume the confirmed intent now, even with real submission disabled:
-    // a repeated callback cannot be treated as another publication request.
-    await statePut(env,{...current,step:"publish_intent_recorded",readyAt:null,confirmedAt:Date.now()});
-    await say(env,send,"🌷 Подтверждение получено и сохранено. Повторная отправка этого подтверждения заблокирована. Реальная публикация пока отключена.");
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const pending={...current,step:"publishing",id:current.profile.id,
+      nonce,previousNonce:current.nonce,readyAt:null,
+      confirmedAt:Date.now(),dispatchPending:true};
+    if(!await statePut(env,pending)){
+      await say(env,send,"⚠️ Не удалось сохранить подтверждение. Ничего не опубликовано.");
+      return true;
+    }
+    await say(env,send,"🌹 ПУБЛИКАЦИЯ ЗАПУЩЕНА\n\n🆔 Анкета №"+pending.id+
+      "\n⏳ Отправляю оценки через ваш прокси. Повторно нажимать кнопку не нужно.");
+    let launched=false;
+    try{launched=(await dispatchLookup(env,pending.id,nonce,"publish",current.host)).ok;}catch{}
+    if(!launched){
+      // Dispatch may have succeeded despite a transport timeout. Do not restore
+      // the ready-to-publish state or trigger a second attempt.
+      await say(env,send,"⚠️ GitHub не подтвердил запуск. Автоматического повтора не будет. Проверьте GitHub Actions.");
+    }
     return true;
   }
   const publishCancel=/^owner_anketa:publish_cancel:([a-f0-9]{12})$/.exec(data);

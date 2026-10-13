@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       mode:
-        description: "Read-only profile, ratings catalog or field mapping audit"
+        description: "Profile lookup, mapping, dry-fill or owner-confirmed single publish"
         required: false
         default: "profile"
         type: string
@@ -19,6 +19,12 @@ on:
         description: "Correlation token"
         required: true
         type: string
+
+# Serialize jobs for the same profile: later jobs cannot run simultaneously
+# and consume the same one-time publication grant.
+concurrency:
+  group: "intimcity-profile-${{ inputs.profile_id }}"
+  cancel-in-progress: false
 
 permissions:
   contents: read
