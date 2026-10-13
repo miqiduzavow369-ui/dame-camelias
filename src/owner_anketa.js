@@ -107,7 +107,9 @@ export async function handleAnketaLookupResult(request,env,send) {
     }
     const next={step:"ratings",profile,nonce:current.previousNonce,catalog,selected:{}};
     await statePut(env,next);
-    await say(env,send,ratingSummary(next),ratingMenu(next));
+    await say(env,send,"🌹 ВСЁ ГОТОВО!\\n\\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
+      ".\\n\\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
+      buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
   }
   const found=validProfile(data.profile,id);
@@ -305,4 +307,40 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   return ownerAction;
+}
+
+export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
+  if (Number(request.headers.get("content-length")||0)>30000) return new Response("Too large",{status:413});
+  let input;
+  try { input=await request.json(); } catch {return new Response("Invalid JSON",{status:400});}
+  if (!await verifyTelegram(input.initData,env.BOT_TOKEN,3600)) return new Response("Forbidden",{status:403});
+  let user;
+  try {user=JSON.parse(new URLSearchParams(input.initData).get("user")||"null");}catch{}
+  if(String(user?.id)!==OWNER_ID) return new Response("Forbidden",{status:403});
+  const state=await stateGet(env);
+  if(!state || state.step!=="ratings" || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
+  if(input.action==="load") return Response.json({
+    profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
+      label:x.label,
+      options:x.options.filter(v=>!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(v))
+    }))
+  },{headers:{"Cache-Control":"no-store"}});
+  if(input.action!=="save" || !input.selected || typeof input.selected!=="object" || Array.isArray(input.selected))
+    return new Response("Invalid request",{status:400});
+  const safe={};
+  for(const [index,value] of Object.entries(input.selected)) {
+    if(!/^(0|[1-9]\d?)$/.test(index)) return new Response("Invalid field",{status:400});
+    const field=state.catalog[Number(index)];
+    if(!field || typeof value!=="string" || !field.options.includes(value) ||
+        /^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)) return new Response("Invalid choice",{status:400});
+    safe[index]=value;
+  }
+  await statePut(env,{...state,selected:safe});
+  const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]))
+    .map(([i,v])=>"• "+state.catalog[Number(i)].label+": "+(v==="5"?"5⭐":v));
+  await say(env,send,"🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
+    "\n🆔 №"+state.profile.id+"\n\n"+(selected.join("\n")||"Пока ничего не выбрано")+
+    "\n\n🌷 Пожалуйста, проверьте выбор. Это только черновик, оценки на сайт не отправлялись.",
+    buttons([[{text:"✏️ Изменить выбор",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+state.nonce}}],NEW_NUMBER]));
+  return Response.json({ok:true});
 }
