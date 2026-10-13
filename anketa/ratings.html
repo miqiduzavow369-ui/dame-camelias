@@ -30,10 +30,16 @@ async function api(action,extra={}) {
 }
 function draw(){
  fields.replaceChildren();
- const groups=[{title:'⭐ Оценки анкеты',items:catalog.map((item,i)=>({...item,i}))}];
+ const groups=[];
+ for(let i=0;i<catalog.length;i++){
+  const item=catalog[i],title=clean(item.group)||'Оценки анкеты';
+  let group=groups[groups.length-1];
+  if(!group||group.title!==title){group={title,items:[]};groups.push(group);}
+  group.items.push({...item,i});
+ }
  for(const group of groups){
   const section=document.createElement('details');section.open=true;
-  const caption=document.createElement('summary');caption.textContent=group.title;section.append(caption);
+  const caption=document.createElement('summary');caption.textContent='✦ '+group.title;section.append(caption);
   for(const item of group.items){
     if(!item.options.length)continue;
     const row=document.createElement('div');row.className='item';
