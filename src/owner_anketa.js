@@ -97,7 +97,7 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(ratingsLoading) {
     const profile = current.profile;
     const raw = Array.isArray(data.catalog) ? data.catalog : [];
-    const catalog = raw.slice(0,40).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
+    const catalog = raw.slice(0,60).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
       .map(x => ({label:x.label.slice(0,90),options:x.options.filter(v=>typeof v==="string").slice(0,12).map(v=>v.slice(0,50))}));
     if(data.status!=="found" || !catalog.length || !data.profile || String(data.profile.id)!==id) {
       await statePut(env,{step:"chosen",profile,nonce:current.previousNonce});
