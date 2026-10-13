@@ -30,6 +30,56 @@ async function statePut(env, state) {
     { expirationTtl: TTL_SECONDS });
   return true;
 }
+const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
+const PROFILE_KEY = "owner_anketa_saved:"+OWNER_ID+":";
+async function libraryGet(env) {
+  const ids=await env.VISITORS_KV?.get(LIBRARY_KEY,"json");
+  return Array.isArray(ids)?ids.filter(x=>ID_PATTERN.test(String(x))).slice(0,60):[];
+}
+async function savedGet(env,id) {
+  if(!ID_PATTERN.test(String(id)))return null;
+  return await env.VISITORS_KV?.get(PROFILE_KEY+id,"json")||null;
+}
+async function savedPut(env,record) {
+  if(!env.VISITORS_KV||!record?.profile||!ID_PATTERN.test(String(record.profile.id)))return false;
+  const id=String(record.profile.id);
+  await env.VISITORS_KV.put(PROFILE_KEY+id,JSON.stringify({
+    profile:record.profile,host:record.host,catalog:Array.isArray(record.catalog)?record.catalog:[],
+    confirmed:true,updatedAt:Date.now()
+  }));
+  const ids=await libraryGet(env);
+  if(!ids.includes(id))await env.VISITORS_KV.put(LIBRARY_KEY,JSON.stringify([...ids,id]));
+  return true;
+}
+async function savedDelete(env,id) {
+  const ids=await libraryGet(env);
+  await env.VISITORS_KV.delete(PROFILE_KEY+id);
+  await env.VISITORS_KV.put(LIBRARY_KEY,JSON.stringify(ids.filter(x=>x!==id)));
+}
+const libraryKeyboard=ids=>buttons([
+  ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
+  [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}]
+]);
+function profileKeyboard(id){return buttons([
+  [{text:"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}],
+  [{text:"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}],
+  [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
+  [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
+]);}
+async function showLibrary(env,send){
+  const ids=await libraryGet(env);
+  await say(env,send,ids.length?
+    "🌹 МОИ АНКЕТЫ DAME CAMELIAS\n\n💕 Выберите сохранённую анкету — проверять её повторно не потребуется.\n\n✨ Или добавьте новую по актуальной ссылке.":
+    "🌹 DAME CAMELIAS\n\n💕 Пока нет сохранённых анкет. Приглашаю добавить первую!",
+    libraryKeyboard(ids));
+}
+async function showSaved(env,send,id) {
+  const record=await savedGet(env,id);
+  if(!record){await showLibrary(env,send);return;}
+  await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👤 "+record.profile.name+
+    "\n🔗 "+record.profile.url+"\n\n💕 Что бы вы хотели подготовить?",
+    profileKeyboard(id));
+}
 function buttons(rows) { return {inline_keyboard:rows}; }
 const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback_data:"owner_anketa:change"}];
 // Keep meaningful bot replies and found-profile cards in Telegram history.
@@ -127,6 +177,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       return Response.json({ok:true,found:false});
     }
     const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog,selected:{}};
+    await savedPut(env,{profile,host:current.host,catalog});
     await statePut(env,next);
     await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
       ".\n\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
@@ -205,8 +256,9 @@ export async function handleOwnerAnketa(update,env,send) {
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
   if (data==="owner_anketa:open" || data==="owner_anketa:change" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
-    await askNumber(env,send); return true;
+    await showLibrary(env,send); return true;
   }
+  if (data==="owner_anketa:new") {await askNumber(env,send);return true;}
   if (command==="/anketa") {
     const url=txt.split(/\s+/)[1] ?? "";
     await inspect(env,send,url); return true;
@@ -215,6 +267,50 @@ export async function handleOwnerAnketa(update,env,send) {
     // Keep the supplied link in history for easy verification and retry.
     // Do not route a profile URL into the customer order conversation.
     await inspect(env,send,txt);
+    return true;
+  }
+  const savedMenu=/^owner_anketa:saved:(\\d{1,9})$/.exec(data);
+  if(savedMenu){await showSaved(env,send,savedMenu[1]);return true;}
+  const savedReview=/^owner_anketa:savedreview:(\\d{1,9})$/.exec(data);
+  if(savedReview){
+    if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
+    await say(env,send,"✍️ Раздел отзывов скоро появится.\\n\\n💕 Пока можно работать с оценками.",profileKeyboard(savedReview[1]));
+    return true;
+  }
+  const savedRating=/^owner_anketa:savedrating:(\\d{1,9})$/.exec(data);
+  if(savedRating){
+    const rec=await savedGet(env,savedRating[1]);
+    if(!rec){await showLibrary(env,send);return true;}
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    if(rec.catalog?.length){
+      await statePut(env,{step:"ratings",profile:rec.profile,host:rec.host,catalog:rec.catalog,selected:{},nonce});
+      await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\\n\\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\\n💕 Все отметки начинаются с чистого листа.",
+        buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
+      return true;
+    }
+    await statePut(env,{step:"ratings_loading",id:rec.profile.id,nonce,previousNonce:nonce,profile:rec.profile,host:rec.host});
+    let started=false;
+    try{started=(await dispatchLookup(env,rec.profile.id,nonce,"ratings",rec.host)).ok;}catch{}
+    if(!started){await say(env,send,"🌷 Пока не получилось загрузить услуги. Попробуйте ещё раз позже.");return true;}
+    await say(env,send,"🌸 Первый раз собираю доступные услуги этой анкеты. Это займёт немного времени.\\n✨ В дальнейшем форма будет открываться сразу.");
+    return true;
+  }
+  const deleteAsk=/^owner_anketa:deleteask:(\\d{1,9})$/.exec(data);
+  if(deleteAsk){
+    if(!await savedGet(env,deleteAsk[1])){await showLibrary(env,send);return true;}
+    await say(env,send,"🌷 Удалить анкету №"+deleteAsk[1]+" из вашего списка и хранилища DAME CAMELIAS?\\n\\nЭто действие нельзя отменить.",
+      buttons([[{text:"🗑 Да, удалить",callback_data:"owner_anketa:deleteyes:"+deleteAsk[1]}],
+        [{text:"↩️ Оставить анкету",callback_data:"owner_anketa:saved:"+deleteAsk[1]}]]));
+    return true;
+  }
+  const deleteYes=/^owner_anketa:deleteyes:(\\d{1,9})$/.exec(data);
+  if(deleteYes){
+    await savedDelete(env,deleteYes[1]);
+    const currentState=await stateGet(env);
+    if(String(currentState?.profile?.id||currentState?.id)===deleteYes[1])await env.VISITORS_KV.delete(PREFIX+OWNER_ID);
+    await say(env,send,"🌷 Анкета №"+deleteYes[1]+" удалена из сохранённых данных.");
+    await showLibrary(env,send);
     return true;
   }
   const current=await stateGet(env);
@@ -230,11 +326,9 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⏳ Подтверждение устарело. Нажми 🔐 АНКЕТА и введи номер заново.");
       return true;
     }
+    await savedPut(env,{profile:current.profile,host:current.host,catalog:[]});
     await statePut(env,{step:"chosen",profile:current.profile,host:current.host,nonce});
-    await say(env,send,"✅ Анкета подтверждена: "+current.profile.name+
-      ", №"+current.profile.id+"\nВыберите действие:",
-      buttons([[{text:"⭐ Оценки",callback_data:"owner_anketa:rating:"+nonce}],
-               [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
+    await showSaved(env,send,current.profile.id);
     return true;
   }
   const consent=/^owner_anketa:consent:([a-f0-9]{12})$/.exec(data);
