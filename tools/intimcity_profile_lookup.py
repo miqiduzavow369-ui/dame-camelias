@@ -187,16 +187,37 @@ def inspect(pid, mode='profile'):
             if toggle.count() and toggle.first.is_visible():
                 toggle.first.click(timeout=8000)
                 profile_page.wait_for_timeout(650)
+            # Expand only disclosure controls inside the rating form. Never click
+            # submit buttons or change a rating value.
+            form.evaluate("""form => {
+              for (const d of form.querySelectorAll('details:not([open])')) d.open=true;
+            }""")
+            expanders = form.locator('button[type="button"][aria-expanded="false"], a[aria-expanded="false"], [role="button"][aria-expanded="false"]')
+            for el in expanders.all()[:20]:
+                try:
+                    if not el.is_visible():
+                        continue
+                    title=(el.inner_text(timeout=1000) or "").lower()
+                    if any(word in title for word in ("массаж","bdsm","бдсм","дополн","услуг","показать","развернуть","ещё","еще")):
+                        el.click(timeout=3000)
+                except Exception:
+                    pass
+            profile_page.wait_for_timeout(400)
             catalog = form.evaluate("""form => {
               const items=[];
               for (const el of form.querySelectorAll('select')) {
-                if (!el.id || el.disabled || !el.getClientRects().length) continue;
-                const label=form.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+                if (!el.id || el.disabled) continue;
+                const label=[...form.querySelectorAll('label[for]')].find(x=>x.htmlFor===el.id);
                 const title=(label?.textContent||'').replace(/\\s+/g,' ').trim().slice(0,90);
                 if (!title) continue;
-                items.push({label:title, options:[...el.options].filter(o=>!o.disabled && o.value).map(o=>o.textContent.trim().slice(0,50)).slice(0,12)});
+                const options=[...el.options].filter(o=>!o.disabled && o.value).map(o=>o.textContent.trim().slice(0,50));
+                if (options.length===0) continue;
+                // Only expose fields visible after expanding a known section.
+                // Permanently hidden fields may not be enabled for this profile.
+                if (!el.getClientRects().length) continue;
+                items.push({label:title,options:options.slice(0,12)});
               }
-              return items.slice(0,40);
+              return items.slice(0,60);
             }""")
             return {"profile":profile,"catalog":catalog}
         finally:
