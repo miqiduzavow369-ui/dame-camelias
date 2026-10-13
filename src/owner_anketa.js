@@ -528,7 +528,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
     const group=field.group||"Оценки анкеты";
     if(group!==lastGroup){sections.push("\n━━━━━━━━━━━━\n💎 "+group);lastGroup=group;lastSubgroup="";}
     const subgroup=field.subgroup||"";
-    if(subgroup && subgroup!==lastSubgroup)sections.push("\n✦ "+subgroup);
+    if(subgroup && subgroup!==lastSubgroup)sections.push("\n────────────\n✦ "+subgroup);
     lastSubgroup=subgroup;
     sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
   }
