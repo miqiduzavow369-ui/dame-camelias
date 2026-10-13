@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b0908"><title>DAME CAMELIAS — Оценки</title>
+<style>
+:root{--gold:#e7bd75;--cream:#fff2d8;--muted:#c8b8a1;--line:#6d5237;--bg:#0b0908}
+*{box-sizing:border-box}body{margin:0;color:var(--cream);background:radial-gradient(ellipse at 85% 0%,#38251b 0,transparent 48%),var(--bg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:740px;margin:auto;padding:0 16px 90px}header{text-align:center;padding:36px 12px 22px;border-bottom:1px solid #493723}header h1{font:normal 32px Georgia,serif;letter-spacing:4px;color:var(--gold);margin:6px 0}header .rose{font-size:37px}header p{color:var(--muted);margin:9px 0}
+h2{font:normal 22px Georgia,serif;color:var(--gold);margin:0 0 8px}
+.card{background:linear-gradient(145deg,#241b14,#100e0c);border:1px solid var(--line);border-radius:18px;padding:16px;margin:16px 0;box-shadow:0 9px 25px #0004}
+.profile{color:#f3ddba}.minor{color:var(--muted);font-size:13px}.title{font:normal 20px Georgia,serif;color:var(--gold)}details{margin:14px 0;border:1px solid #493a2a;background:#16110e;border-radius:14px;overflow:hidden}summary{padding:15px 13px;cursor:pointer;color:var(--gold);font:normal 20px Georgia,serif}summary::marker{color:#d3a45d}
+.item{padding:14px;border-top:1px solid #403124}.name{font-size:15px;color:#f7e5cc;margin-bottom:10px}.choices{display:flex;gap:9px;flex-wrap:wrap}.choice{border:1px solid #6d5740;border-radius:999px;padding:10px 15px;color:#e9d6bc;background:#0c0b0a;font:inherit;min-height:43px;cursor:pointer}.choice[aria-pressed=true]{background:linear-gradient(110deg,#a77b45,#efca86);color:#24170b;border-color:#eec783;font-weight:700}.empty{color:var(--muted);font-size:12px;padding-top:8px}
+.sticky{position:sticky;bottom:0;background:#0b0908f5;border-top:1px solid #6b5031;padding:12px 0 10px;box-shadow:0 -9px 24px #0008}.btn{display:block;width:100%;padding:15px;border:0;border-radius:12px;background:linear-gradient(105deg,#b98543,#ffe0a0,#bd8b4d);color:#2a170a;font:700 17px system-ui;cursor:pointer}.btn:disabled{opacity:.6}.status{font-size:12px;min-height:18px;color:#e3c89c;text-align:center;margin:7px 0}.hint{line-height:1.55;color:#d6bf9e}.counter{color:var(--gold);font-weight:700}.hide{display:none}a{color:var(--gold)}
+</style><script src="https://telegram.org/js/telegram-web-app.js"></script></head>
+<body><header><div class="rose">🌹</div><h1>DAME CAMELIAS</h1><p>Оценки вашей анкеты</p></header>
+<main><div class="card"><div class="title" id="profile">Подготавливаем вашу анкету…</div><p class="hint">💕 Выберите подходящие значения. Всё можно проверить и изменить перед завершением.</p><p class="minor">◯ — не выбрано · 🔘 — выбрано</p></div>
+<section id="fields"></section><div class="card"><div class="title">💎 Ваш выбор</div><p class="hint">Неотмеченные пункты останутся без оценки. Ничего не публикуется автоматически.</p><div class="counter" id="count">Выбрано: 0</div></div>
+<div class="sticky"><button id="done" class="btn" disabled>✨ Готово — отправить черновик в Telegram</button><div class="status" id="status">Загрузка…</div></div></main>
+<script>
+const tg=window.Telegram?.WebApp;
+tg?.ready();tg?.expand();
+const key=new URLSearchParams(location.search).get('key');
+const initData=tg?.initData||'';
+let catalog=[],selection={};
+const status=document.getElementById('status'),fields=document.getElementById('fields'),done=document.getElementById('done');
+const clean=s=>String(s??'').trim();
+function eligible(s){return s&&!/^(?:не знаю|отказано|[1-4])$/i.test(clean(s))}
+async function api(action,extra={}) {
+ const r=await fetch('/api/anketa/ratings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,key,initData,...extra})});
+ if(!r.ok)throw new Error(r.status===409?'Форма устарела. Откройте оценки через бота ещё раз.':'Не удалось подключиться. Попробуйте ещё раз.');
+ return r.json();
+}
+function draw(){
+ fields.replaceChildren();
+ const groups=[{title:'⭐ Оценки анкеты',items:catalog.map((item,i)=>({...item,i}))}];
+ for(const group of groups){
+  const section=document.createElement('details');section.open=true;
+  const caption=document.createElement('summary');caption.textContent=group.title;section.append(caption);
+  for(const item of group.items){
+    if(!item.options.length)continue;
+    const row=document.createElement('div');row.className='item';
+    const label=document.createElement('div');label.className='name';label.textContent=(selection[item.i]===undefined?'◯ ':'🔘 ')+item.label;row.append(label);
+    const opts=document.createElement('div');opts.className='choices';
+    for(const opt of item.options.filter(eligible)){
+      const btn=document.createElement('button');btn.type='button';btn.className='choice';
+      btn.textContent=opt==='5'?'5⭐':opt;btn.setAttribute('aria-pressed',selection[item.i]===opt?'true':'false');
+      btn.addEventListener('click',()=>{if(selection[item.i]===opt)delete selection[item.i];else selection[item.i]=opt;draw();});
+      opts.append(btn);
+    }
+    row.append(opts);section.append(row);
+  }
+  fields.append(section);
+ }
+ document.getElementById('count').textContent='Выбрано: '+Object.keys(selection).length+' из '+catalog.length;
+}
+async function boot(){
+ if(!key||!initData){status.textContent='🌷 Откройте эту форму через кнопку бота в Telegram.';return;}
+ try{
+  const data=await api('load');catalog=data.catalog||[];selection=data.selected||{};
+  document.getElementById('profile').textContent='👤 '+clean(data.profile?.name)+' · №'+clean(data.profile?.id);
+  draw();done.disabled=false;status.textContent='🌸 Форма готова. Выбирайте в удобном темпе.';
+ }catch(e){status.textContent=e.message;}
+}
+done.addEventListener('click',async()=>{
+ done.disabled=true;status.textContent='💕 Сохраняю ваш выбор…';
+ try{await api('save',{selected:selection});status.textContent='✅ Готово! Черновик отправлен в Telegram.';tg?.HapticFeedback?.notificationOccurred('success');tg?.close();}
+ catch(e){status.textContent=e.message;done.disabled=false;}
+});
+boot();
+</script></body></html>
