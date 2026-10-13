@@ -201,38 +201,97 @@ def inspect(pid, mode='profile'):
             if toggle.count() and toggle.first.is_visible():
                 toggle.first.click(timeout=8000)
                 profile_page.wait_for_timeout(650)
-            # Expand only disclosure controls inside the rating form. Never click
-            # submit buttons or change a rating value.
+            # Open HTML disclosures and read all enabled rating controls, even those
+            # inside initially collapsed services. This is read-only: no submit.
             form.evaluate("""form => {
               for (const d of form.querySelectorAll('details:not([open])')) d.open=true;
             }""")
-            expanders = form.locator('button[type="button"][aria-expanded="false"], a[aria-expanded="false"], [role="button"][aria-expanded="false"]')
-            for el in expanders.all()[:20]:
+            expanders = form.locator('button[type="button"], a[aria-expanded], [role="button"][aria-expanded]')
+            for el in expanders.all()[:50]:
                 try:
                     if not el.is_visible():
                         continue
                     title=(el.inner_text(timeout=1000) or "").lower()
-                    if any(word in title for word in ("массаж","bdsm","бдсм","дополн","услуг","показать","развернуть","ещё","еще")):
+                    expanded=el.get_attribute("aria-expanded")
+                    if expanded=="false" and any(word in title for word in
+                         ("массаж","bdsm","бдсм","дополн","услуг","показать","развернуть","ещё","еще","экстра","место","другое")):
                         el.click(timeout=3000)
                 except Exception:
                     pass
-            profile_page.wait_for_timeout(400)
-            catalog = form.evaluate("""form => {
-              const items=[];
-              for (const el of form.querySelectorAll('select')) {
-                if (!el.id || el.disabled) continue;
-                const label=[...form.querySelectorAll('label[for]')].find(x=>x.htmlFor===el.id);
-                const title=(label?.textContent||'').replace(/\\s+/g,' ').trim().slice(0,90);
-                if (!title) continue;
-                const options=[...el.options].filter(o=>!o.disabled && o.value).map(o=>o.textContent.trim().slice(0,50));
-                if (options.length===0) continue;
-                // Only expose fields visible after expanding a known section.
-                // Permanently hidden fields may not be enabled for this profile.
-                if (!el.getClientRects().length) continue;
-                items.push({label:title,options:options.slice(0,12)});
+            profile_page.wait_for_timeout(450)
+            catalog = form.evaluate(r"""form => {
+              const normalize = x => (x || '').replace(/\s+/g,' ').trim();
+              const titleOf = node => normalize(node?.textContent).slice(0,90);
+              const headings = 'h1,h2,h3,h4,h5,h6,legend,[role=heading],.section-title,.group-title,.title-section';
+              const fields=[];
+              const seen=new Set();
+              const all=[...form.querySelectorAll('select,input[type="radio"]')];
+              let lastSection='Оценки анкеты';
+              const sectionLabel = el => {
+                for(let p=el.parentElement;p && p!==form;p=p.parentElement){
+                  const legend=p.matches('fieldset')?p.querySelector(':scope > legend'):null;
+                  if(legend && titleOf(legend))return titleOf(legend);
+                  const heading=[...p.children].find(x=>x.matches?.(headings) && titleOf(x));
+                  if(heading && !heading.contains(el))return titleOf(heading);
+                }
+                return lastSection;
+              };
+              const labelOf = el => {
+                const explicit=el.id && [...form.querySelectorAll('label[for]')]
+                  .find(x=>x.htmlFor===el.id);
+                if(explicit && titleOf(explicit))return titleOf(explicit);
+                const wrapping=el.closest('label');
+                if(wrapping && titleOf(wrapping))return titleOf(wrapping);
+                const row=el.closest('tr,.row,.rating-row,.form-group,.field');
+                if(row){
+                  const label=row.querySelector('label,th,.label,.name,.question');
+                  if(label && titleOf(label))return titleOf(label);
+                }
+                const prev=el.previousElementSibling;
+                if(prev && prev.matches('label,span,strong,b') && titleOf(prev))return titleOf(prev);
+                return '';
+              };
+              const walker=document.createTreeWalker(form,NodeFilter.SHOW_ELEMENT);
+              let node;
+              while((node=walker.nextNode())){
+                if(node.matches?.(headings)){
+                  const value=titleOf(node);
+                  if(value && !node.closest('select') && value.length<=90)lastSection=value;
+                }
+                if(node.matches?.('select')){
+                  if(node.disabled)continue;
+                  const label=labelOf(node);
+                  const options=[...node.options].filter(o=>!o.disabled && o.value!=='')
+                    .map(o=>normalize(o.textContent).slice(0,50)).filter(Boolean);
+                  if(!label || !options.length)continue;
+                  const id=node.id || node.name || label;
+                  if(seen.has('select:'+id))continue;
+                  seen.add('select:'+id);
+                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
+                }
+                if(node.matches?.('input[type="radio"]')){
+                  if(node.disabled || !node.name)continue;
+                  const key='radio:'+node.name;
+                  if(seen.has(key))continue;
+                  const radios=[...form.querySelectorAll('input[type="radio"]')]
+                    .filter(x=>x.name===node.name && !x.disabled);
+                  if(!radios.length)continue;
+                  const parent=node.closest('fieldset,.form-group,.rating-row,tr,.row') || node.parentElement?.parentElement;
+                  const heading=parent?.querySelector('legend,th,.question,.label');
+                  const label=titleOf(heading) || labelOf(node) || normalize(node.name);
+                  const options=radios.map(x=>{
+                    const explicit=x.id && form.querySelector('label[for="'+CSS.escape(x.id)+'"]');
+                    return titleOf(explicit) || titleOf(x.closest('label')) || normalize(x.value);
+                  }).filter(Boolean).map(x=>x.slice(0,50));
+                  if(!label || options.length<2)continue;
+                  seen.add(key);
+                  fields.push({label:label.slice(0,90),group:sectionLabel(node).slice(0,90),options:options.slice(0,20)});
+                }
               }
-              return items.slice(0,60);
+              return fields.slice(0,120);
             }""")
+            print("LOOKUP_RATINGS_DIAG: fields=%s; sections=%s" %
+                  (len(catalog),len(set(x.get("group","") for x in catalog))),flush=True)
             return {"profile":profile,"catalog":catalog}
         finally:
             ctx.close()
