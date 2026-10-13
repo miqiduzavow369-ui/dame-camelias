@@ -75,21 +75,6 @@ def extract(page, profile_id):
 def inspect(pid):
     host = required("PROXY_HOST")
     server = "http://" + host + ":6408"
-    stage = "browser-start"
-    try:
-        return _inspect_staged(pid)
-    except Exception as exc:
-        print("LOOKUP_STAGE_FAILED: " + (getattr(exc, "lookup_stage", None) or "unknown"))
-        raise
-
-def _inspect_staged(pid):
-    stage = "browser-start"
-    try:
-        return _inspect_impl(pid)
-    except Exception as exc:
-        raise RuntimeError("lookup stage failed: " + str(getattr(exc, "lookup_stage", "unknown"))) from exc
-
-def _inspect_impl(pid):
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=True,proxy={
             "server":server,"username":required("PROXY_USERNAME"),
