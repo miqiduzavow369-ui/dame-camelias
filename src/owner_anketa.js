@@ -117,18 +117,18 @@ const libraryKeyboard=ids=>buttons([
 // v1 publication records belong exclusively to yan_first. Never copy their
 // statuses to yan_second; its history will use account-scoped keys at rollout.
 async function availabilitySummary(env,id,account){
-  if(account!=="yan_first")return "⭐ Оценки — 🔒 НЕ ПОДКЛЮЧЁН\\n✍️ Отзывы — 🔒 НЕ ПОДКЛЮЧЁН";
+  if(account!=="yan_first")return "⭐ Оценки — 🔒 НЕ ПОДКЛЮЧЁН\n✍️ Отзывы — 🔒 НЕ ПОДКЛЮЧЁН";
   // On storage errors never present an unknown slot as available.
-  if(!env.VISITORS_KV)return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+  if(!env.VISITORS_KV)return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
   try{
     const [rating,review]=await Promise.all([
       publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
     ]);
     const label=status=>status?.status==="published"?"✅ ВЫ ОПУБЛИКОВАЛИ":
       status?"🔒 ТРЕБУЕТ ПРОВЕРКИ":"🟢 ДОСТУПНО";
-    return "⭐ Оценки — "+label(rating)+"\\n✍️ Отзывы — "+label(review);
+    return "⭐ Оценки — "+label(rating)+"\n✍️ Отзывы — "+label(review);
   }catch{
-    return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+    return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
   }
 }
 async function profileKeyboard(env,id){
