@@ -161,7 +161,9 @@ const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
 async function navigationSay(env,send,text,reply_markup){
-  const markup=reply_markup || buttons([[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]);
+  const rows=Array.isArray(reply_markup?.inline_keyboard)?reply_markup.inline_keyboard:[];
+  const hasHome=rows.some(row=>row.some(button=>button.callback_data==="owner_anketa:home"));
+  const markup=buttons(hasHome?rows:[...rows,[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]);
   let previous=null;
   try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
   if(Number.isSafeInteger(previous?.id)){
