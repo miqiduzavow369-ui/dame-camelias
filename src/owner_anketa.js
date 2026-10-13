@@ -36,6 +36,15 @@ function ratingMenu(state) {
     return [{text:(chosen===undefined?"◯ ":"🔘 ")+field.label.slice(0,32)+display.slice(0,15),
       callback_data:"owner_anketa:toggle:"+i+":"+state.nonce}];
   });
+  for(const [index,field] of state.catalog.entries()) {
+    if(selected[index]===undefined) continue;
+    const alternatives=field.options.filter(v=>v && v.toLowerCase()!=="не знаю" && !/^[1-4]$/.test(v));
+    if(alternatives.length<2) continue;
+    rows.splice(index+1,0,alternatives.slice(0,4).map(v=>({
+      text:(selected[index]===v?"🔘 ":"◯ ")+v.slice(0,18),
+      callback_data:"owner_anketa:option:"+index+":"+field.options.indexOf(v)+":"+state.nonce
+    })));
+  }
   rows.push([{text:"📋 Посмотреть выбор",callback_data:"owner_anketa:preview:"+state.nonce}]);
   rows.push([{text:"🧹 Сбросить отметки",callback_data:"owner_anketa:reset:"+state.nonce}]);
   rows.push(NEW_NUMBER);
@@ -195,7 +204,7 @@ export async function handleOwnerAnketa(update,env,send) {
                [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
     return true;
   }
-  const toggle=/^owner_anketa:toggle:(\\d+):([a-f0-9]{12})$/.exec(data);
+  const toggle=/^owner_anketa:toggle:(\d+):([a-f0-9]{12})$/.exec(data);
   if(toggle) {
     const i=Number(toggle[1]);
     if(current?.step!=="ratings"||current.nonce!==toggle[2]||!current.catalog[i]) return true;
@@ -213,6 +222,18 @@ export async function handleOwnerAnketa(update,env,send) {
       } catch {}
     }
     await say(env,send,ratingSummary(next),ratingMenu(next));
+    return true;
+  }
+  const option=/^owner_anketa:option:(\d+):(\d+):([a-f0-9]{12})$/.exec(data);
+  if(option && current?.step==="ratings" && current.nonce===option[3]) {
+    const i=Number(option[1]),j=Number(option[2]),value=current.catalog[i]?.options[j];
+    if(!value || value.toLowerCase()==="не знаю") return true;
+    const next={...current,selected:{...(current.selected||{}),[i]:value}};
+    await statePut(env,next);
+    try {
+      await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:cb.message.message_id,
+        text:ratingSummary(next),reply_markup:ratingMenu(next)});
+    } catch { await say(env,send,ratingSummary(next),ratingMenu(next)); }
     return true;
   }
   const preview=/^owner_anketa:preview:([a-f0-9]{12})$/.exec(data);
