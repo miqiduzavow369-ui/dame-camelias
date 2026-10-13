@@ -42,7 +42,7 @@ jobs:
           INTIMCITY_PASSWORD: ${{ secrets.INTIMCITY_PASSWORD }}
           ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
           ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
-          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
+          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}\n          INTIMCITY_SITE_HOST: ${{ inputs.site_host }}
           ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
           ANKETA_LOOKUP_MODE: ${{ inputs.mode }}
         run: python tools/intimcity_profile_lookup.py
