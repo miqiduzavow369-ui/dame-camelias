@@ -134,12 +134,23 @@ def run():
             except Exception:
                 pass
 
-            # Never click a different ID, even if results unexpectedly differ.
-            result_links = page.locator(f'a[href*="anketa{PROFILE_ID}.htm"]')
+            # Read-only search-result diagnostics. Avoid page text, full URLs,
+            # cookies and account details in logs.
+            from urllib.parse import urlparse, parse_qs
+            page.wait_for_timeout(1800)
+            result_links = page.locator(f'a[href*="anketa{PROFILE_ID}"]')
             try:
                 result_links.first.wait_for(state="visible", timeout=12000)
             except Exception:
-                print("NEEDS_REVIEW: expected profile not found in search results")
+                all_profile_links = page.locator('a[href*="anketa"]')
+                print("SEARCH_DIAGNOSTIC: " + json.dumps({
+                    "on_expected_profile": urlparse(page.url).path.endswith(f"anketa{PROFILE_ID}.htm"),
+                    "search_field_present": page.locator("#searchStr").count() > 0,
+                    "result_heading_present": page.get_by_text("Поиск анкет", exact=True).count() > 0,
+                    "profile_like_links_count": min(all_profile_links.count(), 100),
+                    "expected_id_in_links": page.locator(f'a[href*="{PROFILE_ID}"]').count() > 0,
+                }, ensure_ascii=False))
+                print("NEEDS_REVIEW: expected profile link not found; no navigation attempted")
                 return 2
             visible_links = [item for item in result_links.all() if item.is_visible()]
             if not visible_links:
