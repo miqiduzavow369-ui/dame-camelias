@@ -220,7 +220,7 @@ def inspect(pid, mode='profile'):
                     pass
             profile_page.wait_for_timeout(450)
             catalog = form.evaluate(r"""form => {
-              const normalize = x => (x || '').replace(/\\s+/g,' ').trim();
+              const normalize = x => (x || '').replace(/\s+/g,' ').trim();
               const titleOf = node => normalize(node?.textContent).slice(0,90);
               const headings = 'h1,h2,h3,h4,h5,h6,legend,[role=heading],.section-title,.group-title,.title-section';
               const fields=[];
