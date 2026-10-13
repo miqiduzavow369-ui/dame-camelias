@@ -85,7 +85,9 @@ def extract(page, profile_id):
         // not advertisements, icons or unrelated images elsewhere on page.
         const images=[...document.querySelectorAll('.anketa .gallery img,.profile .gallery img,.anketa .photos img,.profile .photos img,[id*="anketa"] .photo img,[id*="profile"] .photo img')]
           .filter(img=>img.naturalWidth>=120 && img.naturalHeight>=120);
-        const photo=images.length?images[0].currentSrc||images[0].src:'';
+        const meta=document.querySelector('meta[property="og:image"],meta[name="twitter:image"]');
+        const photo=images.length?(images[0].getAttribute('data-src')||images[0].currentSrc||images[0].src):
+          (meta?.content||'');
         return {heading, excerpt, photo};
     }""")
     title = raw["heading"]
