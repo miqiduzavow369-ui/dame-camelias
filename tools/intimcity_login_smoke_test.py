@@ -90,7 +90,7 @@ def run():
             import re
             for item in other_profiles.all():
                 href = item.get_attribute("href") or ""
-                match = re.search(r"anketa(\\d+)\\.htm", href)
+                match = re.search(r"anketa(\d+)\.htm", href)
                 if match and item.is_visible():
                     ids.add(match.group(1))
             if ids != {PROFILE_ID}:
