@@ -15,11 +15,6 @@ on:
         required: false
         default: "profile"
         type: string
-      selections_json:
-        description: "Dry-fill rating selections as JSON (temporary browser only)"
-        required: false
-        default: "[]"
-        type: string
       nonce:
         description: "Correlation token"
         required: true
@@ -55,5 +50,4 @@ jobs:
           INTIMCITY_SITE_HOST: ${{ inputs.site_host }}
           ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
           ANKETA_LOOKUP_MODE: ${{ inputs.mode }}
-          ANKETA_DRYFILL_SELECTIONS: ${{ inputs.selections_json }}
         run: python tools/intimcity_profile_lookup.py
