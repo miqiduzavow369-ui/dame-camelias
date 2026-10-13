@@ -392,6 +392,30 @@ def inspect(pid, mode='profile'):
                               checkbox_result.get("count",0),flush=True)
                     else:
                         print("DRYFILL_EXTRA_FLAG: verified",flush=True)
+                # Inspect the submission contract but never trigger it.
+                # Only metadata, never field values, is delivered to the bot.
+                form_contract=form.evaluate(r"""form => {
+                  const action=new URL(form.getAttribute('action')||location.href,location.href);
+                  const buttons=[...form.querySelectorAll('button,input[type="submit"],input[type="image"]')]
+                    .filter(el=>!el.disabled).map(el=>({
+                      type:el.getAttribute('type')||el.tagName.toLowerCase(),
+                      name:el.getAttribute('name')||'',
+                      label:(el.innerText||el.value||'').trim().slice(0,70)
+                    })).slice(0,12);
+                  return {
+                    sameHost:action.hostname===location.hostname,
+                    actionPath:action.pathname.slice(0,180),
+                    method:(form.getAttribute('method')||'GET').toUpperCase(),
+                    formId:form.id||'',
+                    hiddenFields:form.querySelectorAll('input[type="hidden"]').length,
+                    enabledControls:[...form.elements].filter(el=>!el.disabled).length,
+                    submitControls:buttons
+                  };
+                }""")
+                report["formContract"]=form_contract
+                print("DRYFILL_FORM_CONTRACT: same_host=%s; method=%s; hidden_fields=%s; submit_controls=%s" %
+                      (str(form_contract["sameHost"]).lower(),form_contract["method"],
+                       form_contract["hiddenFields"],len(form_contract["submitControls"])),flush=True)
                 return {"profile":profile,"catalog":[],"dryfill":report}
             print("LOOKUP_RATINGS_DIAG: fields=%s; sections=%s" %
                   (len(catalog),len(set(x.get("group","") for x in catalog))),flush=True)
