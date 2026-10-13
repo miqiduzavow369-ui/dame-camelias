@@ -258,6 +258,9 @@ export async function handleAnketaLookupResult(request,env,send) {
     const ratedTotal=Object.keys(current.selected||{}).length;
     const total=ratedTotal+(current.metElsewhere===true?1:0);
     const extraOk=current.metElsewhere!==true || (report?.extraFlag?.ok===true && report.extraFlag.count===1);
+    const finalAuditOk=report?.finalAudit?.ok===true &&
+      Object.values(report.finalAudit.checks||{}).length===6 &&
+      Object.values(report.finalAudit.checks).every(v=>v===true);
     const ok=data.status==="found" && data.profile && String(data.profile.id)===id &&
       report && report.applied===ratedTotal && report.verified===ratedTotal && extraOk &&
       Array.isArray(report.results) && report.results.length===ratedTotal &&
@@ -265,8 +268,9 @@ export async function handleAnketaLookupResult(request,env,send) {
     const misses=Array.isArray(report?.results)?
       report.results.filter(x=>!x.ok).map(x=>"• "+String(x.label||"Пункт").slice(0,90)): [];
     if(!extraOk)misses.push("• Встречался по другой анкете — не найдено однозначное поле сайта");
+    if(!finalAuditOk)misses.push("• Финальная проверка отправляемых полей формы не пройдена");
     if(current.prepublish){
-      if(ok){
+      if(ok && finalAuditOk){
         const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
         await statePut(env,finalState);
         await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+

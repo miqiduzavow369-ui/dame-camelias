@@ -383,7 +383,14 @@ def inspect(pid, mode='profile'):
                       :field.nodes[idx].checked===true;
                     results[i].ok=ok;if(ok)verified++;
                   }
-                  return {applied:actions.length,verified,results};
+                  const serialized=new FormData(form);
+                  const entryChecks=actions.map(({field,idx})=>{
+                    const name=field.nodes[0]?.name||'';
+                    return Boolean(name)&&serialized.getAll(name).includes(field.values[idx]);
+                  });
+                  return {applied:actions.length,verified,results,
+                    serialized:{verified:entryChecks.filter(Boolean).length,
+                      total:actions.length,allMatched:entryChecks.every(Boolean)}};
                 }""",requested)
                 if extra_flag:
                     # Find the exact site checkbox by associated visible text,
@@ -406,7 +413,10 @@ def inspect(pid, mode='profile'):
                       const el=matches[0];
                       // DOM-only assignment; no events, clicks or submission.
                       el.checked=true;
-                      return {ok:el.checked===true,count:1};
+                      const inside=!!el.closest('#checked_form');
+                      const values=inside?new FormData(el.closest('#checked_form')).getAll(el.name):[];
+                      return {ok:el.checked===true,count:1,inForm:inside,
+                        serialized:inside&&!!el.name&&values.includes(el.value)};
                     }""")
                     report["extraFlag"] = checkbox_result
                     if not checkbox_result.get("ok"):
@@ -435,6 +445,25 @@ def inspect(pid, mode='profile'):
                   };
                 }""")
                 report["formContract"]=form_contract
+                # One consolidated prepublication audit: browser DOM, actual HTML FormData,
+                # checkbox membership, destination and submit control. No network submission.
+                checks={
+                    "ratingFormData":report.get("serialized",{}).get("allMatched") is True
+                      and report.get("serialized",{}).get("total")==len(requested),
+                    "checkboxFormData":not extra_flag or (
+                        report.get("extraFlag",{}).get("ok") is True
+                        and report.get("extraFlag",{}).get("count")==1
+                        and report.get("extraFlag",{}).get("inForm") is True
+                        and report.get("extraFlag",{}).get("serialized") is True),
+                    "sameHost":form_contract.get("sameHost") is True,
+                    "submitControl":len(form_contract.get("submitControls",[]))==1,
+                    "supportedMethod":form_contract.get("method") in ("GET","POST"),
+                    "validActionPath":str(form_contract.get("actionPath","")).startswith("/")
+                }
+                report["finalAudit"]={"ok":all(checks.values()),"checks":checks}
+                print("FINAL_PREPUBLISH_AUDIT: %s; rating_form_entries=%s/%s" %
+                      ("PASS" if all(checks.values()) else "FAIL",
+                       report.get("serialized",{}).get("verified",0),len(requested)),flush=True)
                 print("DRYFILL_FORM_CONTRACT: same_host=%s; method=%s; hidden_fields=%s; submit_controls=%s" %
                       (str(form_contract["sameHost"]).lower(),form_contract["method"],
                        form_contract["hiddenFields"],len(form_contract["submitControls"])),flush=True)
