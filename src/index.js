@@ -1,4 +1,5 @@
 import { reminderCall } from "./reminders.js";
+import { handleOwnerAnketa } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -341,6 +342,7 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  if (await handleOwnerAnketa(update, env, telegram)) return;
   const person = update.callback_query?.from || update.message?.from;
   const chat = update.callback_query?.message?.chat || update.message?.chat;
   const action = update.callback_query?.data || (update.message?.text || "").split(/\s+/)[0].split("@")[0];
