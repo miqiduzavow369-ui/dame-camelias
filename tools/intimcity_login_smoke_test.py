@@ -55,8 +55,8 @@ def run():
             for form in page.locator("form").all():
                 if not form.is_visible():
                     continue
-                emails = form.locator('input[type="email"], input[placeholder="E-mail"], input[name="email"]')
-                passwords = form.locator('input[type="password"]')
+                emails = form.locator('input[name="login"][placeholder="E-mail"]')
+                passwords = form.locator('input[name="password"][type="password"]')
                 if emails.count() and passwords.count() and emails.first.is_visible() and passwords.first.is_visible():
                     pair = (emails.first, passwords.first, form)
                     break
@@ -67,7 +67,7 @@ def run():
             email_field, password_field, form = pair
             email_field.fill(login)
             password_field.fill(password)
-            submit = form.locator('button[type="submit"], input[type="submit"], button:has-text("OK"), input[type="button"][value="OK"], input[type="submit"][value="OK"]').first
+            submit = form.locator('input[type="submit"]').first
             if submit.count() and submit.is_visible():
                 submit.click(timeout=8000)
             else:
@@ -112,7 +112,7 @@ def run():
                 print("NEEDS_REVIEW: login outcome uncertain; search not attempted")
                 return 2
 
-            search = page.locator('input[placeholder*="ID"], input[placeholder*="телефон"]')
+            search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
             if len(visible_search) != 1:
                 print("NEEDS_REVIEW: expected one visible search input")
@@ -124,9 +124,7 @@ def run():
             if parent_form.count() != 1:
                 print("NEEDS_REVIEW: search form not identified")
                 return 2
-            find_button = parent_form.get_by_role("button", name="Найти")
-            if find_button.count() != 1:
-                find_button = parent_form.locator('input[type="submit"][value="Найти"], button:has-text("Найти")')
+            find_button = parent_form.locator('input#searchPS[name="phonesearch"][type="submit"]')
             if find_button.count() != 1:
                 print("NEEDS_REVIEW: search button not identified")
                 return 2
