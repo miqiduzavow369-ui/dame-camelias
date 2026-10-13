@@ -236,7 +236,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       await say(env,send,"⚠️ Проверка полей анкеты №"+id+" не удалась. На сайте ничего не изменено.");
       return Response.json({ok:true,audit:false});
     }
-    const normalized=t=>String(t||"").trim().toLowerCase().replace(/\\s+/g," ");
+    const normalized=t=>String(t||"").trim().toLowerCase().replace(/\s+/g," ");
     const source=organizeCatalog(raw);
     const wanted=Object.keys(selected).map(Number).sort((a,b)=>a-b);
     let matched=0;
@@ -259,11 +259,11 @@ export async function handleAnketaLookupResult(request,env,send) {
     if(current.metElsewhere===true)misses.push("• Встречался по другой анкете — элемент сайта не сопоставлен");
     const extras=current.metElsewhere===true?1:0;
     const total=wanted.length+extras;
-    await say(env,send,"🔎 ПРОВЕРКА ПОЛЕЙ САЙТА\\n\\n🆔 Анкета №"+id+
-      "\\n✅ Совпали: "+matched+" из "+total+
-      "\\n⚠️ Требуют проверки: "+(total-matched)+
-      (misses.length?"\\n\\n"+misses.slice(0,25).join("\\n"):"")+
-      "\\n\\n🌷 Режим только чтения. Ни одно поле на сайте не изменено и ничего не опубликовано.",
+    await say(env,send,"🔎 ПРОВЕРКА ПОЛЕЙ САЙТА\n\n🆔 Анкета №"+id+
+      "\n✅ Совпали: "+matched+" из "+total+
+      "\n⚠️ Требуют проверки: "+(total-matched)+
+      (misses.length?"\n\n"+misses.slice(0,25).join("\n"):"")+
+      "\n\n🌷 Режим только чтения. Ни одно поле на сайте не изменено и ничего не опубликовано.",
       buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
     return Response.json({ok:true,audit:true,matched,total});
@@ -467,7 +467,7 @@ export async function handleOwnerAnketa(update,env,send) {
       return true;
     }
     await say(env,send,"🔎 Проверяю технические поля Intimcity для анкеты №"+pending.id+
-      ".\\n\\n🌷 Это только диагностика — оценок на сайте не будет.");
+      ".\n\n🌷 Это только диагностика — оценок на сайте не будет.");
     return true;
   }
   const toggle=/^owner_anketa:toggle:(\d+):([a-f0-9]{12})$/.exec(data);
