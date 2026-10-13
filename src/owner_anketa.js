@@ -63,6 +63,27 @@ async function statePut(env, state) {
     { expirationTtl: TTL_SECONDS });
   return true;
 }
+const ACCOUNT_SELECTION_KEY = "owner_anketa_selected_account:"+OWNER_ID;
+const ACTIVE_ACCOUNT = "yan_first";
+async function selectedAccount(env,id){
+  const selected=await env.VISITORS_KV?.get(ACCOUNT_SELECTION_KEY,"json");
+  return selected?.profileId===String(id) && selected?.account===ACTIVE_ACCOUNT &&
+    Number(selected.expiresAt)>Date.now() ? ACTIVE_ACCOUNT : null;
+}
+async function chooseAccount(env,id){
+  if(!env.VISITORS_KV || !ID_PATTERN.test(String(id)))return false;
+  await env.VISITORS_KV.put(ACCOUNT_SELECTION_KEY,JSON.stringify({
+    profileId:String(id),account:ACTIVE_ACCOUNT,expiresAt:Date.now()+30*60*1000
+  }),{expirationTtl:1800});
+  return true;
+}
+function accountPicker(id){
+  return buttons([
+    [{text:"👨‍💻 Ян Первый",callback_data:"owner_anketa:account1:"+id}],
+    [{text:"🔒 Ян Второй (не подключён)",callback_data:"owner_anketa:account2:"+id}],
+    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
+  ]);
+}
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
 const PROFILE_KEY = "owner_anketa_saved:"+OWNER_ID+":";
 async function libraryGet(env) {
@@ -114,8 +135,8 @@ async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
   await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👤 "+record.profile.name+
-    "\n🔗 "+record.profile.url+"\n\n💕 Что бы вы хотели подготовить?",
-    await profileKeyboard(env,id));
+    "\n🔗 "+record.profile.url+
+    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",accountPicker(id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 async function trackAnketaMessage(env,id){
@@ -369,7 +390,7 @@ export async function handleAnketaLookupResult(request,env,send) {
   }
   if(auditLoading) {
     const selected=current.selected||{};
-    const restored={step:"ratings_agreed",profile:current.profile,host:current.host,
+    const restored={step:"ratings_agreed",account:current.account,profile:current.profile,host:current.host,
       nonce:current.previousNonce,catalog:current.catalog,selected,
       metElsewhere:current.metElsewhere===true,draftReady:true,agreedAt:current.agreedAt};
     await statePut(env,restored);
@@ -422,7 +443,10 @@ export async function handleAnketaLookupResult(request,env,send) {
       return Response.json({ok:true,found:false});
     }
     const orderedCatalog=organizeCatalog(catalog);
-    const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
+    if(current.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,id)){
+      await say(env,send,"🌷 Выбор аккаунта устарел. Откройте анкету и выберите 👨‍💻 Ян Первый.");return Response.json({ok:false},{status:409});
+    }
+    const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
     await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
     await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
@@ -518,8 +542,30 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
   if(savedMenu){await showSaved(env,send,savedMenu[1]);return true;}
+  const account1=/^owner_anketa:account1:(\d{1,9})$/.exec(data);
+  if(account1){
+    const rec=await savedGet(env,account1[1]);
+    if(!rec){await showLibrary(env,send);return true;}
+    if(!await chooseAccount(env,account1[1])){
+      await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
+    }
+    await say(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Анкета №"+account1[1]+
+      "\n🔐 Используется основной аккаунт Intimcity и закреплённый прокси."+
+      "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
+    return true;
+  }
+  const account2=/^owner_anketa:account2:(\d{1,9})$/.exec(data);
+  if(account2){
+    await say(env,send,"🔒 Ян Второй пока не подключён.\n\n" +
+      "Его отдельный логин и прокси настроим позже. Сейчас отправка через этот аккаунт недоступна.",
+      accountPicker(account2[1]));
+    return true;
+  }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
   if(savedReview){
+    if(!await selectedAccount(env,savedReview[1])){
+      await showSaved(env,send,savedReview[1]);return true;
+    }
     if(await ensureNoRepeat(env,savedReview[1],"review",send))return true;
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
     await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",await profileKeyboard(env,savedReview[1]));
@@ -527,18 +573,21 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const savedRating=/^owner_anketa:savedrating:(\d{1,9})$/.exec(data);
   if(savedRating){
+    if(!await selectedAccount(env,savedRating[1])){
+      await showSaved(env,send,savedRating[1]);return true;
+    }
     if(await ensureNoRepeat(env,savedRating[1],"rating",send))return true;
     const rec=await savedGet(env,savedRating[1]);
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     if(rec.catalog?.length){
-      await statePut(env,{step:"ratings",profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
+      await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
       await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
       return true;
     }
-    await statePut(env,{step:"ratings_loading",id:rec.profile.id,nonce,previousNonce:nonce,profile:rec.profile,host:rec.host});
+    await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:rec.profile.id,nonce,previousNonce:nonce,profile:rec.profile,host:rec.host});
     let started=false;
     try{started=(await dispatchLookup(env,rec.profile.id,nonce,"ratings",rec.host)).ok;}catch{}
     if(!started){await say(env,send,"🌷 Пока не получилось загрузить услуги. Попробуйте ещё раз позже.");return true;}
@@ -583,6 +632,9 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const consent=/^owner_anketa:consent:([a-f0-9]{12})$/.exec(data);
   if(consent) {
+    if(current?.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,current.profile?.id)){
+      await say(env,send,"🌷 Сначала выберите 👨‍💻 Ян Первый в меню анкеты.");return true;
+    }
     if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="ratings" || current.nonce!==consent[1] || !current.draftReady) {
       await say(env,send,"🌷 Это подтверждение уже неактуально. Откройте форму оценок и проверьте выбор ещё раз.");
@@ -614,6 +666,9 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const publishConfirm=/^owner_anketa:publish_confirm:([a-f0-9]{12})$/.exec(data);
   if(publishConfirm){
+    if(current?.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,current.profile?.id)){
+      await say(env,send,"🌷 Для публикации нужно заново выбрать 👨‍💻 Ян Первый и подготовить оценки.");return true;
+    }
     if(current?.profile?.id && await ensureNoRepeat(env,current.profile.id,"rating",send))return true;
     if(!current || current.step!=="prepublish_ready" || current.nonce!==publishConfirm[1] ||
         !current.readyAt || Date.now()-current.readyAt>15*60*1000){
@@ -768,6 +823,12 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const match=/^owner_anketa:(rating|review):([a-f0-9]{12})$/.exec(data);
   if(match) {
+    if(!current?.profile?.id || !await selectedAccount(env,current.profile.id) ||
+       current.account!==ACTIVE_ACCOUNT){
+      if(current?.profile?.id)await showSaved(env,send,current.profile.id);
+      else await showLibrary(env,send);
+      return true;
+    }
     if(current?.step==="ratings" && current.nonce===match[2]) {
       if(match[1]==="rating") await say(env,send,ratingSummary(current),ratingMenu(current));
       else await say(env,send,"✍️ Раздел отзывов пока подготавливается.\n\n💕 Спасибо за терпение!");
@@ -778,7 +839,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(match[1]==="rating") {
       const lookupNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-      await statePut(env,{step:"ratings_loading",id:current.profile.id,nonce:lookupNonce,
+      await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:current.profile.id,nonce:lookupNonce,
         previousNonce:current.nonce,profile:current.profile,host:current.host});
       let launched=false;
       try { launched=(await dispatchLookup(env,current.profile.id,lookupNonce,"ratings",current.host)).ok; } catch {}
@@ -808,6 +869,9 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   const existingRating=await publicationStatus(env,state.profile?.id,"rating");
   if(existingRating)return Response.json({error:"already_published_or_pending"},{status:409});
+  if(state.account!==ACTIVE_ACCOUNT ||
+      !await selectedAccount(env,state.profile?.id))
+    return Response.json({error:"account_not_selected"},{status:409});
   if(input.action==="load") return Response.json({
     profile:state.profile,selected:state.selected||{},metElsewhere:state.metElsewhere===true,catalog:organizeCatalog(state.catalog).map(x=>({
       label:x.label,group:x.group||"Оценки анкеты",subgroup:x.subgroup||"",
