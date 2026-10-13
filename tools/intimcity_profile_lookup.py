@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from playwright.sync_api import sync_playwright
 
 OWNER_HOST = os.environ.get("INTIMCITY_SITE_HOST","a.intimcity.rip")
-if not re.fullmatch(r"[a-z0-9-]+\\.intimcity\\.rip", OWNER_HOST):
+if not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip", OWNER_HOST):
     raise RuntimeError("Invalid site host")
 
 class EmptySearch(Exception):
