@@ -34,7 +34,8 @@ function validProfile(data, id) {
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
 async function dispatchLookup(env,id,nonce) {
-  if (!env.DC_ACTIONS_TOKEN || !env.ANKETA_CALLBACK_TOKEN) return false;
+  if (!env.DC_ACTIONS_TOKEN) return {ok:false,reason:"Отсутствует DC_ACTIONS_TOKEN в Cloudflare"};
+  if (!env.ANKETA_CALLBACK_TOKEN) return {ok:false,reason:"Отсутствует ANKETA_CALLBACK_TOKEN в Cloudflare"};
   const response=await fetch(
     "https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/intimcity-profile-lookup.yml/dispatches",
     {method:"POST",headers:{
@@ -45,7 +46,9 @@ async function dispatchLookup(env,id,nonce) {
       "Content-Type":"application/json"},
     body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce}}),
     signal:AbortSignal.timeout(15000)});
-  return response.status===204;
+  if(response.status===204) return {ok:true};
+  const descriptions={401:"GitHub отклонил токен (401)",403:"GitHub запретил запуск: проверь Actions Write и срок токена (403)",404:"GitHub не нашёл workflow или у токена нет доступа к репозиторию (404)",422:"GitHub не принял параметры запуска (422)",429:"GitHub ограничил число запросов (429)"};
+  return {ok:false,reason:descriptions[response.status]||("GitHub HTTP "+response.status)};
 }
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
@@ -94,11 +97,12 @@ async function inspect(env,send,id) {
     await say(env,send,"⚠️ Хранилище недоступно.");
     return;
   }
-  let dispatched=false;
-  try {dispatched=await dispatchLookup(env,id,nonce);}catch{}
-  if(!dispatched) {
+  let dispatched;
+  try {dispatched=await dispatchLookup(env,id,nonce);}
+  catch {dispatched={ok:false,reason:"Не удалось связаться с GitHub API"};}
+  if(!dispatched?.ok) {
     await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Проверка пока не подключена или недоступна. Попробуй позже.");
+    await say(env,send,"⚠️ Автоматическая проверка не запущена.\nПричина: "+dispatched.reason);
     return;
   }
   await say(env,send,"🔎 Проверяю анкету №"+id+
