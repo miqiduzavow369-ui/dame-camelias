@@ -49,6 +49,69 @@ def run():
                 raise RuntimeError("Unexpected home destination")
             print("PASS: home page loaded via approved proxy")
 
+            # Authenticate on home page before searching. Only accept a visible form containing
+            # both an email input and a password input. Never click rating/comment forms.
+            pair = None
+            for form in page.locator("form").all():
+                if not form.is_visible():
+                    continue
+                emails = form.locator('input[type="email"], input[placeholder="E-mail"], input[name="email"]')
+                passwords = form.locator('input[type="password"]')
+                if emails.count() and passwords.count() and emails.first.is_visible() and passwords.first.is_visible():
+                    pair = (emails.first, passwords.first, form)
+                    break
+            if pair is None:
+                print("NEEDS_REVIEW: No unambiguous visible login form; no credentials submitted")
+                return 2
+
+            email_field, password_field, form = pair
+            email_field.fill(login)
+            password_field.fill(password)
+            submit = form.locator('button[type="submit"], input[type="submit"], button:has-text("OK"), input[type="button"][value="OK"], input[type="submit"][value="OK"]').first
+            if submit.count() and submit.is_visible():
+                submit.click(timeout=8000)
+            else:
+                password_field.press("Enter")
+            # Allow asynchronous login to complete; only print fixed, non-sensitive
+            # diagnostic labels. Never log URLs, HTML, credentials, or cookies.
+            try:
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+            page.wait_for_timeout(2500)
+            if urlparse(page.url).hostname not in ("a.intimcity.rip", "intimcity.rip"):
+                print("NEEDS_REVIEW: redirected to a different host")
+                return 2
+
+            indicators = {
+                "logout_control": 'a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")',
+                "account_control": 'a:has-text("Личный кабинет"), a:has-text("Мой профиль")',
+                "challenge": 'iframe[src*="captcha"], input[name*="captcha"], input[name*="code"]',
+            }
+            matched = {}
+            for key, selector in indicators.items():
+                matched[key] = page.locator(selector).count() > 0
+            login_still_visible = False
+            for candidate in page.locator('input[type="password"]').all():
+                if candidate.is_visible():
+                    login_still_visible = True
+                    break
+            print("DIAGNOSTIC: " + json.dumps({
+                "logout_control": matched["logout_control"],
+                "account_control": matched["account_control"],
+                "challenge_present": matched["challenge"],
+                "password_field_visible": login_still_visible,
+            }, ensure_ascii=False))
+            if matched["logout_control"]:
+                print("PASS: authenticated logout control detected")
+                authenticated = True
+            if matched["account_control"] and not login_still_visible:
+                print("PASS: account navigation detected without login form")
+                authenticated = True
+            if not locals().get("authenticated", False):
+                print("NEEDS_REVIEW: login outcome uncertain; search not attempted")
+                return 2
+
             search = page.locator('input[placeholder*="ID"], input[placeholder*="телефон"]')
             visible_search = [item for item in search.all() if item.is_visible()]
             if len(visible_search) != 1:
@@ -107,68 +170,7 @@ def run():
                 print("NEEDS_REVIEW: opened URL is not the requested profile")
                 return 2
             print("PASS: target profile opened from search results")
-
-            # Multiple login widgets exist. Only accept a visible form containing
-            # both an email input and a password input. Never click rating/comment forms.
-            pair = None
-            for form in page.locator("form").all():
-                if not form.is_visible():
-                    continue
-                emails = form.locator('input[type="email"], input[placeholder="E-mail"], input[name="email"]')
-                passwords = form.locator('input[type="password"]')
-                if emails.count() and passwords.count() and emails.first.is_visible() and passwords.first.is_visible():
-                    pair = (emails.first, passwords.first, form)
-                    break
-            if pair is None:
-                print("NEEDS_REVIEW: No unambiguous visible login form; no credentials submitted")
-                return 2
-
-            email_field, password_field, form = pair
-            email_field.fill(login)
-            password_field.fill(password)
-            submit = form.locator('button[type="submit"], input[type="submit"]').first
-            if submit.count() and submit.is_visible():
-                submit.click(timeout=8000)
-            else:
-                password_field.press("Enter")
-            # Allow asynchronous login to complete; only print fixed, non-sensitive
-            # diagnostic labels. Never log URLs, HTML, credentials, or cookies.
-            try:
-                page.wait_for_load_state("networkidle", timeout=10000)
-            except Exception:
-                pass
-            page.wait_for_timeout(2500)
-            if urlparse(page.url).hostname not in ("a.intimcity.rip", "intimcity.rip"):
-                print("NEEDS_REVIEW: redirected to a different host")
-                return 2
-
-            indicators = {
-                "logout_control": 'a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")',
-                "account_control": 'a:has-text("Личный кабинет"), a:has-text("Мой профиль")',
-                "challenge": 'iframe[src*="captcha"], input[name*="captcha"], input[name*="code"]',
-            }
-            matched = {}
-            for key, selector in indicators.items():
-                matched[key] = page.locator(selector).count() > 0
-            login_still_visible = False
-            for candidate in page.locator('input[type="password"]').all():
-                if candidate.is_visible():
-                    login_still_visible = True
-                    break
-            print("DIAGNOSTIC: " + json.dumps({
-                "logout_control": matched["logout_control"],
-                "account_control": matched["account_control"],
-                "challenge_present": matched["challenge"],
-                "password_field_visible": login_still_visible,
-            }, ensure_ascii=False))
-            if matched["logout_control"]:
-                print("PASS: authenticated logout control detected")
-                return 0
-            if matched["account_control"] and not login_still_visible:
-                print("PASS: account navigation detected without login form")
-                return 0
-            print("NEEDS_REVIEW: login outcome uncertain; no further actions")
-            return 2
+            return 0
         finally:
             context.close()
             browser.close()
