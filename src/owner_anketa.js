@@ -1,5 +1,5 @@
 // Hidden, owner-only entry for future Intimcity drafts.
-// Fail closed when ADMIN_TELEGRAM_USER_ID is not configured.
+// Restricted to the verified owner ID and its private Telegram chat.
 // No web actions, review submissions, or rating submissions.
 export function ownerAllowed(update, env) {
   const from = update.callback_query?.from ?? update.message?.from;
