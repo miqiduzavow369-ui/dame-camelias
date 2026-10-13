@@ -34,11 +34,11 @@ function validProfile(data, id) {
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
 async function dispatchLookup(env,id,nonce) {
-  if (!env.GITHUB_ACTIONS_TOKEN || !env.ANKETA_CALLBACK_TOKEN) return false;
+  if (!env.DC_ACTIONS_TOKEN || !env.ANKETA_CALLBACK_TOKEN) return false;
   const response=await fetch(
     "https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/intimcity-profile-lookup.yml/dispatches",
     {method:"POST",headers:{
-      "Authorization":"Bearer "+env.GITHUB_ACTIONS_TOKEN,
+      "Authorization":"Bearer "+env.DC_ACTIONS_TOKEN,
       "Accept":"application/vnd.github+json",
       "User-Agent":"dame-camelias-worker",
       "X-GitHub-Api-Version":"2022-11-28",
