@@ -191,7 +191,7 @@ def inspect(pid, mode='profile'):
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
             profile = extract(profile_page,pid)
-            if mode not in ("ratings","mapping") or not profile:
+            if mode not in ("ratings","mapping","dryfill") or not profile:
                 return profile
             print("LOOKUP_STAGE: read-visible-rating-criteria")
             form = profile_page.locator("#checked_form")
@@ -295,6 +295,71 @@ def inspect(pid, mode='profile'):
               }
               return fields.slice(0,120);
             }""")
+            if mode == "dryfill":
+                # Perform value assignment only in the ephemeral browser DOM; no events,
+                # requests, form submission or persistent browser storage.
+                requested=json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
+                if not isinstance(requested,list) or not 1<=len(requested)<=120:
+                    raise RuntimeError("Invalid dry-fill selection count")
+                if len(set(x.get("index") for x in requested if isinstance(x,dict)))!=len(requested):
+                    raise RuntimeError("Duplicate dry-fill index")
+                report= form.evaluate(r"""(form, requested) => {
+                  const clean = v=>String(v??'').trim().toLowerCase().replace(/\\s+/g,' ');
+                  const fields=[];
+                  const seen=new Set();
+                  const controls=[...form.querySelectorAll('select,input[type="radio"]')];
+                  for(const el of controls){
+                    if(el.disabled)continue;
+                    if(el.matches('select')){
+                      const options=[...el.options].filter(o=>!o.disabled&&o.value!=='');
+                      const row=el.closest('tr,.row,.rating-row,.form-group,.field');
+                      const explicit=el.id&&form.querySelector('label[for="'+CSS.escape(el.id)+'"]');
+                      const label=(explicit?.textContent||el.closest('label')?.textContent||row?.querySelector('label,th,.label,.name,.question')?.textContent||el.previousElementSibling?.textContent||'').trim().replace(/\\s+/g,' ').slice(0,90);
+                      if(!label||!options.length)continue;
+                      const id=el.id||el.name||label;
+                      if(options.length<2&&form.querySelector('input[type="radio"][name="'+CSS.escape(el.name||el.id||'')+'"]'))continue;
+                      if(seen.has('select:'+id))continue;seen.add('select:'+id);
+                      fields.push({label,options:options.map(o=>o.textContent.trim().replace(/\\s+/g,' ').slice(0,50)),values:options.map(o=>o.value),nodes:[el],type:'select'});
+                    }else if(el.name){
+                      const key='radio:'+el.name;
+                      if(seen.has(key))continue;
+                      const radios=[...form.querySelectorAll('input[type="radio"]')].filter(x=>x.name===el.name&&!x.disabled);
+                      const parent=el.closest('fieldset,.form-group,.rating-row,tr,.row')||el.parentElement?.parentElement;
+                      const label=(parent?.querySelector('legend,th,.question,.label')?.textContent||el.name).trim().replace(/\\s+/g,' ').slice(0,90);
+                      const options=radios.map(x=>(x.id&&form.querySelector('label[for="'+CSS.escape(x.id)+'"]')?.textContent||x.closest('label')?.textContent||x.value).trim().replace(/\\s+/g,' ').slice(0,50));
+                      if(!label||options.length<2)continue;
+                      seen.add(key);fields.push({label,options,values:radios.map(x=>x.value),nodes:radios,type:'radio'});
+                    }
+                  }
+                  const results=[];
+                  let valid=true;
+                  // Preflight every field before mutating even the temporary DOM.
+                  const actions=[];
+                  for(const item of requested){
+                    const field=fields[item.index];
+                    const idx=field?.options.findIndex(v=>clean(v)===clean(item.value))??-1;
+                    const okay=Number.isInteger(item.index)&&item.index>=0&&
+                      clean(field?.label)===(clean(item.label)==='фото соответствует'?'isfair':clean(item.label)) &&
+                      idx>=0 && field.values[idx]!==undefined;
+                    results.push({index:item.index,ok:Boolean(okay),label:String(item.label||'').slice(0,90)});
+                    if(!okay)valid=false;else actions.push({field,idx});
+                  }
+                  if(!valid)return {applied:0,verified:0,results};
+                  for(const {field,idx} of actions){
+                    if(field.type==='select')field.nodes[0].value=field.values[idx];
+                    else field.nodes[idx].checked=true;
+                  }
+                  let verified=0;
+                  for(let i=0;i<actions.length;i++){
+                    const {field,idx}=actions[i];
+                    const ok=field.type==='select'
+                      ?field.nodes[0].value===field.values[idx]
+                      :field.nodes[idx].checked===true;
+                    results[i].ok=ok;if(ok)verified++;
+                  }
+                  return {applied:actions.length,verified,results};
+                }""",requested)
+                return {"profile":profile,"catalog":[],"dryfill":report}
             print("LOOKUP_RATINGS_DIAG: fields=%s; sections=%s" %
                   (len(catalog),len(set(x.get("group","") for x in catalog))),flush=True)
             return {"profile":profile,"catalog":catalog}
@@ -310,7 +375,7 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings","mapping"):
+    if mode not in ("profile","ratings","mapping","dryfill"):
         raise RuntimeError("Invalid lookup mode")
     try:
         result=inspect(pid,mode)
@@ -325,9 +390,9 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
-    profile=result.get("profile") if mode in ("ratings","mapping") and isinstance(result,dict) else result
+    profile=result.get("profile") if mode in ("ratings","mapping","dryfill") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"mode":mode,"status":status})
+    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":

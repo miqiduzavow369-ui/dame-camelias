@@ -194,7 +194,7 @@ function validProfile(data, id, host) {
       data.url !== `https://${host}/indi/anketa${id}.htm`) return null;
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
-async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip") {
+async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.rip",selectionsJson="[]") {
   if (!env.DC_ACTIONS_TOKEN) return {ok:false,reason:"Отсутствует DC_ACTIONS_TOKEN в Cloudflare"};
   if (!env.ANKETA_CALLBACK_TOKEN) return {ok:false,reason:"Отсутствует ANKETA_CALLBACK_TOKEN в Cloudflare"};
   const response=await fetch(
@@ -205,7 +205,7 @@ async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.
       "User-Agent":"dame-camelias-worker",
       "X-GitHub-Api-Version":"2022-11-28",
       "Content-Type":"application/json"},
-    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost}}),
+    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost,selections_json:mode==="dryfill"?selectionsJson:"[]"}}),
     signal:AbortSignal.timeout(15000)});
   if(response.status===204) return {ok:true};
   const descriptions={401:"GitHub отклонил токен (401)",403:"GitHub запретил запуск: проверь Actions Write и срок токена (403)",404:"GitHub не нашёл workflow или у токена нет доступа к репозиторию (404)",422:"GitHub не принял параметры запуска (422)",429:"GitHub ограничил число запросов (429)"};
@@ -221,10 +221,35 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  const dryfillLoading = current?.step === "dryfill_loading" && data.mode === "dryfill";
   const auditLoading = current?.step === "audit_loading" && data.mode === "mapping";
   const ratingsLoading = current?.step === "ratings_loading" && data.mode === "ratings";
-  if(!current || (!ratingsLoading && !auditLoading && current.step!=="loading") || current.id!==id || current.nonce!==nonce)
+  if(!current || (!ratingsLoading && !auditLoading && !dryfillLoading && current.step!=="loading") || current.id!==id || current.nonce!==nonce)
     return new Response("Stale",{status:409});
+  if(dryfillLoading){
+    const restored={...current,step:"ratings_agreed",nonce:current.previousNonce};
+    delete restored.previousNonce;
+    delete restored.id;
+    await statePut(env,restored);
+    const report=data.dryfill;
+    const total=Object.keys(current.selected||{}).length;
+    const ok=data.status==="found" && data.profile && String(data.profile.id)===id &&
+      report && report.applied===total && report.verified===total &&
+      Array.isArray(report.results) && report.results.length===total &&
+      report.results.every(x=>x.ok===true);
+    const misses=Array.isArray(report?.results)?
+      report.results.filter(x=>!x.ok).map(x=>"• "+String(x.label||"Пункт").slice(0,90)): [];
+    await say(env,send,(ok?"✅ ТЕСТ ЗАПОЛНЕНИЯ ПРОЙДЕН":"⚠️ ТЕСТ ЗАПОЛНЕНИЯ НЕ ПРОЙДЕН")+
+      "\n\n🆔 Анкета №"+id+
+      "\n📋 Выбрано пунктов: "+total+
+      "\n✅ Проверено в браузере: "+(Number(report?.verified)||0)+
+      (misses.length?"\n\nНе совпали:\n"+misses.slice(0,30).join("\n"):"")+
+      (current.metElsewhere===true?"\n\n⚠️ Галочка «Встречался по другой анкете» не сопоставлена с полем сайта.":"")+
+      "\n\n🌷 Значения проверены только во временном браузере. Форма на Intimcity не отправлялась.",
+      buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
+    return Response.json({ok:true,dryfill:ok});
+  }
   if(auditLoading) {
     const selected=current.selected||{};
     const restored={step:"ratings_agreed",profile:current.profile,host:current.host,
@@ -446,7 +471,36 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{...current,step:"ratings_agreed",agreedAt:Date.now()});
     await say(env,send,"🌹 СПАСИБО!\n\n💕 Ваш выбор для анкеты "+current.profile.name+
       " подтверждён и сохранён.\n\n✨ Никакие оценки на сайт не отправлялись.",
-      buttons([[{text:"🔎 Сверить поля сайта (без публикации)",callback_data:"owner_anketa:audit:"+current.nonce}],NEW_NUMBER]));
+      buttons([[{text:"🔎 Сверить поля сайта (без публикации)",callback_data:"owner_anketa:audit:"+current.nonce}],
+        [{text:"🧪 Тест заполнения (без отправки)",callback_data:"owner_anketa:dryfill:"+current.nonce}],NEW_NUMBER]));
+    return true;
+  }
+  const dryfill=/^owner_anketa:dryfill:([a-f0-9]{12})$/.exec(data);
+  if(dryfill){
+    if(!current || current.step!=="ratings_agreed" || current.nonce!==dryfill[1] ||
+        !Object.keys(current.selected||{}).length){
+      await say(env,send,"🌷 Для теста подтвердите новый отчёт оценок.");return true;
+    }
+    if(current.metElsewhere===true){
+      await say(env,send,"⚠️ Дополнительная галочка пока не сопоставлена с сайтом. Снимите её для тестового заполнения.");return true;
+    }
+    const picks=Object.keys(current.selected).map(Number).sort((a,b)=>a-b).map(i=>({
+      index:i,label:current.catalog[i]?.label,value:current.selected[i]
+    }));
+    if(picks.some(x=>!x.label||typeof x.value!=="string")||picks.length>120){
+      await say(env,send,"⚠️ Некорректный перечень выбранных полей.");return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const pending={...current,step:"dryfill_loading",id:current.profile.id,previousNonce:current.nonce,nonce};
+    await statePut(env,pending);
+    let started=false;
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify(picks))).ok;}catch{}
+    if(!started){
+      await statePut(env,current);
+      await say(env,send,"🌷 Тестовый запуск не удался. Ничего не опубликовано.");return true;
+    }
+    await say(env,send,"🧪 Проверяю выбранные поля анкеты №"+pending.id+
+      " во временном браузере.\n\n🌷 Отправка формы на Intimcity отключена.");
     return true;
   }
   const audit=/^owner_anketa:audit:([a-f0-9]{12})$/.exec(data);
