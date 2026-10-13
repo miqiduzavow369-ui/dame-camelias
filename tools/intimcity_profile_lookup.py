@@ -298,7 +298,11 @@ def inspect(pid, mode='profile'):
             if mode == "dryfill":
                 # Perform value assignment only in the ephemeral browser DOM; no events,
                 # requests, form submission or persistent browser storage.
-                requested=json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
+                payload=json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
+                requested=payload.get("selections") if isinstance(payload,dict) else payload
+                extra_flag=payload.get("metElsewhere",False) if isinstance(payload,dict) else False
+                if not isinstance(extra_flag,bool):
+                    raise RuntimeError("Invalid extra flag type")
                 if not isinstance(requested,list) or not 1<=len(requested)<=120:
                     raise RuntimeError("Invalid dry-fill selection count")
                 if len(set(x.get("index") for x in requested if isinstance(x,dict)))!=len(requested):
@@ -359,6 +363,35 @@ def inspect(pid, mode='profile'):
                   }
                   return {applied:actions.length,verified,results};
                 }""",requested)
+                if extra_flag:
+                    # Find the exact site checkbox by associated visible text,
+                    # without assuming its CSS identifier or altering site state.
+                    checkbox_result=profile_page.evaluate(r"""() => {
+                      const clean=s=>String(s||'').toLowerCase().replace(/\\s+/g,' ').trim();
+                      const phrase='встречался по другой анкете';
+                      const matches=[...document.querySelectorAll('input[type="checkbox"]')]
+                        .filter(el=>!el.disabled).filter(el=>{
+                          const labels=[...el.labels||[]].map(x=>x.textContent);
+                          const row=el.closest('label,.checkbox,.form-check,.field,.row,tr');
+                          if(row)labels.push(row.textContent);
+                          if(el.id){
+                            const direct=document.querySelector('label[for="'+CSS.escape(el.id)+'"]');
+                            if(direct)labels.push(direct.textContent);
+                          }
+                          return labels.some(t=>clean(t).includes(phrase));
+                        });
+                      if(matches.length!==1)return {ok:false,count:matches.length};
+                      const el=matches[0];
+                      // DOM-only assignment; no events, clicks or submission.
+                      el.checked=true;
+                      return {ok:el.checked===true,count:1};
+                    }""")
+                    report["extraFlag"] = checkbox_result
+                    if not checkbox_result.get("ok"):
+                        print("DRYFILL_EXTRA_FLAG: unverified; candidate_count=%s" %
+                              checkbox_result.get("count",0),flush=True)
+                    else:
+                        print("DRYFILL_EXTRA_FLAG: verified",flush=True)
                 return {"profile":profile,"catalog":[],"dryfill":report}
             print("LOOKUP_RATINGS_DIAG: fields=%s; sections=%s" %
                   (len(catalog),len(set(x.get("group","") for x in catalog))),flush=True)
