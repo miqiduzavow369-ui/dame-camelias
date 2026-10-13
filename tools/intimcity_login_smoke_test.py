@@ -10,7 +10,7 @@ import sys
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
-TARGET = "https://a.intimcity.rip/indi/anketa721867.htm"
+TARGET = "https://a.intimcity.rip/indi/anketa750206.htm"
 CHECK_URL = "https://api.ipify.org?format=json"
 
 def required(name):
