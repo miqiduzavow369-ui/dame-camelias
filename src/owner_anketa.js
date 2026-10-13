@@ -239,6 +239,24 @@ export async function handleAnketaLookupResult(request,env,send) {
       report.results.every(x=>x.ok===true);
     const misses=Array.isArray(report?.results)?
       report.results.filter(x=>!x.ok).map(x=>"• "+String(x.label||"Пункт").slice(0,90)): [];
+    if(current.prepublish){
+      if(ok && current.metElsewhere!==true){
+        const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
+        await statePut(env,finalState);
+        await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+
+          "\n🆔 Анкета №"+id+"\n✅ Проверен доступ через ваш прокси\n✅ Анкета найдена и подтверждена"+
+          "\n✅ Все выбранные поля проверены: "+total+" из "+total+
+          "\n\n🌷 Ничего на сайт не отправлялось.\n\n💎 Вы точно хотите опубликовать выбранные оценки?",
+          buttons([[{text:"✅ Да, опубликовать",callback_data:"owner_anketa:publish_confirm:"+current.previousNonce}],
+            [{text:"❌ Отмена",callback_data:"owner_anketa:publish_cancel:"+current.previousNonce}]]));
+      }else{
+        await say(env,send,"⚠️ ПОДГОТОВКА НЕ ПРОШЛА\n\n🆔 Анкета №"+id+
+          "\n✅ Проверено в браузере: "+(Number(report?.verified)||0)+" из "+total+
+          (misses.length?"\n\nПроверьте:\n"+misses.slice(0,20).join("\n"):"")+
+          "\n\n🌷 Публикация не предлагалась. На сайт ничего не отправлялось.");
+      }
+      return Response.json({ok:true,prepublish:!!ok});
+    }
     await say(env,send,(ok?"✅ ТЕСТ ЗАПОЛНЕНИЯ ПРОЙДЕН":"⚠️ ТЕСТ ЗАПОЛНЕНИЯ НЕ ПРОЙДЕН")+
       "\n\n🆔 Анкета №"+id+
       "\n📋 Выбрано пунктов: "+total+
@@ -468,11 +486,46 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"🌷 Это подтверждение уже неактуально. Откройте форму оценок и проверьте выбор ещё раз.");
       return true;
     }
-    await statePut(env,{...current,step:"ratings_agreed",agreedAt:Date.now()});
-    await say(env,send,"🌹 СПАСИБО!\n\n💕 Ваш выбор для анкеты "+current.profile.name+
-      " подтверждён и сохранён.\n\n✨ Никакие оценки на сайт не отправлялись.",
-      buttons([[{text:"🔎 Сверить поля сайта (без публикации)",callback_data:"owner_anketa:audit:"+current.nonce}],
-        [{text:"🧪 Тест заполнения (без отправки)",callback_data:"owner_anketa:dryfill:"+current.nonce}],NEW_NUMBER]));
+    const picks=Object.keys(current.selected||{}).map(Number).sort((a,b)=>a-b).map(i=>({
+      index:i,label:current.catalog[i]?.label,value:current.selected[i]
+    }));
+    const approved={...current,step:"ratings_agreed",agreedAt:Date.now()};
+    if(!picks.length || picks.length>120 || picks.some(x=>!x.label||typeof x.value!=="string") ||
+        current.metElsewhere===true){
+      await statePut(env,approved);
+      await say(env,send,"⚠️ Подготовка остановлена: нет выбранных оценок или дополнительная галочка пока не сопоставлена с сайтом. Ничего не опубликовано.");
+      return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const pending={...approved,step:"dryfill_loading",id:current.profile.id,previousNonce:current.nonce,
+      nonce,prepublish:true};
+    if(!await statePut(env,pending)){
+      await say(env,send,"⚠️ Не удалось сохранить подготовку. Ничего не опубликовано.");return true;
+    }
+    await say(env,send,"🌹 ПОДГОТОВКА К ПУБЛИКАЦИИ\n\n💎 Ваши оценки приняты.\n\n🔐 Проверяю правильность заполнения всех выбранных полей.\n🌏 Нахожу вашу анкету через поиск по району. \n\n⏳ Пожалуйста, подождите немного.\n\n🌷 Пока ничего на сайт не отправляется.");
+    let started=false;
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify(picks))).ok;}catch{}
+    if(!started){
+      await statePut(env,approved);
+      await say(env,send,"⚠️ Не удалось запустить подготовку. Ничего не опубликовано.");
+    }
+    return true;
+  }
+  const publishConfirm=/^owner_anketa:publish_confirm:([a-f0-9]{12})$/.exec(data);
+  if(publishConfirm){
+    if(!current || current.step!=="prepublish_ready" || current.nonce!==publishConfirm[1] ||
+        !current.readyAt || Date.now()-current.readyAt>15*60*1000){
+      await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
+    }
+    await say(env,send,"🌷 Ваше подтверждение получено. Фактическая публикация пока отключена и будет внедряться отдельным этапом.");
+    return true;
+  }
+  const publishCancel=/^owner_anketa:publish_cancel:([a-f0-9]{12})$/.exec(data);
+  if(publishCancel){
+    if(current?.step==="prepublish_ready" && current.nonce===publishCancel[1]){
+      await statePut(env,{...current,step:"ratings_agreed",prepublish:false,readyAt:null});
+      await say(env,send,"❌ Подготовка отменена. Ничего не опубликовано.");
+    }
     return true;
   }
   const dryfill=/^owner_anketa:dryfill:([a-f0-9]{12})$/.exec(data);
