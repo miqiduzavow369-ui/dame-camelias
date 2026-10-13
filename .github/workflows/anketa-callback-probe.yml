@@ -1,0 +1,20 @@
+name: Diagnose callback path (no credentials sent)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check callback reachability and deployed Worker version
+        env:
+          ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
+        run: python tools/anketa_callback_probe.py
