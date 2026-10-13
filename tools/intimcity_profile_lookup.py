@@ -36,7 +36,8 @@ def callback(data):
     except HTTPError as exc:
         content_type = exc.headers.get("Content-Type", "").split(";")[0][:70]
         cf_ray = bool(exc.headers.get("cf-ray"))
-        print(f"CALLBACK_HTTP_ERROR: status={exc.code}; content_type={content_type}; cloudflare_ray_present={cf_ray}")
+        origin = "worker" if exc.headers.get("X-DC-Callback-Handler") == "reached" else "unknown_edge_or_previous_worker_version"
+        print(f"CALLBACK_HTTP_ERROR: status={exc.code}; content_type={content_type}; cloudflare_ray_present={cf_ray}; origin={origin}")
         raise RuntimeError("Callback rejected; inspect Cloudflare request logs") from None
     except URLError:
         print("CALLBACK_NETWORK_ERROR: connection failed")

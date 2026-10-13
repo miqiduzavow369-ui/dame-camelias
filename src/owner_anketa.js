@@ -53,7 +53,7 @@ async function dispatchLookup(env,id,nonce) {
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
-    return new Response("Forbidden",{status:403});
+    return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"reached"}});
   let data;
   try {data=await request.json();}catch{return new Response("Invalid JSON",{status:400});}
   const id=String(data.profile_id??""),nonce=String(data.nonce??"");
