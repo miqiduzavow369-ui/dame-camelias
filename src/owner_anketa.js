@@ -232,15 +232,18 @@ export async function handleAnketaLookupResult(request,env,send) {
     delete restored.id;
     await statePut(env,restored);
     const report=data.dryfill;
-    const total=Object.keys(current.selected||{}).length;
+    const ratedTotal=Object.keys(current.selected||{}).length;
+    const total=ratedTotal+(current.metElsewhere===true?1:0);
+    const extraOk=current.metElsewhere!==true || (report?.extraFlag?.ok===true && report.extraFlag.count===1);
     const ok=data.status==="found" && data.profile && String(data.profile.id)===id &&
-      report && report.applied===total && report.verified===total &&
-      Array.isArray(report.results) && report.results.length===total &&
+      report && report.applied===ratedTotal && report.verified===ratedTotal && extraOk &&
+      Array.isArray(report.results) && report.results.length===ratedTotal &&
       report.results.every(x=>x.ok===true);
     const misses=Array.isArray(report?.results)?
       report.results.filter(x=>!x.ok).map(x=>"• "+String(x.label||"Пункт").slice(0,90)): [];
+    if(!extraOk)misses.push("• Встречался по другой анкете — не найдено однозначное поле сайта");
     if(current.prepublish){
-      if(ok && current.metElsewhere!==true){
+      if(ok){
         const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
         await statePut(env,finalState);
         await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+
@@ -251,7 +254,7 @@ export async function handleAnketaLookupResult(request,env,send) {
             [{text:"❌ Отмена",callback_data:"owner_anketa:publish_cancel:"+current.previousNonce}]]));
       }else{
         await say(env,send,"⚠️ ПОДГОТОВКА НЕ ПРОШЛА\n\n🆔 Анкета №"+id+
-          "\n✅ Проверено в браузере: "+(Number(report?.verified)||0)+" из "+total+
+          "\n✅ Проверено в браузере: "+((Number(report?.verified)||0)+(report?.extraFlag?.ok===true?1:0))+" из "+total+
           (misses.length?"\n\nПроверьте:\n"+misses.slice(0,20).join("\n"):"")+
           "\n\n🌷 Публикация не предлагалась. На сайт ничего не отправлялось.");
       }
@@ -260,9 +263,9 @@ export async function handleAnketaLookupResult(request,env,send) {
     await say(env,send,(ok?"✅ ТЕСТ ЗАПОЛНЕНИЯ ПРОЙДЕН":"⚠️ ТЕСТ ЗАПОЛНЕНИЯ НЕ ПРОЙДЕН")+
       "\n\n🆔 Анкета №"+id+
       "\n📋 Выбрано пунктов: "+total+
-      "\n✅ Проверено в браузере: "+(Number(report?.verified)||0)+
+      "\n✅ Проверено в браузере: "+((Number(report?.verified)||0)+(report?.extraFlag?.ok===true?1:0))+
       (misses.length?"\n\nНе совпали:\n"+misses.slice(0,30).join("\n"):"")+
-      (current.metElsewhere===true?"\n\n⚠️ Галочка «Встречался по другой анкете» не сопоставлена с полем сайта.":"")+
+      (current.metElsewhere===true?"\n\n☑️ Галочка «Встречался по другой анкете»: "+(extraOk?"проверена":"не сопоставлена"):"")+
       "\n\n🌷 Значения проверены только во временном браузере. Форма на Intimcity не отправлялась.",
       buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
@@ -490,10 +493,9 @@ export async function handleOwnerAnketa(update,env,send) {
       index:i,label:current.catalog[i]?.label,value:current.selected[i]
     }));
     const approved={...current,step:"ratings_agreed",agreedAt:Date.now()};
-    if(!picks.length || picks.length>120 || picks.some(x=>!x.label||typeof x.value!=="string") ||
-        current.metElsewhere===true){
+    if(!picks.length || picks.length>120 || picks.some(x=>!x.label||typeof x.value!=="string")){
       await statePut(env,approved);
-      await say(env,send,"⚠️ Подготовка остановлена: нет выбранных оценок или дополнительная галочка пока не сопоставлена с сайтом. Ничего не опубликовано.");
+      await say(env,send,"⚠️ Подготовка остановлена: не удалось проверить перечень оценок. Ничего не опубликовано.");
       return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
@@ -504,7 +506,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await say(env,send,"🌹 ПОДГОТОВКА К ПУБЛИКАЦИИ\n\n💎 Ваши оценки приняты.\n\n🔐 Проверяю правильность заполнения всех выбранных полей.\n🌏 Нахожу вашу анкету через поиск по району. \n\n⏳ Пожалуйста, подождите немного.\n\n🌷 Пока ничего на сайт не отправляется.");
     let started=false;
-    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify(picks))).ok;}catch{}
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify({selections:picks,metElsewhere:current.metElsewhere===true}))).ok;}catch{}
     if(!started){
       await statePut(env,approved);
       await say(env,send,"⚠️ Не удалось запустить подготовку. Ничего не опубликовано.");
@@ -534,9 +536,6 @@ export async function handleOwnerAnketa(update,env,send) {
         !Object.keys(current.selected||{}).length){
       await say(env,send,"🌷 Для теста подтвердите новый отчёт оценок.");return true;
     }
-    if(current.metElsewhere===true){
-      await say(env,send,"⚠️ Дополнительная галочка пока не сопоставлена с сайтом. Снимите её для тестового заполнения.");return true;
-    }
     const picks=Object.keys(current.selected).map(Number).sort((a,b)=>a-b).map(i=>({
       index:i,label:current.catalog[i]?.label,value:current.selected[i]
     }));
@@ -547,7 +546,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const pending={...current,step:"dryfill_loading",id:current.profile.id,previousNonce:current.nonce,nonce};
     await statePut(env,pending);
     let started=false;
-    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify(picks))).ok;}catch{}
+    try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host,JSON.stringify({selections:picks,metElsewhere:current.metElsewhere===true}))).ok;}catch{}
     if(!started){
       await statePut(env,current);
       await say(env,send,"🌷 Тестовый запуск не удался. Ничего не опубликовано.");return true;
