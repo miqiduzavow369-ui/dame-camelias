@@ -292,12 +292,12 @@ export async function handleAnketaLookupResult(request,env,send) {
     const wasStarted=current.submissionStartedAt>0;
     if(current.id!==id || current.nonce!==nonce || !wasStarted)
       return new Response("Stale",{status:409});
-    if(attempt.confirmed===true)
-      await recordPublication(env,id,"rating","published","site-confirmation");
-    else if(attempt.attempted===true || !data.publication)
-      await recordPublication(env,id,"rating","needs_verification","submission-unconfirmed");
-    else
-      await recordPublication(env,id,"rating","needs_verification","submission-not-proven");
+    // A visible success alert alone is not proof of a matching public entry.
+    // The screenshot verifier (#57) will set "published" only after matching
+    // the exact profile and delivering the screenshot to Telegram.
+    await recordPublication(env,id,"rating","needs_verification",
+      attempt.confirmed===true?"site-ack-awaiting-screenshot":
+      attempt.attempted===true?"submission-unconfirmed":"submission-not-proven");
     const next={...current,step:"publication_result",publicationReport:{
       attempted:attempt.attempted===true,
       confirmed:attempt.confirmed===true,
