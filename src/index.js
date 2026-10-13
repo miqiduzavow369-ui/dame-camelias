@@ -593,6 +593,8 @@ export default {
       return Response.json({ok:true});
     }
     if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
+    if (request.method === "GET" && url.pathname === "/api/anketa/health")
+      return new Response("anketa-handler-v2", {headers:{"Content-Type":"text/plain","Cache-Control":"no-store"}});
     if (request.method === "POST" && url.pathname === "/api/anketa/result")
       return handleAnketaLookupResult(request,env,telegram);
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
