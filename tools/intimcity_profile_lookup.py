@@ -78,7 +78,7 @@ def extract(page, profile_id):
     return {"id": profile_id, "name": name, "age": years, "metro": location,
             "url": f"https://{OWNER_HOST}/indi/anketa{profile_id}.htm"}
 
-def inspect(pid):
+def inspect(pid, mode='profile'):
     host = required("PROXY_HOST")
     server = "http://" + host + ":6408"
     with sync_playwright() as p:
@@ -176,7 +176,29 @@ def inspect(pid):
                 raise RuntimeError("Unexpected profile location")
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
-            return extract(profile_page,pid)
+            profile = extract(profile_page,pid)
+            if mode != "ratings" or not profile:
+                return profile
+            print("LOOKUP_STAGE: read-visible-rating-criteria")
+            form = profile_page.locator("#checked_form")
+            if not form.count():
+                return {"profile":profile,"catalog":[]}
+            toggle = profile_page.locator("#checked_star input[type=button]")
+            if toggle.count() and toggle.first.is_visible():
+                toggle.first.click(timeout=8000)
+                profile_page.wait_for_timeout(650)
+            catalog = form.evaluate("""form => {
+              const items=[];
+              for (const el of form.querySelectorAll('select')) {
+                if (!el.id || el.disabled || !el.getClientRects().length) continue;
+                const label=form.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+                const title=(label?.textContent||'').replace(/\\s+/g,' ').trim().slice(0,90);
+                if (!title) continue;
+                items.push({label:title, options:[...el.options].filter(o=>!o.disabled && o.value).map(o=>o.textContent.trim().slice(0,50)).slice(0,12)});
+              }
+              return items.slice(0,40);
+            }""")
+            return {"profile":profile,"catalog":catalog}
         finally:
             ctx.close()
             browser.close()
@@ -188,8 +210,11 @@ def main():
         raise RuntimeError("Invalid lookup arguments")
     result=None
     status="error"
+    mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
+    if mode not in ("profile","ratings"):
+        raise RuntimeError("Invalid lookup mode")
     try:
-        result=inspect(pid)
+        result=inspect(pid,mode)
         if result:
             status="found"
         print("LOOKUP:", "profile identity detected" if result else "profile identity unavailable")
@@ -201,7 +226,9 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category)
-    callback({"profile_id":pid,"nonce":nonce,"profile":result,"status":status})
+    profile=result.get("profile") if mode=="ratings" and isinstance(result,dict) else result
+    catalog=result.get("catalog",[]) if mode=="ratings" and isinstance(result,dict) else []
+    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":

@@ -6,6 +6,11 @@ on:
         description: "Profile number (digits)"
         required: true
         type: string
+      mode:
+        description: "Read-only profile or ratings catalog"
+        required: false
+        default: "profile"
+        type: string
       nonce:
         description: "Correlation token"
         required: true
@@ -39,4 +44,5 @@ jobs:
           ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
           INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
           ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
+          ANKETA_LOOKUP_MODE: ${{ inputs.mode }}
         run: python tools/intimcity_profile_lookup.py
