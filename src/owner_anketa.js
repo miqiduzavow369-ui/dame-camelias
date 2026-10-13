@@ -65,7 +65,10 @@ export async function handleAnketaLookupResult(request,env,send) {
   const found=validProfile(data.profile,id);
   if(!found) {
     await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Не удалось подтвердить анкету №"+id+
+    const empty = data.status === "not_found";
+    await say(env,send,empty
+      ? "🔎 АНКЕТА НЕ НАЙДЕНА\n\n📋 По номеру №"+id+" нет результатов поиска.\n\n🔓 Пожалуйста, включите анкету, если она отключена, или проверьте правильность введённого ID.\n\n🔄 Можете попробовать ещё раз."
+      : "⚠️ Не удалось подтвердить анкету №"+id+
       " по данным Intimcity. Попробуй повторить или введи другой номер.",
       buttons([NEW_NUMBER]));
     return Response.json({ok:true,found:false});

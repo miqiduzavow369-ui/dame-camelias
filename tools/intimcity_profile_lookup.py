@@ -14,6 +14,9 @@ from playwright.sync_api import sync_playwright
 
 OWNER_HOST = "a.intimcity.rip"
 
+class EmptySearch(Exception):
+    pass
+
 def required(name):
     value = os.environ.get(name, "")
     if not value:
@@ -140,6 +143,11 @@ def inspect(pid):
                 page.wait_for_load_state("domcontentloaded", timeout=15000)
             except Exception:
                 pass
+            print("LOOKUP_STAGE: check-search-count")
+            counter = page.locator("#idBigSearchFindCount")
+            counter.wait_for(state="attached", timeout=20000)
+            if counter.get_attribute("data-findcount") == "0":
+                raise EmptySearch()
             print("LOOKUP_STAGE: wait-for-result-card")
             card = page.locator(f"#ankcrd{pid}")
             card.wait_for(state="visible", timeout=20000)
@@ -179,15 +187,21 @@ def main():
     if not re.fullmatch(r"\d{1,9}",pid) or not re.fullmatch(r"[a-f0-9]{12}",nonce):
         raise RuntimeError("Invalid lookup arguments")
     result=None
+    status="error"
     try:
         result=inspect(pid)
+        if result:
+            status="found"
         print("LOOKUP:", "profile identity detected" if result else "profile identity unavailable")
+    except EmptySearch:
+        status="not_found"
+        print("LOOKUP: zero search results")
     except Exception as e:
         category = ("timeout" if "Timeout" in type(e).__name__ else
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category)
-    callback({"profile_id":pid,"nonce":nonce,"profile":result})
+    callback({"profile_id":pid,"nonce":nonce,"profile":result,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":
