@@ -136,8 +136,8 @@ async function profileKeyboard(env,id){
   const rating=await publicationStatus(env,id,"rating");
   const review=await publicationStatus(env,id,"review");
   return buttons([
-  [{text:rating?.status==="published"?"✅ Оценка опубликована":rating?"🔒 Оценка: проверка результата":"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}],
-  [{text:review?.status==="published"?"✅ Отзыв опубликован":review?"🔒 Отзыв: проверка результата":"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}],
+  ...(!rating?[[{text:"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
+  ...(!review?[[{text:"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
