@@ -212,12 +212,9 @@ def inspect(pid, mode='profile'):
                 if (!title) continue;
                 const options=[...el.options].filter(o=>!o.disabled && o.value).map(o=>o.textContent.trim().slice(0,50));
                 if (options.length===0) continue;
-                const visible=el.getClientRects().length>0;
-                // Hidden values are eligible only when inside an explicitly
-                // collapsed, user-expandable section. Otherwise they may be
-                // disabled/unavailable site features.
-                const disclosure=el.closest('details,[role="region"],[aria-labelledby]');
-                if (!visible && !disclosure) continue;
+                // Only expose fields visible after expanding a known section.
+                // Permanently hidden fields may not be enabled for this profile.
+                if (!el.getClientRects().length) continue;
                 items.push({label:title,options:options.slice(0,12)});
               }
               return items.slice(0,60);
