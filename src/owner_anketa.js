@@ -284,7 +284,7 @@ function validProfile(data, id, host) {
   if(typeof data.photoUrl==="string" && data.photoUrl.length<1600){
     try{
       const u=new URL(data.photoUrl);
-      if(u.protocol==="https:" && u.hostname===host && !u.username && !u.password && !u.port &&
+      if(u.protocol==="https:" && (u.hostname===host || /^[a-z0-9-]+\.intimcity\.rip$/.test(u.hostname)) && !u.username && !u.password && !u.port &&
           /\\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))photoUrl=u.href;
     }catch{}
   }
