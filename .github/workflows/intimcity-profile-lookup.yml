@@ -1,0 +1,42 @@
+name: Verify Intimcity profile identity (bot)
+on:
+  workflow_dispatch:
+    inputs:
+      profile_id:
+        description: "Profile number (digits)"
+        required: true
+        type: string
+      nonce:
+        description: "Correlation token"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Lookup via proxy and report identity
+        env:
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+          EXPECTED_EGRESS_IP: ${{ secrets.EXPECTED_EGRESS_IP }}
+          INTIMCITY_LOGIN: ${{ secrets.INTIMCITY_LOGIN }}
+          INTIMCITY_PASSWORD: ${{ secrets.INTIMCITY_PASSWORD }}
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+          ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
+          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
+          ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
+        run: python tools/intimcity_profile_lookup.py

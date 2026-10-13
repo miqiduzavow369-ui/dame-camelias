@@ -1,5 +1,5 @@
 import { reminderCall } from "./reminders.js";
-import { handleOwnerAnketa } from "./owner_anketa.js";
+import { handleOwnerAnketa, handleAnketaLookupResult } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -593,6 +593,8 @@ export default {
       return Response.json({ok:true});
     }
     if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
+    if (request.method === "POST" && url.pathname === "/api/anketa/result")
+      return handleAnketaLookupResult(request,env,telegram);
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
     if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
