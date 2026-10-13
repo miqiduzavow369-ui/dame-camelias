@@ -49,7 +49,7 @@ def extract(page, profile_id):
     # All identifying details must be found on the selected profile itself.
     name = re.split(r"[,|—]", title)[0].strip()
     age = re.search(r"(?<!\d)(\d{2})\s*(?:год|года|лет)\b", title+" "+raw["excerpt"])
-    metro = re.search(r"(?:м\\.|метро)\s*([^,;\n•|]{2,55})", title+" "+raw["excerpt"], re.I)
+    metro = re.search(r"(?:м\.|метро)\s*([^,;\n•|]{2,55})", title+" "+raw["excerpt"], re.I)
     if not name or len(name) > 100 or not age:
         return None
     years = int(age.group(1))
