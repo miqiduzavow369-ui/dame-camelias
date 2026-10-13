@@ -2,7 +2,7 @@
 // proxy-backed lookup service; never guess a name, age, or district.
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
-const ID_PATTERN = /^\\d{1,9}$/;
+const ID_PATTERN = /^\d{1,9}$/;
 const TTL_SECONDS = 1800;
 
 export function ownerAllowed(update) {
@@ -82,7 +82,7 @@ export async function handleOwnerAnketa(update,env,send) {
   const msg=update.message;
   const data=String(cb?.data ?? "");
   const txt=String(msg?.text ?? "").trim();
-  const command=txt.split(/\\s+/)[0].split("@")[0];
+  const command=txt.split(/\s+/)[0].split("@")[0];
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
@@ -94,11 +94,11 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
   if (data==="owner_anketa:open" || data==="owner_anketa:change" ||
-      (command==="/anketa" && txt.split(/\\s+/).length===1)) {
+      (command==="/anketa" && txt.split(/\s+/).length===1)) {
     await askNumber(env,send); return true;
   }
   if (command==="/anketa") {
-    const id=txt.split(/\\s+/)[1] ?? "";
+    const id=txt.split(/\s+/)[1] ?? "";
     await inspect(env,send,id); return true;
   }
   if (typedNumber) { await inspect(env,send,txt); return true; }
