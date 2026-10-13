@@ -143,7 +143,7 @@ def inspect(pid):
             visible_links = [item for item in result_links.all() if item.is_visible()]
             ids = set()
             for item in page.locator('a[href*="/indi/anketa"][href$=".htm"]').all():
-                match = re.search(r"anketa(\\d+)\\.htm", item.get_attribute("href") or "")
+                match = re.search(r"anketa(\d+)\.htm", item.get_attribute("href") or "")
                 if match and item.is_visible():
                     ids.add(match.group(1))
             if not visible_links or ids != {pid}:
