@@ -30,21 +30,20 @@ async function say(env, send, text, reply_markup) {
 // One-screen editable draft. No Telegram action here publishes ratings.
 function ratingMenu(state) {
   const selected=state.selected||{};
-  const rows=state.catalog.map((field,i)=>{
+  const rows=[];
+  state.catalog.forEach((field,i)=>{
     const chosen=selected[i];
     const display=chosen===undefined?"":" · "+chosen;
-    return [{text:(chosen===undefined?"◯ ":"🔘 ")+field.label.slice(0,32)+display.slice(0,15),
-      callback_data:"owner_anketa:toggle:"+i+":"+state.nonce}];
-  });
-  for(const [index,field] of state.catalog.entries()) {
-    if(selected[index]===undefined) continue;
+    rows.push([{text:(chosen===undefined?"◯ ":"🔘 ")+field.label.slice(0,32)+display.slice(0,15),
+      callback_data:"owner_anketa:toggle:"+i+":"+state.nonce}]);
+    if(chosen===undefined) return;
     const alternatives=field.options.filter(v=>v && v.toLowerCase()!=="не знаю" && !/^[1-4]$/.test(v));
-    if(alternatives.length<2) continue;
-    rows.splice(index+1,0,alternatives.slice(0,4).map(v=>({
-      text:(selected[index]===v?"🔘 ":"◯ ")+v.slice(0,18),
-      callback_data:"owner_anketa:option:"+index+":"+field.options.indexOf(v)+":"+state.nonce
+    if(alternatives.length<2) return;
+    rows.push(alternatives.slice(0,4).map(v=>({
+      text:(chosen===v?"🔘 ":"◯ ")+v.slice(0,18),
+      callback_data:"owner_anketa:option:"+i+":"+field.options.indexOf(v)+":"+state.nonce
     })));
-  }
+  });
   rows.push([{text:"📋 Посмотреть выбор",callback_data:"owner_anketa:preview:"+state.nonce}]);
   rows.push([{text:"🧹 Сбросить отметки",callback_data:"owner_anketa:reset:"+state.nonce}]);
   rows.push(NEW_NUMBER);
