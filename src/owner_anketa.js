@@ -107,8 +107,8 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(ratingsLoading) {
     const profile = current.profile;
     const raw = Array.isArray(data.catalog) ? data.catalog : [];
-    const catalog = raw.slice(0,60).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
-      .map(x => ({label:x.label.slice(0,90),options:x.options.filter(v=>typeof v==="string").slice(0,12).map(v=>v.slice(0,50))}));
+    const catalog = raw.slice(0,120).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
+      .map(x => ({label:x.label.slice(0,90),group:typeof x.group==="string" ? x.group.slice(0,90) : "Оценки анкеты",options:x.options.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,50))}));
     if(data.status!=="found" || !catalog.length || !data.profile || String(data.profile.id)!==id) {
       await statePut(env,{step:"chosen",profile,nonce:current.previousNonce,host:current.host});
       await say(env,send,"🌷 Сейчас не удалось загрузить категории оценок для анкеты №"+id+
@@ -347,7 +347,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
     profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
-      label:x.label,
+      label:x.label,group:x.group||"Оценки анкеты",
       options:x.options.filter(v=>!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(v))
     }))
   },{headers:{"Cache-Control":"no-store"}});
@@ -362,12 +362,30 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
     safe[index]=value;
   }
   await statePut(env,{...state,step:"ratings",selected:safe,draftReady:true,agreedAt:null});
-  const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]))
-    .map(([i,v])=>"• "+state.catalog[Number(i)].label+": "+(v==="5"?"5⭐":v));
-  await say(env,send,"🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
-    "\n🆔 №"+state.profile.id+"\n\n"+(selected.join("\n")||"Пока ничего не выбрано")+
-    "\n\n🌷 Пожалуйста, проверьте выбор. Это только черновик, оценки на сайт не отправлялись.",
-    buttons([[{text:"✅ Согласна",callback_data:"owner_anketa:consent:"+state.nonce}],
-      [{text:"✏️ Скорректировать анкету",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+state.nonce}}],NEW_NUMBER]));
+  // Preserve source field order and group headings in the Telegram review.
+  const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]));
+  const sections=[];
+  let lastGroup="";
+  for(const [i,v] of selected){
+    const field=state.catalog[Number(i)];
+    const group=field.group||"Оценки анкеты";
+    if(group!==lastGroup){sections.push("\n💎 "+group);lastGroup=group;}
+    sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
+  }
+  const intro="🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
+    "\n🆔 №"+state.profile.id+"\n";
+  const footer="\n🌷 Пожалуйста, проверьте выбор. Это только черновик, оценки на сайт не отправлялись.";
+  const textLines=sections.length?sections:["\nПока ничего не выбрано"];
+  const pages=[];let page=intro;
+  for(const line of textLines){
+    if(page.length+line.length+2>3400){pages.push(page);page="🌹 ПРОДОЛЖЕНИЕ ОЦЕНОК\n";}
+    page+="\n"+line;
+  }
+  pages.push(page+footer);
+  for(let n=0;n<pages.length;n++){
+    await say(env,send,pages[n],n===pages.length-1?buttons([
+      [{text:"✅ Согласна",callback_data:"owner_anketa:consent:"+state.nonce}],
+      [{text:"✏️ Скорректировать анкету",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+state.nonce}}],NEW_NUMBER]):undefined);
+  }
   return Response.json({ok:true});
 }
