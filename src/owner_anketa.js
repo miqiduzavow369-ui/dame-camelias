@@ -150,13 +150,15 @@ async function askNumber(env,send) {
   }
   await say(env,send,"🔐 АНКЕТА\n\n🌹 Пришлите ссылку на анкету одним сообщением.\n\nНапример: https://b.intimcity.rip/indi/anketa750206.htm\n\n✨ Я открою указанный домен и найду анкету через поиск по её номеру.");
 }
-async function inspect(env,send,id) {
-  if (!ID_PATTERN.test(id)) {
-    await say(env,send,"Введите номер анкеты цифрами, например 750206.");
+async function inspect(env,send,urlText) {
+  const link=parseProfileLink(urlText);
+  if (!link) {
+    await say(env,send,"🌷 Пришлите полную ссылку на анкету Intimcity, например:\\nhttps://b.intimcity.rip/indi/anketa750206.htm");
     return;
   }
+  const {id,host}=link;
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  if(!await statePut(env,{step:"loading",id,nonce})) {
+  if(!await statePut(env,{step:"loading",id,host,nonce})) {
     await say(env,send,"⚠️ Хранилище недоступно.");
     return;
   }
@@ -165,10 +167,10 @@ async function inspect(env,send,id) {
   catch {dispatched={ok:false,reason:"Не удалось связаться с GitHub API"};}
   if(!dispatched?.ok) {
     await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Автоматическая проверка не запущена.\nПричина: "+dispatched.reason);
+    await say(env,send,"⚠️ Автоматическая проверка не запущена.\\nПричина: "+dispatched.reason);
     return;
   }
-  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\n🔎 Проверяю анкету №"+id+"…");
+  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\\n🔎 Проверяю анкету №"+id+" через "+host+"…");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -179,9 +181,9 @@ export async function handleOwnerAnketa(update,env,send) {
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
-  const typedNumber=owner && Boolean(state) && Boolean(msg?.text) &&
-    /^(?:№\s*)?\d{1,9}$/.test(txt);
-  if (!ownerAction && !typedNumber) return false;
+  const typedLink=owner && state?.step==="number" && Boolean(msg?.text) &&
+    (Boolean(parseProfileLink(txt)) || /^https?:\/\//i.test(txt));
+  if (!ownerAction && !typedLink) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
     return true;
@@ -192,14 +194,14 @@ export async function handleOwnerAnketa(update,env,send) {
     await askNumber(env,send); return true;
   }
   if (command==="/anketa") {
-    const id=txt.split(/\s+/)[1] ?? "";
-    await inspect(env,send,id); return true;
+    const url=txt.split(/\s+/)[1] ?? "";
+    await inspect(env,send,url); return true;
   }
-  if (typedNumber) {
+  if (typedLink) {
     // Only remove the owner's ID input while in the owner-only number entry step.
     // Never delete arbitrary messages in other conversations or flows.
     try { await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id}); } catch (_) {}
-    await inspect(env,send,txt.replace(/^№\s*/,""));
+    await inspect(env,send,txt);
     return true;
   }
   const current=await stateGet(env);
