@@ -155,6 +155,25 @@ function ratingSubgroup(field) {
   if (label==="игры") return "БДСМ";
   return "";
 }
+// Build contiguous site-style service complexes without sorting any fields.
+// The category changes only when a source heading or distinctive first item appears.
+function organizeCatalog(catalog) {
+  let section="Основной перечень";
+  return catalog.map(field=>{
+    const label=String(field.label||"").trim(),low=label.toLowerCase();
+    const group=String(field.group||"").trim(),g=group.toLowerCase();
+    const nested=String(field.subgroup||"").trim().toLowerCase();
+    if(/массаж/.test(g+" "+nested)||/^(классический|расслабляющий)$/.test(low))section="Массаж";
+    else if(/бдсм|bdsm/.test(g+" "+nested)||low==="игры")section="БДСМ";
+    else if(/^(другое|другие услуги|дополнительные услуги)$/.test(g)||/^(другое|другие услуги|дополнительные услуги)$/.test(low))section="Другое";
+    else if(/основн|новая оценка/.test(g)) {
+      // The generic form title is not a section boundary after Massage/BDSM.
+      if(section==="Основной перечень")section="Основной перечень";
+    }
+    return {...field,label:/^isFair$/i.test(label)?"Фото соответствует":label,
+      group:"Оценки анкеты",subgroup:section};
+  });
+}
 function validProfile(data, id, host) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
       !data.name.trim() || data.name.length > 100 ||
@@ -204,8 +223,9 @@ export async function handleAnketaLookupResult(request,env,send) {
         ".\n\n💕 Пожалуйста, попробуйте немного позже.",buttons([NEW_NUMBER]));
       return Response.json({ok:true,found:false});
     }
-    const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog,selected:{}};
-    await savedPut(env,{profile,host:current.host,catalog});
+    const orderedCatalog=organizeCatalog(catalog);
+    const next={step:"ratings",profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
+    await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
     await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
       ".\n\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
@@ -312,7 +332,7 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     if(rec.catalog?.length){
-      await statePut(env,{step:"ratings",profile:rec.profile,host:rec.host,catalog:rec.catalog,selected:{},nonce});
+      await statePut(env,{step:"ratings",profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
       await say(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
@@ -481,7 +501,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   const state=await stateGet(env);
   if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
-    profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
+    profile:state.profile,selected:state.selected||{},catalog:organizeCatalog(state.catalog).map(x=>({
       label:x.label,group:x.group||"Оценки анкеты",subgroup:x.subgroup||"",
       options:x.options.filter(v=>!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(v))
     }))
@@ -499,15 +519,16 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   await statePut(env,{...state,step:"ratings",selected:safe,draftReady:true,agreedAt:null});
   // Preserve source field order and group headings in the Telegram review.
   const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]));
+  const orderedFields=organizeCatalog(state.catalog);
   const sections=[];
   let lastGroup="";
   let lastSubgroup="";
   for(const [i,v] of selected){
-    const field=state.catalog[Number(i)];
+    const field=orderedFields[Number(i)];
     const group=field.group||"Оценки анкеты";
     if(group!==lastGroup){sections.push("\n━━━━━━━━━━━━\n💎 "+group);lastGroup=group;lastSubgroup="";}
     const subgroup=field.subgroup||"";
-    if(subgroup && subgroup!==lastSubgroup)sections.push("\n✦ "+subgroup);
+    if(subgroup && subgroup!==lastSubgroup)sections.push("\n────────────\n✦ "+subgroup);
     lastSubgroup=subgroup;
     sections.push("• "+field.label+": "+(v==="5"?"5⭐":v));
   }
