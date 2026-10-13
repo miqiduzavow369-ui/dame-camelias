@@ -109,7 +109,7 @@ def extract(page, profile_id):
     # Avoid foreign image hosts and ambiguous or authenticated image endpoints.
     photo = raw.get("photo", "")
     target = urlparse(photo)
-    if (target.scheme != "https" or (target.hostname != OWNER_HOST and not target.hostname.endswith(".intimcity.rip")) or
+    if (target.scheme != "https" or target.hostname != OWNER_HOST or
             target.username or target.password or target.port or
             not re.search(r"\\.(?:jpg|jpeg|png|webp)$",target.path,re.I)):
         photo = ""
