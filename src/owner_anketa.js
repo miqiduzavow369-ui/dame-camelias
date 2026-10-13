@@ -263,11 +263,11 @@ export async function handleAnketaLookupResult(request,env,send) {
       at:Date.now()},readyAt:null,dispatchPending:false};
     await statePut(env,next);
     const title=attempt.confirmed===true?"✅ ПУБЛИКАЦИЯ ПОДТВЕРЖДЕНА":
-       attempt.attempted===true?"⚠️ ОТПРАВКА ВЫПОЛНЕНА — РЕЗУЛЬТАТ НЕ ПОДТВЕРЖДЁН":
+       attempt.attempted===true||!data.publication?"⚠️ РЕЗУЛЬТАТ ПУБЛИКАЦИИ НЕ ПОДТВЕРЖДЁН":
        "❌ ПУБЛИКАЦИЯ НЕ ВЫПОЛНЕНА";
     await say(env,send,title+"\n\n🆔 Анкета №"+id+
       "\n🌷 Повторной отправки не будет."+
-      (attempt.attempted===true&&attempt.confirmed!==true?
+      ((attempt.attempted===true||!data.publication)&&attempt.confirmed!==true?
        "\nПожалуйста, проверьте результат на Intimcity вручную.":""));
     return Response.json({ok:true});
   }
@@ -573,7 +573,7 @@ export async function handleOwnerAnketa(update,env,send) {
         !current.readyAt || Date.now()-current.readyAt>15*60*1000){
       await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
     }
-    const nonce=randomHex(6);
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     const pending={...current,step:"publishing",id:current.profile.id,
       nonce,previousNonce:current.nonce,readyAt:null,
       confirmedAt:Date.now(),dispatchPending:true};
