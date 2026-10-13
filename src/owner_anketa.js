@@ -167,7 +167,8 @@ export async function handleOwnerAnketa(update,env,send) {
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
-  const typedNumber=owner && state?.step==="number" && Boolean(msg?.text);
+  const typedNumber=owner && Boolean(state) && Boolean(msg?.text) &&
+    /^(?:№\s*)?\d{1,9}$/.test(txt);
   if (!ownerAction && !typedNumber) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
@@ -186,12 +187,18 @@ export async function handleOwnerAnketa(update,env,send) {
     // Only remove the owner's ID input while in the owner-only number entry step.
     // Never delete arbitrary messages in other conversations or flows.
     try { await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id}); } catch (_) {}
-    await inspect(env,send,txt);
+    await inspect(env,send,txt.replace(/^№\s*/,""));
     return true;
   }
   const current=await stateGet(env);
   if(data.startsWith("owner_anketa:confirm:")) {
     const nonce=data.slice("owner_anketa:confirm:".length);
+    if(current && ["chosen","ratings"].includes(current.step) && current.nonce===nonce) {
+      await say(env,send,"✅ Анкета "+current.profile.name+" уже подтверждена. 🌹\n\n💕 Продолжим работу с ней?",
+        buttons([[{text:"⭐ Оценки",callback_data:"owner_anketa:rating:"+nonce}],
+                 [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
+      return true;
+    }
     if(!current || current.step!=="confirm" || current.nonce!==nonce) {
       await say(env,send,"⏳ Подтверждение устарело. Нажми 🔐 АНКЕТА и введи номер заново.");
       return true;
@@ -272,6 +279,11 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const match=/^owner_anketa:(rating|review):([a-f0-9]{12})$/.exec(data);
   if(match) {
+    if(current?.step==="ratings" && current.nonce===match[2]) {
+      if(match[1]==="rating") await say(env,send,ratingSummary(current),ratingMenu(current));
+      else await say(env,send,"✍️ Раздел отзывов пока подготавливается.\n\n💕 Спасибо за терпение!");
+      return true;
+    }
     if(!current || current.step!=="chosen" || current.nonce!==match[2]) {
       await say(env,send,"⏳ Сначала подтвердите анкету."); return true;
     }
