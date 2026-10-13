@@ -471,7 +471,11 @@ export async function handleAnketaLookupResult(request,env,send) {
     return Response.json({ok:true,audit:true,matched,total});
   }
   if(ratingsLoading) {
-    const profile = current.profile;
+    // The lookup can bring a new verified thumbnail. Preserve the original
+    // identity if lookup has no photo, but never silently discard a new one.
+    const refreshed=validProfile(data.profile,id,current.host);
+    const profile = refreshed ? {...current.profile,...refreshed,
+      photoUrl:refreshed.photoUrl || current.profile?.photoUrl || ""} : current.profile;
     const raw = Array.isArray(data.catalog) ? data.catalog : [];
     const catalog = raw.slice(0,120).filter(x => x && typeof x.label === "string" && Array.isArray(x.options))
       .map(x => ({label:x.label.slice(0,90),group:typeof x.group==="string" ? x.group.slice(0,90) : "Оценки анкеты",subgroup:ratingSubgroup(x),options:x.options.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,50))}));
