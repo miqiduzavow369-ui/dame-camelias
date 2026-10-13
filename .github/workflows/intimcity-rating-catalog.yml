@@ -1,0 +1,37 @@
+name: Inspect actual profile rating choices (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      profile_id:
+        description: "Actual profile number (digits only)"
+        required: true
+        default: "750206"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Read enabled fields in authenticated profile (no posting)
+        env:
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_USERNAME: ${{ secrets.PROXY_USERNAME }}
+          PROXY_PASSWORD: ${{ secrets.PROXY_PASSWORD }}
+          EXPECTED_EGRESS_IP: ${{ secrets.EXPECTED_EGRESS_IP }}
+          INTIMCITY_LOGIN: ${{ secrets.INTIMCITY_LOGIN }}
+          INTIMCITY_PASSWORD: ${{ secrets.INTIMCITY_PASSWORD }}
+          INTIMCITY_INSPECT_RATINGS: "1"
+          INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
+        run: python tools/intimcity_login_smoke_test.py
