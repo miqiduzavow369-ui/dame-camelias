@@ -11,7 +11,9 @@ import sys
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
-TARGET = "https://a.intimcity.rip/indi/anketa750206.htm"
+HOME = "https://a.intimcity.rip/"
+PROFILE_ID = "750206"
+TARGET = f"https://a.intimcity.rip/indi/anketa{PROFILE_ID}.htm"
 CHECK_URL = "https://api.ipify.org?format=json"
 
 def required(name):
@@ -40,10 +42,71 @@ def run():
                 raise RuntimeError("Egress IP mismatch; aborted before site access")
             print("PASS: browser egress IP matches allowlist")
 
-            page.goto(TARGET, wait_until="domcontentloaded", timeout=45000)
+            # Follow the same navigation path as a visitor:
+            # home -> search by profile ID -> single search result -> profile.
+            page.goto(HOME, wait_until="domcontentloaded", timeout=45000)
             if urlparse(page.url).hostname not in ("a.intimcity.rip", "intimcity.rip"):
-                raise RuntimeError("Unexpected login destination")
-            print("PASS: target page loaded via approved proxy")
+                raise RuntimeError("Unexpected home destination")
+            print("PASS: home page loaded via approved proxy")
+
+            search = page.locator('input[placeholder*="ID"], input[placeholder*="телефон"]')
+            visible_search = [item for item in search.all() if item.is_visible()]
+            if len(visible_search) != 1:
+                print("NEEDS_REVIEW: expected one visible search input")
+                return 2
+            field = visible_search[0]
+            field.fill(PROFILE_ID)
+            # Prefer the search button belonging to this input's form.
+            parent_form = field.locator("xpath=ancestor::form[1]")
+            if parent_form.count() != 1:
+                print("NEEDS_REVIEW: search form not identified")
+                return 2
+            find_button = parent_form.get_by_role("button", name="Найти")
+            if find_button.count() != 1:
+                find_button = parent_form.locator('input[type="submit"][value="Найти"], button:has-text("Найти")')
+            if find_button.count() != 1:
+                print("NEEDS_REVIEW: search button not identified")
+                return 2
+            find_button.click(timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except Exception:
+                pass
+
+            # Never click a different ID, even if results unexpectedly differ.
+            result_links = page.locator(f'a[href*="anketa{PROFILE_ID}.htm"]')
+            try:
+                result_links.first.wait_for(state="visible", timeout=12000)
+            except Exception:
+                print("NEEDS_REVIEW: expected profile not found in search results")
+                return 2
+            visible_links = [item for item in result_links.all() if item.is_visible()]
+            if not visible_links:
+                print("NEEDS_REVIEW: search result not visible")
+                return 2
+            # Ensure search results contain no other profile IDs.
+            other_profiles = page.locator('a[href*="/indi/anketa"][href$=".htm"]')
+            ids = set()
+            import re
+            for item in other_profiles.all():
+                href = item.get_attribute("href") or ""
+                match = re.search(r"anketa(\d+)\.htm", href)
+                if match and item.is_visible():
+                    ids.add(match.group(1))
+            if ids != {PROFILE_ID}:
+                print("NEEDS_REVIEW: search results ambiguous; no profile opened")
+                return 2
+            print("PASS: search returned only the expected profile ID")
+            visible_links[0].click(timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except Exception:
+                pass
+            parsed = urlparse(page.url)
+            if parsed.hostname not in ("a.intimcity.rip", "intimcity.rip") or parsed.path != f"/indi/anketa{PROFILE_ID}.htm":
+                print("NEEDS_REVIEW: opened URL is not the requested profile")
+                return 2
+            print("PASS: target profile opened from search results")
 
             # Multiple login widgets exist. Only accept a visible form containing
             # both an email input and a password input. Never click rating/comment forms.
