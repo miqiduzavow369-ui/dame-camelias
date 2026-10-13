@@ -254,11 +254,11 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
-  if (data==="owner_anketa:open" || data==="owner_anketa:change" ||
+  if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
     await showLibrary(env,send); return true;
   }
-  if (data==="owner_anketa:new") {await askNumber(env,send);return true;}
+  if (data==="owner_anketa:new" || data==="owner_anketa:change") {await askNumber(env,send);return true;}
   if (command==="/anketa") {
     const url=txt.split(/\s+/)[1] ?? "";
     await inspect(env,send,url); return true;
