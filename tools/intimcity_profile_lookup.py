@@ -28,6 +28,8 @@ def callback(data):
     request = Request(url, method="POST", headers={
         "Authorization": "Bearer " + required("ANKETA_CALLBACK_TOKEN"),
         "Content-Type": "application/json",
+        "User-Agent": "DameCameliasBot/1.0 (GitHub-Actions profile lookup)",
+        "Accept": "application/json",
     }, data=json.dumps(data,ensure_ascii=False).encode("utf-8"))
     try:
         with urlopen(request, timeout=20) as res:
@@ -73,6 +75,21 @@ def extract(page, profile_id):
 def inspect(pid):
     host = required("PROXY_HOST")
     server = "http://" + host + ":6408"
+    stage = "browser-start"
+    try:
+        return _inspect_staged(pid)
+    except Exception as exc:
+        print("LOOKUP_STAGE_FAILED: " + (getattr(exc, "lookup_stage", None) or "unknown"))
+        raise
+
+def _inspect_staged(pid):
+    stage = "browser-start"
+    try:
+        return _inspect_impl(pid)
+    except Exception as exc:
+        raise RuntimeError("lookup stage failed: " + str(getattr(exc, "lookup_stage", "unknown"))) from exc
+
+def _inspect_impl(pid):
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=True,proxy={
             "server":server,"username":required("PROXY_USERNAME"),
@@ -80,11 +97,14 @@ def inspect(pid):
         ctx=browser.new_context(locale="ru-RU",service_workers="block")
         try:
             page=ctx.new_page()
+            print("LOOKUP_STAGE: proxy-egress")
             page.goto("https://api.ipify.org?format=json",wait_until="domcontentloaded",timeout=30000)
             seen=ipaddress.ip_address(json.loads(page.locator("body").inner_text())["ip"])
             if seen != ipaddress.ip_address(required("EXPECTED_EGRESS_IP")):
                 raise RuntimeError("Proxy egress mismatch")
+            print("LOOKUP_STAGE: open-site")
             page.goto("https://a.intimcity.rip/",wait_until="domcontentloaded",timeout=45000)
+            print("LOOKUP_STAGE: locate-login")
             found=False
             for form in page.locator("form").all():
                 email=form.locator('input[name="login"][placeholder="E-mail"]')
@@ -101,15 +121,18 @@ def inspect(pid):
                     break
             if not found:
                 raise RuntimeError("Login form not found")
+            print("LOOKUP_STAGE: verify-login")
             page.wait_for_timeout(2200)
             if not page.locator('a[href*="logout"], a[href*="exit"], a:has-text("Выйти"), a:has-text("Выход")').count():
                 raise RuntimeError("Authentication not confirmed")
             url=f"https://{OWNER_HOST}/indi/anketa{pid}.htm"
+            print("LOOKUP_STAGE: open-profile")
             page.goto(url,wait_until="domcontentloaded",timeout=45000)
             page.wait_for_timeout(1800)
             target=urlparse(page.url)
             if target.hostname != OWNER_HOST or target.path != f"/indi/anketa{pid}.htm":
                 raise RuntimeError("Unexpected profile location")
+            print("LOOKUP_STAGE: extract-profile")
             return extract(page,pid)
         finally:
             ctx.close()
