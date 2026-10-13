@@ -72,10 +72,10 @@ export async function handleAnketaLookupResult(request,env,send) {
   }
   const decision=crypto.randomUUID().replace(/-/g,"").slice(0,12);
   await statePut(env,{step:"confirm",profile:found,nonce:decision});
-  const location=found.metro?"\\n📍 м. "+found.metro:"";
-  await say(env,send,"🌹 ПОДТВЕРЖДЕНИЕ АНКЕТЫ\\n\\n"+found.name+
-    "\\n🎂 "+found.age+" лет"+location+"\\n🔢 №"+id+"\\n🔗 "+
-    found.url+"\\n\\nЭто нужная анкета?",
+  const location=found.metro?"\n📍 м. "+found.metro:"";
+  await say(env,send,"🌹 АНКЕТА НАЙДЕНА\n\n👤 "+found.name+
+    "\n🎂 Возраст: "+found.age+" лет"+location+"\n🆔 Номер анкеты: №"+id+"\n🔗 "+
+    found.url+"\n\n✅ Это нужная анкета?",
     buttons([[{text:"✅ Подтвердить анкету",callback_data:"owner_anketa:confirm:"+decision}],
       NEW_NUMBER]));
   return Response.json({ok:true,found:true});
@@ -105,8 +105,7 @@ async function inspect(env,send,id) {
     await say(env,send,"⚠️ Автоматическая проверка не запущена.\nПричина: "+dispatched.reason);
     return;
   }
-  await say(env,send,"🔎 Проверяю анкету №"+id+
-    " на Intimcity через прокси. Как только получу имя, возраст и метро, пришлю подтверждение.");
+  await say(env,send,"⏳ Подождите, пожалуйста, минутку.\n🔎 Проверяю анкету №"+id+"…");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
