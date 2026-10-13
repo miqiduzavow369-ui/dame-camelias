@@ -27,6 +27,27 @@ const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback
 async function say(env, send, text, reply_markup) {
   return await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
 }
+// One-screen editable draft. No Telegram action here publishes ratings.
+function ratingMenu(state) {
+  const selected=state.selected||{};
+  const rows=state.catalog.map((field,i)=>{
+    const chosen=selected[i];
+    const display=chosen===undefined?"":" · "+chosen;
+    return [{text:(chosen===undefined?"◯ ":"🔘 ")+field.label.slice(0,32)+display.slice(0,15),
+      callback_data:"owner_anketa:toggle:"+i+":"+state.nonce}];
+  });
+  rows.push([{text:"📋 Посмотреть выбор",callback_data:"owner_anketa:preview:"+state.nonce}]);
+  rows.push([{text:"🧹 Сбросить отметки",callback_data:"owner_anketa:reset:"+state.nonce}]);
+  rows.push(NEW_NUMBER);
+  return buttons(rows);
+}
+function ratingSummary(state) {
+  const count=Object.keys(state.selected||{}).length;
+  return "🌹 ОЦЕНКИ АНКЕТЫ\n\n👤 "+state.profile.name+
+    "\n⭐ Отмечено: "+count+" из "+state.catalog.length+
+    "\n\n💕 Нажмите ◯, чтобы отметить категорию. Повторное нажатие снимет отметку."+
+    "\n✨ Для вариантов с текстом можно выбрать значение отдельно.\n\n🌷 Пока это только черновик.";
+}
 function validProfile(data, id) {
   if (!data || String(data.id) !== id || typeof data.name !== "string" ||
       !data.name.trim() || data.name.length > 100 ||
@@ -76,9 +97,9 @@ export async function handleAnketaLookupResult(request,env,send) {
         ".\n\n💕 Пожалуйста, попробуйте немного позже.",buttons([NEW_NUMBER]));
       return Response.json({ok:true,found:false});
     }
-    await statePut(env,{step:"ratings",profile,nonce:current.previousNonce,catalog});
-    await say(env,send,"🌹 ВСЁ ГОТОВО!\n\n👤 "+profile.name+"\n⭐ Я подготовила доступные категории оценок.\n\n💎 Выберите, какую хотите посмотреть:",
-      buttons([...catalog.map((x,i)=>[{text:"⭐ "+x.label.slice(0,42),callback_data:"owner_anketa:criterion:"+i+":"+current.previousNonce}]),NEW_NUMBER]));
+    const next={step:"ratings",profile,nonce:current.previousNonce,catalog,selected:{}};
+    await statePut(env,next);
+    await say(env,send,ratingSummary(next),ratingMenu(next));
     return Response.json({ok:true,found:true});
   }
   const found=validProfile(data.profile,id);
@@ -174,6 +195,40 @@ export async function handleOwnerAnketa(update,env,send) {
                [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
     return true;
   }
+  const toggle=/^owner_anketa:toggle:(\\d+):([a-f0-9]{12})$/.exec(data);
+  if(toggle) {
+    const i=Number(toggle[1]);
+    if(current?.step!=="ratings"||current.nonce!==toggle[2]||!current.catalog[i]) return true;
+    const chosen={...(current.selected||{})};
+    const options=current.catalog[i].options.filter(v=>v.toLowerCase()!=="не знаю");
+    if(chosen[i]!==undefined) delete chosen[i];
+    else chosen[i]=options.includes("5")?"5":(options[0]||"");
+    const next={...current,selected:chosen};
+    await statePut(env,next);
+    if(cb?.message?.message_id) {
+      try {
+        await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:cb.message.message_id,
+          text:ratingSummary(next),reply_markup:ratingMenu(next)});
+        return true;
+      } catch {}
+    }
+    await say(env,send,ratingSummary(next),ratingMenu(next));
+    return true;
+  }
+  const preview=/^owner_anketa:preview:([a-f0-9]{12})$/.exec(data);
+  if(preview && current?.step==="ratings" && preview[1]===current.nonce) {
+    const lines=current.catalog.map((f,i)=>"• "+f.label+": "+(current.selected?.[i]??"Не знаю"));
+    await say(env,send,"💎 ВАШ ЧЕРНОВИК\n\n"+lines.join("\n")+
+      "\n\n🌷 Ничего не опубликовано.",buttons([[{text:"⬅️ К выбору",callback_data:"owner_anketa:criteria:"+current.nonce}],NEW_NUMBER]));
+    return true;
+  }
+  const reset=/^owner_anketa:reset:([a-f0-9]{12})$/.exec(data);
+  if(reset&&current?.step==="ratings"&&reset[1]===current.nonce) {
+    const next={...current,selected:{}};
+    await statePut(env,next);
+    await say(env,send,ratingSummary(next),ratingMenu(next));
+    return true;
+  }
   const chosenCriterion=/^owner_anketa:criterion:(\d+):([a-f0-9]{12})$/.exec(data);
   if(chosenCriterion) {
     const index=Number(chosenCriterion[1]);
@@ -192,7 +247,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const nonce=data.slice("owner_anketa:criteria:".length);
     if(current?.step!=="ratings" || current.nonce!==nonce) return true;
     await say(env,send,"🌹 Доступные категории оценок для "+current.profile.name+":",
-      buttons([...current.catalog.map((x,i)=>[{text:"⭐ "+x.label.slice(0,42),callback_data:"owner_anketa:criterion:"+i+":"+nonce}]),NEW_NUMBER]));
+      ratingMenu(current));
     return true;
   }
   const match=/^owner_anketa:(rating|review):([a-f0-9]{12})$/.exec(data);
