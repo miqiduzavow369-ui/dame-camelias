@@ -33,20 +33,49 @@ function validProfile(data, id) {
       data.url !== `https://a.intimcity.rip/indi/anketa${id}.htm`) return null;
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url};
 }
-async function lookup(env, id) {
-  // The worker never contacts Intimcity directly, avoiding proxy bypass.
-  // The proxy-backed service must independently verify the live profile.
-  if (!env.ANKETA_LOOKUP_URL || !env.ANKETA_LOOKUP_TOKEN) return null;
-  const endpoint = new URL(env.ANKETA_LOOKUP_URL);
-  if (endpoint.protocol !== "https:") throw new Error("Invalid lookup endpoint");
-  const response = await fetch(endpoint.href, {
-    method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+env.ANKETA_LOOKUP_TOKEN},
-    body:JSON.stringify({profile_id:id}),
-    signal:AbortSignal.timeout(20000),
-  });
-  if (!response.ok) throw new Error("Lookup unavailable");
-  return validProfile(await response.json(),id);
+async function dispatchLookup(env,id,nonce) {
+  if (!env.GITHUB_ACTIONS_TOKEN || !env.ANKETA_CALLBACK_TOKEN) return false;
+  const response=await fetch(
+    "https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/intimcity-profile-lookup.yml/dispatches",
+    {method:"POST",headers:{
+      "Authorization":"Bearer "+env.GITHUB_ACTIONS_TOKEN,
+      "Accept":"application/vnd.github+json",
+      "User-Agent":"dame-camelias-worker",
+      "X-GitHub-Api-Version":"2022-11-28",
+      "Content-Type":"application/json"},
+    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce}}),
+    signal:AbortSignal.timeout(15000)});
+  return response.status===204;
+}
+export async function handleAnketaLookupResult(request,env,send) {
+  if (!env.ANKETA_CALLBACK_TOKEN ||
+      request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+    return new Response("Forbidden",{status:403});
+  let data;
+  try {data=await request.json();}catch{return new Response("Invalid JSON",{status:400});}
+  const id=String(data.profile_id??""),nonce=String(data.nonce??"");
+  if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
+    return new Response("Invalid request",{status:400});
+  const current=await stateGet(env);
+  if(!current||current.step!=="loading"||current.id!==id||current.nonce!==nonce)
+    return new Response("Stale",{status:409});
+  const found=validProfile(data.profile,id);
+  if(!found) {
+    await statePut(env,{step:"number"});
+    await say(env,send,"⚠️ Не удалось подтвердить анкету №"+id+
+      " по данным Intimcity. Попробуй повторить или введи другой номер.",
+      buttons([NEW_NUMBER]));
+    return Response.json({ok:true,found:false});
+  }
+  const decision=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  await statePut(env,{step:"confirm",profile:found,nonce:decision});
+  const location=found.metro?"\\n📍 м. "+found.metro:"";
+  await say(env,send,"🌹 ПОДТВЕРЖДЕНИЕ АНКЕТЫ\\n\\n"+found.name+
+    "\\n🎂 "+found.age+" лет"+location+"\\n🔢 №"+id+"\\n🔗 "+
+    found.url+"\\n\\nЭто нужная анкета?",
+    buttons([[{text:"✅ Подтвердить анкету",callback_data:"owner_anketa:confirm:"+decision}],
+      NEW_NUMBER]));
+  return Response.json({ok:true,found:true});
 }
 async function askNumber(env,send) {
   if (!await statePut(env,{step:"number"})) {
@@ -60,25 +89,20 @@ async function inspect(env,send,id) {
     await say(env,send,"Введите номер анкеты цифрами, например 750206.");
     return;
   }
-  await statePut(env,{step:"loading",id});
-  let found;
-  try { found = await lookup(env,id); }
-  catch { found = null; }
-  if (!found) {
-    await statePut(env,{step:"number"});
-    await say(env,send,"⚠️ Не удалось проверить данные анкеты №"+id+
-      ". Ничего не подтверждено. Попробуй другой номер или повтори позже.",
-      buttons([ [NEW_NUMBER] ]));
+  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  if(!await statePut(env,{step:"loading",id,nonce})) {
+    await say(env,send,"⚠️ Хранилище недоступно.");
     return;
   }
-  const nonce = crypto.randomUUID().slice(0,8);
-  await statePut(env,{step:"confirm",profile:found,nonce});
-  const location = found.metro ? "\n📍 м. "+found.metro : "";
-  await say(env,send,"🌹 ПОДТВЕРЖДЕНИЕ АНКЕТЫ\n\n"+
-    found.name+"\n🎂 "+found.age+" лет"+location+"\n🔢 №"+id+
-    "\n🔗 "+found.url+"\n\nЭто нужная анкета?",
-    buttons([[{text:"✅ Подтвердить анкету",callback_data:"owner_anketa:confirm:"+nonce}],
-             NEW_NUMBER]));
+  let dispatched=false;
+  try {dispatched=await dispatchLookup(env,id,nonce);}catch{}
+  if(!dispatched) {
+    await statePut(env,{step:"number"});
+    await say(env,send,"⚠️ Проверка пока не подключена или недоступна. Попробуй позже.");
+    return;
+  }
+  await say(env,send,"🔎 Проверяю анкету №"+id+
+    " на Intimcity через прокси. Как только получу имя, возраст и метро, пришлю подтверждение.");
 }
 export async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -119,7 +143,7 @@ export async function handleOwnerAnketa(update,env,send) {
                [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
     return true;
   }
-  const match=/^owner_anketa:(rating|review):([a-z0-9]{8})$/.exec(data);
+  const match=/^owner_anketa:(rating|review):([a-f0-9]{12})$/.exec(data);
   if(match) {
     if(!current || current.step!=="chosen" || current.nonce!==match[2]) {
       await say(env,send,"⏳ Сначала подтвердите анкету."); return true;
