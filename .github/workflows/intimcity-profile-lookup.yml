@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       mode:
-        description: "Read-only profile or ratings catalog"
+        description: "Read-only profile, ratings catalog or field mapping audit"
         required: false
         default: "profile"
         type: string
