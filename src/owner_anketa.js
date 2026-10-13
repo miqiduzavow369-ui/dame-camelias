@@ -49,7 +49,10 @@ async function lookup(env, id) {
   return validProfile(await response.json(),id);
 }
 async function askNumber(env,send) {
-  await statePut(env,{step:"number"});
+  if (!await statePut(env,{step:"number"})) {
+    await say(env,send,"⚠️ Хранилище состояния не настроено. Ввод анкеты сейчас недоступен.");
+    return;
+  }
   await say(env,send,"🔐 АНКЕТА\nОтправь номер анкеты одним сообщением, например: 750206");
 }
 async function inspect(env,send,id) {
@@ -86,7 +89,7 @@ export async function handleOwnerAnketa(update,env,send) {
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   const state=owner && !ownerAction ? await stateGet(env) : null;
-  const typedNumber=owner && state?.step==="number" && ID_PATTERN.test(txt);
+  const typedNumber=owner && state?.step==="number" && Boolean(msg?.text);
   if (!ownerAction && !typedNumber) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
