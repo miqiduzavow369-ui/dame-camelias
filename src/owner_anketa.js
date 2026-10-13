@@ -212,6 +212,18 @@ export async function handleOwnerAnketa(update,env,send) {
                [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
     return true;
   }
+  const consent=/^owner_anketa:consent:([a-f0-9]{12})$/.exec(data);
+  if(consent) {
+    if(!current || current.step!=="ratings" || current.nonce!==consent[1] || !current.draftReady) {
+      await say(env,send,"🌷 Это подтверждение уже неактуально. Откройте форму оценок и проверьте выбор ещё раз.");
+      return true;
+    }
+    await statePut(env,{...current,step:"ratings_agreed",agreedAt:Date.now()});
+    await say(env,send,"🌹 СПАСИБО!\\n\\n💕 Ваш выбор для анкеты "+current.profile.name+
+      " подтверждён и сохранён.\\n\\n✨ Никакие оценки на сайт не отправлялись.",
+      buttons([NEW_NUMBER]));
+    return true;
+  }
   const toggle=/^owner_anketa:toggle:(\d+):([a-f0-9]{12})$/.exec(data);
   if(toggle) {
     const i=Number(toggle[1]);
@@ -318,7 +330,7 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   try {user=JSON.parse(new URLSearchParams(input.initData).get("user")||"null");}catch{}
   if(String(user?.id)!==OWNER_ID) return new Response("Forbidden",{status:403});
   const state=await stateGet(env);
-  if(!state || state.step!=="ratings" || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
+  if(!state || !["ratings","ratings_agreed"].includes(state.step) || state.nonce!==input.key) return Response.json({error:"expired"},{status:409});
   if(input.action==="load") return Response.json({
     profile:state.profile,selected:state.selected||{},catalog:state.catalog.map(x=>({
       label:x.label,
@@ -335,12 +347,13 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
         /^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)) return new Response("Invalid choice",{status:400});
     safe[index]=value;
   }
-  await statePut(env,{...state,selected:safe});
+  await statePut(env,{...state,step:"ratings",selected:safe,draftReady:true,agreedAt:null});
   const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]))
     .map(([i,v])=>"• "+state.catalog[Number(i)].label+": "+(v==="5"?"5⭐":v));
   await say(env,send,"🌹 ВАШИ ОЦЕНКИ ГОТОВЫ\n\n👤 "+state.profile.name+
     "\n🆔 №"+state.profile.id+"\n\n"+(selected.join("\n")||"Пока ничего не выбрано")+
     "\n\n🌷 Пожалуйста, проверьте выбор. Это только черновик, оценки на сайт не отправлялись.",
-    buttons([[{text:"✏️ Изменить выбор",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+state.nonce}}],NEW_NUMBER]));
+    buttons([[{text:"✅ Согласна",callback_data:"owner_anketa:consent:"+state.nonce}],
+      [{text:"✏️ Скорректировать анкету",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+state.nonce}}],NEW_NUMBER]));
   return Response.json({ok:true});
 }
