@@ -134,8 +134,7 @@ async function showLibrary(env,send){
 async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
-  await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👤 "+record.profile.name+
-    "\n🔗 "+record.profile.url+
+  await say(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",accountPicker(id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
