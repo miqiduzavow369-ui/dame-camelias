@@ -4,7 +4,7 @@
 export function ownerAllowed(update, env) {
   const from = update.callback_query?.from ?? update.message?.from;
   const chat = update.callback_query?.message?.chat ?? update.message?.chat;
-  const expected = String(env.ADMIN_TELEGRAM_USER_ID ?? "");
+  const expected = "5866034656";
   return /^\d+$/.test(expected) &&
     String(from?.id ?? "") === expected &&
     String(chat?.id ?? "") === expected &&
@@ -17,6 +17,7 @@ export async function handleOwnerAnketa(update, env, sendTelegram) {
   const text = message?.text ?? "";
   const command = text.trim().split(/\s+/)[0].split("@")[0];
   const isCommand = command === "/anketa";
+  const isEntry = String(callback?.data ?? "") === "owner_anketa:open";
   const isCallback = String(callback?.data ?? "").startsWith("owner_anketa:");
   if (!isCommand && !isCallback) return false;
 
@@ -30,6 +31,10 @@ export async function handleOwnerAnketa(update, env, sendTelegram) {
   const chatId = message?.chat.id ?? callback?.message?.chat.id;
   if (callback) await sendTelegram(env, "answerCallbackQuery", { callback_query_id: callback.id });
 
+  if (isEntry) {
+    await sendTelegram(env, "sendMessage", {chat_id:chatId,text:"🔐 АНКЕТА\nВведите номер анкеты командой /anketa 750206"});
+    return true;
+  }
   if (isCommand) {
     const id = text.trim().split(/\s+/)[1] ?? "";
     if (!/^\d{1,9}$/.test(id)) {
