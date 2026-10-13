@@ -174,7 +174,7 @@ export async function handleOwnerAnketa(update,env,send) {
                [{text:"✍️ Отзыв",callback_data:"owner_anketa:review:"+nonce}],NEW_NUMBER]));
     return true;
   }
-  const chosenCriterion=/^owner_anketa:criterion:(\\d+):([a-f0-9]{12})$/.exec(data);
+  const chosenCriterion=/^owner_anketa:criterion:(\d+):([a-f0-9]{12})$/.exec(data);
   if(chosenCriterion) {
     const index=Number(chosenCriterion[1]);
     if(current?.step!=="ratings" || current.nonce!==chosenCriterion[2] || !current.catalog[index]) {
