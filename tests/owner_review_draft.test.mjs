@@ -39,6 +39,7 @@ test("review text remains unchanged in preview and is not published",async()=>{
   assert.equal(draft.step,"review_preview");
   assert.equal(draft.text,original);
   assert.match(s.actions.filter(x=>x.method==="sendMessage"||x.method==="editMessageText").at(-1).payload.text,/ПРОВЕРКА ОТЗЫВА/);
+  assert.match(s.actions.filter(x=>x.method==="sendMessage"||x.method==="editMessageText").at(-1).payload.text,/Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов\./);
   assert.equal(s.actions.filter(x=>x.method==="sendPhoto").length,0);
 });
 test("review editing returns to text input without website submission",async()=>{
