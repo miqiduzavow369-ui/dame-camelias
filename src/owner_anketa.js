@@ -837,6 +837,8 @@ export async function handleAnketaLookupResult(request,env,send) {
       if(ok && finalAuditOk){
         const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
         await statePut(env,finalState);
+        // The preparation progress is transient; remove it before showing the final choice.
+        await clearProgress(env,send);
         await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+
           "\n\n🆔 Анкета №"+id+
           "\n\n✅ Зашли через устройство клиента. "+
@@ -1456,6 +1458,16 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Не удалось сохранить подтверждение. Ничего не опубликовано.");
       return true;
     }
+    // The accepted confirmation must not remain with active publication buttons.
+    // Clear the older preparation progress first so publication status is last in the chat.
+    await clearProgress(env,send);
+    if(Number.isSafeInteger(cb?.message?.message_id)){
+      try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:cb.message.message_id});}
+      catch{
+        // If deletion is unavailable, at least disable stale confirm/cancel buttons.
+        try{await send(env,"editMessageReplyMarkup",{chat_id:OWNER_ID,message_id:cb.message.message_id,reply_markup:buttons([])});}catch{}
+      }
+    }
     await progressSay(env,send,"🌹 Спасибо за доверие!\n\n💕 Сейчас мы публикуем ваши оценки для анкеты №"+pending.id+".\n📸 Пожалуйста, подождите немного — по завершении пришлём подтверждение с фотографией.");
     let launched=false;
     try{launched=(await dispatchLookup(env,pending.id,nonce,"publish",current.host)).ok;}catch{}
@@ -1470,6 +1482,11 @@ export async function handleOwnerAnketa(update,env,send) {
   if(publishCancel){
     if(current?.step==="prepublish_ready" && current.nonce===publishCancel[1]){
       await statePut(env,{...current,step:"ratings_agreed",prepublish:false,readyAt:null});
+      if(Number.isSafeInteger(cb?.message?.message_id)){
+        try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:cb.message.message_id});}
+        catch{try{await send(env,"editMessageReplyMarkup",{chat_id:OWNER_ID,message_id:cb.message.message_id,reply_markup:buttons([])});}catch{}}
+      }
+      await clearProgress(env,send);
       await say(env,send,"❌ Подготовка отменена. Ничего не опубликовано.");
     }
     return true;
