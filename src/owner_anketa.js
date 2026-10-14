@@ -1466,14 +1466,16 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await startClientFlow(env,account1[1]);
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
-    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+account1[1]+
+    await profileBannerNavigation(env,send,rec,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+account1[1]+
       "\n\n"+summary+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
   }
   const account2=/^owner_anketa:account2:(\d{1,9})$/.exec(data);
   if(account2){
-    await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
+    const inactiveProfile=await savedGet(env,account2[1]);
+    if(!inactiveProfile){await showLibrary(env,send);return true;}
+    await profileBannerNavigation(env,send,inactiveProfile,account2[1],"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
       "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
       "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",buttons([
         [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:accounts:"+account2[1]}],
