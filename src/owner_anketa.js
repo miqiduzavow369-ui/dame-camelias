@@ -233,16 +233,19 @@ async function showAccountPicker(env,send,id){
     try{
       const card=await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer");
       if(card){
-        const first=await send(env,"sendPhoto",{chat_id:OWNER_ID,
-          photo:profileCardUrl(id,record.host),caption:message});
-        firstId=first?.message_id;
-        if(!Number.isSafeInteger(firstId))throw Error("Profile photo not delivered");
+        // Put the daily quota card FIRST, then the profile card.
+        // The Moscow reset notice belongs below both images, in the final caption.
         const dailyPhoto=dailyCardUrl(today.remaining);
         if(!dailyPhoto)throw Error("Missing prepared daily PNG");
-        const result=await sendPreparedCard(env,dailyPhoto,
-          "🕛 Обновление в 00:00 по московскому времени.",keys);
+        const first=await sendPreparedCard(env,dailyPhoto,"",undefined);
+        firstId=first?.message_id;
+        if(!Number.isSafeInteger(firstId))throw Error("Daily card not delivered");
+        const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,
+          photo:profileCardUrl(id,record.host),
+          caption:message+"\n\n🕛 Обновление в 00:00 по московскому времени.",
+          reply_markup:keys});
         if(!Number.isSafeInteger(result?.message_id))
-          throw Error("Prepared daily banner not delivered");
+          throw Error("Profile card not delivered");
         const lastId=result.message_id;
         await trackAnketaMessage(env,firstId);
         await trackAnketaMessage(env,lastId);
@@ -419,7 +422,7 @@ async function sendPreparedCard(env,url,caption,reply_markup){
   const form=new FormData();
   form.set("chat_id",OWNER_ID);
   form.set("caption",caption);
-  form.set("reply_markup",JSON.stringify(reply_markup));
+  if(reply_markup)form.set("reply_markup",JSON.stringify(reply_markup));
   form.set("photo",new Blob([bytes],{type:"image/png"}),"premium.png");
   const result=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
     method:"POST",body:form,signal:AbortSignal.timeout(15000)
