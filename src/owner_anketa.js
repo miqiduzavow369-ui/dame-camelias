@@ -363,7 +363,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       return new Response("Stale",{status:409});
     const proof=data.proof;
     if(data.status!=="found" || !proof || proof.account!=="yan_first" ||
-       !/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(proof.date||"") ||
+       !/^\d{2}\.\d{2}\.\d{4}$/.test(proof.date||"") ||
        typeof proof.image!=="string" || proof.image.length>950000 ||
        !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.image))
     {
