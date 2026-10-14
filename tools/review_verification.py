@@ -22,6 +22,7 @@ class CommentsParser(HTMLParser):
         self.parts = []
         self.depth = 0
         self.current_review = None
+        self.in_paragraph = False
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -37,9 +38,12 @@ class CommentsParser(HTMLParser):
         elif self.capture:
             self.depth += 1
         if self.capture and tag == "p":
+            self.in_paragraph = True
             self.parts.append(" ")
 
     def handle_endtag(self, tag):
+        if tag == 'p':
+            self.in_paragraph = False
         if self.capture:
             self.depth -= 1
             if self.depth == 0:
@@ -52,7 +56,7 @@ class CommentsParser(HTMLParser):
             self.current_review = None
 
     def handle_data(self, data):
-        if self.capture:
+        if self.capture and self.in_paragraph:
             self.parts.append(data)
 
 
