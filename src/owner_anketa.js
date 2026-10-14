@@ -167,31 +167,36 @@ function statusBadge(record){
   if(record)return "🔒 ТРЕБУЕТ ПРОВЕРКИ";
   return "🟡 ДОСТУПНО";
 }
+function remainingBadge(record){
+  // Unknown or in-flight publications must never be represented as available.
+  if(record?.status==="published")return "0️⃣";
+  if(record)return "⚠️";
+  return "1️⃣";
+}
 async function accountPicker(env,id){
-  // Three short one-row buttons per client. Every row opens that same client.
-  // No linebreaks in Telegram button labels: prevents truncation on mobile.
-  let rating="⚠️ НЕИЗВЕСТНО",review="⚠️ НЕИЗВЕСТНО";
+  let rating="⚠️",review="⚠️";
   if(env.VISITORS_KV){
     try{
-      const records=await Promise.all([
+      const [rated,reviewed]=await Promise.all([
         publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
       ]);
-      rating=statusBadge(records[0]);
-      review=statusBadge(records[1]);
+      rating=remainingBadge(rated);
+      review=remainingBadge(reviewed);
     }catch{}
   }
-  const first="owner_anketa:account1:"+id;
-  const second="owner_anketa:account2:"+id;
   return buttons([
-    [{text:"👨‍💻 Ян Первый",callback_data:first}],
-    [{text:"⭐ Оценка — "+rating,callback_data:first}],
-    [{text:"✍️ Отзыв — "+review,callback_data:first}],
-    [{text:"🔒 Ян Второй (не подключён)",callback_data:second}],
-    [{text:"⭐ Оценка — ⛔ НЕДОСТУПНО",callback_data:second}],
-    [{text:"✍️ Отзыв — ⛔ НЕДОСТУПНО",callback_data:second}],
-    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+    [{text:"👨‍💻 Ян Первый · "+rating+"⭐ · "+review+"✍️",callback_data:"owner_anketa:account1:"+id}],
+    [{text:"🔒 Ян Второй · ⛔⭐ · ⛔✍️",callback_data:"owner_anketa:account2:"+id}],
+    [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}],
+    [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
+}
+async function showAccountPicker(env,send,id){
+  const record=await savedGet(env,id);
+  if(!record){await showLibrary(env,send);return;}
+  await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+    "\n\n👥 Выберите аккаунт для работы с анкетой:",await accountPicker(env,id));
 }
 
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
@@ -285,7 +290,7 @@ async function profileKeyboard(env,id){
   ...(review?.status==="published"?[[{text:"📸 Подтверждение отзыва",callback_data:"owner_anketa:reviewproof:"+id}]]:[]),
   ...(review && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
   ...(id==="652282" && review && review.status!=="published"?[[{text:"🔓 Восстановить отзыв №652282",callback_data:"owner_anketa:reviewrecoverask:652282"}]]:[]),
-  [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:saved:"+id}],
+  [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:accounts:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
@@ -328,7 +333,11 @@ async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
   await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",await accountPicker(env,id));
+    "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее",buttons([
+      [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
+      [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+      [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+    ]));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
@@ -1252,6 +1261,8 @@ export async function handleOwnerAnketa(update,env,send) {
   }
   const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
   if(savedMenu){await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await showSaved(env,send,savedMenu[1]);return true;}
+  const accountList=new RegExp("^owner_anketa:accounts:([0-9]{1,9})$").exec(data);
+  if(accountList){await showAccountPicker(env,send,accountList[1]);return true;}
   const account1=/^owner_anketa:account1:(\d{1,9})$/.exec(data);
   if(account1){
     const rec=await savedGet(env,account1[1]);
@@ -1269,7 +1280,11 @@ export async function handleOwnerAnketa(update,env,send) {
   if(account2){
     await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
       "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
-      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",await accountPicker(env,account2[1]));
+      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",buttons([
+        [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:accounts:"+account2[1]}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+account2[1]}],
+        [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+      ]));
     return true;
   }
   const proofRequest=/^owner_anketa:proof:(\d{1,9})$/.exec(data);
