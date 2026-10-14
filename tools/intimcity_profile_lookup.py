@@ -400,6 +400,31 @@ def inspect(pid, mode='profile'):
             profile = extract(profile_page,pid)
             if profile and card_thumbnail:
                 profile["photoUrl"] = card_thumbnail
+            # Capture the actual matching search-card thumbnail as small JPEG bytes.
+            # R2 stores this image once; the WebApp won't need to hotlink Intimcity.
+            if profile and mode in ("profile", "ratings") and photo_nodes.count() == 1:
+                try:
+                    thumbnail = photo_nodes.first
+                    thumbnail.scroll_into_view_if_needed(timeout=10000)
+                    thumbnail.evaluate("""img => { img.loading = 'eager'; }""")
+                    thumbnail.wait_for(state="visible",timeout=10000)
+                    thumbnail.evaluate("""async img => {
+                        if (img.complete && img.naturalWidth > 0) return;
+                        await new Promise((resolve,reject) => {
+                            const timeout=setTimeout(()=>reject(Error('image-timeout')),7500);
+                            img.addEventListener('load',()=>{clearTimeout(timeout);resolve()}, {once:true});
+                            img.addEventListener('error',()=>{clearTimeout(timeout);reject(Error('image-error'))}, {once:true});
+                        });
+                    }""")
+                    photo_bytes = thumbnail.screenshot(type="jpeg",quality=70,timeout=12000)
+                    if 500 <= len(photo_bytes) <= 100000:
+                        import base64
+                        profile["photoData"] = base64.b64encode(photo_bytes).decode("ascii")
+                        print("LOOKUP_PHOTO_CAPTURE: ok",flush=True)
+                    else:
+                        print("LOOKUP_PHOTO_CAPTURE: invalid_size",flush=True)
+                except Exception as err:
+                    print("LOOKUP_PHOTO_CAPTURE: unavailable="+type(err).__name__,flush=True)
             if mode in ("review_publish","review_proof"):
                 # Same verified profile search, card, popup and identity as ratings.
                 # Reviews diverge only after the exact profile tab is open.
