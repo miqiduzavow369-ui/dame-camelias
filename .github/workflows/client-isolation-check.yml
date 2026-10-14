@@ -5,12 +5,16 @@ on:
       - feat/multi-client-isolation-foundation
     paths:
       - src/client_isolation.js
+      - src/client_lookup.js
       - tests/client_isolation.test.mjs
+      - tests/client_lookup.test.mjs
       - .github/workflows/client-isolation-check.yml
   pull_request:
     paths:
       - src/client_isolation.js
+      - src/client_lookup.js
       - tests/client_isolation.test.mjs
+      - tests/client_lookup.test.mjs
 permissions:
   contents: read
 jobs:
@@ -21,5 +25,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --check src/client_isolation.js
-      - run: node --test tests/client_isolation.test.mjs tests/trial_cabinet.test.mjs
+      - run: node --check src/client_isolation.js && node --check src/client_lookup.js
+      - run: node --test tests/client_isolation.test.mjs tests/client_lookup.test.mjs tests/trial_cabinet.test.mjs
