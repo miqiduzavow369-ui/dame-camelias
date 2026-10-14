@@ -368,12 +368,34 @@ async function showLibrary(env,send){
 async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
-  await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее",buttons([
+  const text="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+    "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее";
+  const markup=buttons([
       [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
       [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
       [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
-    ]));
+    ]);
+  const photo=record.profile?.photoUrl;
+  // Telegram places a photo above the caption. Only use our persisted R2
+  // thumbnail; fall back to the current text card when the image is missing.
+  if(typeof photo==="string" && photo===thumbnailUrl(id,record.host)){
+    try{
+      const response=await send(env,"sendPhoto",{
+        chat_id:OWNER_ID,photo,caption:text,reply_markup:markup
+      });
+      if(Number.isSafeInteger(response?.message_id)){
+        await trackAnketaMessage(env,response.message_id);
+        let previous=null;
+        try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+        try{await env.VISITORS_KV?.put(NAV_MESSAGE_KEY,JSON.stringify({id:response.message_id,at:Date.now()}),{expirationTtl:172800});}catch{}
+        if(Number.isSafeInteger(previous?.id) && previous.id!==response.message_id &&
+           Date.now()-Number(previous.at)<47*3600000)
+          try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
+        return;
+      }
+    }catch(e){console.error("Saved profile thumbnail unavailable",String(e));}
+  }
+  await navigationSay(env,send,text,markup);
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const CLIENT_FLOW_KEY="owner_anketa_client_flow:"+OWNER_ID;
