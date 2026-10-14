@@ -2,7 +2,8 @@
 // and update totalGranted for the specified Telegram ID. The Durable Object
 // applies only the positive difference, preserving spent credits and claims.
 const CREDIT_GRANTS={
-  "5866034656":{totalGranted:10,revision:1}
+  "5866034656":{totalGranted:10,revision:1},
+  "5627932577":{totalGranted:2,revision:1}
 };
 // Atomic publication credits, isolated by Telegram user ID.
 // Only trusted bot code invokes this private Durable Object.
