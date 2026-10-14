@@ -155,7 +155,7 @@ async function availabilitySummary(env,id,account){
     const [rating,review]=await Promise.all([
       publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
     ]);
-    const label=status=>status?.status==="published"?"✅ ВЫ ОПУБЛИКОВАЛИ":
+    const label=status=>status?.status==="published"?"🆗 ВЫ ОПУБЛИКОВАЛИ":
       status?"🔒 ТРЕБУЕТ ПРОВЕРКИ":"🟢 ДОСТУПНО";
     return "⭐ Оценки — "+label(rating)+"\n✍️ Отзывы — "+label(review);
   }catch{
@@ -745,7 +745,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
-    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
+    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
       "\n\nДля данной анкеты доступны:\n\n"+summary+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
