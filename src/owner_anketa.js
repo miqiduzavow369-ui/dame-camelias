@@ -66,8 +66,8 @@ async function deliverSavedReviewProof(env,send,id){
   if(proof?.account!=="yan_first" || proof.profileId!==id ||
      typeof proof.fileId!=="string" || proof.fileId.length>300)return false;
   const res=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:proof.fileId,
-    caption:"✍️ ОТЗЫВ ОПУБЛИКОВАН!\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+id+
-      "\\n✅ Публикация подтверждена\\n📸 Скриншот опубликованного отзыва",
+    caption:"✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+      "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва",
     reply_markup:proofNav(id)});
   await rememberProofMessage(env,res?.message_id);
   return true;
@@ -877,7 +877,7 @@ export async function handleOwnerAnketa(update,env,send) {
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
-  const reviewProof=/^owner_anketa:reviewproof:(\\d{1,9})$/.exec(data);
+  const reviewProof=/^owner_anketa:reviewproof:(\d{1,9})$/.exec(data);
   if(reviewProof){
     const id=reviewProof[1];
     if(!await selectedAccount(env,id) || !await savedGet(env,id) ||
@@ -888,7 +888,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await navigationSay(env,send,"🌷 Скриншот пока недоступен. Попробуйте проверить отзыв позже.");
     return true;
   }
-  const reviewCheck=/^owner_anketa:reviewcheck:(\\d{1,9})$/.exec(data);
+  const reviewCheck=/^owner_anketa:reviewcheck:(\d{1,9})$/.exec(data);
   if(reviewCheck){
     const id=reviewCheck[1],pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
     const guard=await reviewGuard(env,id,"review_status");
@@ -903,8 +903,8 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
       nonce,text:pending.text,claimNonce:pending.claimNonce,
       agreedAt:Date.now(),host:pending.host});
-    await progressSay(env,send,"🔎 ПРОВЕРЯЕМ ОТЗЫВ\\n\\n🌹 Анкета №"+id+
-      "\\n📸 Ищем опубликованный отзыв и подтверждение.");
+    await progressSay(env,send,"🔎 ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
+      "\n📸 Ищем опубликованный отзыв и подтверждение.");
     let launched=false;
     try{launched=(await dispatchLookup(env,id,nonce,"review_proof",pending.host)).ok;}catch{}
     if(!launched)await progressSay(env,send,"🌷 Не удалось начать проверку. Повторная отправка не выполнялась.");
@@ -946,12 +946,12 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!saved || !await statePut(env,next)){
       await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
     }
-    await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+current.id+
-      "\\n\\n💕 Проверяем результат. Скоро пришлём подтверждение.");
+    await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
+      "\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
     let launched=false;
     try{launched=(await dispatchLookup(env,current.id,nonce,"review_publish",saved.host)).ok;}catch{}
     if(!launched)
-      await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\\n\\n🔒 Анкета №"+
+      await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\n\n🔒 Анкета №"+
         current.id+" защищена от повторной отправки.");
     return true;
   }
