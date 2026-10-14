@@ -1,0 +1,30 @@
+name: Build premium balance cards
+on:
+  push:
+    paths:
+      - "tools/build_balance_cards.py"
+      - ".github/workflows/build-balance-cards.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install Pillow==11.3.0
+      - run: python tools/build_balance_cards.py
+      - name: Commit generated PNGs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/balance_cards
+          if ! git diff --cached --quiet; then
+            git commit -m "Generate 24 premium balance and daily allowance PNG cards"
+            git push
+          fi
