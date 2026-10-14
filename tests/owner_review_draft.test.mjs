@@ -56,3 +56,20 @@ test("owner's ordinary messages are untouched outside review input state",async(
   const s=setup();
   assert.equal(await handleOwnerAnketa(s.msg("Обычный текст клиента"),s.env,s.send),false);
 });
+
+test("consent is explicit and editing clears it",async()=>{
+ const s=setup();
+ await handleOwnerAnketa(s.cb("owner_anketa:savedreview:771053"),s.env,s.send);
+ await handleOwnerAnketa(s.msg("Это проверяемый текст настоящего отзыва"),s.env,s.send);
+ const draft=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+ assert.equal(draft.step,"review_preview");
+ assert.equal(draft.agreedAt,undefined);
+ await handleOwnerAnketa(s.cb("owner_anketa:reviewagree:"+draft.nonce),s.env,s.send);
+ const agreed=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+ assert.equal(agreed.step,"review_agreed");
+ assert.ok(agreed.agreedAt>0);
+ await handleOwnerAnketa(s.cb("owner_anketa:reviewedit:"+draft.nonce),s.env,s.send);
+ const changed=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+ assert.equal(changed.step,"review_input");
+ assert.equal(changed.agreedAt,undefined);
+});
