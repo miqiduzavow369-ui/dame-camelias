@@ -766,14 +766,31 @@ export async function handleOwnerAnketa(update,env,send) {
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
       "\n\n💬 Ваш текст:\n\n"+txt+"\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
-      buttons([[{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
+      buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  const reviewAgree=/^owner_anketa:reviewagree:([a-f0-9]{16})$/.exec(data);
+  if(reviewAgree){
+    const current=await stateGet(env);
+    if(current?.step!=="review_preview" || current.nonce!==reviewAgree[1] ||
+        !await selectedAccount(env,current.id) || await publicationStatus(env,current.id,"review")){
+      await showLibrary(env,send);return true;
+    }
+    await statePut(env,{...current,step:"review_agreed",agreedAt:Date.now()});
+    await navigationSay(env,send,"✅ ДОСТОВЕРНОСТЬ ПОДТВЕРЖДЕНА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
+      "\n\n💬 Текст отзыва:\n\n"+current.text+
+      "\n\nПодтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов."+
+      "\n\n🌷 Отзыв сохранён. Публикация пока недоступна.",
+      buttons([[{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
   const reviewEdit=/^owner_anketa:reviewedit:([a-f0-9]{16})$/.exec(data);
   if(reviewEdit){
     const current=await stateGet(env);
-    if(current?.step!=="review_preview"||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
+    if(!["review_preview","review_agreed"].includes(current?.step)||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
       await showLibrary(env,send);return true;
     }
     await statePut(env,{step:"review_input",id:current.id,account:ACTIVE_ACCOUNT});
