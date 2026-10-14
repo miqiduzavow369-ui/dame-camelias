@@ -491,6 +491,7 @@ function ratingMenu(state) {
   });
   rows.push([{text:"📋 Посмотреть выбор",callback_data:"owner_anketa:preview:"+state.nonce}]);
   rows.push([{text:"🧹 Сбросить отметки",callback_data:"owner_anketa:reset:"+state.nonce}]);
+  rows.push([{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+state.profile.id}]);
   rows.push(NEW_NUMBER);
   return buttons(rows);
 }
@@ -1540,7 +1541,10 @@ export async function handleOwnerAnketa(update,env,send) {
         catch{try{await send(env,"editMessageReplyMarkup",{chat_id:OWNER_ID,message_id:cb.message.message_id,reply_markup:buttons([])});}catch{}}
       }
       await clearProgress(env,send);
-      await say(env,send,"❌ Подготовка отменена. Ничего не опубликовано.");
+      await navigationSay(env,send,"❌ Подготовка отменена. Ничего не опубликовано.",buttons([
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.profile.id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]
+      ]));
     }
     return true;
   }
