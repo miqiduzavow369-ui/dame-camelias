@@ -166,9 +166,10 @@ async function profileKeyboard(env,id){
   const rating=await publicationStatus(env,id,"rating");
   const review=await publicationStatus(env,id,"review");
   return buttons([
-  ...(!rating?[[{text:"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
-  ...(!review?[[{text:"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
-  ...(rating?[[{text:"📸 Получить подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
+  ...(!rating?[[{text:"⭐ Опубликовать оценку",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
+  ...(!review?[[{text:"✍️ Опубликовать отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
+  ...(rating?[[{text:"📸 Подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
+  [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:saved:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
