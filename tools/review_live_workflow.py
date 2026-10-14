@@ -16,12 +16,13 @@ def run_review(ctx, pid, host, mode, approved_text, report_stage=None, profile_p
         raise ValueError("Invalid review target")
     if not isinstance(approved_text,str) or not 10<=len(approved_text)<=3000:
         raise ValueError("Invalid private review")
-    # Existing public entry is checked first. No submission if it is already found.
-    previous=capture_review_proof(ctx,host,pid,approved_text)
-    if previous:
-        return {"attempted":False,"confirmed":True,"proof":previous,"already_exists":True}
+    # Proof-only checks remain strictly read-only.
     if mode=="review_proof":
-        return {"attempted":False,"confirmed":False,"proof":None}
+        proof=capture_review_proof(ctx,host,pid,approved_text)
+        return {"attempted":False,"confirmed":bool(proof),"proof":proof,
+                "already_exists":bool(proof)}
+    # Publish mode starts on the profile tab opened from the search results.
+    # Do not leave that tab for "My reviews" until after the single submit.
     # The tab must come from the same search-result click as rating publication.
     # Never silently navigate directly to the profile as a fallback.
     if profile_page is None:
