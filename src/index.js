@@ -65,7 +65,15 @@ const PAGES = {
   faq_about: "🌹 <b>О КОМПАНИИ DAME CAMELIAS</b>\n\n💎 Мы специализируемся на услугах продвижения и репутационного оформления анкет на Intimcity и ASHOO.\n\n✨ Команда работает более трёх лет.\n\n⭐ Наш фокус — отзывы, оценки, тексты и описание анкет.\n\n🤍 Мы не предлагаем и не публикуем  негативные отзывы о конкурентках.\n\n📋 Каждая заявка обсуждается индивидуально: состав работ, цена, сроки и материалы согласуются заранее.",
   order: "🌹 <b>ОФОРМЛЕНИЕ ЗАЯВКИ</b> 💎\n\n💌 Выберите удобный способ — мы позаботимся об остальном!\n\n📝 <b>Через анкету</b> — все детали, календарь и расчёт стоимости.\n\n🤖 <b>Через бота</b> — быстрое оформление шаг за шагом в Telegram.\n\n💬 <b>Помощь менеджера</b> — личная консультация и ответы на вопросы.\n\n🌹 <b>Ваш комфорт — наш приоритет!</b>",
 };
+// Protect outgoing content for everyone except the owner's private Telegram chat.
+const CONTENT_OWNER_ID = "5866034656";
+function protectOutgoing(method, data) {
+  if (!/^(sendMessage|sendPhoto|sendAnimation|sendVideo|sendDocument|sendAudio|sendVoice|sendVideoNote|sendMediaGroup|copyMessage)$/.test(method)) return data;
+  const chatId = String(data?.chat_id ?? "");
+  return {...data, protect_content: chatId !== CONTENT_OWNER_ID};
+}
 async function telegram(env, method, data) {
+  data = protectOutgoing(method, data);
   const response = await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/" + method, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
   });
@@ -75,6 +83,7 @@ async function telegram(env, method, data) {
   return result.result;
 }
 async function sendPhotoFile(env, data, url) {
+  data = protectOutgoing("sendPhoto", data);
   const imageResponse = await fetch(url);
   if (!imageResponse.ok) throw new Error("Image fetch HTTP " + imageResponse.status);
   const imageData = await imageResponse.arrayBuffer();
