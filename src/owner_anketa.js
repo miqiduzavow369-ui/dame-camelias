@@ -419,7 +419,7 @@ async function reserveDailySlot(env,send,id,kind,nonce){
   try{
     const claimed=await dailyLimit(env,OWNER_ID,id,"reserve",kind,nonce,date);
     if(claimed.ok)return date;
-    await say(env,send,"📅 Сегодня для анкеты №"+id+" доступно 0 публикаций.\\n\\n🕛 Обновление в 00:00 по московскому времени.");
+    await say(env,send,"📅 Сегодня для анкеты №"+id+" доступно 0 публикаций.\n\n🕛 Обновление в 00:00 по московскому времени.");
   }catch{await say(env,send,"⚠️ Не удалось проверить дневной лимит. Публикация не начата.");}
   return null;
 }
