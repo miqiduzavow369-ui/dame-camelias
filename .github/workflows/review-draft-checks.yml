@@ -20,6 +20,7 @@ on:
       - tests/test_review_verification.py
       - tests/test_review_capture_safety.py
       - tests/test_review_text_entry.py
+      - tests/test_review_live_workflow.py
 permissions:
   contents: read
 jobs:
