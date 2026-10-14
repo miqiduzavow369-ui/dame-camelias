@@ -56,3 +56,18 @@ test("opening a saved profile closes its prior cabinet card",async()=>{
  assert.ok(m.sent.filter(x=>x.method==="deleteMessage").length>=2);
  assert.match(m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.text,/698842/);
 });
+
+test("client can request verification without touching owner records",async()=>{
+ const m=mock(),uid=5627932577;
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:open"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:add"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"https://b.intimcity.rip/indi/anketa698842.htm"),m.env,m.send);
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:profile:698842"),m.env,m.send);
+ const buttons=m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.reply_markup.inline_keyboard.flat();
+ assert.ok(buttons.some(b=>b.callback_data==="trial_cabinet:verify:698842"));
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:verify:698842"),m.env,m.send);
+ assert.match(m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.text,/временно недоступна/);
+ assert.equal(JSON.parse(m.records.get("cabinet_v2:5627932577:flow")).status,"failed");
+ assert.equal([...m.records.keys()].some(k=>k.includes("5866034656")),false);
+});
