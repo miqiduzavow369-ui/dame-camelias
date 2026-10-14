@@ -11,6 +11,9 @@ function setup(){
     get:async (key)=>store.has(key)?JSON.parse(store.get(key)):null,
     put:async (key,value)=>{store.set(key,value);},
     delete:async key=>{store.delete(key);}
+  },ORDER_REMINDERS:{
+    idFromName:name=>name,
+    get:()=>({fetch:async()=>Response.json({ok:true,available:10,remaining:10,balance:10})})
   }};
   let next=100;
   // Tests model an owner who has already passed the cabinet PIN challenge.
