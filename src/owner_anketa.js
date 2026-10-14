@@ -557,7 +557,7 @@ export async function handleAnketaLookupResult(request,env,send) {
   // Verify its destination, then resume proof for the original review ID.
   // No saved domain is changed until Telegram confirms photo delivery.
   if(current?.step==="domain_verify" && current.verifyId===id &&
-     current.nonce===nonce && data.mode==="profile"){
+     current.nonce===nonce && data.mode==="domain_probe"){
     const verified=validProfile(data.profile,id,current.host);
     if(data.status!=="found"||!verified){
       await statePut(env,{step:"domain_recovery",id:current.targetId,mode:current.mode});
@@ -945,7 +945,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const targetId=String(state.id);
     await statePut(env,{step:"domain_verify",verifyId:link.id,targetId,
       host:link.host,nonce,mode:state.mode});
-    const started=await dispatchLookup(env,link.id,nonce,"profile",link.host).catch(()=>({ok:false}));
+    const started=await dispatchLookup(env,link.id,nonce,"domain_probe",link.host).catch(()=>({ok:false}));
     if(!started.ok){
       await statePut(env,{step:"domain_recovery",id:targetId,mode:state.mode});
       await navigationSay(env,send,"🌷 Не получилось проверить новый адрес. Пожалуйста, повторите ссылку позже.");
