@@ -59,3 +59,31 @@ test("submit boundary prevents reclassification as safe preflight failure",async
  await assert.rejects(reviewGuard(env,"652282","review_preflight_failed",nonce));
  assert.equal((await reviewGuard(env,"652282","review_status")).status,"submission_started");
 });
+
+test("owner-authorized recovery is only one time and one exact profile",async()=>{
+ const m=new Map();
+ const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v),
+ delete:async k=>m.delete(k)},blockConcurrencyWhile:fn=>fn()};
+ const obj=new OrderReminder(ctx,{});
+ const env={ORDER_REMINDERS:{idFromName:n=>n,get:()=>({fetch:(u,o)=>obj.fetch(new Request(u,o))})}};
+ const old="cccccccccccccccc",newNonce="dddddddddddddddd";
+ assert.equal((await reviewGuard(env,"652282","review_claim",old)).claimed,true);
+ await assert.rejects(reviewGuard(env,"652283","review_recover_652282",old));
+ const r=await reviewGuard(env,"652282","review_recover_652282",old);
+ assert.equal(r.ok,true);
+ assert.equal((await reviewGuard(env,"652282","review_status")).claimed,false);
+ assert.equal((await reviewGuard(env,"652282","review_claim",newNonce)).claimed,true);
+ await assert.rejects(reviewGuard(env,"652282","review_recover_652282",newNonce));
+});
+test("recovery forbidden after durable submit boundary",async()=>{
+ const m=new Map();
+ const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v),
+ delete:async k=>m.delete(k)},blockConcurrencyWhile:fn=>fn()};
+ const obj=new OrderReminder(ctx,{});
+ const env={ORDER_REMINDERS:{idFromName:n=>n,get:()=>({fetch:(u,o)=>obj.fetch(new Request(u,o))})}};
+ const nonce="eeeeeeeeeeeeeeee";
+ await reviewGuard(env,"652282","review_claim",nonce);
+ await reviewGuard(env,"652282","review_submit_boundary",nonce);
+ await assert.rejects(reviewGuard(env,"652282","review_recover_652282",nonce));
+ assert.equal((await reviewGuard(env,"652282","review_status")).status,"submission_started");
+});
