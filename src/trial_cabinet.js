@@ -20,6 +20,16 @@ async function matchesPin(value) {
 async function reply(env,send,text,keyboard) {
   return send(env,"sendMessage",{chat_id:USER_ID,text,...(keyboard?{reply_markup:keyboard}:{})});
 }
+async function navigateText(env,send,text,keyboard){
+  const previous=await get(env,"navigation").catch(()=>null);
+  const sent=await reply(env,send,text,keyboard);
+  if(Number.isSafeInteger(sent?.message_id)){
+    await put(env,"navigation",{id:sent.message_id,at:Date.now()});
+    if(Number.isSafeInteger(previous?.id)&&previous.id!==sent.message_id)
+      await send(env,"deleteMessage",{chat_id:USER_ID,message_id:previous.id}).catch(()=>{});
+  }
+  return sent;
+}
 async function cabinetPage(env,send,text,remaining,buttons){
   const previous=await get(env,"navigation").catch(()=>null);
   let sent=null;
@@ -44,7 +54,7 @@ async function cabinetPage(env,send,text,remaining,buttons){
       sent=body.result;
     }catch(e){console.error("Trial premium card fallback",String(e).slice(0,80));}
   }
-  if(!sent)sent=await reply(env,send,"🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n\n"+text,buttons);
+  if(!sent)return navigateText(env,send,"🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n\n"+text,buttons);
   if(Number.isSafeInteger(sent?.message_id)){
     await put(env,"navigation",{id:sent.message_id,at:Date.now()});
     if(Number.isSafeInteger(previous?.id)&&previous.id!==sent.message_id)
@@ -111,12 +121,12 @@ export async function handleTrialCabinet(update,env,send) {
   if(action.startsWith("trial_cabinet:profile:")){
     const id=action.slice("trial_cabinet:profile:".length);
     const profiles=await get(env,"profiles")??[];
-    if(profiles.some(p=>p.id===id))await reply(env,send,"🌹 АНКЕТА №"+id+"\n\n⏳ Анкета сохранена, но ещё не проверена. После подключения проверки здесь появится карточка анкеты и доступные действия.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
+    if(profiles.some(p=>p.id===id))await navigateText(env,send,"🌹 АНКЕТА №"+id+"\n\n⏳ Анкета сохранена, но ещё не проверена. После подключения проверки здесь появится карточка анкеты и доступные действия.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
     return true;
   }
   if(action==="trial_cabinet:add"){
     await put(env,"pending",{mode:"url"},{expirationTtl:1800});
-    await reply(env,send,"🌹 Пришлите полную HTTPS-ссылку на анкету Intimcity.");
+    await navigateText(env,send,"🌹 Пришлите полную HTTPS-ссылку на анкету Intimcity.");
     return true;
   }
   if(pending?.mode==="url"&&msg?.text){

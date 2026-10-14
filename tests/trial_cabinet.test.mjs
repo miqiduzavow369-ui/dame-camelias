@@ -43,3 +43,16 @@ test("five wrong PIN attempts lock a fresh login for fifteen minutes",async()=>{
  await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
  assert.equal(m.records.has("trial_cabinet_v1:5627932577:session"),false);
 });
+
+test("opening a saved profile closes its prior cabinet card",async()=>{
+ const m=mock(),uid=5627932577;
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:open"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:add"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"https://b.intimcity.rip/indi/anketa698842.htm"),m.env,m.send);
+ const before=m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.chat_id;
+ assert.equal(String(before),String(uid));
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:profile:698842"),m.env,m.send);
+ assert.ok(m.sent.filter(x=>x.method==="deleteMessage").length>=2);
+ assert.match(m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.text,/698842/);
+});
