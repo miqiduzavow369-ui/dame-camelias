@@ -6,7 +6,7 @@ This code never presses Submit and never modifies review forms.
 import base64
 import re
 from urllib.parse import urlparse
-from review_verification import find_exact_review, validate_comments_url
+from review_verification import find_exact_review, validate_comments_url, review_text_matches
 
 def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
     if not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip", host):
@@ -46,7 +46,7 @@ def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
             if table is None:
                 raise RuntimeError("Matching review table missing")
             actual = table.locator("td.ver11 p")
-            if actual.count() != 1 or " ".join(actual.inner_text().split()) != " ".join(expected_text.split()):
+            if actual.count() != 1 or not review_text_matches(actual.inner_text(), expected_text):
                 raise RuntimeError("Review text changed since verification")
             card.scroll_into_view_if_needed(timeout=10000)
             # The actual rendered screenshot includes both the profile card and its review.
