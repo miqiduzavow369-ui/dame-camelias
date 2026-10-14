@@ -3,7 +3,6 @@
 import {reviewGuard} from "./review_publication_guard.js";
 import {credits} from "./publication_credits.js";
 import {dailyLimit,moscowDay} from "./daily_publication_limit.js";
-import {renderCreditsBanner} from "./credits_banner.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const CABINET_SESSION_KEY = "owner_cabinet_session:"+OWNER_ID;
@@ -226,7 +225,8 @@ async function showAccountPicker(env,send,id){
   const message="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n👥 Выберите аккаунт для работы с анкетой:";
   const limitText="📅 ДЛЯ ЭТОЙ АНКЕТЫ СЕГОДНЯ ДОСТУПНО "+
-    (today?today.remaining:"—")+" "+(today?.remaining===1?"ПУБЛИКАЦИЯ":"ПУБЛИКАЦИИ")+\n    "\n\n🕛 Обновление в 00:00 по московскому времени.";
+    (today?today.remaining:"—")+" "+(today?.remaining===1?"ПУБЛИКАЦИЯ":"ПУБЛИКАЦИИ")+
+    "\n\n🕛 Обновление в 00:00 по московскому времени.";
   const keys=await accountPicker(env,id);
   if(today){
     let firstId=null;
@@ -237,18 +237,13 @@ async function showAccountPicker(env,send,id){
           photo:profileCardUrl(id,record.host),caption:message});
         firstId=first?.message_id;
         if(!Number.isSafeInteger(firstId))throw Error("Profile photo not delivered");
-        const image=await renderCreditsBanner(id,today.remaining,"profile");
-        const form=new FormData();
-        form.set("chat_id",OWNER_ID);
-        form.set("caption",limitText);
-        form.set("reply_markup",JSON.stringify(keys));
-        form.set("photo",new Blob([image],{type:"image/png"}),"today.png");
-        const reply=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
-          method:"POST",body:form,signal:AbortSignal.timeout(14000)});
-        const result=await reply.json();
-        if(!reply.ok || !result.ok || !Number.isSafeInteger(result.result?.message_id))
-          throw Error("Daily banner not delivered");
-        const lastId=result.result.message_id;
+        const dailyPhoto=dailyCardUrl(today.remaining);
+        if(!dailyPhoto)throw Error("Missing prepared daily PNG");
+        const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,
+          photo:dailyPhoto,caption:limitText,reply_markup:keys});
+        if(!Number.isSafeInteger(result?.message_id))
+          throw Error("Prepared daily banner not delivered");
+        const lastId=result.message_id;
         await trackAnketaMessage(env,firstId);
         await trackAnketaMessage(env,lastId);
         let oldNav=null;
@@ -409,6 +404,13 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
     return navigationSay(env,send,text,reply_markup,"HTML");
   }
 }
+const PREMIUM_CARDS="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
+function balanceCardUrl(count){
+  return Number.isInteger(count)&&count>=0&&count<=20 ? PREMIUM_CARDS+"balance_"+String(count).padStart(2,"0")+".png" : null;
+}
+function dailyCardUrl(count){
+  return Number.isInteger(count)&&count>=0&&count<=2 ? PREMIUM_CARDS+"daily_"+count+".png" : null;
+}
 async function showLibrary(env,send){
   await clearExtraNavigation(env,send);
   const ids=await libraryGet(env);
@@ -430,32 +432,21 @@ async function showLibrary(env,send){
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
-  // Telegram photos include buttons and editable balance in the caption.
-  // If image rendering/upload fails, the complete cabinet remains usable.
-  try{
-    const picture=await renderCreditsBanner(OWNER_ID,remaining);
-    const payload=new FormData();
-    payload.set("chat_id",OWNER_ID);
-    payload.set("caption",heading+info);
-    payload.set("reply_markup",JSON.stringify(keys));
-    payload.set("photo",new Blob([picture],{type:"image/png"}),"balance.png");
-    const tgRes=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
-      method:"POST",body:payload,signal:AbortSignal.timeout(14000)
-    });
-    const result=await tgRes.json();
-    if(!tgRes.ok || result.ok!==true || !Number.isSafeInteger(result.result?.message_id))
-      throw Error("Telegram balance image failed");
-    const messageId=result.result.message_id;
-    await trackAnketaMessage(env,messageId);
-    let previous=null;
-    try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
-    try{await env.VISITORS_KV?.put(NAV_MESSAGE_KEY,JSON.stringify({id:messageId,at:Date.now()}),{expirationTtl:172800});}catch{}
-    if(Number.isSafeInteger(previous?.id)&&previous.id!==messageId && Date.now()-Number(previous.at)<47*3600000)
-      try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
-  }catch(e){
-    console.error("Balance banner display fallback",String(e));
-    await navigationSay(env,send,heading+info,keys);
+  const url=balanceCardUrl(remaining);
+  if(url){
+    try{
+      const response=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:heading+info,reply_markup:keys});
+      if(!Number.isSafeInteger(response?.message_id))throw Error("Telegram premium card not sent");
+      await trackAnketaMessage(env,response.message_id);
+      let previous=null;
+      try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+      try{await env.VISITORS_KV?.put(NAV_MESSAGE_KEY,JSON.stringify({id:response.message_id,at:Date.now()}),{expirationTtl:172800});}catch{}
+      if(Number.isSafeInteger(previous?.id)&&previous.id!==response.message_id)
+        try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
+      return;
+    }catch(e){console.error("Prepared premium card unavailable",String(e));}
   }
+  await navigationSay(env,send,heading+info,keys);
 }
 async function reserveDailySlot(env,send,id,kind,nonce){
   const date=moscowDay();
