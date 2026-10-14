@@ -214,6 +214,29 @@ async function say(env, send, text, reply_markup) {
   await trackAnketaMessage(env,response?.message_id);
   return response;
 }
+const PROGRESS_KEY="owner_anketa_progress:"+OWNER_ID;
+async function progressSay(env,send,text){
+  let old=null;
+  try{old=await env.VISITORS_KV?.get(PROGRESS_KEY,"json");}catch{}
+  if(Number.isSafeInteger(old?.id)){
+    try{
+      await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:old.id,text});
+      return;
+    }catch(e){
+      if(String(e).includes("message is not modified"))return;
+    }
+  }
+  const res=await say(env,send,text);
+  if(Number.isSafeInteger(res?.message_id))
+    try{await env.VISITORS_KV?.put(PROGRESS_KEY,JSON.stringify({id:res.message_id}),{expirationTtl:172800});}catch{}
+}
+async function clearProgress(env,send){
+  let old=null;
+  try{old=await env.VISITORS_KV?.get(PROGRESS_KEY,"json");}catch{}
+  if(Number.isSafeInteger(old?.id))
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:old.id});}catch{}
+  try{await env.VISITORS_KV?.delete(PROGRESS_KEY);}catch{}
+}
 // One-screen editable draft. No Telegram action here publishes ratings.
 function ratingMenu(state) {
   const selected=state.selected||{};
@@ -368,8 +391,7 @@ export async function handleAnketaLookupResult(request,env,send) {
        !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.image))
     {
       await statePut(env,{...current,step:"publication_result"});
-      await say(env,send,"⚠️ Запись анкеты №"+id+
-        " пока не подтверждена в разделе «Проверенные». Повторной отправки оценок не будет.");
+      await progressSay(env,send,"🌷 Пока не удалось получить подтверждение для анкеты №"+id+".\n\n💕 Ваши оценки остаются под защитой от повторного размещения. Чуть позже вы сможете запросить подтверждение снова.");
       return Response.json({ok:true,proof:false});
     }
     if(id===VERIFIED_FIRST_PUBLICATION && proof.date!=="13.10.2026")
@@ -388,6 +410,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     if(!telegramResponse.ok)throw new Error("Proof telegram photo rejected: "+telegramResponse.status);
     const telegramData=await telegramResponse.json();
     if(!telegramData.ok)throw new Error("Proof telegram API rejected");
+    await clearProgress(env,send);
     await recordPublication(env,id,"rating","published","verified-checked-list-screenshot");
     await statePut(env,{...current,step:"publication_result",proofDeliveredAt:Date.now()});
     return Response.json({ok:true,proof:true});
@@ -419,7 +442,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       let proofStarted=false;
       try {proofStarted=(await dispatchLookup(env,id,proofNonce,"proof",current.host)).ok;}catch{}
       if(proofStarted){
-        await say(env,send,"🔎 Оценки отправлены. Проверяю запись в разделе «Проверенные» и готовлю скриншот. Повторной отправки не будет.");
+        await progressSay(env,send,"🌸 Ещё немного терпения!\n\n💕 Мы завершаем оформление ваших оценок.\n📸 Как только всё будет готово, пришлём красивое подтверждение с фотографией.");
         return Response.json({ok:true,proofStarted:true});
       }
       await statePut(env,next);
@@ -627,7 +650,7 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
-  if (data==="owner_anketa:home") {await showLibrary(env,send);return true;}
+  if (data==="owner_anketa:home") {await cleanAnketaChat(env,send);await clearProgress(env,send);await showLibrary(env,send);return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
     await showLibrary(env,send); return true;
@@ -685,8 +708,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Проверку пока не удалось запустить. Ничего на сайте не изменено.");
       return true;
     }
-    await say(env,send,"🔎 Проверяю опубликованную оценку анкеты №"+id+
-      " в разделе «Проверенные».\n📸 При совпадении пришлю скриншот. Оценки повторно не отправляются.");
+    await progressSay(env,send,"🌸 Минуточку, пожалуйста!\n\n💕 Мы готовим для вас подтверждение опубликованных оценок.\n📸 Совсем скоро пришлём красивый отчёт с фотографией.");
     return true;
   }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
@@ -782,7 +804,7 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await statePut(env,pending)){
       await say(env,send,"⚠️ Не удалось сохранить подготовку. Ничего не опубликовано.");return true;
     }
-    await say(env,send,"🌹 ПОДГОТОВКА К ПУБЛИКАЦИИ\n\n💎 Ваши оценки приняты.\n\n🔐 Проверяю правильность заполнения всех выбранных полей.\n🌏 Нахожу вашу анкету через поиск по району. \n\n⏳ Пожалуйста, подождите немного.\n\n🌷 Пока ничего на сайт не отправляется.");
+    await progressSay(env,send,"🌹 Спасибо! Ваши оценки получены.\n\n💕 Сейчас мы аккуратно проверяем все детали перед публикацией.\n✨ Пожалуйста, подождите немного — скоро сообщим, когда всё будет готово.");
     let started=false;
     try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host)).ok;}catch{}
     if(!started){
@@ -814,8 +836,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Не удалось сохранить подтверждение. Ничего не опубликовано.");
       return true;
     }
-    await say(env,send,"🌹 ПУБЛИКАЦИЯ ЗАПУЩЕНА\n\n🆔 Анкета №"+pending.id+
-      "\n⏳ Отправляю оценки через ваш прокси. Повторно нажимать кнопку не нужно.");
+    await progressSay(env,send,"🌹 Спасибо за доверие!\n\n💕 Сейчас мы публикуем ваши оценки для анкеты №"+pending.id+".\n📸 Пожалуйста, подождите немного — по завершении пришлём подтверждение с фотографией.");
     let launched=false;
     try{launched=(await dispatchLookup(env,pending.id,nonce,"publish",current.host)).ok;}catch{}
     if(!launched){
