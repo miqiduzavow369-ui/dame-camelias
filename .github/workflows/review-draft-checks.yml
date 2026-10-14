@@ -6,6 +6,9 @@ on:
   pull_request:
     paths:
       - src/owner_anketa.js
+      - src/reminders.js
+      - src/review_publication_guard.js
+      - tests/review_publication_guard.test.mjs
       - tests/owner_review_draft.test.mjs
       - .github/workflows/review-draft-checks.yml
       - tools/review_verification.py
@@ -26,9 +29,9 @@ jobs:
         with:
           node-version: '22'
       - name: Syntax check
-        run: node --check src/owner_anketa.js
+        run: node --check src/owner_anketa.js && node --check src/reminders.js && node --check src/review_publication_guard.js
       - name: Review draft tests
-        run: node --test tests/owner_review_draft.test.mjs
+        run: node --test tests/owner_review_draft.test.mjs tests/review_publication_guard.test.mjs
       - name: Review proof syntax
         run: python3 -m py_compile tools/review_proof_capture.py tools/review_text_entry.py
       - name: Read-only verification tests
