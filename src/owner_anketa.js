@@ -414,6 +414,15 @@ async function showLibrary(env,send){
     await navigationSay(env,send,heading+info,keys);
   }
 }
+async function reserveDailySlot(env,send,id,kind,nonce){
+  const date=moscowDay();
+  try{
+    const claimed=await dailyLimit(env,OWNER_ID,id,"reserve",kind,nonce,date);
+    if(claimed.ok)return date;
+    await say(env,send,"📅 Сегодня для анкеты №"+id+" доступно 0 публикаций.\\n\\n🕛 Обновление в 00:00 по московскому времени.");
+  }catch{await say(env,send,"⚠️ Не удалось проверить дневной лимит. Публикация не начата.");}
+  return null;
+}
 async function requireCredit(env,send){
   try{
     const balance=await credits(env,OWNER_ID,"status");
@@ -902,6 +911,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       await recordPublication(env,id,"review","published","verified-comments-screenshot");
       if(current.creditNonce){
         try{await credits(env,OWNER_ID,"complete","review",id,current.creditNonce);}
+        if(current.dailyDate)try{await dailyLimit(env,OWNER_ID,id,"complete","review",current.creditNonce,current.dailyDate);}catch(e){console.error("Daily quota completion pending",String(e));}
         catch(e){console.error("Review credit completion pending",String(e));}
       }
       try{await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);}catch{}
@@ -967,6 +977,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     await recordPublication(env,id,"rating","published","verified-checked-list-screenshot");
     if(current.creditNonce){
       try{await credits(env,OWNER_ID,"complete","rating",id,current.creditNonce);}
+        if(current.dailyDate)try{await dailyLimit(env,OWNER_ID,id,"complete","rating",current.creditNonce,current.dailyDate);}catch(e){console.error("Daily quota completion pending",String(e));}
       catch(e){console.error("Rating credit completion pending",String(e));}
     }
     await statePut(env,{...current,step:"publication_result",proofDeliveredAt:Date.now()});
@@ -1433,10 +1444,16 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(await ensureNoRepeat(env,current.id,"review",send))return true;
     if(!await requireCredit(env,send))return true;
+    const dailyDate=await reserveDailySlot(env,send,current.id,"review",current.nonce);
+    if(!dailyDate)return true;
     let creditReservation;
     try{creditReservation=await credits(env,OWNER_ID,"reserve","review",current.id,current.nonce);}
-    catch{await say(env,send,"⚠️ Не удалось зарезервировать публикацию. Повторите позже.");return true;}
+    catch{
+      try{await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);}catch{}
+      await say(env,send,"⚠️ Не удалось зарезервировать публикацию. Повторите позже.");return true;
+    }
     if(!creditReservation.ok){
+      try{await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);}catch{}
       await say(env,send,"💎 Нет свободных публикаций или эта анкета уже зарезервирована. Проверьте личный кабинет.");
       return true;
     }
@@ -1460,7 +1477,7 @@ export async function handleOwnerAnketa(update,env,send) {
 
     const saved=await savedGet(env,current.id);
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    const next={...current,step:"review_dispatch",nonce,claimNonce:current.nonce,creditNonce:current.nonce,
+    const next={...current,step:"review_dispatch",nonce,claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,
       payloadIssued:false,confirmedAt:Date.now()};
     if(!saved || !await statePut(env,next)){
       await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
@@ -1753,10 +1770,16 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"🌷 Подтверждение устарело. Проверьте оценки повторно.");return true;
     }
     if(!await requireCredit(env,send))return true;
+    const dailyDate=await reserveDailySlot(env,send,current.profile.id,"rating",current.nonce);
+    if(!dailyDate)return true;
     let creditReservation;
     try{creditReservation=await credits(env,OWNER_ID,"reserve","rating",current.profile.id,current.nonce);}
-    catch{await say(env,send,"⚠️ Не удалось зарезервировать публикацию. Повторите позже.");return true;}
+    catch{
+      try{await dailyLimit(env,OWNER_ID,current.profile.id,"release","rating",current.nonce,dailyDate);}catch{}
+      await say(env,send,"⚠️ Не удалось зарезервировать публикацию. Повторите позже.");return true;
+    }
     if(!creditReservation.ok){
+      try{await dailyLimit(env,OWNER_ID,current.profile.id,"release","rating",current.nonce,dailyDate);}catch{}
       await say(env,send,"💎 Нет свободных публикаций или эта анкета уже зарезервирована.");
       return true;
     }
@@ -1766,7 +1789,7 @@ export async function handleOwnerAnketa(update,env,send) {
       return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    const pending={...current,step:"publishing",id:current.profile.id,creditNonce:current.nonce,
+    const pending={...current,step:"publishing",id:current.profile.id,creditNonce:current.nonce,dailyDate,
       nonce,previousNonce:current.nonce,readyAt:null,
       confirmedAt:Date.now(),dispatchPending:true};
     if(!await statePut(env,pending)){
