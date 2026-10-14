@@ -20,3 +20,19 @@ test("verified records never appear in owner namespace",async()=>{
  assert.equal(m.has(clientKey("5866034656","saved",pid)),false);
  assert.equal(await acceptClientLookup(env,uid,result),false);
 });
+
+test("unmatched or stale callback never changes saved client data",async()=>{
+ const store=new Map();
+ const env={VISITORS_KV:{get:async k=>store.has(k)?JSON.parse(store.get(k)):null,put:async(k,v)=>store.set(k,v)}};
+ const flow=clientKey(uid,"flow"),saved=clientKey(uid,"saved",pid);
+ store.set(flow,JSON.stringify({mode:"profile",status:"pending",profileId:pid,host,nonce}));
+ const original=JSON.stringify({id:pid,name:"Already verified",url:result.profile.url});
+ store.set(saved,original);
+ assert.equal(await acceptClientLookup(env,uid,{...result,user_id:"5866034656"}),false);
+ assert.equal(store.get(saved),original);
+ assert.equal(await acceptClientLookup(env,uid,{...result,nonce:"000000000000"}),false);
+ assert.equal(store.get(saved),original);
+ store.set(flow,JSON.stringify({mode:"profile",status:"verified",profileId:pid,host,nonce}));
+ assert.equal(await acceptClientLookup(env,uid,result),false);
+ assert.equal(store.get(saved),original);
+});
