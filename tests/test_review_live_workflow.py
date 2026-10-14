@@ -57,20 +57,23 @@ class LiveReviewTests(unittest.TestCase):
     def test_real_entry_and_exactly_one_submission(self):
         ctx=Context()
         real={"account":"yan_first","profile_id":PID,"text_verified":True,"image":"jpeg","mime":"image/jpeg"}
-        with patch("review_live_workflow.capture_review_proof",side_effect=[None,real]) as find:
+        with patch("review_live_workflow.capture_review_proof",side_effect=[real]) as find:
             result=run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None,profile_page=ctx.page)
         self.assertEqual(result["proof"],real)
         self.assertEqual(Form.submit.clicked,1)
         self.assertEqual(ctx.page.field.value,TEXT)
         self.assertEqual(ctx.page.field.calls,["fill","press","type"])
-        self.assertEqual(find.call_count,2)
-    def test_existing_review_not_submitted_again(self):
+        self.assertEqual(find.call_count,1)
+    def test_publish_does_not_check_my_reviews_before_submit(self):
         ctx=Context()
-        with patch("review_live_workflow.capture_review_proof",return_value={"verified":True}):
-            result=run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None,profile_page=ctx.page)
-        self.assertFalse(result["attempted"])
-        self.assertTrue(result["already_exists"])
-        self.assertEqual(ctx.calls,0)
+        def after_submit(*args):
+            self.assertEqual(Form.submit.clicked,1)
+            return {"account":"yan_first","profile_id":PID,"text_verified":True}
+        with patch("review_live_workflow.capture_review_proof",side_effect=after_submit):
+            result=run_review(ctx,PID,HOST,"review_publish",TEXT,
+                              report_stage=lambda kind:None,profile_page=ctx.page)
+        self.assertTrue(result["confirmed"])
+        self.assertEqual(Form.submit.clicked,1)
     def test_proof_only_never_submits(self):
         ctx=Context()
         with patch("review_live_workflow.capture_review_proof",return_value=None):
