@@ -1486,7 +1486,7 @@ export async function handleOwnerAnketa(update,env,send) {
       try{refreshed=(await dispatchLookup(env,rec.profile.id,refreshNonce,"ratings",rec.host)).ok;}catch{}
       if(refreshed){
         await navigationSay(env,send,"🌹 Обновляю фотографию анкеты №"+rec.profile.id+
-          ".\\n\\n💕 Сохранённые оценки и история публикаций останутся на месте.");
+          ".\n\n💕 Сохранённые оценки и история публикаций останутся на месте.");
         return true;
       }
     }
