@@ -908,7 +908,7 @@ export async function handleOwnerAnketa(update,env,send) {
       ...(pending && (pending.account!=="yan_first" || pending.id!=="652282" ||
         !/^[a-f0-9]{16}$/.test(pending.claimNonce||""))?["Данные старой попытки требуют сверки"]:[]),
       ...(!["publishing","needs_verification"].includes(status?.status)?["Статус отзыва: "+String(status?.status||"отсутствует")]:[]),
-      ...(!["submission_maybe_sent","preflight_failed"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
+      ...(!["preflight_failed","submission_started"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
     ];
     if(faults.length){
       await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\\n\\n"+
@@ -918,8 +918,8 @@ export async function handleOwnerAnketa(update,env,send) {
           [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:652282"}]]));return true;
     }
     await navigationSay(env,send,"🌹 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
-      "Вы подтвердили, что прежняя отправка не дошла до сайта. "+
-      "Будет снята только старая блокировка отзыва ЯН ПЕРВЫЙ для этой анкеты. "+
+      "Временный режим ручных повторных попыток. "+
+      "Будет снята только текущая блокировка отзыва ЯН ПЕРВЫЙ для этой анкеты. "+
       "Повторного отправления сейчас не будет.\n\nПодтвердить восстановление?",
       buttons([[{text:"✅ Восстановить черновик",callback_data:"owner_anketa:reviewrecoverconfirm:652282"}],
         [{text:"⬅️ Отмена",callback_data:"owner_anketa:account1:652282"}]]));
@@ -929,6 +929,9 @@ export async function handleOwnerAnketa(update,env,send) {
     const id="652282";
     const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
     const status=await publicationStatus(env,id,"review");
+    if(await env.VISITORS_KV?.get(REVIEW_ARCHIVE_KEY+id)){
+      await navigationSay(env,send,"✅ Отзыв уже подтверждён. Повторная публикация отключена.");return true;
+    }
     if(!await selectedAccount(env,id) || !await savedGet(env,id) ||
        !pending || pending.account!=="yan_first" || pending.id!==id ||
        !/^[a-f0-9]{16}$/.test(pending.claimNonce||"") ||
