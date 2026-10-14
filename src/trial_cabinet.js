@@ -8,7 +8,6 @@ const PROFILE_URL = /^https:\/\/([a-z0-9-]+\.intimcity\.rip)\/indi\/anketa(\d{1,
 const PREMIUM="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
 const menu = {inline_keyboard:[
   [{text:"➕ Ввести новую анкету",callback_data:"trial_cabinet:add"}],
-  [{text:"🔄 Обновить",callback_data:"trial_cabinet:open"}],
   [{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]
 ]};
 const get = (env,k) => env.VISITORS_KV.get(KEY+k,"json");
@@ -139,8 +138,8 @@ export async function handleTrialCabinet(update,env,send) {
     const balance=await credits(env,USER_ID,"status");
     remaining=String(balance.available??balance.remaining??balance.balance??"уточняется");
   }catch{}
-  const listing=profiles.length?profiles.map(p=>"🌹 Анкета №"+p.id+" — ожидает проверки").join("\n"):"🌷 Сохранённых анкет пока нет.";
-  const rows=[...profiles.map(p=>[{text:"🌹 АНКЕТА №"+p.id+" · ожидает проверки",callback_data:"trial_cabinet:profile:"+p.id}]),...menu.inline_keyboard];
-  await cabinetPage(env,send,"🆔 Telegram ID: "+USER_ID+"\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.\n\n"+listing+"\n\nℹ️ Проверка анкет и публикации в пробном кабинете ещё не подключены.",remaining,{inline_keyboard:rows});
+  
+  const rows=[...profiles.map(p=>[{text:"🌹 АНКЕТА №"+p.id,callback_data:"trial_cabinet:profile:"+p.id}]),...menu.inline_keyboard];
+  await cabinetPage(env,send,"🆔 Telegram ID: "+USER_ID+"\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.",remaining,{inline_keyboard:rows});
   return true;
 }
