@@ -13,7 +13,7 @@ function chunk(type,data){
   const out=new Uint8Array(value.length+12);out.set(pack32(data.length));out.set(value,4);out.set(pack32(crc(value)),value.length+4);
   return out;
 }
-export async function renderCreditsBanner(id,count){
+export async function renderCreditsBanner(id,count,mode="account"){
   const rgb=new Uint8Array(W*H*3);
   function pixel(x,y,c){
     if(x<0||x>=W||y<0||y>=H)return;
@@ -34,8 +34,8 @@ export async function renderCreditsBanner(id,count){
     }
   }
   label("DAME CAMELIAS",42,28,6,gold);
-  label("TELEGRAM ID: "+String(id),43,102,3,low);
-  label("PUBLICATIONS LEFT",43,164,4,soft);
+  label((mode==="profile"?"PROFILE: ":"TELEGRAM ID: ")+String(id),43,102,3,low);
+  label(mode==="profile"?"TODAY AVAILABLE":"PUBLICATIONS LEFT",43,164,4,soft);
   const countText=String(Math.max(0,Number(count)||0));
   const scale=countText.length>4?6:9;
   label(countText,W-45-countText.length*6*scale,137,scale,gold);
