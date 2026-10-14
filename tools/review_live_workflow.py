@@ -81,7 +81,7 @@ def run_review(ctx, pid, host, mode, approved_text, report_stage=None, profile_p
             if i<2:page.wait_for_timeout(3500)
         return {"attempted":True,"confirmed":False,"proof":None}
     except Exception as exc:
-        print("REVIEW_PREFLIGHT: failed; exception_type="+type(exc).__name__+"; reason="+str(exc)[:160],flush=True)
+        print("REVIEW_PREFLIGHT: failed; exception_type="+type(exc).__name__+"; reason="+(str(exc)[:160] if type(exc) is RuntimeError else "operation-failed"),flush=True)
         if attempted:
             return {"attempted":True,"confirmed":False,"proof":None}
         raise
