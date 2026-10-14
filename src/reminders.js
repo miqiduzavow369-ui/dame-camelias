@@ -2,6 +2,7 @@ const DELAY = 2 * 60 * 60 * 1000;
 const REASONS = { price: "Стоимость", timing: "Сроки", help: "Нужна помощь" };
 const escape = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 async function send(env, data) {
+  data = {...data, protect_content: String(data.chat_id) !== "5866034656"};
   const response = await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
     method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(data),
     signal: AbortSignal.timeout(10000)
