@@ -12,7 +12,7 @@ from review_proof_capture import capture_review_proof
 def run_review(ctx, pid, host, mode, approved_text):
     if mode not in ("review_publish","review_proof"):
         raise ValueError("Unsupported review mode")
-    if not re.fullmatch(r"\\d{1,9}",str(pid)) or not re.fullmatch(r"[a-z0-9-]+\\.intimcity\\.rip",host):
+    if not re.fullmatch(r"\d{1,9}",str(pid)) or not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip",host):
         raise ValueError("Invalid review target")
     if not isinstance(approved_text,str) or not 10<=len(approved_text)<=3000:
         raise ValueError("Invalid private review")
