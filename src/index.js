@@ -1,6 +1,7 @@
 import { reminderCall } from "./reminders.js";
 import { handleTrialCabinet } from "./trial_cabinet.js";
 import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerReviewStage, ownerRatingFormApi, serveProfileThumbnail } from "./owner_anketa.js";
+import {clientLookupCallback} from "./client_lookup.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -624,8 +625,12 @@ export default {
       return ownerReviewPayload(request,env);
     if (request.method === "GET" && url.pathname === "/api/anketa/dryfill-payload")
       return ownerDryfillPayload(request,env);
-    if (request.method === "POST" && url.pathname === "/api/anketa/result")
+    if (request.method === "POST" && url.pathname === "/api/anketa/result") {
+      const raw=await request.clone().json().catch(()=>null);
+      if(raw && Object.hasOwn(raw,"user_id") && String(raw.user_id).length>0)
+        return clientLookupCallback(request,env,telegram);
       return handleAnketaLookupResult(request,env,telegram);
+    }
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
     if (request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) return new Response("Forbidden", { status: 403 });
