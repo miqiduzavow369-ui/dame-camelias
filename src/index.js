@@ -1,5 +1,5 @@
 import { reminderCall } from "./reminders.js";
-import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerReviewStage, ownerRatingFormApi } from "./owner_anketa.js";
+import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerReviewStage, ownerRatingFormApi, serveProfileThumbnail } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -586,6 +586,8 @@ export default {
       if (!result.ok) return new Response("Form unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","X-Content-Type-Options":"nosniff","Cache-Control":"no-store"}});
     }
+    if (request.method === "GET" && /^\/api\/anketa\/photo\/\d{1,9}$/.test(url.pathname))
+      return serveProfileThumbnail(request,env);
     if (request.method === "POST" && url.pathname === "/api/anketa/ratings")
       return ownerRatingFormApi(request,env,telegram,validWebApp);
     if (url.pathname === "/api/order" && request.method === "OPTIONS") return new Response(null, {status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type"}});
