@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from review_text_entry import stage_review_text
 from review_proof_capture import capture_review_proof
 
-def run_review(ctx, pid, host, mode, approved_text, report_stage=None):
+def run_review(ctx, pid, host, mode, approved_text, report_stage=None, profile_page=None):
     if mode not in ("review_publish","review_proof"):
         raise ValueError("Unsupported review mode")
     if not re.fullmatch(r"\d{1,9}",str(pid)) or not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip",host):
@@ -22,10 +22,13 @@ def run_review(ctx, pid, host, mode, approved_text, report_stage=None):
         return {"attempted":False,"confirmed":True,"proof":previous,"already_exists":True}
     if mode=="review_proof":
         return {"attempted":False,"confirmed":False,"proof":None}
-    page=ctx.new_page()
+    # The tab must come from the same search-result click as rating publication.
+    # Never silently navigate directly to the profile as a fallback.
+    if profile_page is None:
+        raise RuntimeError("Verified search-result profile tab required")
+    page=profile_page
     attempted=False
     try:
-        page.goto(f"https://{host}/indi/anketa{pid}.htm",wait_until="domcontentloaded",timeout=45000)
         parsed=urlparse(page.url)
         if parsed.scheme!="https" or parsed.hostname!=host or parsed.path!=f"/indi/anketa{pid}.htm":
             raise RuntimeError("Unexpected review form destination")
@@ -72,4 +75,5 @@ def run_review(ctx, pid, host, mode, approved_text, report_stage=None):
             return {"attempted":True,"confirmed":False,"proof":None}
         raise
     finally:
-        page.close()
+        # Caller owns this tab; do not close the shared ratings-style context.
+        pass
