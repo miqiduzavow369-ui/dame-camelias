@@ -87,3 +87,18 @@ test("recovery forbidden after durable submit boundary",async()=>{
  await assert.rejects(reviewGuard(env,"652282","review_recover_652282",nonce));
  assert.equal((await reviewGuard(env,"652282","review_status")).status,"submission_started");
 });
+
+test("confirmed preflight failure permits exactly one scoped recovery",async()=>{
+ const m=new Map();
+ const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v),
+ delete:async k=>m.delete(k)},blockConcurrencyWhile:fn=>fn()};
+ const obj=new OrderReminder(ctx,{});
+ const env={ORDER_REMINDERS:{idFromName:n=>n,get:()=>({fetch:(u,o)=>obj.fetch(new Request(u,o))})}};
+ const old="abababababababab",next="cdcdcdcdcdcdcdcd";
+ await reviewGuard(env,"652282","review_claim",old);
+ await reviewGuard(env,"652282","review_preflight_failed",old);
+ assert.equal((await reviewGuard(env,"652282","review_status")).status,"preflight_failed");
+ assert.equal((await reviewGuard(env,"652282","review_recover_652282",old)).ok,true);
+ assert.equal((await reviewGuard(env,"652282","review_claim",next)).claimed,true);
+ await assert.rejects(reviewGuard(env,"652282","review_recover_652282",next));
+});
