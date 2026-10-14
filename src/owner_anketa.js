@@ -1437,7 +1437,7 @@ export async function handleOwnerAnketa(update,env,send) {
     await env.VISITORS_KV?.delete(REVIEW_DRAFT_KEY+id);
     await statePut(env,{step:"review_input",id,account:ACTIVE_ACCOUNT});
     await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
-      "\n\n💬 Отправьте новый текст отзыва одним сообщением.",
+      "\n\n💬 НАПИШИТЕ ТЕКСТ ОТЗЫВА\n\n👇 Введите ваш отзыв в поле сообщения внизу экрана и отправьте его на проверку",
       buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
     return true;
   }
@@ -1460,7 +1460,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await statePut(env,{step:"review_input",id:savedReview[1],account:ACTIVE_ACCOUNT});
     await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+savedReview[1]+
-      "\n\n💬 Отправьте текст отзыва одним сообщением.\n\n✨ Затем сможете проверить и изменить его.",
+      "\n\n💬 НАПИШИТЕ ТЕКСТ ОТЗЫВА\n\n👇 Введите ваш отзыв в поле сообщения внизу экрана и отправьте его на проверку",
       buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedReview[1]}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));
     return true;
