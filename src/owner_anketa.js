@@ -562,6 +562,32 @@ export async function handleAnketaLookupResult(request,env,send) {
       return Response.json({ok:true,domainUpdated:false});
     }
     const changed=await switchVerifiedDomain(env,current.host);
+    // Resume the original read-only proof automatically after a verified move.
+    // Publication/claim guards remain untouched; no review_publish dispatch.
+    if(current.mode==="review_proof"){
+      const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
+      const guard=await reviewGuard(env,id,"review_status");
+      if(pending?.account===ACTIVE_ACCOUNT && String(pending.id)===id &&
+         typeof pending.text==="string" && pending.text.length>=10 &&
+         /^[a-f0-9]{16}$/.test(pending.claimNonce||"") &&
+         guard.claimed && guard.status!=="published"){
+        const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+        await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
+          nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,
+          agreedAt:Date.now(),host:current.host});
+        let dispatched=false;
+        try{dispatched=(await dispatchLookup(env,id,proofNonce,"review_proof",current.host)).ok;}catch{}
+        if(dispatched){
+          await progressSay(env,send,"✅ Актуальный домен подтверждён: https://"+current.host+
+            "/\n\n🌹 Анкета №"+id+
+            "\n📸 Автоматически проверяю опубликованный отзыв и готовлю скриншот с фотографией.\n🔒 Повторной публикации не будет.");
+          return Response.json({ok:true,domainUpdated:true,proofDispatched:true});
+        }
+        await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
+        await navigationSay(env,send,"✅ Новый домен подтверждён.\n\n🌷 Не удалось запустить проверку скриншота. Нажмите «🔎 Проверить отзыв» в меню анкеты.");
+        return Response.json({ok:true,domainUpdated:true,proofDispatched:false});
+      }
+    }
     await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
     await navigationSay(env,send,"✅ АКТУАЛЬНЫЙ ДОМЕН ПОДТВЕРЖДЁН\n\n🌹 Анкета №"+id+"\n🔗 https://"+current.host+"/\n💾 Обновлены адреса сохранённых анкет: "+changed+".\n\n⭐ Оценки, ✍️ отзывы и история сохранены без повторной публикации.\n\nОткройте анкету и нажмите «🔎 Проверить отзыв» ещё раз.",buttons([[{text:"🌹 К анкете №"+id,callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
     return Response.json({ok:true,domainUpdated:true});
