@@ -13,6 +13,8 @@ function setup(){
     delete:async key=>{store.delete(key);}
   }};
   let next=100;
+  // Tests model an owner who has already passed the cabinet PIN challenge.
+  store.set("owner_cabinet_session:"+OWNER,JSON.stringify({authorized:true,telegramId:String(OWNER)}));
   const send=async (_env,method,payload)=>{
     actions.push({method,payload});
     return {message_id:next++};
