@@ -214,7 +214,7 @@ async function accountPicker(env,id){
 async function showAccountPicker(env,send,id){
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
-  await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+  await profileBannerNavigation(env,send,record,id,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n👥 Выберите аккаунт для работы с анкетой:",await accountPicker(env,id));
 }
 
@@ -365,20 +365,10 @@ async function showLibrary(env,send){
     "🌹 DAME CAMELIAS\n\n💕 Пока нет сохранённых анкет. Приглашаю добавить первую!",
     libraryKeyboard(ids));
 }
-async function showSaved(env,send,id) {
-  const record=await savedGet(env,id);
-  if(!record){await showLibrary(env,send);return;}
-  const text="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее";
-  const markup=buttons([
-      [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
-      [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
-      [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
-    ]);
+async function profileBannerNavigation(env,send,record,id,text,markup){
   const photo=profileCardUrl(id,record.host);
   const hasCard=!!(await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer").catch(()=>null));
-  // Telegram places a photo above the caption. Only use our persisted R2
-  // thumbnail; fall back to the current text card when the image is missing.
+  // Navigation photo is profile-specific and replaces only the prior navigation message.
   if(hasCard){
     try{
       const response=await send(env,"sendPhoto",{
@@ -396,7 +386,19 @@ async function showSaved(env,send,id) {
       }
     }catch(e){console.error("Saved profile thumbnail unavailable",String(e));}
   }
-  await navigationSay(env,send,text,markup);
+  return navigationSay(env,send,text,markup);
+}
+async function showSaved(env,send,id) {
+  const record=await savedGet(env,id);
+  if(!record){await showLibrary(env,send);return;}
+  const text="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+    "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее";
+  const markup=buttons([
+      [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
+      [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
+      [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+    ]);
+  return profileBannerNavigation(env,send,record,id,text,markup);
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const CLIENT_FLOW_KEY="owner_anketa_client_flow:"+OWNER_ID;
