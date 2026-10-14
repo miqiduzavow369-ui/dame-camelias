@@ -206,6 +206,7 @@ async function profileKeyboard(env,id){
   ...(rating?[[{text:"📸 Подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
   ...(review?.status==="published"?[[{text:"📸 Подтверждение отзыва",callback_data:"owner_anketa:reviewproof:"+id}]]:[]),
   ...(review && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
+  ...(id==="652282" && review && review.status!=="published"?[[{text:"🔓 Восстановить отзыв №652282",callback_data:"owner_anketa:reviewrecoverask:652282"}]]:[]),
   [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:saved:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
@@ -893,6 +894,54 @@ export async function handleOwnerAnketa(update,env,send) {
         [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  if(data==="owner_anketa:reviewrecoverask:652282"){
+    const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+"652282","json");
+    const status=await publicationStatus(env,"652282","review");
+    const claim=await reviewGuard(env,"652282","review_status");
+    if(!await selectedAccount(env,"652282") || !await savedGet(env,"652282") ||
+       !pending || pending.account!=="yan_first" || pending.id!=="652282" ||
+       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"") ||
+       !["publishing","needs_verification"].includes(status?.status) ||
+       claim.status!=="submission_maybe_sent"){
+      await navigationSay(env,send,"🔒 Восстановление недоступно: статус требует дополнительной проверки.");return true;
+    }
+    await navigationSay(env,send,"🌹 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
+      "Вы подтвердили, что прежняя отправка не дошла до сайта. "+
+      "Будет снята только старая блокировка отзыва ЯН ПЕРВЫЙ для этой анкеты. "+
+      "Повторного отправления сейчас не будет.\n\nПодтвердить восстановление?",
+      buttons([[{text:"✅ Восстановить черновик",callback_data:"owner_anketa:reviewrecoverconfirm:652282"}],
+        [{text:"⬅️ Отмена",callback_data:"owner_anketa:account1:652282"}]]));
+    return true;
+  }
+  if(data==="owner_anketa:reviewrecoverconfirm:652282"){
+    const id="652282";
+    const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
+    const status=await publicationStatus(env,id,"review");
+    if(!await selectedAccount(env,id) || !await savedGet(env,id) ||
+       !pending || pending.account!=="yan_first" || pending.id!==id ||
+       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"") ||
+       typeof pending.text!=="string" || pending.text.length<10 || pending.text.length>3000 ||
+       !["publishing","needs_verification"].includes(status?.status)){
+      await navigationSay(env,send,"🔒 Нельзя восстановить этот отзыв.");return true;
+    }
+    const result=await reviewGuard(env,id,"review_recover_652282",pending.claimNonce);
+    if(!result.ok){
+      await navigationSay(env,send,"🔒 Старая попытка не может быть безопасно разблокирована.");return true;
+    }
+    // The DO guard has been atomically released. Restore exactly the old text
+    // as an unagreed draft; require a fresh truth confirmation and final click.
+    await env.VISITORS_KV.delete(PUBLICATION_KEY+"review:"+id);
+    await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
+    await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,nonce,text:pending.text});
+    await navigationSay(env,send,"✍️ ОТЗЫВ ВОССТАНОВЛЕН\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №652282\n\n"+
+      "💬 Ваш исходный текст без изменений:\n\n"+pending.text+
+      "\n\nПодтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.",
+      buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:652282"}]]));
+    return true;
   }
   const reviewProof=/^owner_anketa:reviewproof:(\d{1,9})$/.exec(data);
   if(reviewProof){
