@@ -21,7 +21,7 @@ class FakePage:
     def close(self): pass
 class FakeLocator:
     def __init__(self,selector): self.selector=selector
-    def count(self): return 1 if self.selector==".commentsSelectedSection" else 0
+    def count(self): return 1 if self.selector=='input[name="comments_type"][value="0"]' else 0
     @property
     def first(self): return self
     def inner_text(self): return "Ваши отзывы (15)"
@@ -38,6 +38,7 @@ class CaptureSafetyTests(unittest.TestCase):
         self.assertEqual(len(page.visits),3)
         self.assertTrue(all("/user_comments.php?" in x for x in page.visits))
         self.assertTrue(all("comments_type=0" in x for x in page.visits))
+        self.assertEqual([x.split("pageCommentsMy=")[-1] for x in page.visits],["1","2","3"])
     def test_invalid_host_rejected_before_navigation(self):
         page=FakePage("","")
         with self.assertRaises(ValueError):

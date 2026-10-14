@@ -20,13 +20,17 @@ def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
     try:
         page.set_viewport_size({"width": 1100, "height": 900})
         for index in range(max_pages):
-            url = f"https://{host}/user_comments.php?comments_type=0&sort_mycomm=0&pageCommentsMy={index}"
+            # Site pageCommentsMy is 1-indexed; avoid an invalid page zero.
+            url = f"https://{host}/user_comments.php?comments_type=0&sort_mycomm=0&pageCommentsMy={index+1}"
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             if not validate_comments_url(page.url, host):
                 raise RuntimeError("Unexpected comments destination")
-            selected = page.locator(".commentsSelectedSection")
-            if selected.count() != 1 or "Ваши отзывы" not in selected.first.inner_text():
-                raise RuntimeError("Owner review tab not selected")
+            # The site's tab has no guaranteed '.commentsSelectedSection'
+            # element; hidden filter comments_type=0 identifies 'Ваши отзывы'.
+            # Do not require a CSS class that is absent from the sample page.
+            filter_field = page.locator('input[name="comments_type"][value="0"]')
+            if filter_field.count() != 1:
+                raise RuntimeError("Owner reviews filter not confirmed")
             candidate = find_exact_review(page.content(), pid, expected_text)
             if candidate is None:
                 continue
