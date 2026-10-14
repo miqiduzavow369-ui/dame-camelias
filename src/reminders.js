@@ -34,7 +34,7 @@ export class OrderReminder {
       // Only this object's verified server-side callers can operate on credits.
       if (String(input.type||"").startsWith("credits_")) {
         const uid=String(input.userId||"");
-        if (!/^\\d{5,16}$/.test(uid))return Response.json({error:"invalid_user"},{status:400});
+        if (!/^\d{5,16}$/.test(uid))return Response.json({error:"invalid_user"},{status:400});
         let ledger=await storage.get("credits_v1");
         if(!ledger){
           ledger={grant:uid==="5866034656"?10:0,spent:0,claims:{},history:[],createdAt:now};
@@ -48,7 +48,7 @@ export class OrderReminder {
             available:balance,reserved:occupied,remaining:ledger.grant-ledger.spent});
         const key=String(input.kind)+":"+String(input.profileId||"");
         if(!["rating","review"].includes(input.kind) ||
-           !/^\\d{1,9}$/.test(String(input.profileId)) ||
+           !/^\d{1,9}$/.test(String(input.profileId)) ||
            !/^[a-f0-9]{12,16}$/.test(String(input.nonce||"")))
           return Response.json({error:"invalid_claim"},{status:400});
         if(input.type==="credits_reserve"){
