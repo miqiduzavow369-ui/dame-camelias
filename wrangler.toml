@@ -7,6 +7,11 @@ compatibility_date = "2026-09-01"
 [triggers]
 crons = ["0 7 * * *", "0 13 * * *", "0 19 * * *"]
 
+# Profile thumbnail images. Create R2 bucket dame-camelias-profile-photos in Cloudflare.
+[[r2_buckets]]
+binding = "PROFILE_PHOTOS"
+bucket_name = "dame-camelias-profile-photos"
+
 [[kv_namespaces]]
 binding = "VISITORS_KV"
 id = "a323fba4c8c84a7fb37e1e6a3a8264aa"
