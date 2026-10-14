@@ -138,6 +138,7 @@ async function profileKeyboard(env,id){
   return buttons([
   ...(!rating?[[{text:"⭐ Оценки",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
   ...(!review?[[{text:"✍️ Отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
+  ...(rating?[[{text:"📸 Получить подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
@@ -356,6 +357,41 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  const proofLoading=current?.step==="proof_loading" && data.mode==="proof";
+  if(proofLoading){
+    if(current.id!==id || current.nonce!==nonce || current.account!=="yan_first")
+      return new Response("Stale",{status:409});
+    const proof=data.proof;
+    if(data.status!=="found" || !proof || proof.account!=="yan_first" ||
+       !/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(proof.date||"") ||
+       typeof proof.image!=="string" || proof.image.length>950000 ||
+       !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.image))
+    {
+      await statePut(env,{...current,step:"publication_result"});
+      await say(env,send,"⚠️ Запись анкеты №"+id+
+        " пока не подтверждена в разделе «Проверенные». Повторной отправки оценок не будет.");
+      return Response.json({ok:true,proof:false});
+    }
+    if(id===VERIFIED_FIRST_PUBLICATION && proof.date!=="13.10.2026")
+      return new Response("Proof date mismatch",{status:409});
+    const binary=atob(proof.image);
+    const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+    if(bytes.length<1000 || bytes.length>700000 || bytes[0]!==255 || bytes[1]!==216)
+      return new Response("Invalid photo",{status:400});
+    const payload=new FormData();
+    payload.append("chat_id",OWNER_ID);
+    payload.append("caption","✅ ОЦЕНКА ПОДТВЕРЖДЕНА\n👨‍💻 Ян Первый\n🆔 Анкета №"+id+
+      "\n📅 "+proof.date+"\n📂 Intimcity → Проверенные");
+    payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+id+".jpg");
+    const telegramResponse=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
+      {method:"POST",body:payload});
+    if(!telegramResponse.ok)throw new Error("Proof telegram photo rejected: "+telegramResponse.status);
+    const telegramData=await telegramResponse.json();
+    if(!telegramData.ok)throw new Error("Proof telegram API rejected");
+    await recordPublication(env,id,"rating","published","verified-checked-list-screenshot");
+    await statePut(env,{...current,step:"publication_result",proofDeliveredAt:Date.now()});
+    return Response.json({ok:true,proof:true});
+  }
   const publishLoading=current?.step==="publishing" && data.mode==="publish";
   if(publishLoading){
     const attempt=data.publication||{};
@@ -615,6 +651,28 @@ export async function handleOwnerAnketa(update,env,send) {
     await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
       "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
       "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",accountPicker(account2[1]));
+    return true;
+  }
+  const proofRequest=/^owner_anketa:proof:(\d{1,9})$/.exec(data);
+  if(proofRequest){
+    const id=proofRequest[1];
+    if(!await selectedAccount(env,id)){
+      await showSaved(env,send,id);return true;
+    }
+    const rec=await savedGet(env,id);
+    const rated=await publicationStatus(env,id,"rating");
+    if(!rec || !rated){await say(env,send,"🌷 Оценка для этой анкеты ещё не публиковалась.");return true;}
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    await statePut(env,{step:"proof_loading",id,nonce,account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host});
+    let started=false;
+    try{started=(await dispatchLookup(env,id,nonce,"proof",rec.host)).ok;}catch{}
+    if(!started){
+      await statePut(env,{step:"publication_result",id,profile:rec.profile});
+      await say(env,send,"⚠️ Проверку пока не удалось запустить. Ничего на сайте не изменено.");
+      return true;
+    }
+    await say(env,send,"🔎 Проверяю опубликованную оценку анкеты №"+id+
+      " в разделе «Проверенные».\n📸 При совпадении пришлю скриншот. Оценки повторно не отправляются.");
     return true;
   }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
