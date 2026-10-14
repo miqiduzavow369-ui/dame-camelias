@@ -8,6 +8,8 @@ on:
       - src/owner_anketa.js
       - tests/owner_review_draft.test.mjs
       - .github/workflows/review-draft-checks.yml
+      - tools/review_verification.py
+      - tests/test_review_verification.py
 permissions:
   contents: read
 jobs:
@@ -23,3 +25,5 @@ jobs:
         run: node --check src/owner_anketa.js
       - name: Review draft tests
         run: node --test tests/owner_review_draft.test.mjs
+      - name: Read-only verification tests
+        run: python3 -m unittest discover -s tests -p test_review_verification.py
