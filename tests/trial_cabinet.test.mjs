@@ -71,3 +71,21 @@ test("client can request verification without touching owner records",async()=>{
  assert.equal(JSON.parse(m.records.get("cabinet_v2:5627932577:flow")).status,"failed");
  assert.equal([...m.records.keys()].some(k=>k.includes("5866034656")),false);
 });
+
+test("verified client profile displays its validated identity without restarting lookup",async()=>{
+ const m=mock(),uid=5627932577,id="698842";
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:open"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:add"),m.env,m.send);
+ await handleTrialCabinet(m.message(uid,"https://b.intimcity.rip/indi/anketa698842.htm"),m.env,m.send);
+ m.records.set("cabinet_v2:5627932577:saved:698842",JSON.stringify({
+  id,name:"Проверенная анкета",age:29,metro:"Центр",url:"https://b.intimcity.rip/indi/anketa698842.htm",
+  verifiedAt:Date.now()
+ }));
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:profile:698842"),m.env,m.send);
+ const last=m.sent.filter(x=>x.method==="sendMessage").at(-1).payload;
+ assert.match(last.text,/Проверенная анкета/);
+ assert.match(last.text,/698842/);
+ assert.equal(last.reply_markup.inline_keyboard.flat().some(b=>b.callback_data==="trial_cabinet:verify:698842"),false);
+ assert.equal(m.records.has("cabinet_v2:5627932577:flow"),false);
+});
