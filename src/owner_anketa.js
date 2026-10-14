@@ -855,10 +855,45 @@ export async function handleOwnerAnketa(update,env,send) {
     await navigationSay(env,send,"✅ ДОСТОВЕРНОСТЬ ПОДТВЕРЖДЕНА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
       "\n\n💬 Текст отзыва:\n\n"+current.text+
       "\n\nПодтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов."+
-      "\n\n🌷 Отзыв сохранён. Публикация пока недоступна.",
-      buttons([[{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
+      "\n\n✨ Всё готово. Для отправки нажмите кнопку публикации.",
+      buttons([[{text:"✅ Опубликовать отзыв",callback_data:"owner_anketa:reviewfinal:"+current.nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  const reviewFinal=/^owner_anketa:reviewfinal:([a-f0-9]{16})$/.exec(data);
+  if(reviewFinal){
+    const current=await stateGet(env);
+    if(current?.step!=="review_agreed" || current.nonce!==reviewFinal[1] ||
+       current.account!==ACTIVE_ACCOUNT || !ID_PATTERN.test(String(current.id)) ||
+       !(current.agreedAt>0) || Date.now()-current.agreedAt>15*60*1000 ||
+       typeof current.text!=="string" || current.text.length<10 || current.text.length>3000 ||
+       !await selectedAccount(env,current.id) || !await savedGet(env,current.id)){
+      await navigationSay(env,send,"🌷 Подтверждение устарело. Откройте анкету и проверьте отзыв заново.");return true;
+    }
+    if(await ensureNoRepeat(env,current.id,"review",send))return true;
+    let claimed;
+    try{claimed=await reviewGuard(env,current.id,"review_claim",current.nonce);}
+    catch{await navigationSay(env,send,"🌷 Не удалось защитить отзыв от повторов. Ничего не отправлено.");return true;}
+    if(!claimed.claimed){
+      await navigationSay(env,send,"🔒 Публикация уже начиналась. Повторная отправка запрещена.");return true;
+    }
+    await recordPublication(env,current.id,"review","publishing","atomic-owner-review-claim");
+    const saved=await savedGet(env,current.id);
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const next={...current,step:"review_dispatch",nonce,claimNonce:current.nonce,
+      payloadIssued:false,confirmedAt:Date.now()};
+    if(!saved || !await statePut(env,next)){
+      await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
+    }
+    await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+current.id+
+      "\\n\\n💕 Проверяем результат. Скоро пришлём подтверждение.");
+    let launched=false;
+    try{launched=(await dispatchLookup(env,current.id,nonce,"review_publish",saved.host)).ok;}catch{}
+    if(!launched)
+      await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\\n\\n🔒 Анкета №"+
+        current.id+" защищена от повторной отправки.");
+    return true;
   }
   const reviewEdit=/^owner_anketa:reviewedit:([a-f0-9]{16})$/.exec(data);
   if(reviewEdit){
