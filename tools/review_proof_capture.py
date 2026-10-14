@@ -20,8 +20,9 @@ def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
     try:
         page.set_viewport_size({"width": 1100, "height": 900})
         for index in range(max_pages):
-            # Site pageCommentsMy is 1-indexed; avoid an invalid page zero.
-            url = f"https://{host}/user_comments.php?comments_type=0&sort_mycomm=0&pageCommentsMy={index+1}"
+            # Site first page has no pageCommentsMy; the next-page link uses =1.
+            url = (f"https://{host}/user_comments.php?comments_type=0&sort_mycomm=0"
+                   + (f"&pageCommentsMy={index}" if index else ""))
             page.goto(url, wait_until="domcontentloaded", timeout=45000)
             if not validate_comments_url(page.url, host):
                 raise RuntimeError("Unexpected comments destination")
@@ -59,14 +60,33 @@ def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
             height=max(a["y"]+a["height"],b["y"]+b["height"])-y
             if x<0 or y<0 or width<200 or width>1400 or height<100 or height>1600:
                 raise RuntimeError("Invalid screenshot bounds")
+            # Match the working ratings proof: a real, fully decoded profile
+            # photo is mandatory. Never send a screenshot with an empty photo.
             photo=card.locator(".imganketa img")
-            if photo.count()==1:
-                try:
-                    photo.first.evaluate("""img=>{img.loading='eager'}""")
-                    photo.first.scroll_into_view_if_needed(timeout=10000)
-                    page.wait_for_timeout(500)
-                except Exception:
-                    pass
+            if photo.count()!=1:
+                raise RuntimeError("Matching review photo element missing")
+            photo=photo.first
+            photo.scroll_into_view_if_needed(timeout=10000)
+            try:
+                photo.evaluate("""async img => {
+                    img.loading='eager';
+                    if (!img.complete || !img.naturalWidth) {
+                        await new Promise((resolve,reject)=>{
+                            const timer=setTimeout(()=>reject(Error('photo-load-timeout')),12000);
+                            img.addEventListener('load',()=>{clearTimeout(timer);resolve()}, {once:true});
+                            img.addEventListener('error',()=>{clearTimeout(timer);reject(Error('photo-load-error'))}, {once:true});
+                            if(img.complete && img.naturalWidth){clearTimeout(timer);resolve()}
+                        });
+                    }
+                    if(img.decode) await img.decode();
+                    if(img.naturalWidth<40 || img.naturalHeight<40)
+                        throw Error('profile-photo-empty');
+                }""")
+            except Exception:
+                print("REVIEW_PROOF: photo not loaded; no screenshot sent",flush=True)
+                return None
+            print("REVIEW_PROOF: profile photo loaded",flush=True)
+            print("REVIEW_PROOF: matching card and text found; capturing photo and review",flush=True)
             jpeg=page.screenshot(type="jpeg",quality=78,clip={"x":x,"y":y,"width":width,"height":height},animations="disabled")
             if len(jpeg)<1000 or len(jpeg)>700000:
                 raise RuntimeError("Unexpected screenshot size")
