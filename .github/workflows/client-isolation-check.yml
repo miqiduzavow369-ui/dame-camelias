@@ -6,6 +6,8 @@ on:
     paths:
       - src/client_isolation.js
       - src/client_lookup.js
+      - tools/intimcity_profile_lookup.py
+      - .github/workflows/intimcity-profile-lookup.yml
       - tests/client_isolation.test.mjs
       - tests/client_lookup.test.mjs
       - .github/workflows/client-isolation-check.yml
@@ -25,5 +27,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - run: python -m py_compile tools/intimcity_profile_lookup.py
       - run: node --check src/client_isolation.js && node --check src/client_lookup.js
       - run: node --test tests/client_isolation.test.mjs tests/client_lookup.test.mjs tests/trial_cabinet.test.mjs
