@@ -45,7 +45,7 @@ async function cabinetPage(env,send,text,remaining,buttons){
       sent=body.result;
     }catch(e){console.error("Trial premium card fallback",String(e).slice(0,80));}
   }
-  if(!sent)sent=await reply(env,send,"🌹 DAME CAMELIAS\\n\\n🔐 ЛИЧНЫЙ КАБИНЕТ\\n\\n"+text,buttons);
+  if(!sent)sent=await reply(env,send,"🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n\n"+text,buttons);
   if(Number.isSafeInteger(sent?.message_id)){
     await put(env,"navigation",{id:sent.message_id,at:Date.now()});
     if(Number.isSafeInteger(previous?.id)&&previous.id!==sent.message_id)
