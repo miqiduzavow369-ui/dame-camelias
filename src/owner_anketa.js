@@ -1289,16 +1289,38 @@ export async function handleOwnerAnketa(update,env,send) {
         current.id+" защищена от повторной отправки.");
     return true;
   }
+  const reviewDraft=/^owner_anketa:reviewdraft:([a-f0-9]{16})$/.exec(data);
+  if(reviewDraft){
+    const draft=await stateGet(env);
+    if(draft?.step!=="review_input" || draft.editing!==true ||
+       draft.nonce!==reviewDraft[1] || !ID_PATTERN.test(String(draft.id)) ||
+       !await selectedAccount(env,draft.id) || !await savedGet(env,draft.id) ||
+       await publicationStatus(env,draft.id,"review") ||
+       typeof draft.text!=="string" || draft.text.length<10 || draft.text.length>3000){
+      await showLibrary(env,send);return true;
+    }
+    await statePut(env,{...draft,step:"review_preview",editing:false,agreedAt:null});
+    await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+draft.id+
+      "\n\n💬 Ваш текст:\n\n"+draft.text+
+      "\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
+      buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+draft.nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+draft.nonce}],
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+draft.id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));
+    return true;
+  }
   const reviewEdit=/^owner_anketa:reviewedit:([a-f0-9]{16})$/.exec(data);
   if(reviewEdit){
     const current=await stateGet(env);
     if(!["review_preview","review_agreed"].includes(current?.step)||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
       await showLibrary(env,send);return true;
     }
-    await statePut(env,{step:"review_input",id:current.id,account:ACTIVE_ACCOUNT});
+    await statePut(env,{...current,step:"review_input",editing:true,agreedAt:null});
     await navigationSay(env,send,"✍️ ИЗМЕНИТЬ ОТЗЫВ\n\n🌹 Анкета №"+current.id+
-      "\n\n💬 Пришлите исправленный текст одним сообщением.",
-      buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
+      "\n\n💬 Ваш предыдущий текст сохранён:\n\n"+current.text+
+      "\n\nПришлите исправленный текст одним сообщением или вернитесь к черновику.",
+      buttons([[{text:"↩️ К черновику",callback_data:"owner_anketa:reviewdraft:"+current.nonce}],
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
   }
   if (typedLink) {
     await trackAnketaMessage(env,msg?.message_id);
