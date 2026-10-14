@@ -39,6 +39,21 @@ export class OrderReminder {
         await storage.put("review_claim",{status:"submission_maybe_sent",at:now,nonce:input.nonce});
         return Response.json({claimed:true,status:"submission_maybe_sent"});
       }
+      if (input.type === "review_submit_boundary") {
+        const claim=await storage.get("review_claim");
+        if (!claim || claim.nonce!==input.nonce || claim.status!=="submission_maybe_sent")
+          return Response.json({ok:false},{status:409});
+        await storage.put("review_claim",{...claim,status:"submission_started",boundaryAt:now});
+        return Response.json({ok:true});
+      }
+      if (input.type === "review_preflight_failed") {
+        const claim=await storage.get("review_claim");
+        if (!claim || claim.nonce!==input.nonce || claim.status!=="submission_maybe_sent")
+          return Response.json({ok:false},{status:409});
+        // No attempt was made, but NEVER release or erase claim automatically.
+        await storage.put("review_claim",{...claim,status:"preflight_failed",failedAt:now});
+        return Response.json({ok:true});
+      }
       if (input.type === "review_status") {
         const claim=await storage.get("review_claim");
         return Response.json({claimed:!!claim,status:claim?.status||"available"});
