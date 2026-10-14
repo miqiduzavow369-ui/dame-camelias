@@ -11,8 +11,13 @@ function setup(){
     get:async (key)=>store.has(key)?JSON.parse(store.get(key)):null,
     put:async (key,value)=>{store.set(key,value);},
     delete:async key=>{store.delete(key);}
+  },ORDER_REMINDERS:{
+    idFromName:name=>name,
+    get:()=>({fetch:async()=>Response.json({ok:true,available:10,remaining:10,balance:10})})
   }};
   let next=100;
+  // Tests model an owner who has already passed the cabinet PIN challenge.
+  store.set("owner_cabinet_session:"+OWNER,JSON.stringify({authorized:true,telegramId:String(OWNER)}));
   const send=async (_env,method,payload)=>{
     actions.push({method,payload});
     return {message_id:next++};
@@ -71,7 +76,7 @@ test("consent is explicit and editing clears it",async()=>{
  await handleOwnerAnketa(s.cb("owner_anketa:reviewedit:"+draft.nonce),s.env,s.send);
  const changed=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
  assert.equal(changed.step,"review_input");
- assert.equal(changed.agreedAt,undefined);
+ assert.equal(changed.agreedAt,null);
 });
 
 test("review publication requires consent, claims once and issues single private grant",async()=>{
@@ -95,6 +100,9 @@ test("review publication requires consent, claims once and issues single private
         claimed.set(name,true);
         return Response.json({claimed:true,status:"submission_maybe_sent"});
       }
+      if(data.type==="credits_status")return Response.json({ok:true,available:10,remaining:10});
+      if(data.type==="daily_status")return Response.json({ok:true,remaining:2});
+      if(data.type==="daily_reserve"||data.type==="credits_reserve")return Response.json({ok:true});
       if(data.type==="review_status")return Response.json({
         claimed:claimed.has(name),status:claimed.has(name)?"submission_maybe_sent":"available"});
       return Response.json({ok:true});
