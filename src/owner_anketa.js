@@ -223,9 +223,51 @@ async function showAccountPicker(env,send,id){
   const dailyLine=today?
     "\n\n📅 СЕГОДНЯ ДОСТУПНО "+today.remaining+" "+(today.remaining===1?"ПУБЛИКАЦИЯ":"ПУБЛИКАЦИИ"):
     "\n\n📅 ДНЕВНОЙ ЛИМИТ ВРЕМЕННО НЕДОСТУПЕН";
-  await profileBannerNavigation(env,send,record,id,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n👥 Выберите аккаунт для работы с анкетой:"+dailyLine+
-    "\n🕛 Обновление счётчика в 00:00 по московскому времени.",await accountPicker(env,id));
+  const message="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
+    "\n\n👥 Выберите аккаунт для работы с анкетой:";
+  const limitText="📅 ДЛЯ ЭТОЙ АНКЕТЫ СЕГОДНЯ ДОСТУПНО "+
+    (today?today.remaining:"—")+" ПУБЛИКАЦИИ\n\n🕛 Обновление в 00:00 по московскому времени.";
+  const keys=await accountPicker(env,id);
+  if(today){
+    let firstId=null;
+    try{
+      const card=await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer");
+      if(card){
+        const first=await send(env,"sendPhoto",{chat_id:OWNER_ID,
+          photo:profileCardUrl(id,record.host),caption:message});
+        firstId=first?.message_id;
+        if(!Number.isSafeInteger(firstId))throw Error("Profile photo not delivered");
+        const image=await renderCreditsBanner(id,today.remaining,"profile");
+        const form=new FormData();
+        form.set("chat_id",OWNER_ID);
+        form.set("caption",limitText);
+        form.set("reply_markup",JSON.stringify(keys));
+        form.set("photo",new Blob([image],{type:"image/png"}),"today.png");
+        const reply=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
+          method:"POST",body:form,signal:AbortSignal.timeout(14000)});
+        const result=await reply.json();
+        if(!reply.ok || !result.ok || !Number.isSafeInteger(result.result?.message_id))
+          throw Error("Daily banner not delivered");
+        const lastId=result.result.message_id;
+        await trackAnketaMessage(env,firstId);
+        await trackAnketaMessage(env,lastId);
+        let oldNav=null;
+        try{oldNav=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+        await env.VISITORS_KV.put(NAV_MESSAGE_KEY,JSON.stringify({id:lastId,at:Date.now()}),{expirationTtl:172800});
+        await clearExtraNavigation(env,send);
+        await env.VISITORS_KV.put(EXTRA_NAV_KEY,JSON.stringify({id:firstId,at:Date.now()}),{expirationTtl:172800});
+        if(Number.isSafeInteger(oldNav?.id)&&oldNav.id!==lastId)
+          try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:oldNav.id});}catch{}
+        return;
+      }
+    }catch(e){
+      console.error("Profile daily premium banner fallback",String(e));
+      if(Number.isSafeInteger(firstId))
+        try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:firstId});}catch{}
+    }
+  }
+  await profileBannerNavigation(env,send,record,id,message+dailyLine+
+    "\n🕛 Обновление счётчика в 00:00 по московскому времени.",keys);
 }
 
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
@@ -368,6 +410,7 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
   }
 }
 async function showLibrary(env,send){
+  await clearExtraNavigation(env,send);
   const ids=await libraryGet(env);
   let balance;
   try{balance=await credits(env,OWNER_ID,"status");}
@@ -437,6 +480,7 @@ async function requireCredit(env,send){
   }
 }
 async function profileBannerNavigation(env,send,record,id,text,markup){
+  await clearExtraNavigation(env,send);
   const photo=profileCardUrl(id,record.host);
   const hasCard=!!(await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer").catch(()=>null));
   // Navigation photo is profile-specific and replaces only the prior navigation message.
@@ -474,9 +518,19 @@ async function showSaved(env,send,id) {
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const CLIENT_FLOW_KEY="owner_anketa_client_flow:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
+const EXTRA_NAV_KEY="owner_anketa_navigation_extra:"+OWNER_ID;
+async function clearExtraNavigation(env,send){
+  let old=null;
+  try{old=await env.VISITORS_KV?.get(EXTRA_NAV_KEY,"json");}catch{}
+  if(Number.isSafeInteger(old?.id))
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:old.id});}catch{}
+  try{await env.VISITORS_KV?.delete(EXTRA_NAV_KEY);}catch{}
+}
+
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
 async function navigationSay(env,send,text,reply_markup,parse_mode){
+  await clearExtraNavigation(env,send);
   const rows=Array.isArray(reply_markup?.inline_keyboard)?reply_markup.inline_keyboard:[];
   const hasHome=rows.some(row=>row.some(button=>button.callback_data==="owner_anketa:home"));
   const markup=buttons(hasHome?rows:[...rows,[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]);
