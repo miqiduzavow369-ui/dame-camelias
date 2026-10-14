@@ -65,6 +65,7 @@ async function closeProofMessages(env,send,callbackMessageId){
   try{await env.VISITORS_KV?.delete(PROOF_MESSAGE_KEY);}catch{}
 }
 function proofNav(id){return buttons([
+  [{text:"🌹 Спасибо",callback_data:"owner_anketa:proofthanks:"+id}],
   [{text:"🌹 К анкете",callback_data:"owner_anketa:saved:"+id}],
   [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
@@ -355,6 +356,7 @@ async function showSaved(env,send,id) {
     ]));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
+const CLIENT_FLOW_KEY="owner_anketa_client_flow:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
@@ -386,6 +388,33 @@ async function trackAnketaMessage(env,id){
     recent.push({id,at:Date.now()});
     await env.VISITORS_KV.put(CHAT_IDS_KEY,JSON.stringify(recent.slice(-150)),{expirationTtl:172800});
   }catch(e){console.error("Owner anketa message tracking unavailable",e);}
+}
+async function startClientFlow(env,id){
+  if(!env.VISITORS_KV)return;
+  try{await env.VISITORS_KV.put(CLIENT_FLOW_KEY,JSON.stringify({id:String(id),since:Date.now()}),{expirationTtl:172800});}catch{}
+}
+async function closeClientFlow(env,send,id,proofMessageId){
+  let scope=null;
+  try{scope=await env.VISITORS_KV?.get(CLIENT_FLOW_KEY,"json");}catch{}
+  // Never delete historical chat messages if the flow marker is unavailable.
+  if(scope?.id===String(id) && Number.isFinite(scope.since)){
+    let messages=[];
+    try{messages=await env.VISITORS_KV?.get(CHAT_IDS_KEY,"json")||[];}catch{}
+    if(Array.isArray(messages)){
+      const eligible=messages.filter(x=>Number.isSafeInteger(x.id)&&
+        Number(x.at)>=scope.since && Date.now()-Number(x.at)<47*3600000);
+      const failed=[];
+      for(const entry of eligible){
+        try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:entry.id});}
+        catch{failed.push(entry);}
+      }
+      const remaining=messages.filter(x=>Number(x.at)<scope.since).concat(failed).slice(-150);
+      try{await env.VISITORS_KV?.put(CHAT_IDS_KEY,JSON.stringify(remaining),{expirationTtl:172800});}catch{}
+    }
+    try{await env.VISITORS_KV?.delete(CLIENT_FLOW_KEY);}catch{}
+  }
+  await closeProofMessages(env,send,proofMessageId);
+  await clearProgress(env,send);
 }
 async function cleanAnketaChat(env,send){
   if(!env.VISITORS_KV)return;
@@ -1279,6 +1308,20 @@ export async function handleOwnerAnketa(update,env,send) {
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     return true;
   }
+  const proofThanks=/^owner_anketa:proofthanks:(\\d{1,9})$/.exec(data);
+  if(proofThanks){
+    const id=proofThanks[1];
+    await closeClientFlow(env,send,id,cb?.message?.message_id);
+    if(!await savedGet(env,id)){await showLibrary(env,send);return true;}
+    if(!await chooseAccount(env,id)){await showSaved(env,send,id);return true;}
+    const summary=await availabilitySummary(env,id,ACTIVE_ACCOUNT);
+    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,id,
+      "👥 КЛИЕНТ\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n\\n🌹 Ваша анкета №"+id+
+      "\\n\\n"+summary+"\\n\\n💕 Выберите действие:",
+      await profileKeyboard(env,id));
+    await startClientFlow(env,id);
+    return true;
+  }
   const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
   if(savedMenu){await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await showSaved(env,send,savedMenu[1]);return true;}
   const accountList=new RegExp("^owner_anketa:accounts:([0-9]{1,9})$").exec(data);
@@ -1290,6 +1333,7 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await chooseAccount(env,account1[1])){
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
+    await startClientFlow(env,account1[1]);
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
     await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+account1[1]+
       "\n\n"+summary+
