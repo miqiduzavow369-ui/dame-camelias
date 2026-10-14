@@ -733,7 +733,9 @@ export async function handleOwnerAnketa(update,env,send) {
   const isProfileLink=owner && Boolean(msg?.text) && Boolean(parseProfileLink(txt));
   const typedLink=owner && Boolean(msg?.text) &&
     (isProfileLink || (state?.step==="number" && /^https?:\/\//i.test(txt)));
-  if (!ownerAction && !typedLink) return false;
+  const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
+    ["review_input","review_preview"].includes(state?.step) && !txt.startsWith("/");
+  if (!ownerAction && !typedLink && !reviewText) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
     return true;
@@ -749,6 +751,35 @@ export async function handleOwnerAnketa(update,env,send) {
   if (command==="/anketa") {
     const url=txt.split(/\s+/)[1] ?? "";
     await inspect(env,send,url); return true;
+  }
+  if(reviewText){
+    const id=String(state?.id||"");
+    if(!ID_PATTERN.test(id)||!await savedGet(env,id)||!await selectedAccount(env,id)||await publicationStatus(env,id,"review")){
+      await showLibrary(env,send);return true;
+    }
+    if(txt.length<10||txt.length>3000){
+      await navigationSay(env,send,"✍️ Отзыв должен содержать от 10 до 3000 символов. Пришлите исправленный текст.",
+        buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}]]));return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
+    await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:txt,nonce});
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
+    await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+id+
+      "\\n\\n💬 Ваш текст:\\n\\n"+txt+"\\n\\n🌷 Проверьте содержание. Публикация пока недоступна.",
+      buttons([[{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  const reviewEdit=/^owner_anketa:reviewedit:([a-f0-9]{16})$/.exec(data);
+  if(reviewEdit){
+    const current=await stateGet(env);
+    if(current?.step!=="review_preview"||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
+      await showLibrary(env,send);return true;
+    }
+    await statePut(env,{step:"review_input",id:current.id,account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"✍️ ИЗМЕНИТЬ ОТЗЫВ\\n\\n🌹 Анкета №"+current.id+
+      "\\n\\n💬 Пришлите исправленный текст одним сообщением.",
+      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
   }
   if (typedLink) {
     await trackAnketaMessage(env,msg?.message_id);
@@ -809,7 +840,11 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(await ensureNoRepeat(env,savedReview[1],"review",send))return true;
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",await profileKeyboard(env,savedReview[1]));
+    await statePut(env,{step:"review_input",id:savedReview[1],account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+savedReview[1]+
+      "\\n\\n💬 Отправьте текст отзыва одним сообщением.\\n\\n✨ Затем сможете проверить и изменить его.",
+      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+savedReview[1]}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));
     return true;
   }
   const savedRating=/^owner_anketa:savedrating:(\d{1,9})$/.exec(data);
