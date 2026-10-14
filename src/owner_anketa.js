@@ -956,7 +956,7 @@ export async function handleOwnerAnketa(update,env,send) {
       ". Домен обновлю только после отправки скриншота в Telegram.");
     return true;
   }
-  if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
+  if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);let nav=null;try{nav=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{} if(Number.isSafeInteger(nav?.id)){try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:nav.id});}catch{}} await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
     if(data==="owner_anketa:open")await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);
