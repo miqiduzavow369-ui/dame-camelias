@@ -22,6 +22,7 @@ class FakePage:
 class FakeLocator:
     def __init__(self,selector): self.selector=selector
     def count(self): return 1 if self.selector=='input[name="comments_type"][value="0"]' else 0
+    def filter(self, **kwargs): return self
     @property
     def first(self): return self
     def inner_text(self): return "Ваши отзывы (15)"
