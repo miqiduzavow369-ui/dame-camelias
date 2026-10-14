@@ -558,12 +558,12 @@ export async function handleAnketaLookupResult(request,env,send) {
     const verified=validProfile(data.profile,id,current.host);
     if(data.status!=="found"||!verified){
       await statePut(env,{step:"domain_recovery",id,mode:current.mode});
-      await navigationSay(env,send,"🌷 Не удалось подтвердить работу ссылки. Проверьте домен и пришлите актуальную ссылку на эту же анкету №"+id+".\\n\\n🔒 Все сохранённые данные и блокировки повторной публикации остаются без изменений.");
+      await navigationSay(env,send,"🌷 Не удалось подтвердить работу ссылки. Проверьте домен и пришлите актуальную ссылку на эту же анкету №"+id+".\n\n🔒 Все сохранённые данные и блокировки повторной публикации остаются без изменений.");
       return Response.json({ok:true,domainUpdated:false});
     }
     const changed=await switchVerifiedDomain(env,current.host);
     await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
-    await navigationSay(env,send,"✅ АКТУАЛЬНЫЙ ДОМЕН ПОДТВЕРЖДЁН\\n\\n🌹 Анкета №"+id+"\\n🔗 https://"+current.host+"/\\n💾 Обновлены адреса сохранённых анкет: "+changed+".\\n\\n⭐ Оценки, ✍️ отзывы и история сохранены без повторной публикации.\\n\\nОткройте анкету и нажмите «🔎 Проверить отзыв» ещё раз.",buttons([[{text:"🌹 К анкете №"+id,callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
+    await navigationSay(env,send,"✅ АКТУАЛЬНЫЙ ДОМЕН ПОДТВЕРЖДЁН\n\n🌹 Анкета №"+id+"\n🔗 https://"+current.host+"/\n💾 Обновлены адреса сохранённых анкет: "+changed+".\n\n⭐ Оценки, ✍️ отзывы и история сохранены без повторной публикации.\n\nОткройте анкету и нажмите «🔎 Проверить отзыв» ещё раз.",buttons([[{text:"🌹 К анкете №"+id,callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
     return Response.json({ok:true,domainUpdated:true});
   }
   if(["review_publish","review_proof"].includes(data.mode)){
@@ -609,7 +609,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       attempted:publication.attempted===true});
     if(data.mode==="review_proof" && data.status==="error"){
       await statePut(env,{step:"domain_recovery",id,mode:"review_proof"});
-      await navigationSay(env,send,"🌷 Извините, возможно, сайт перешёл на другой домен или временно недоступен.\\n\\n🔗 Пришлите, пожалуйста, актуальную рабочую ссылку на страницу анкеты №"+id+".\\n\\n💕 Я проверю её и обновлю адреса сохранённых анкет. Оценки и отзывы останутся на месте.\\n🔒 Повторной публикации не будет.",buttons([[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
+      await navigationSay(env,send,"🌷 Извините, возможно, сайт перешёл на другой домен или временно недоступен.\n\n🔗 Пришлите, пожалуйста, актуальную рабочую ссылку на страницу анкеты №"+id+".\n\n💕 Я проверю её и обновлю адреса сохранённых анкет. Оценки и отзывы останутся на месте.\n🔒 Повторной публикации не будет.",buttons([[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
       return Response.json({ok:true,domainRecoveryRequested:true});
     }
     await progressSay(env,send,"🌷 Публикацию отзыва пока не удалось подтвердить.\n\n🌹 Анкета №"+id+
@@ -913,7 +913,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await navigationSay(env,send,"🌷 Сейчас не получилось проверить новый адрес. Пришлите ссылку ещё раз позже.");
       return true;
     }
-    await navigationSay(env,send,"🔎 Проверяю новый адрес анкеты №"+link.id+"…\\n\\n💾 Сохранённые данные обновлю только после подтверждения страницы.");
+    await navigationSay(env,send,"🔎 Проверяю новый адрес анкеты №"+link.id+"…\n\n💾 Сохранённые данные обновлю только после подтверждения страницы.");
     return true;
   }
   if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
@@ -979,8 +979,8 @@ export async function handleOwnerAnketa(update,env,send) {
       ...(!["preflight_failed","submission_started","submission_maybe_sent"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
     ];
     if(faults.length){
-      await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\\n\\n"+
-        faults.map(x=>"• "+x).join("\\n")+"\\n\\n"+
+      await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
+        faults.map(x=>"• "+x).join("\n")+"\n\n"+
         "Ничего на сайт не отправлено. Не снимайте блокировку вручную.",
         buttons([[{text:"👨‍💻 Выбрать Ян Первый",callback_data:"owner_anketa:account1:652282"}],
           [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:652282"}]]));return true;
