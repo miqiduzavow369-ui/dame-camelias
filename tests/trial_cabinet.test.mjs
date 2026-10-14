@@ -28,7 +28,7 @@ test("requires correct PIN, stores profile only under trial namespace",async()=>
  await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
  await handleTrialCabinet(m.callback(uid,"trial_cabinet:add"),m.env,m.send);
  await handleTrialCabinet(m.message(uid,"https://a.intimcity.rip/indi/anketa12345.htm"),m.env,m.send);
- assert.ok(m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.text.includes("Анкета №12345"));
+ assert.ok(m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.reply_markup.inline_keyboard.flat().some(b=>b.text.includes("АНКЕТА №12345")));
  assert.ok([...m.records.keys()].every(k=>k.startsWith("trial_cabinet_v1:5627932577:")));
  assert.equal(m.records.has("owner_anketa_library:5866034656"),false);
 });
