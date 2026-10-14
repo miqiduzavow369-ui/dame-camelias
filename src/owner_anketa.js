@@ -266,20 +266,35 @@ const libraryKeyboard=ids=>buttons([
 // v1 publication records belong exclusively to yan_first. Never copy their
 // statuses to yan_second; its history will use account-scoped keys at rollout.
 async function availabilitySummary(env,id,account){
-  if(account!=="yan_first")return "⭐ Оценки — 🔒 НЕ ПОДКЛЮЧЁН\n✍️ Отзывы — 🔒 НЕ ПОДКЛЮЧЁН";
-  // On storage errors never present an unknown slot as available.
-  if(!env.VISITORS_KV)return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+  if(account!=="yan_first")return "🔒 Аккаунт не подключён.";
+  if(!env.VISITORS_KV)return "⚠️ Не удалось проверить историю публикаций.";
   try{
     const [rating,review]=await Promise.all([
       publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
     ]);
-    const label=status=>status?.status==="published"?"🆗 ВЫ ОПУБЛИКОВАЛИ":
-      status?"🔒 ТРЕБУЕТ ПРОВЕРКИ":"🟢 ДОСТУПНО";
-    return "⭐ Оценки — "+label(rating)+"\n✍️ Отзывы — "+label(review);
+    const available=[];
+    const completed=[];
+    const uncertain=[];
+    for(const [status,noun,description] of [
+      [rating,"⭐ 1 оценка","⭐ Оценку вы уже опубликовали ранее."],
+      [review,"✍️ 1 отзыв","✍️ Отзыв вы уже опубликовали ранее."]
+    ]){
+      if(!status)available.push("<b>"+noun+"</b>");
+      else if(status.status==="published")completed.push(description);
+      else uncertain.push((noun.startsWith("⭐")?"⭐ Оценка":"✍️ Отзыв")+" — ⚠️ Требуется проверка.");
+    }
+    if(available.length===0 && uncertain.length===0)
+      return "<b>✅ Все доступные публикации завершены!</b>\n\n"+completed.join("\n");
+    const parts=[];
+    if(available.length)parts.push("Для данной анкеты доступны:\n\n"+available.join("\n"));
+    if(completed.length)parts.push(completed.join("\n"));
+    if(uncertain.length)parts.push(uncertain.join("\n")+"\n🔒 Повторная публикация до проверки недоступна.");
+    return parts.join("\n\n");
   }catch{
-    return "⭐ Оценки — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзывы — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+    return "⚠️ Не удалось проверить историю публикаций. Повторную публикацию не начинайте.";
   }
 }
+
 async function profileKeyboard(env,id){
   const rating=await publicationStatus(env,id,"rating");
   const review=await publicationStatus(env,id,"review");
@@ -298,17 +313,17 @@ async function profileKeyboard(env,id){
 const ACCOUNT_CARD_FILES={yan_first:"yan_first.jpg"};
 async function accountCardNavigation(env,send,account,id,text,reply_markup){
   const file=ACCOUNT_CARD_FILES[account];
-  if(!file)return navigationSay(env,send,text,reply_markup);
+  if(!file)return navigationSay(env,send,text,reply_markup,"HTML");
   const url="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/"+file;
   // Check before asking Telegram to fetch the photo, so missing assets
   // do not interrupt the account menu during a staged deployment.
   try{
     const image=await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(5000)});
     if(!image.ok || !String(image.headers.get("content-type")||"").startsWith("image/"))
-      return navigationSay(env,send,text,reply_markup);
+      return navigationSay(env,send,text,reply_markup,"HTML");
     const rows=reply_markup?.inline_keyboard||[];
     const markup=buttons([...rows,...(rows.some(r=>r.some(x=>x.callback_data==="owner_anketa:home"))?[]:[[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]])]);
-    const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:text,reply_markup:markup});
+    const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:text,parse_mode:"HTML",reply_markup:markup});
     await trackAnketaMessage(env,result?.message_id);
     let old=null;
     try{old=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
@@ -318,7 +333,7 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
       try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:old.id});}catch{}
     return result;
   }catch{
-    return navigationSay(env,send,text,reply_markup);
+    return navigationSay(env,send,text,reply_markup,"HTML");
   }
 }
 async function showLibrary(env,send){
@@ -343,18 +358,18 @@ const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
-async function navigationSay(env,send,text,reply_markup){
+async function navigationSay(env,send,text,reply_markup,parse_mode){
   const rows=Array.isArray(reply_markup?.inline_keyboard)?reply_markup.inline_keyboard:[];
   const hasHome=rows.some(row=>row.some(button=>button.callback_data==="owner_anketa:home"));
   const markup=buttons(hasHome?rows:[...rows,[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]);
   let previous=null;
   try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
   if(Number.isSafeInteger(previous?.id)){
-    try{const edited=await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:previous.id,text,reply_markup:markup});
+    try{const edited=await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:previous.id,text,reply_markup:markup,...(parse_mode?{parse_mode}:{})});
       if(edited)return edited;
     }catch(e){if(String(e).includes("message is not modified"))return {message_id:previous.id};}
   }
-  const response=await say(env,send,text,markup);
+  const response=await say(env,send,text,markup,parse_mode);
   const id=response?.message_id;
   if(!Number.isSafeInteger(id)||!env.VISITORS_KV)return response;
   try{await env.VISITORS_KV.put(NAV_MESSAGE_KEY,JSON.stringify({id,at:Date.now()}),{expirationTtl:172800});}catch{}
@@ -391,8 +406,8 @@ function buttons(rows) { return {inline_keyboard:rows}; }
 const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback_data:"owner_anketa:change"}];
 // Keep meaningful bot replies and found-profile cards in Telegram history.
 // Only the transient progress message is updated; owner-entered IDs are cleaned up.
-async function say(env, send, text, reply_markup) {
-  const response=await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{})});
+async function say(env, send, text, reply_markup, parse_mode) {
+  const response=await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{}),...(parse_mode?{parse_mode}:{})});
   await trackAnketaMessage(env,response?.message_id);
   return response;
 }
@@ -1271,8 +1286,8 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
-    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
-      "\n\nДля данной анкеты доступны:\n\n"+summary+
+    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+account1[1]+
+      "\n\n"+summary+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
   }
