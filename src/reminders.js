@@ -54,6 +54,22 @@ export class OrderReminder {
         await storage.put("review_claim",{...claim,status:"preflight_failed",failedAt:now});
         return Response.json({ok:true});
       }
+      // One-time recovery of the 2026-10-14 incident only. Never general unlock.
+      if (input.type === "review_recover_652282") {
+        if (input.account!=="yan_first" || String(input.profileId)!=="652282" ||
+            !/^[a-f0-9]{16}$/.test(String(input.nonce)))
+          return Response.json({ok:false,reason:"scope"},{status:403});
+        const claim=await storage.get("review_claim");
+        if (!claim || claim.nonce!==input.nonce ||
+            claim.status!=="submission_maybe_sent" || claim.boundaryAt ||
+            await storage.get("review_recovery_652282"))
+          return Response.json({ok:false,reason:"not-eligible"},{status:409});
+        await storage.put("review_recovery_652282",{
+          at:now,oldNonce:claim.nonce,status:"owner-confirmed-absent"
+        });
+        await storage.delete("review_claim");
+        return Response.json({ok:true});
+      }
       if (input.type === "review_status") {
         const claim=await storage.get("review_claim");
         return Response.json({claimed:!!claim,status:claim?.status||"available"});
