@@ -32,3 +32,14 @@ test("requires correct PIN, stores profile only under trial namespace",async()=>
  assert.ok([...m.records.keys()].every(k=>k.startsWith("trial_cabinet_v1:5627932577:")));
  assert.equal(m.records.has("owner_anketa_library:5866034656"),false);
 });
+
+test("five wrong PIN attempts lock a fresh login for fifteen minutes",async()=>{
+ const m=mock(),uid=5627932577;
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:open"),m.env,m.send);
+ for(let i=0;i<4;i++)await handleTrialCabinet(m.message(uid,"0000"),m.env,m.send);
+ assert.ok(m.records.has("trial_cabinet_v1:5627932577:lock"));
+ await handleTrialCabinet(m.callback(uid,"trial_cabinet:open"),m.env,m.send);
+ assert.match(m.sent.at(-1).payload.text,/заблокирован/);
+ await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
+ assert.equal(m.records.has("trial_cabinet_v1:5627932577:session"),false);
+});
