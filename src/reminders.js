@@ -27,6 +27,28 @@ export class OrderReminder {
       const storage = this.ctx.storage;
       const state = await storage.get("state") || {};
       const now = Date.now();
+      // Dedicated DO identities for one-shot owner review submission.
+      // Durable Object storage serializes claims; unlike KV get+put,
+      // concurrent Telegram callbacks cannot each win the same claim.
+      if (input.type === "review_claim") {
+        if (input.account !== "yan_first" || !/^\\d{1,9}$/.test(String(input.profileId)) ||
+            !/^[a-f0-9]{16}$/.test(String(input.nonce)))
+          return Response.json({claimed:false,reason:"invalid"},{status:400});
+        const claim = await storage.get("review_claim");
+        if (claim) return Response.json({claimed:false,status:claim.status});
+        await storage.put("review_claim",{status:"submission_maybe_sent",at:now,nonce:input.nonce});
+        return Response.json({claimed:true,status:"submission_maybe_sent"});
+      }
+      if (input.type === "review_status") {
+        const claim=await storage.get("review_claim");
+        return Response.json({claimed:!!claim,status:claim?.status||"available"});
+      }
+      if (input.type === "review_verified") {
+        const claim=await storage.get("review_claim");
+        if (!claim || claim.nonce!==input.nonce) return Response.json({ok:false},{status:409});
+        await storage.put("review_claim",{...claim,status:"published",verifiedAt:now});
+        return Response.json({ok:true});
+      }
       if (input.type === "activity") {
         // Ignore duplicate and out-of-order Telegram updates.
         if (Number.isSafeInteger(input.updateId) && input.updateId <= (state.updateId ?? -1)) return Response.json({handled:false});
