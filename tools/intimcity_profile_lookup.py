@@ -116,6 +116,52 @@ def extract(page, profile_id):
     return {"id": profile_id, "name": name, "age": years, "metro": location,
             "url": f"https://{OWNER_HOST}/indi/anketa{profile_id}.htm", "photoUrl": photo}
 
+def capture_verified_proof(ctx, pid, expected_date=None):
+    """Read-only proof from the owner's checked list. Never interact with submission forms."""
+    import base64
+    page=ctx.new_page()
+    try:
+        page.set_viewport_size({"width":1100,"height":900})
+        page.goto(f"https://{OWNER_HOST}/user_checked.php",wait_until="domcontentloaded",timeout=45000)
+        if urlparse(page.url).hostname!=OWNER_HOST or urlparse(page.url).path!="/user_checked.php":
+            raise RuntimeError("Unexpected checked-list destination")
+        heading=page.locator("h1").first.inner_text(timeout=15000).strip()
+        if "Проверенные анкеты" not in heading:
+            raise RuntimeError("Authenticated checked-list heading missing")
+        card=page.locator(f"#ankcrd{pid}")
+        if card.count()!=1:
+            print("PROOF: profile card missing or ambiguous",flush=True)
+            return None
+        # In the provided HTML, each story card is followed by its OWN rating table.
+        result=page.evaluate("""({id,date}) => {
+            const card=document.getElementById('ankcrd'+id);
+            if(!card)return null;
+            const link=card.querySelector('a[href$="/anketa'+id+'.htm"]');
+            const table=card.nextElementSibling;
+            if(!link || !table || !table.matches('table.rating-block-wrapper'))return null;
+            const rating=table.querySelector('.rating-block');
+            const stamp=table.querySelector('[title="Дата выставления оценки"]');
+            if(!rating || !stamp)return null;
+            const actual=(stamp.textContent||'').trim();
+            if(date && actual!==date)return null;
+            const a=card.getBoundingClientRect(),b=table.getBoundingClientRect();
+            return {date:actual,x:Math.max(0,Math.floor(a.left+scrollX)),
+                y:Math.max(0,Math.floor(a.top+scrollY)),
+                width:Math.ceil(Math.max(a.right,b.right)-Math.min(a.left,b.left)),
+                height:Math.ceil(b.bottom-a.top)};
+        }""",{"id":pid,"date":expected_date})
+        if not result or result["width"]<200 or result["height"]<100 or result["height"]>1500 or result["width"]>1400:
+            print("PROOF: missing or mismatched checked rating",flush=True)
+            return None
+        image=page.screenshot(type="jpeg",quality=78,clip={k:result[k] for k in ("x","y","width","height")},animations="disabled")
+        if len(image)>700000:
+            raise RuntimeError("Proof image too large")
+        print("PROOF: matching checked entry captured",flush=True)
+        return {"date":result["date"],"image":base64.b64encode(image).decode("ascii"),
+                "mime":"image/jpeg","account":"yan_first"}
+    finally:
+        page.close()
+
 def inspect(pid, mode='profile'):
     host = required("PROXY_HOST")
     server = "http://" + host + ":6408"
@@ -175,6 +221,8 @@ def inspect(pid, mode='profile'):
                   (str(logout).lower(),str(account).lower(),str(password_visible).lower()),flush=True)
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
+            if mode=="proof":
+                return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
             print("LOOKUP_STAGE: search-profile")
             search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
@@ -533,7 +581,7 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings","mapping","dryfill","publish"):
+    if mode not in ("profile","ratings","mapping","dryfill","publish","proof"):
         raise RuntimeError("Invalid lookup mode")
     try:
         if mode in ("dryfill","publish"):
@@ -551,9 +599,9 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
-    profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish") and isinstance(result,dict) else result
+    profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish","proof") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"mode":mode,"status":status})
+    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":
