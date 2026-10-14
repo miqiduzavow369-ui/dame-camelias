@@ -180,7 +180,7 @@ export async function handleTrialCabinet(update,env,send) {
   let remaining="недоступен";
   try {
     const balance=await credits(env,USER_ID,"status");
-    remaining=String(balance.available??balance.remaining??balance.balance??"уточняется");
+    remaining=String(balance.remaining??balance.available??balance.balance??"уточняется");
   }catch{}
   
   const rows=[...profiles.map(p=>[{text:"🌹 АНКЕТА №"+p.id,callback_data:"trial_cabinet:profile:"+p.id}]),...menu.inline_keyboard];
