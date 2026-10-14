@@ -62,3 +62,24 @@ test("authenticated client result reaches only matching client and stores verifi
  assert.equal(replay.status,409);
  assert.equal(sent.length,1);
 });
+
+test("client callback rejects identities without a pending verified lookup",async()=>{
+ const records=new Map();
+ const env={ANKETA_CALLBACK_TOKEN:"secret",VISITORS_KV:{
+   get:async k=>records.has(k)?JSON.parse(records.get(k)):null,
+   put:async(k,v)=>records.set(k,v)
+ }};
+ let delivered=0;
+ const send=async()=>{delivered++;return {message_id:1};};
+ for(const candidate of ["12345678","5866034656","5627932577"]){
+  const body={...result,user_id:candidate};
+  const request=new Request("https://worker.test/api/anketa/result",{
+   method:"POST",headers:{Authorization:"Bearer secret","Content-Type":"application/json"},
+   body:JSON.stringify(body)
+  });
+  const response=await clientLookupCallback(request,env,send);
+  assert.ok(response.status===400||response.status===409);
+ }
+ assert.equal(delivered,0);
+ assert.equal(records.size,0);
+});
