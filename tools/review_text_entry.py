@@ -12,9 +12,10 @@ def stage_review_text(page, approved_text):
     field = page.locator('textarea[name="personcomment"]')
     if field.count() != 1 or not field.is_visible():
         raise RuntimeError("Expected exactly one visible new-review field")
-    # Never touch existing-review editor textarea[name="comment_text"].
-    if page.locator('textarea[name="comment_text"]').count() > 1:
-        raise RuntimeError("Ambiguous edit fields")
+    # Existing published reviews are displayed as multiple read-only
+    # textarea[name="comment_text"] elements. They are unrelated to the
+    # single editable textarea[name="personcomment"] and must not block it.
+    # Never interact with any existing-review textarea.
     split = len(approved_text) // 2
     first, second = approved_text[:split], approved_text[split:]
     # Fill once and then append; do not navigate, reload, or clear after first half.
