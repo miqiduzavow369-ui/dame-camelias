@@ -1477,7 +1477,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const rec=await savedGet(env,savedRating[1]);
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    if(rec.catalog?.length && !rec.profile?.photoUrl){
+    if(rec.catalog?.length && (!rec.profile?.photoUrl || !rec.profile.photoUrl.startsWith("https://cdn2.intimtur.com/"))){
       // One-time thumbnail backfill for existing saved profiles.
       const refreshNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
       await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:rec.profile.id,
