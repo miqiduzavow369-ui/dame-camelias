@@ -240,7 +240,7 @@ async function showAccountPicker(env,send,id){
         const dailyPhoto=dailyCardUrl(today.remaining);
         if(!dailyPhoto)throw Error("Missing prepared daily PNG");
         const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,
-          photo:dailyPhoto,caption:limitText,reply_markup:keys});
+          photo:dailyPhoto,caption:"🕛 Обновление в 00:00 по московскому времени.",reply_markup:keys});
         if(!Number.isSafeInteger(result?.message_id))
           throw Error("Prepared daily banner not delivered");
         const lastId=result.message_id;
@@ -435,7 +435,7 @@ async function showLibrary(env,send){
   const url=balanceCardUrl(remaining);
   if(url){
     try{
-      const response=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:heading+info,reply_markup:keys});
+      const response=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:"🆔 Telegram ID: "+OWNER_ID+info,reply_markup:keys});
       if(!Number.isSafeInteger(response?.message_id))throw Error("Telegram premium card not sent");
       await trackAnketaMessage(env,response.message_id);
       let previous=null;
