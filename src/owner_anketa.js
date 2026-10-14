@@ -457,6 +457,7 @@ async function showLibrary(env,send){
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
   const url=balanceCardUrl(remaining);
+  let bannerError="not_in_library";
   if(url){
     try{
       const response=await sendPreparedCard(env,url,"🆔 Telegram ID: "+OWNER_ID+info,keys);
@@ -468,9 +469,13 @@ async function showLibrary(env,send){
       if(Number.isSafeInteger(previous?.id)&&previous.id!==response.message_id)
         try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
       return;
-    }catch(e){console.error("Prepared premium card unavailable",String(e));}
+    }catch(e){
+      bannerError=String(e?.message||e).slice(0,160);
+      console.error("Prepared premium card unavailable",bannerError);
+    }
   }
-  await navigationSay(env,send,heading+info,keys);
+  // Temporary owner-only diagnostic; remove after the premium image works.
+  await navigationSay(env,send,heading+info+"\n\n🛠 Диагностика плашки v2: "+bannerError,keys);
 }
 async function reserveDailySlot(env,send,id,kind,nonce){
   const date=moscowDay();
