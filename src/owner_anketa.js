@@ -231,8 +231,11 @@ async function savedGet(env,id) {
 async function savedPut(env,record) {
   if(!env.VISITORS_KV||!record?.profile||!ID_PATTERN.test(String(record.profile.id)))return false;
   const id=String(record.profile.id);
+  const previous=await savedGet(env,id);
+  const profile={...record.profile,
+    photoUrl:record.profile.photoUrl || previous?.profile?.photoUrl || ""};
   await env.VISITORS_KV.put(PROFILE_KEY+id,JSON.stringify({
-    profile:record.profile,host:record.host,catalog:Array.isArray(record.catalog)?record.catalog:[],
+    profile,host:record.host,catalog:Array.isArray(record.catalog)?record.catalog:[],
     confirmed:true,updatedAt:Date.now()
   }));
   const ids=await libraryGet(env);
@@ -1474,6 +1477,19 @@ export async function handleOwnerAnketa(update,env,send) {
     const rec=await savedGet(env,savedRating[1]);
     if(!rec){await showLibrary(env,send);return true;}
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    if(rec.catalog?.length && !rec.profile?.photoUrl){
+      // One-time thumbnail backfill for existing saved profiles.
+      const refreshNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+      await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:rec.profile.id,
+        nonce:refreshNonce,previousNonce:refreshNonce,profile:rec.profile,host:rec.host});
+      let refreshed=false;
+      try{refreshed=(await dispatchLookup(env,rec.profile.id,refreshNonce,"ratings",rec.host)).ok;}catch{}
+      if(refreshed){
+        await navigationSay(env,send,"🌹 Обновляю фотографию анкеты №"+rec.profile.id+
+          ".\\n\\n💕 Сохранённые оценки и история публикаций останутся на месте.");
+        return true;
+      }
+    }
     if(rec.catalog?.length){
       await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
       await navigationSay(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
