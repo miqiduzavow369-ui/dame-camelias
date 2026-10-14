@@ -1,6 +1,7 @@
 // Owner-only questionnaire. Profile identity must come from a verified
 // proxy-backed lookup service; never guess a name, age, or district.
 import {reviewGuard} from "./review_publication_guard.js";
+import {credits} from "./publication_credits.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const CABINET_SESSION_KEY = "owner_cabinet_session:"+OWNER_ID;
@@ -358,12 +359,39 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
   }
 }
 async function showLibrary(env,send){
-  // Keep important audit and publication reports in the conversation.
   const ids=await libraryGet(env);
-  await navigationSay(env,send,ids.length?
-    "🌹 МОИ АНКЕТЫ DAME CAMELIAS\n\n💕 Выберите сохранённую анкету — проверять её повторно не потребуется.\n\n✨ Или добавьте новую по актуальной ссылке.":
-    "🌹 DAME CAMELIAS\n\n💕 Пока нет сохранённых анкет. Приглашаю добавить первую!",
-    libraryKeyboard(ids));
+  let balance;
+  try{balance=await credits(env,OWNER_ID,"status");}
+  catch{
+    await navigationSay(env,send,"⚠️ Сейчас не удалось проверить баланс публикаций. Пожалуйста, попробуйте позже.",
+      buttons([[{text:"🔄 Обновить кабинет",callback_data:"owner_anketa:open"}]]));
+    return;
+  }
+  const remaining=balance.remaining;
+  const heading="🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n🆔 Telegram ID: "+OWNER_ID+
+    "\n\n💎 ВАМ ДОСТУПНО: "+remaining+" ПУБЛИКАЦИЙ";
+  const info=remaining>0?
+    "\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.":
+    "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌹 Обратитесь к администратору за заказом публикаций.";
+  const keys=remaining>0?libraryKeyboard(ids):buttons([
+    ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
+    [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
+    [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+  ]);
+  await navigationSay(env,send,heading+info,keys);
+}
+async function requireCredit(env,send){
+  try{
+    const balance=await credits(env,OWNER_ID,"status");
+    if(balance.available>0)return true;
+    await say(env,send,"💎 Доступных публикаций: 0.\n\n🌹 Обратитесь к администратору за новым заказом.",
+      buttons([[{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
+        [{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]]));
+    return false;
+  }catch{
+    await say(env,send,"⚠️ Не удалось проверить баланс. Публикация не начата.");
+    return false;
+  }
 }
 async function profileBannerNavigation(env,send,record,id,text,markup){
   const photo=profileCardUrl(id,record.host);
