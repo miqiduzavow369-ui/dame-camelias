@@ -60,7 +60,7 @@ test("submit boundary prevents reclassification as safe preflight failure",async
  assert.equal((await reviewGuard(env,"652282","review_status")).status,"submission_started");
 });
 
-test("owner recovery cannot run before preflight completes or for wrong profile",async()=>{
+test("owner recovery accepts legacy maybe-sent only for specific profile",async()=>{
  const m=new Map();
  const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v),
  delete:async k=>m.delete(k)},blockConcurrencyWhile:fn=>fn()};
@@ -69,8 +69,7 @@ test("owner recovery cannot run before preflight completes or for wrong profile"
  const old="cccccccccccccccc",newNonce="dddddddddddddddd";
  assert.equal((await reviewGuard(env,"652282","review_claim",old)).claimed,true);
  await assert.rejects(reviewGuard(env,"652283","review_recover_652282",old));
- await assert.rejects(reviewGuard(env,"652282","review_recover_652282",old));
- await reviewGuard(env,"652282","review_preflight_failed",old);
+
  const r=await reviewGuard(env,"652282","review_recover_652282",old);
  assert.equal(r.ok,true);
  assert.equal((await reviewGuard(env,"652282","review_status")).claimed,false);
