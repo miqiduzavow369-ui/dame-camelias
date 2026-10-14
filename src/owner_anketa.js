@@ -717,7 +717,7 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
-  if (data==="owner_anketa:home") {await cleanAnketaChat(env,send);await clearProgress(env,send);await showLibrary(env,send);return true;}
+  if (data==="owner_anketa:home") {await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
     await showLibrary(env,send); return true;
