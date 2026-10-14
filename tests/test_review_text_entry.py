@@ -34,7 +34,20 @@ class EntryTests(unittest.TestCase):
     def test_no_auto_submit(self):
         page=Page()
         stage_review_text(page,"Реальный текст настоящего отзыва")
-        self.assertEqual(page.selectors,['textarea[name="personcomment"]','textarea[name="comment_text"]'])
+        self.assertEqual(page.selectors,['textarea[name="personcomment"]'])
+    def test_existing_readonly_reviews_never_block_entry(self):
+        page=Page()
+        class ExistingReviews:
+            def count(self): return 12
+        base=page.locator
+        def lookup(selector):
+            if selector=='textarea[name="comment_text"]':
+                raise AssertionError("Existing published reviews must not be inspected")
+            return base(selector)
+        page.locator=lookup
+        text="Настоящий отзыв, который прошёл подтверждение владельца"
+        self.assertTrue(stage_review_text(page,text))
+        self.assertEqual(page.field.value,text)
     def test_reject_short(self):
         with self.assertRaises(ValueError): stage_review_text(Page(),"Кратко")
     def test_reject_extra_whitespace(self):
