@@ -564,10 +564,10 @@ function validProfile(data, id, host) {
   if(typeof data.photoUrl==="string" && data.photoUrl.length<1600){
     try{
       const u=new URL(data.photoUrl);
-      if(u.protocol==="https:" && (["cdn2.intimtur.com",host].includes(u.hostname) ||
-          u.href===thumbnailUrl(id,host)) &&
-          !u.username && !u.password && !u.port && !u.search && !u.hash &&
-          /\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))photoUrl=u.href;
+      if(u.protocol==="https:" && !u.username && !u.password && !u.port && !u.hash &&
+          (u.href===thumbnailUrl(id,host) ||
+            (["cdn2.intimtur.com",host].includes(u.hostname) && !u.search &&
+              /\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))))photoUrl=u.href;
     }catch{}
   }
   return {id,name:data.name.trim(),age:data.age,metro:data.metro.trim(),url:data.url,photoUrl};
