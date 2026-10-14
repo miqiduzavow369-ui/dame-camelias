@@ -31,16 +31,12 @@ class FakeContext:
     def new_page(self):return self.page
 
 class CaptureSafetyTests(unittest.TestCase):
-    def test_pages_scanned_without_submission_when_not_found(self):
+    def test_missing_owner_tab_fails_closed_without_submission(self):
         page=FakePage("https://b.intimcity.rip/user_comments.php","<html></html>")
-        result=capture.capture_review_proof(FakeContext(page),"b.intimcity.rip","652282",
-              "Настоящий согласованный отзыв",max_pages=3)
-        self.assertIsNone(result)
-        self.assertEqual(len(page.visits),3)
-        self.assertTrue(all("/user_comments.php?" in x for x in page.visits))
-        self.assertTrue(all("comments_type=0" in x for x in page.visits))
-        self.assertNotIn("pageCommentsMy=",page.visits[0])
-        self.assertEqual([x.split("pageCommentsMy=")[-1] for x in page.visits[1:]],["1","2"])
+        with self.assertRaisesRegex(RuntimeError,"Your reviews tab not selected"):
+            capture.capture_review_proof(FakeContext(page),"b.intimcity.rip","652282",
+                  "Настоящий согласованный отзыв",max_pages=3)
+        self.assertEqual(page.visits,["https://b.intimcity.rip/user_comments.php"])
     def test_invalid_host_rejected_before_navigation(self):
         page=FakePage("","")
         with self.assertRaises(ValueError):
