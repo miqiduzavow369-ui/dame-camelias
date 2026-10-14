@@ -32,6 +32,38 @@ export class OrderReminder {
       // concurrent Telegram callbacks cannot each win the same claim.
       // Per-Telegram-ID publication credits; independent of reminder data.
       // Only this object's verified server-side callers can operate on credits.
+      // Per-profile daily limit, shared by every bot client.
+      // Each Moscow calendar day has an independent atomic Durable Object identity.
+      if (String(input.type||"").startsWith("daily_")) {
+        if (!/^\d{1,9}$/.test(String(input.profileId)) ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(String(input.moscowDate)))
+          return Response.json({error:"invalid_daily_profile"},{status:400});
+        const used=await storage.get("daily_claims")||{};
+        const occupied=Object.keys(used).length;
+        if(input.type==="daily_status")
+          return Response.json({remaining:Math.max(0,2-occupied),limit:2});
+        const key=String(input.kind)+":"+String(input.profileId)+":"+String(input.userId);
+        const nonce=String(input.nonce||"");
+        if(!["rating","review"].includes(input.kind)|| !/^\d{5,16}$/.test(String(input.userId)) ||
+           !/^[a-f0-9]{12,16}$/.test(nonce))
+          return Response.json({ok:false,reason:"invalid"},{status:400});
+        if(input.type==="daily_reserve"){
+          if(used[key])return Response.json({ok:false,reason:"already_reserved"});
+          if(occupied>=2)return Response.json({ok:false,reason:"limit_reached"});
+          used[key]={status:"reserved",nonce,at:now};
+          await storage.put("daily_claims",used);
+          return Response.json({ok:true,remaining:1-occupied});
+        }
+        if(input.type==="daily_complete"){
+          if(!used[key]||used[key].nonce!==nonce)return Response.json({ok:false},{status:409});
+          if(used[key].status!=="completed"){
+            used[key].status="completed";used[key].verifiedAt=now;
+            await storage.put("daily_claims",used);
+          }
+          return Response.json({ok:true,remaining:Math.max(0,2-Object.keys(used).length)});
+        }
+        return Response.json({error:"unknown_daily_action"},{status:400});
+      }
       if (String(input.type||"").startsWith("credits_")) {
         const uid=String(input.userId||"");
         if (!/^\d{5,16}$/.test(uid))return Response.json({error:"invalid_user"},{status:400});
