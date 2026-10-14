@@ -380,8 +380,8 @@ export async function handleAnketaLookupResult(request,env,send) {
       return new Response("Invalid photo",{status:400});
     const payload=new FormData();
     payload.append("chat_id",OWNER_ID);
-    payload.append("caption","✅ ОЦЕНКА ПОДТВЕРЖДЕНА\n👨‍💻 Ян Первый\n🆔 Анкета №"+id+
-      "\n📅 "+proof.date+"\n📂 Intimcity → Проверенные");
+    payload.append("caption","🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваши оценки опубликованы!\n👨‍💻 Клиент - Ян Первый\n🆔 Анкета №"+id+
+      "\n📅 "+proof.date+"\n📸 Подтверждение публикации прилагается.");
     payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+id+".jpg");
     const telegramResponse=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
       {method:"POST",body:payload});
@@ -409,7 +409,21 @@ export async function handleAnketaLookupResult(request,env,send) {
       confirmed:attempt.confirmed===true,
       confirmedBy:typeof attempt.confirmedBy==="string"?attempt.confirmedBy.slice(0,70):"",
       at:Date.now()},readyAt:null,dispatchPending:false};
-    await statePut(env,next);
+    if(attempt.attempted===true){
+      // Verification only: no second submit. Use the existing authenticated
+      // account/proxy through the read-only "proof" workflow mode.
+      const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+      const verifyState={...next,step:"proof_loading",nonce:proofNonce,
+        account:ACTIVE_ACCOUNT,previousNonce:nonce};
+      await statePut(env,verifyState);
+      let proofStarted=false;
+      try {proofStarted=(await dispatchLookup(env,id,proofNonce,"proof",current.host)).ok;}catch{}
+      if(proofStarted){
+        await say(env,send,"🔎 Оценки отправлены. Проверяю запись в разделе «Проверенные» и готовлю скриншот. Повторной отправки не будет.");
+        return Response.json({ok:true,proofStarted:true});
+      }
+      await statePut(env,next);
+    }
     const title=attempt.confirmed===true?"✅ ПУБЛИКАЦИЯ ПОДТВЕРЖДЕНА":
        attempt.attempted===true||!data.publication?"⚠️ РЕЗУЛЬТАТ ПУБЛИКАЦИИ НЕ ПОДТВЕРЖДЁН":
        "❌ ПУБЛИКАЦИЯ НЕ ВЫПОЛНЕНА";
