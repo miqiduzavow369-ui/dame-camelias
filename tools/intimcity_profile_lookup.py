@@ -826,7 +826,10 @@ def main():
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
     profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish","proof","review_publish","review_proof") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"review_publication":result.get("review_publication") if mode in ("review_publish","review_proof") and isinstance(result,dict) else None,"mode":mode,"status":status})
+    user_id=os.environ.get("INTIMCITY_LOOKUP_USER_ID","").strip()
+    if user_id and (not user_id.isdecimal() or not 5<=len(user_id)<=16):
+        raise RuntimeError("Invalid client lookup identity")
+    callback({"user_id":user_id,"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"review_publication":result.get("review_publication") if mode in ("review_publish","review_proof") and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":
