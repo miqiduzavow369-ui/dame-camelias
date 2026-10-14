@@ -1,4 +1,5 @@
 import { reminderCall } from "./reminders.js";
+import { handleTrialCabinet } from "./trial_cabinet.js";
 import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerReviewStage, ownerRatingFormApi, serveProfileThumbnail } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
@@ -104,7 +105,7 @@ async function sendPhotoFile(env, data, url) {
 }
 function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}]]};
-  if (key === "home") return { inline_keyboard: String(env.__ownerMenuChatId ?? "") === "5866034656" ? [...MAIN, [{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : MAIN };
+  if (key === "home") { const id=String(env.__ownerMenuChatId ?? ""); return {inline_keyboard: id==="5866034656" ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : id==="5627932577" ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN}; }
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
     [{text:"📝 Оставить заявку",callback_data:"order"}],
@@ -351,6 +352,12 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  const trialHandled = await handleTrialCabinet(update, env, telegram);
+  if (trialHandled) {
+    if (trialHandled==="home" && update.callback_query?.message?.chat?.id)
+      await sendPage(env,update.callback_query.message.chat.id,"home");
+    return;
+  }
   const ownerHandled = await handleOwnerAnketa(update, env, telegram);
   if (ownerHandled) {
     // The owner module removes its temporary navigation on "В начало".
