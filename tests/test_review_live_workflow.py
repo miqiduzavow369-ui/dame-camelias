@@ -90,4 +90,17 @@ class LiveReviewTests(unittest.TestCase):
             run_review(ctx,"../../etc/passwd",HOST,"review_publish",TEXT)
         self.assertEqual(ctx.calls,0)
 
+    def test_review_publish_requires_profile_opened_through_search(self):
+        ctx=Context()
+        with patch("review_live_workflow.capture_review_proof",return_value=None):
+            with self.assertRaises(RuntimeError):
+                run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None)
+        self.assertEqual(Form.submit.clicked,0)
+    def test_no_direct_page_navigation_for_review(self):
+        ctx=Context()
+        with patch("review_live_workflow.capture_review_proof",return_value=None):
+            run_review(ctx,PID,HOST,"review_publish",TEXT,
+                       report_stage=lambda kind:None,profile_page=ctx.page)
+        self.assertEqual(ctx.calls,0)
+
 if __name__=="__main__":unittest.main()
