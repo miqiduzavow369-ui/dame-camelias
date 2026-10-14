@@ -45,6 +45,7 @@ class Page:
     def goto(self,url,**kw):self.url=url
     def locator(self,selector):
         if selector=='textarea[name="personcomment"]':return self.field
+        if selector=='textarea[name="comment_text"]':return type("Empty",(),{"count":lambda self:0})()
         raise AssertionError(selector)
     def wait_for_timeout(self,t):self.waits.append(t)
     def close(self):pass
