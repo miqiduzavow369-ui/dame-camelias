@@ -1308,7 +1308,7 @@ export async function handleOwnerAnketa(update,env,send) {
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     return true;
   }
-  const proofThanks=/^owner_anketa:proofthanks:(\\d{1,9})$/.exec(data);
+  const proofThanks=/^owner_anketa:proofthanks:(\d{1,9})$/.exec(data);
   if(proofThanks){
     const id=proofThanks[1];
     await closeClientFlow(env,send,id,cb?.message?.message_id);
@@ -1316,8 +1316,8 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await chooseAccount(env,id)){await showSaved(env,send,id);return true;}
     const summary=await availabilitySummary(env,id,ACTIVE_ACCOUNT);
     await accountCardNavigation(env,send,ACTIVE_ACCOUNT,id,
-      "👥 КЛИЕНТ\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n\\n🌹 Ваша анкета №"+id+
-      "\\n\\n"+summary+"\\n\\n💕 Выберите действие:",
+      "👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+id+
+      "\n\n"+summary+"\n\n💕 Выберите действие:",
       await profileKeyboard(env,id));
     await startClientFlow(env,id);
     return true;
