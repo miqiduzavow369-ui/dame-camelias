@@ -902,7 +902,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       (current.metElsewhere===true?"\n\n☑️ Галочка «Встречался по другой анкете»: "+(extraOk?"проверена":"не сопоставлена"):"")+
       "\n\n🌷 Значения проверены только во временном браузере. Форма на Intimcity не отправлялась.",
       buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
     return Response.json({ok:true,dryfill:ok});
   }
   if(auditLoading) {
@@ -945,7 +945,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       (misses.length?"\n\n"+misses.slice(0,25).join("\n"):"")+
       "\n\n🌷 Режим только чтения. Ни одно поле на сайте не изменено и ничего не опубликовано.",
       buttons([[{text:"⭐ Открыть оценки",callback_data:"owner_anketa:savedrating:"+id}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}]]));
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
     return Response.json({ok:true,audit:true,matched,total});
   }
   if(ratingsLoading) {
@@ -1129,7 +1129,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(txt.length<10||txt.length>3000){
       await navigationSay(env,send,"✍️ Отзыв должен содержать от 10 до 3000 символов. Пришлите исправленный текст.",
-        buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}]]));return true;
+        buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
     await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:txt,nonce});
@@ -1138,7 +1138,7 @@ export async function handleOwnerAnketa(update,env,send) {
       "\n\n💬 Ваш текст:\n\n"+txt+"\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
       buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
         [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}],
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
   const reviewAgree=/^owner_anketa:reviewagree:([a-f0-9]{16})$/.exec(data);
@@ -1155,7 +1155,7 @@ export async function handleOwnerAnketa(update,env,send) {
       "\n\n✨ Всё готово. Для отправки нажмите кнопку публикации.",
       buttons([[{text:"✅ Опубликовать отзыв",callback_data:"owner_anketa:reviewfinal:"+current.nonce}],
         [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
   if(data==="owner_anketa:reviewrecoverask:652282"){
@@ -1307,7 +1307,7 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{step:"review_input",id:current.id,account:ACTIVE_ACCOUNT});
     await navigationSay(env,send,"✍️ ИЗМЕНИТЬ ОТЗЫВ\n\n🌹 Анкета №"+current.id+
       "\n\n💬 Пришлите исправленный текст одним сообщением.",
-      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
+      buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
   }
   if (typedLink) {
     await trackAnketaMessage(env,msg?.message_id);
@@ -1409,7 +1409,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
       await navigationSay(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+savedRating[1]}]]));
+        [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedRating[1]}]]));
       return true;
     }
     await statePut(env,{step:"ratings_loading",account:ACTIVE_ACCOUNT,id:rec.profile.id,nonce,previousNonce:nonce,profile:rec.profile,host:rec.host});
