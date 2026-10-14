@@ -15,7 +15,7 @@ async function pinDigest(pin){
 }
 async function cabinetAuthorized(env){
   if(!env.VISITORS_KV)return false;
-  try{return (await env.VISITORS_KV.get(CABINET_SESSION_KEY,"json"))?.expiresAt>Date.now();}catch{return false;}
+  try{return (await env.VISITORS_KV.get(CABINET_SESSION_KEY,"json"))?.authorized===true;}catch{return false;}
 }
 async function cabinetChallenge(env,send){
   if(!env.VISITORS_KV){await navigationSay(env,send,"⚠️ Вход временно недоступен: хранилище не отвечает.");return;}
@@ -954,7 +954,7 @@ export async function handleOwnerAnketa(update,env,send) {
       const configuredHash=String(env.OWNER_CABINET_PIN_SHA256||INITIAL_OWNER_PIN_HASH).toLowerCase();
       const matched=await pinDigest(txt)===configuredHash;
       if(matched){
-        await env.VISITORS_KV.put(CABINET_SESSION_KEY,JSON.stringify({expiresAt:Date.now()+12*3600000}),{expirationTtl:43200});
+        await env.VISITORS_KV.put(CABINET_SESSION_KEY,JSON.stringify({authorized:true,telegramId:OWNER_ID,verifiedAt:new Date().toISOString()}));
         await env.VISITORS_KV.delete(CABINET_PENDING_KEY);
         await env.VISITORS_KV.delete(CABINET_FAIL_KEY);
         await showLibrary(env,send);
@@ -967,7 +967,6 @@ export async function handleOwnerAnketa(update,env,send) {
     if(ownerAction || (msg?.text && parseProfileLink(txt))){
       if(data==="owner_anketa:home"){
         await env.VISITORS_KV?.delete(CABINET_PENDING_KEY).catch(()=>{});
-        await env.VISITORS_KV?.delete(CABINET_SESSION_KEY).catch(()=>{});
       }else if(!(await cabinetAuthorized(env))){
         if(cb)await send(env,"answerCallbackQuery",{callback_query_id:cb.id}).catch(()=>{});
         const failed=Number(await env.VISITORS_KV?.get(CABINET_FAIL_KEY).catch(()=>0)||0);
@@ -988,7 +987,7 @@ export async function handleOwnerAnketa(update,env,send) {
     (isProfileLink || (["number","domain_recovery"].includes(state?.step) && /^https?:\/\//i.test(txt)));
   const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
     ["review_input","review_preview"].includes(state?.step) && !txt.startsWith("/");
-  // Expired cabinet sessions must not allow continuing a pending review draft.
+  // Cabinet access is permanent for a whitelisted ID after one successful PIN check.
   if(reviewText && !(await cabinetAuthorized(env))){
     await cabinetChallenge(env,send);
     return true;
