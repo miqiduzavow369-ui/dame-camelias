@@ -440,10 +440,28 @@ def inspect(pid, mode='profile'):
                             namefont=ImageFont.truetype(font_bold,44)
                             smallfont=ImageFont.truetype(fontfile,27)
                             draw.text((220,32),"DAME CAMELIAS",font=titlefont,fill=gold)
-                            name=str(profile.get("name") or "").replace("\\n"," ").strip()
-                            while name and draw.textbbox((0,0),name,font=namefont)[2]>540:
+                            # DejaVu Sans cannot render many emoji: it creates
+                            # empty squares around names such as 💖Милая Ева💖.
+                            # Keep the original name in Telegram's caption;
+                            # render a clean Cyrillic name on the banner and
+                            # add decorative hearts for names containing hearts.
+                            import unicodedata
+                            raw_name=str(profile.get("name") or "").replace("\\n"," ").strip()
+                            has_hearts=any(char in raw_name for char in "💖💗💕💓💘❤️♥")
+                            name="".join(char for char in raw_name
+                                if char.isalnum() or char in " -_.'’")
+                            name=" ".join(name.split()).strip() or "Анкета"
+                            if has_hearts:
+                                draw.text((221,108),"♥",font=ImageFont.truetype(fontfile,31),fill=(239,93,150))
+                            name_x=267 if has_hearts else 220
+                            max_name_width=746-name_x-(40 if has_hearts else 0)
+                            while len(name)>1 and draw.textbbox((0,0),name,font=namefont)[2]>max_name_width:
                                 name=name[:-1]
-                            draw.text((220,96),name or "Анкета",font=namefont,fill=(241,224,192))
+                            draw.text((name_x,96),name,font=namefont,fill=(241,224,192))
+                            if has_hearts:
+                                name_width=draw.textbbox((0,0),name,font=namefont)[2]
+                                draw.text((name_x+name_width+9,108),"♥",
+                                    font=ImageFont.truetype(fontfile,31),fill=(239,93,150))
                             draw.text((220,167),"Анкета №"+pid,font=smallfont,fill=(205,179,143))
                             output=BytesIO()
                             canvas.save(output,format="JPEG",quality=77,optimize=True)
