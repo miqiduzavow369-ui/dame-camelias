@@ -95,7 +95,7 @@ async function sendPhotoFile(env, data, url) {
 }
 function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}]]};
-  if (key === "home") return { inline_keyboard: String(env.__ownerMenuChatId ?? "") === "5866034656" ? [...MAIN, [{text:"🔐 АНКЕТА",callback_data:"owner_anketa:open"}]] : MAIN };
+  if (key === "home") return { inline_keyboard: String(env.__ownerMenuChatId ?? "") === "5866034656" ? [...MAIN, [{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : MAIN };
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
     [{text:"📝 Оставить заявку",callback_data:"order"}],
