@@ -9,10 +9,10 @@ from urllib.parse import urlparse
 from review_verification import find_exact_review, validate_comments_url
 
 def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
-    if not re.fullmatch(r"[a-z0-9-]+\\.intimcity\\.rip", host):
+    if not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip", host):
         raise ValueError("Invalid host")
     pid = str(profile_id)
-    if not re.fullmatch(r"\\d{1,9}", pid):
+    if not re.fullmatch(r"\d{1,9}", pid):
         raise ValueError("Invalid profile ID")
     if not isinstance(expected_text, str) or not 10 <= len(expected_text) <= 3000:
         raise ValueError("Invalid review text")
