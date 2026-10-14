@@ -2,6 +2,7 @@
 // proxy-backed lookup service; never guess a name, age, or district.
 import {reviewGuard} from "./review_publication_guard.js";
 import {credits} from "./publication_credits.js";
+import {dailyLimit,moscowDay} from "./daily_publication_limit.js";
 import {renderCreditsBanner} from "./credits_banner.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
@@ -216,8 +217,15 @@ async function accountPicker(env,id){
 async function showAccountPicker(env,send,id){
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
+  let today;
+  try{today=await dailyLimit(env,OWNER_ID,id,"status");}
+  catch{today=null;}
+  const dailyLine=today?
+    "\n\n📅 СЕГОДНЯ ДОСТУПНО "+today.remaining+" "+(today.remaining===1?"ПУБЛИКАЦИЯ":"ПУБЛИКАЦИИ"):
+    "\n\n📅 ДНЕВНОЙ ЛИМИТ ВРЕМЕННО НЕДОСТУПЕН";
   await profileBannerNavigation(env,send,record,id,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n👥 Выберите аккаунт для работы с анкетой:",await accountPicker(env,id));
+    "\n\n👥 Выберите аккаунт для работы с анкетой:"+dailyLine+
+    "\n🕛 Обновление счётчика в 00:00 по московскому времени.",await accountPicker(env,id));
 }
 
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
