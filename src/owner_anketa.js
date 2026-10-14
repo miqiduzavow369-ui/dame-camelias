@@ -464,6 +464,23 @@ export async function ownerDryfillPayload(request,env) {
   return Response.json({selections,metElsewhere:state.metElsewhere===true},
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
+export async function ownerReviewStage(request,env) {
+  if(!env.ANKETA_CALLBACK_TOKEN ||
+     request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+    return new Response("Forbidden",{status:403});
+  let data;
+  try{data=await request.json();}catch{return new Response("Bad JSON",{status:400});}
+  const id=String(data.profile_id||""),nonce=String(data.nonce||"");
+  if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce)||
+     !["review_submit_boundary","review_preflight_failed"].includes(data.type))
+    return new Response("Invalid stage",{status:400});
+  const state=await stateGet(env);
+  if(state?.step!=="review_dispatch" || state.id!==id || state.nonce!==nonce ||
+     state.account!=="yan_first" || !/^[a-f0-9]{16}$/.test(state.claimNonce||"") ||
+     state.payloadIssued!==true)return new Response("Stale",{status:409});
+  const result=await reviewGuard(env,id,data.type,state.claimNonce);
+  return Response.json(result,{status:result.ok?200:409});
+}
 export async function ownerReviewPayload(request,env) {
   if(!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
