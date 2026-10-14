@@ -74,7 +74,7 @@ test("owner recovery accepts legacy maybe-sent only for specific profile",async(
  assert.equal(r.ok,true);
  assert.equal((await reviewGuard(env,"652282","review_status")).claimed,false);
  assert.equal((await reviewGuard(env,"652282","review_claim",newNonce)).claimed,true);
- await assert.rejects(reviewGuard(env,"652282","review_recover_652282",newNonce));
+ await assert.rejects(reviewGuard(env,"652282","review_recover_652282",old));
 });
 test("manual recovery allowed after submit boundary but not while workflow active",async()=>{
  const m=new Map();
