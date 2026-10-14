@@ -7,11 +7,11 @@ export function validClientId(value){return ID.test(String(value));}
 export function validProfileId(value){return PROFILE.test(String(value));}
 export function clientKey(userId,kind,profileId=""){
  const uid=String(userId),profile=String(profileId);
- if(!validClientId(uid)||!/^(session|flow|library|saved|proof|navigation|selected|pending)$/.test(kind))
+ if(!validClientId(uid)||!/^(session|flow|library|saved|review_draft|proof|navigation|selected|pending)$/.test(kind))
    throw Error("Invalid client storage key");
  if(profile&&!validProfileId(profile))throw Error("Invalid profile key");
- if(kind==="saved"&&!profile)throw Error("Saved profile key needs an ID");
- if(kind!=="saved"&&profile)throw Error("Unexpected profile key");
+ if(["saved","review_draft"].includes(kind)&&!profile)throw Error("Saved profile key needs an ID");
+ if(!["saved","review_draft"].includes(kind)&&profile)throw Error("Unexpected profile key");
  return NAMESPACE+":"+uid+":"+kind+(profile?":"+profile:"");
 }
 export function guardKey(profileId,kind){
