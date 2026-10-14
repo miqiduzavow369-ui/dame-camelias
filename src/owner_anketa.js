@@ -167,24 +167,31 @@ function statusBadge(record){
   if(record)return "🔒 ТРЕБУЕТ ПРОВЕРКИ";
   return "🟡 ДОСТУПНО";
 }
-async function accountPicker(env,id){
-  // Never show an available slot when KV cannot be read.
-  let first="⭐ Оценка — ⚠️ НЕИЗВЕСТНО | ✍️ Отзыв — ⚠️ НЕИЗВЕСТНО";
+function accountPicker(id){
+  // Keep Telegram inline buttons short so iOS/Android do not truncate them.
+  return buttons([
+    [{text:"👨‍💻 Ян Первый",callback_data:"owner_anketa:account1:"+id}],
+    [{text:"🔒 Ян Второй (не подключён)",callback_data:"owner_anketa:account2:"+id}],
+    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+    [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+  ]);
+}
+async function accountStatusText(env,id){
+  const unknown="⭐ Оценка — ⚠️ СТАТУС НЕИЗВЕСТЕН\n✍️ Отзыв — ⚠️ СТАТУС НЕИЗВЕСТЕН";
+  let first=unknown;
   if(env.VISITORS_KV){
     try{
       const [rating,review]=await Promise.all([
         publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
       ]);
-      first="⭐ Оценка — "+statusBadge(rating)+" | ✍️ Отзыв — "+statusBadge(review);
+      first="⭐ Оценка — "+statusBadge(rating)+"\n✍️ Отзыв — "+statusBadge(review);
     }catch{}
   }
-  return buttons([
-    [{text:"👨‍💻 Ян Первый\n"+first,callback_data:"owner_anketa:account1:"+id}],
-    [{text:"🔒 Ян Второй (не подключён)\n⭐ Оценка — ⛔ НЕДОСТУПНО | ✍️ Отзыв — ⛔ НЕДОСТУПНО",callback_data:"owner_anketa:account2:"+id}],
-    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
-    [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
-  ]);
+  return "👨‍💻 ЯН ПЕРВЫЙ\n"+first+
+    "\n\n🔒 ЯН ВТОРОЙ (не подключён)\n"+
+    "⭐ Оценка — ⛔ НЕДОСТУПНО\n✍️ Отзыв — ⛔ НЕДОСТУПНО";
 }
+
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
 const PROFILE_KEY = "owner_anketa_saved:"+OWNER_ID+":";
 async function libraryGet(env) {
@@ -319,7 +326,7 @@ async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
   await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",await accountPicker(env,id));
+    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:\n\n"+await accountStatusText(env,id),accountPicker(id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
@@ -1260,7 +1267,7 @@ export async function handleOwnerAnketa(update,env,send) {
   if(account2){
     await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
       "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
-      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",await accountPicker(env,account2[1]));
+      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",accountPicker(account2[1]));
     return true;
   }
   const proofRequest=/^owner_anketa:proof:(\d{1,9})$/.exec(data);
