@@ -283,6 +283,17 @@ def inspect(pid, mode='profile'):
                 raise RuntimeError("Authentication not confirmed")
             if mode=="proof":
                 return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
+            if mode=="review_proof":
+                # After authentication, inspect the authenticated owner's
+                # «Ваши отзывы» directly. A hidden/unsearchable original
+                # profile must not block genuine, previously posted proof.
+                # Unlike review_publish, this branch never opens a form.
+                from review_live_workflow import run_review
+                print("REVIEW_STAGE: read-only-owner-comments",flush=True)
+                approved=required("ANKETA_PRIVATE_REVIEW")
+                return {"profile":{"id":pid},"review_publication":run_review(
+                    ctx,pid,OWNER_HOST,mode,approved)}
+
             print("LOOKUP_STAGE: search-profile")
             search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
