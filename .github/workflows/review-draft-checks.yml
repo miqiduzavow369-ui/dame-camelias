@@ -1,0 +1,25 @@
+name: Review draft checks
+on:
+  push:
+    branches:
+      - feature/review-draft-preview-20261014
+  pull_request:
+    paths:
+      - src/owner_anketa.js
+      - tests/owner_review_draft.test.mjs
+      - .github/workflows/review-draft-checks.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check src/owner_anketa.js
+      - name: Review draft tests
+        run: node --test tests/owner_review_draft.test.mjs
