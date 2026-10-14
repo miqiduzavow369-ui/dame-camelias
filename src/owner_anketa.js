@@ -838,9 +838,12 @@ export async function handleAnketaLookupResult(request,env,send) {
         const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
         await statePut(env,finalState);
         await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+
-          "\n🆔 Анкета №"+id+"\n✅ Проверен доступ через ваш прокси\n✅ Анкета найдена и подтверждена"+
-          "\n✅ Все выбранные поля проверены: "+total+" из "+total+
-          "\n\n🌷 Ничего на сайт не отправлялось.\n\n💎 Вы точно хотите опубликовать выбранные оценки?",
+          "\n\n🆔 Анкета №"+id+
+          "\n\n✅ Зашли через устройство клиента. "+
+          "\n\n✅ Выдержаны условия безопастности.  "+
+          "\n\n✅ Анкета найдена в списке индивидуалок. "+
+          "\n\n✅ Все услуги совпали: "+total+" из "+total+
+          "\n\n💎 Вы точно хотите опубликовать выбранные оценки?",
           buttons([[{text:"✅ Да, опубликовать",callback_data:"owner_anketa:publish_confirm:"+current.previousNonce}],
             [{text:"❌ Отмена",callback_data:"owner_anketa:publish_cancel:"+current.previousNonce}]]));
       }else{
