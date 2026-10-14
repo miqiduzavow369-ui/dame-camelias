@@ -11,6 +11,7 @@ on:
       - tools/review_verification.py
       - tools/review_proof_capture.py
       - tests/test_review_verification.py
+      - tests/test_review_capture_safety.py
 permissions:
   contents: read
 jobs:
@@ -29,5 +30,5 @@ jobs:
       - name: Review proof syntax
         run: python3 -m py_compile tools/review_proof_capture.py
       - name: Read-only verification tests
-        run: python3 -m unittest discover -s tests -p test_review_verification.py
+        run: python3 -m unittest discover -s tests -p 'test_review_*.py'
 
