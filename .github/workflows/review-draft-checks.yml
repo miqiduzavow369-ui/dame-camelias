@@ -10,8 +10,10 @@ on:
       - .github/workflows/review-draft-checks.yml
       - tools/review_verification.py
       - tools/review_proof_capture.py
+      - tools/review_text_entry.py
       - tests/test_review_verification.py
       - tests/test_review_capture_safety.py
+      - tests/test_review_text_entry.py
 permissions:
   contents: read
 jobs:
@@ -28,7 +30,7 @@ jobs:
       - name: Review draft tests
         run: node --test tests/owner_review_draft.test.mjs
       - name: Review proof syntax
-        run: python3 -m py_compile tools/review_proof_capture.py
+        run: python3 -m py_compile tools/review_proof_capture.py tools/review_text_entry.py
       - name: Read-only verification tests
         run: python3 -m unittest discover -s tests -p 'test_review_*.py'
 
