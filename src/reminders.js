@@ -61,7 +61,7 @@ export class OrderReminder {
           return Response.json({ok:false,reason:"scope"},{status:403});
         const claim=await storage.get("review_claim");
         if (!claim || claim.nonce!==input.nonce ||
-            !["preflight_failed","submission_started","submission_maybe_sent"].includes(claim.status))
+            !["preflight_failed","submission_started"].includes(claim.status))
           return Response.json({ok:false,reason:"not-eligible"},{status:409});
         const prior=await storage.get("review_recovery_652282")||{count:0};
         await storage.put("review_recovery_652282",{
