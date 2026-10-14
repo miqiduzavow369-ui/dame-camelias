@@ -23,6 +23,26 @@ function proofText(account,id,date){
   return "🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваши оценки опубликованы!\n👨‍💻 Клиент - "+display+
     "\n🆔 Анкета №"+id+"\n📅 "+date+"\n📸 Подтверждение публикации прилагается.";
 }
+// Temporary Telegram report messages are separate from the permanent proof archive.
+// Navigating away closes the visible report, but retains its reusable file_id.
+const PROOF_MESSAGE_KEY="owner_anketa_proof_messages:"+OWNER_ID;
+async function rememberProofMessage(env,messageId){
+  if(!Number.isSafeInteger(messageId)||!env.VISITORS_KV)return;
+  try{
+    const previous=await env.VISITORS_KV.get(PROOF_MESSAGE_KEY,"json");
+    const list=Array.isArray(previous)?previous.filter(x=>Number.isSafeInteger(x.id)&&Date.now()-x.at<47*3600000):[];
+    list.push({id:messageId,at:Date.now()});
+    await env.VISITORS_KV.put(PROOF_MESSAGE_KEY,JSON.stringify(list.slice(-30)),{expirationTtl:172800});
+  }catch{}
+}
+async function closeProofMessages(env,send,callbackMessageId){
+  let list=[];
+  try{list=await env.VISITORS_KV?.get(PROOF_MESSAGE_KEY,"json")||[];}catch{}
+  const ids=new Set(Array.isArray(list)?list.filter(x=>Number.isSafeInteger(x.id)&&Date.now()-x.at<47*3600000).map(x=>x.id):[]);
+  if(Number.isSafeInteger(callbackMessageId))ids.add(callbackMessageId);
+  for(const id of ids){try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:id});}catch{}}
+  try{await env.VISITORS_KV?.delete(PROOF_MESSAGE_KEY);}catch{}
+}
 function proofNav(id){return buttons([
   [{text:"🌹 К анкете",callback_data:"owner_anketa:saved:"+id}],
   [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}],
@@ -32,8 +52,9 @@ async function deliverSavedProof(env,send,account,id){
   const archive=await savedProof(env,account,id);
   if(!archive)return false;
   try{
-    await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:archive.fileId,
+    const delivered=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:archive.fileId,
       caption:proofText(account,id,archive.date),reply_markup:proofNav(id)});
+    await rememberProofMessage(env,delivered?.message_id);
     return true;
   }catch{return false;} // invalidated Telegram file_id: re-check site read-only
 }
@@ -469,6 +490,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     if(!telegramData.ok)throw new Error("Proof telegram API rejected");
     // Telegram stores the photo; keep its reusable file_id in persistent KV.
     // This is per account + profile and survives deleting the saved anketa.
+    await rememberProofMessage(env,telegramData.result?.message_id);
     const telegramPhoto=telegramData.result?.photo;
     const fileId=Array.isArray(telegramPhoto)?telegramPhoto.at(-1)?.file_id:null;
     if(typeof fileId==="string" && fileId.length<300 && env.VISITORS_KV){
@@ -717,9 +739,10 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
-  if (data==="owner_anketa:home") {await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
+  if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
+    if(data==="owner_anketa:open")await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);
     await showLibrary(env,send); return true;
   }
   if (data==="owner_anketa:new" || data==="owner_anketa:change") {await askNumber(env,send);return true;}
@@ -736,7 +759,7 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   const savedMenu=/^owner_anketa:saved:(\d{1,9})$/.exec(data);
-  if(savedMenu){await showSaved(env,send,savedMenu[1]);return true;}
+  if(savedMenu){await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await showSaved(env,send,savedMenu[1]);return true;}
   const account1=/^owner_anketa:account1:(\d{1,9})$/.exec(data);
   if(account1){
     const rec=await savedGet(env,account1[1]);
