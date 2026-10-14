@@ -908,7 +908,7 @@ export async function handleOwnerAnketa(update,env,send) {
       ...(pending && (pending.account!=="yan_first" || pending.id!=="652282" ||
         !/^[a-f0-9]{16}$/.test(pending.claimNonce||""))?["Данные старой попытки требуют сверки"]:[]),
       ...(!["publishing","needs_verification"].includes(status?.status)?["Статус отзыва: "+String(status?.status||"отсутствует")]:[]),
-      ...(!["preflight_failed","submission_started"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
+      ...(!["preflight_failed","submission_started","submission_maybe_sent"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
     ];
     if(faults.length){
       await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\\n\\n"+
