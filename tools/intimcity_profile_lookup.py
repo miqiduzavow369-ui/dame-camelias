@@ -281,6 +281,21 @@ def inspect(pid, mode='profile'):
                   (str(logout).lower(),str(account).lower(),str(password_visible).lower()),flush=True)
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
+            if mode=="domain_probe":
+                # The user supplied an exact working profile URL. Domain
+                # recovery must not depend on the site's flaky search field.
+                # This direct visit is read-only and cannot publish anything.
+                target_url=f"https://{OWNER_HOST}/indi/anketa{pid}.htm"
+                print("DOMAIN_PROBE_STAGE: open-supplied-profile",flush=True)
+                page.goto(target_url,wait_until="domcontentloaded",timeout=45000)
+                actual=urlparse(page.url)
+                if actual.scheme!="https" or actual.hostname!=OWNER_HOST or actual.path!=f"/indi/anketa{pid}.htm":
+                    raise RuntimeError("Unexpected domain probe destination")
+                profile=extract(page,pid)
+                if not profile:
+                    raise RuntimeError("Direct domain probe identity missing")
+                print("DOMAIN_PROBE_STAGE: supplied-profile-verified",flush=True)
+                return profile
             if mode=="proof":
                 return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
             if mode=="review_proof":
@@ -663,7 +678,7 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings","mapping","dryfill","publish","proof","review_publish","review_proof"):
+    if mode not in ("profile","domain_probe","ratings","mapping","dryfill","publish","proof","review_publish","review_proof"):
         raise RuntimeError("Invalid lookup mode")
     try:
         if mode in ("dryfill","publish"):
