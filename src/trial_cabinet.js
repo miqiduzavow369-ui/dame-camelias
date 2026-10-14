@@ -139,6 +139,11 @@ export async function handleTrialCabinet(update,env,send) {
     const profiles=await get(env,"profiles")??[];
     const stored=profiles.find(p=>p.id===id);
     if(!stored)return true;
+    const previouslyVerified=await env.VISITORS_KV.get(clientKey(USER_ID,"saved",id),"json");
+    if(previouslyVerified?.id===id){
+      await navigateText(env,send,"✅ Анкета №"+id+" уже подтверждена.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
+      return true;
+    }
     const url=PROFILE_URL.exec(stored.url);
     if(!url||url[2]!==id)return true;
     const current=await env.VISITORS_KV.get(clientKey(USER_ID,"flow"),"json");
