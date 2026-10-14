@@ -40,7 +40,7 @@ jobs:
           python-version: "3.12"
       - name: Install Playwright and Chromium
         run: |
-          python -m pip install playwright==1.56.0
+          python -m pip install playwright==1.56.0 pillow==11.3.0
           python -m playwright install --with-deps chromium
       - name: Lookup via proxy and report identity
         env:
