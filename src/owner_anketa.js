@@ -1054,8 +1054,11 @@ export async function handleAnketaLookupResult(request,env,send) {
     await recordPublication(env,id,"rating","published","verified-checked-list-screenshot");
     if(current.creditNonce){
       try{await credits(env,OWNER_ID,"complete","rating",id,current.creditNonce);}
-        if(current.dailyDate)try{await dailyLimit(env,OWNER_ID,id,"complete","rating",current.creditNonce,current.dailyDate);}catch(e){console.error("Daily quota completion pending",String(e));}
       catch(e){console.error("Rating credit completion pending",String(e));}
+      if(current.dailyDate){
+        try{await dailyLimit(env,OWNER_ID,id,"complete","rating",current.creditNonce,current.dailyDate);}
+        catch(e){console.error("Daily quota completion pending",String(e));}
+      }
     }
     await statePut(env,{...current,step:"publication_result",proofDeliveredAt:Date.now()});
     return Response.json({ok:true,proof:true});
