@@ -1,0 +1,25 @@
+name: Client admin foundation checks
+on:
+  push:
+    paths:
+      - src/client_admin.js
+      - src/index.js
+      - tests/client_admin.test.mjs
+      - .github/workflows/client-admin-check.yml
+  pull_request:
+    paths:
+      - src/client_admin.js
+      - src/index.js
+      - tests/client_admin.test.mjs
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check src/index.js && node --check src/client_admin.js
+      - run: node --test tests/client_admin.test.mjs tests/trial_cabinet.test.mjs
