@@ -175,6 +175,39 @@ async function savedDelete(env,id) {
   await env.VISITORS_KV.delete(PROFILE_KEY+id);
   await env.VISITORS_KV.put(LIBRARY_KEY,JSON.stringify(ids.filter(x=>x!==id)));
 }
+// Change only hostnames after the owner supplies a new link and the site
+// successfully verifies that exact profile ID. Never rewrite publication state.
+function rehostUrl(value,host){
+  if(typeof value!=="string")return value;
+  try{
+    const u=new URL(value);
+    if(u.protocol!=="https:"||!HOST_PATTERN.test(u.hostname))return value;
+    u.hostname=host;
+    return u.toString();
+  }catch{return value;}
+}
+async function switchVerifiedDomain(env,newHost){
+  if(!HOST_PATTERN.test(newHost)||!env.VISITORS_KV)throw Error("Invalid verified host");
+  const ids=await libraryGet(env);
+  for(const id of ids){
+    const record=await savedGet(env,id);
+    if(!record)continue;
+    const profile={...record.profile};
+    if(typeof profile.url==="string")profile.url=rehostUrl(profile.url,newHost);
+    // Images are CDN assets, not site navigation links: leave them unchanged.
+    await env.VISITORS_KV.put(PROFILE_KEY+id,JSON.stringify({
+      ...record,profile,host:newHost,updatedAt:Date.now()
+    }));
+    const pending=await env.VISITORS_KV.get(REVIEW_PENDING_KEY+id,"json");
+    if(pending)await env.VISITORS_KV.put(REVIEW_PENDING_KEY+id,JSON.stringify({...pending,host:newHost}));
+  }
+  const state=await stateGet(env);
+  if(state && typeof state==="object"){
+    const profile=state.profile?{...state.profile,url:rehostUrl(state.profile.url,newHost)}:state.profile;
+    await statePut(env,{...state,host:newHost,profile});
+  }
+  return ids.length;
+}
 const libraryKeyboard=ids=>buttons([
   ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
   [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}],
@@ -520,6 +553,19 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  // Verify the supplied domain by a read-only lookup before migrating records.
+  if(current?.step==="domain_verify" && current.id===id && current.nonce===nonce && data.mode==="profile"){
+    const verified=validProfile(data.profile,id,current.host);
+    if(data.status!=="found"||!verified){
+      await statePut(env,{step:"domain_recovery",id,mode:current.mode});
+      await navigationSay(env,send,"🌷 Не удалось подтвердить работу ссылки. Проверьте домен и пришлите актуальную ссылку на эту же анкету №"+id+".\\n\\n🔒 Все сохранённые данные и блокировки повторной публикации остаются без изменений.");
+      return Response.json({ok:true,domainUpdated:false});
+    }
+    const changed=await switchVerifiedDomain(env,current.host);
+    await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
+    await navigationSay(env,send,"✅ АКТУАЛЬНЫЙ ДОМЕН ПОДТВЕРЖДЁН\\n\\n🌹 Анкета №"+id+"\\n🔗 https://"+current.host+"/\\n💾 Обновлены адреса сохранённых анкет: "+changed+".\\n\\n⭐ Оценки, ✍️ отзывы и история сохранены без повторной публикации.\\n\\nОткройте анкету и нажмите «🔎 Проверить отзыв» ещё раз.",buttons([[{text:"🌹 К анкете №"+id,callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
+    return Response.json({ok:true,domainUpdated:true});
+  }
   if(["review_publish","review_proof"].includes(data.mode)){
     if(!current || current.id!==id || current.nonce!==nonce ||
        !["review_dispatch","review_recheck"].includes(current.step) ||
@@ -561,6 +607,11 @@ export async function handleAnketaLookupResult(request,env,send) {
     await recordPublication(env,id,"review","needs_verification","review-submit-unverified");
     await statePut(env,{...current,step:"review_result",text:current.text,
       attempted:publication.attempted===true});
+    if(data.mode==="review_proof" && data.status==="error"){
+      await statePut(env,{step:"domain_recovery",id,mode:"review_proof"});
+      await navigationSay(env,send,"🌷 Извините, возможно, сайт перешёл на другой домен или временно недоступен.\\n\\n🔗 Пришлите, пожалуйста, актуальную рабочую ссылку на страницу анкеты №"+id+".\\n\\n💕 Я проверю её и обновлю адреса сохранённых анкет. Оценки и отзывы останутся на месте.\\n🔒 Повторной публикации не будет.",buttons([[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
+      return Response.json({ok:true,domainRecoveryRequested:true});
+    }
     await progressSay(env,send,"🌷 Публикацию отзыва пока не удалось подтвердить.\n\n🌹 Анкета №"+id+
       "\n🔒 Повторная отправка заблокирована. Мы можем проверить результат без повторной публикации.");
     return Response.json({ok:true,reviewPublished:false});
@@ -839,7 +890,7 @@ export async function handleOwnerAnketa(update,env,send) {
   // including when the previous owner prompt came from an older Worker version.
   const isProfileLink=owner && Boolean(msg?.text) && Boolean(parseProfileLink(txt));
   const typedLink=owner && Boolean(msg?.text) &&
-    (isProfileLink || (state?.step==="number" && /^https?:\/\//i.test(txt)));
+    (isProfileLink || (["number","domain_recovery"].includes(state?.step) && /^https?:\/\//i.test(txt)));
   const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
     ["review_input","review_preview"].includes(state?.step) && !txt.startsWith("/");
   if (!ownerAction && !typedLink && !reviewText) return false;
@@ -848,6 +899,23 @@ export async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
+  if(state?.step==="domain_recovery" && !ownerAction && Boolean(msg?.text)){
+    const link=parseProfileLink(txt);
+    if(!link || link.id!==state.id){
+      await navigationSay(env,send,"🌷 Пришлите прямую рабочую ссылку именно на анкету №"+state.id+" с актуальным доменом Intimcity.");
+      return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    await statePut(env,{step:"domain_verify",id:link.id,host:link.host,nonce,mode:state.mode});
+    const started=await dispatchLookup(env,link.id,nonce,"profile",link.host).catch(()=>({ok:false}));
+    if(!started.ok){
+      await statePut(env,{step:"domain_recovery",id:link.id,mode:state.mode});
+      await navigationSay(env,send,"🌷 Сейчас не получилось проверить новый адрес. Пришлите ссылку ещё раз позже.");
+      return true;
+    }
+    await navigationSay(env,send,"🔎 Проверяю новый адрес анкеты №"+link.id+"…\\n\\n💾 Сохранённые данные обновлю только после подтверждения страницы.");
+    return true;
+  }
   if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
   if (data==="owner_anketa:open" ||
       (command==="/anketa" && txt.split(/\s+/).length===1)) {
