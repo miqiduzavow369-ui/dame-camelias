@@ -47,6 +47,22 @@ def load_private_dryfill(pid, nonce):
         raise RuntimeError("Invalid private rating payload")
     return payload
 
+def report_review_stage(pid, nonce, kind):
+    """Authenticated durable audit before external POST, or preflight error."""
+    from urllib.parse import urlparse
+    original=urlparse(required("ANKETA_CALLBACK_URL"))
+    if original.scheme!="https" or original.path!="/api/anketa/result" or not original.netloc:
+        raise RuntimeError("Invalid review audit URL")
+    url=original._replace(path="/api/anketa/review-stage",query="",fragment="").geturl()
+    body=json.dumps({"profile_id":pid,"nonce":nonce,"type":kind}).encode("utf-8")
+    req=Request(url,method="POST",data=body,headers={
+        "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
+        "Content-Type":"application/json","User-Agent":"DameCameliasBot/1.0"})
+    with urlopen(req,timeout=20) as response:
+        result=json.loads(response.read(4000).decode("utf-8"))
+    if result.get("ok") is not True:
+        raise RuntimeError("Review stage audit rejected")
+
 def load_private_review(pid, nonce, mode):
     """Fetch approved text from the authenticated Worker, not Actions inputs/logs."""
     from urllib.parse import urlencode
@@ -270,7 +286,7 @@ def inspect(pid, mode='profile'):
             if mode in ("review_publish","review_proof"):
                 from review_live_workflow import run_review
                 text=required("ANKETA_PRIVATE_REVIEW")
-                return {"profile":{"id":pid},"review_publication":run_review(ctx,pid,OWNER_HOST,mode,text)}
+                return {"profile":{"id":pid},"review_publication":run_review(ctx,pid,OWNER_HOST,mode,text,report_stage=(lambda kind: report_review_stage(pid,required("ANKETA_LOOKUP_NONCE"),kind)) if mode=="review_publish" else None)}
 
             print("LOOKUP_STAGE: search-profile")
             search = page.locator('input#searchStr[name="phones"]')
@@ -643,9 +659,20 @@ def main():
             status="found"
         print("LOOKUP:", "profile identity detected" if result else "profile identity unavailable")
     except EmptySearch:
+        if mode=="review_publish":
+            try:
+                report_review_stage(pid,nonce,"review_preflight_failed")
+            except Exception:
+                print("REVIEW_STAGE: could not classify preflight safely",flush=True)
         status="not_found"
         print("LOOKUP: zero search results")
     except Exception as e:
+        if mode=="review_publish":
+            try:
+                report_review_stage(pid,nonce,"review_preflight_failed")
+                print("REVIEW_STAGE: preflight-only failure recorded",flush=True)
+            except Exception:
+                print("REVIEW_STAGE: submission state remains uncertain",flush=True)
         category = ("timeout" if "Timeout" in type(e).__name__ else
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
