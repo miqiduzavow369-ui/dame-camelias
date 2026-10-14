@@ -34,3 +34,28 @@ test("review claim permanently blocks duplicate attempt and cannot be reset",asy
   assert.equal(after.claimed,false);
   assert.equal(after.status,"published");
 });
+
+test("preflight failures are distinguishable but cannot automatically unlock claim",async()=>{
+ const m=new Map();
+ const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v)},blockConcurrencyWhile:fn=>fn()};
+ const object=new OrderReminder(ctx,{});
+ const env={ORDER_REMINDERS:{idFromName:n=>n,get:()=>({
+   fetch:(url,opts)=>object.fetch(new Request(url,opts))})}};
+ const nonce="1111111111111111";
+ assert.equal((await reviewGuard(env,"652282","review_claim",nonce)).claimed,true);
+ assert.equal((await reviewGuard(env,"652282","review_preflight_failed",nonce)).ok,true);
+ assert.equal((await reviewGuard(env,"652282","review_status")).status,"preflight_failed");
+ assert.equal((await reviewGuard(env,"652282","review_claim","2222222222222222")).claimed,false);
+});
+test("submit boundary prevents reclassification as safe preflight failure",async()=>{
+ const m=new Map();
+ const ctx={storage:{get:async k=>m.get(k),put:async(k,v)=>m.set(k,v)},blockConcurrencyWhile:fn=>fn()};
+ const object=new OrderReminder(ctx,{});
+ const env={ORDER_REMINDERS:{idFromName:n=>n,get:()=>({
+   fetch:(url,opts)=>object.fetch(new Request(url,opts))})}};
+ const nonce="1111111111111111";
+ await reviewGuard(env,"652282","review_claim",nonce);
+ assert.equal((await reviewGuard(env,"652282","review_submit_boundary",nonce)).ok,true);
+ await assert.rejects(reviewGuard(env,"652282","review_preflight_failed",nonce));
+ assert.equal((await reviewGuard(env,"652282","review_status")).status,"submission_started");
+});
