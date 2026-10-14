@@ -31,7 +31,7 @@ export class OrderReminder {
       // Durable Object storage serializes claims; unlike KV get+put,
       // concurrent Telegram callbacks cannot each win the same claim.
       if (input.type === "review_claim") {
-        if (input.account !== "yan_first" || !/^\\d{1,9}$/.test(String(input.profileId)) ||
+        if (input.account !== "yan_first" || !/^\d{1,9}$/.test(String(input.profileId)) ||
             !/^[a-f0-9]{16}$/.test(String(input.nonce)))
           return Response.json({claimed:false,reason:"invalid"},{status:400});
         const claim = await storage.get("review_claim");
