@@ -1,5 +1,5 @@
 import { reminderCall } from "./reminders.js";
-import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerRatingFormApi } from "./owner_anketa.js";
+import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerRatingFormApi } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -602,6 +602,8 @@ export default {
     if (url.pathname === "/api/order" && request.method === "POST") { const result = await receiveOrder(request, env); const headers = new Headers(result.headers); headers.set("Access-Control-Allow-Origin","*"); return new Response(result.body,{status:result.status,headers}); }
     if (request.method === "GET" && url.pathname === "/api/anketa/health")
       return new Response("anketa-handler-v2", {headers:{"Content-Type":"text/plain","Cache-Control":"no-store"}});
+    if (request.method === "GET" && url.pathname === "/api/anketa/review-payload")
+      return ownerReviewPayload(request,env);
     if (request.method === "GET" && url.pathname === "/api/anketa/dryfill-payload")
       return ownerDryfillPayload(request,env);
     if (request.method === "POST" && url.pathname === "/api/anketa/result")

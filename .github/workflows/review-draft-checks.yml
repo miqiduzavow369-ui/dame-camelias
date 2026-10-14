@@ -1,0 +1,43 @@
+name: Review draft checks
+on:
+  push:
+    branches:
+      - feature/review-draft-preview-20261014
+  pull_request:
+    paths:
+      - src/owner_anketa.js
+      - src/index.js
+      - tools/intimcity_profile_lookup.py
+      - tools/review_live_workflow.py
+      - src/reminders.js
+      - src/review_publication_guard.js
+      - tests/review_publication_guard.test.mjs
+      - tests/owner_review_draft.test.mjs
+      - .github/workflows/review-draft-checks.yml
+      - tools/review_verification.py
+      - tools/review_proof_capture.py
+      - tools/review_text_entry.py
+      - tests/test_review_verification.py
+      - tests/test_review_capture_safety.py
+      - tests/test_review_text_entry.py
+      - tests/test_review_live_workflow.py
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check src/owner_anketa.js && node --check src/reminders.js && node --check src/review_publication_guard.js && node --check src/index.js
+      - name: Review draft tests
+        run: node --test tests/owner_review_draft.test.mjs tests/review_publication_guard.test.mjs
+      - name: Review proof syntax
+        run: python3 -m py_compile tools/review_proof_capture.py tools/review_text_entry.py tools/review_live_workflow.py tools/intimcity_profile_lookup.py
+      - name: Read-only verification tests
+        run: python3 -m unittest discover -s tests -p 'test_review_*.py'
+

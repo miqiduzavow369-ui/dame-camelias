@@ -47,6 +47,25 @@ def load_private_dryfill(pid, nonce):
         raise RuntimeError("Invalid private rating payload")
     return payload
 
+def load_private_review(pid, nonce, mode):
+    """Fetch approved text from the authenticated Worker, not Actions inputs/logs."""
+    from urllib.parse import urlencode
+    base=urlparse(required("ANKETA_CALLBACK_URL"))
+    if base.scheme!="https" or base.path!="/api/anketa/result" or not base.netloc:
+        raise RuntimeError("Invalid private review callback host")
+    url=base._replace(path="/api/anketa/review-payload",
+                      query=urlencode({"profile_id":pid,"nonce":nonce,"mode":mode}),
+                      fragment="").geturl()
+    req=Request(url,headers={
+        "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
+        "Accept":"application/json","User-Agent":"DameCameliasBot/1.0"})
+    with urlopen(req,timeout=20) as response:
+        payload=json.loads(response.read(15000).decode("utf-8"))
+    value=payload.get("text") if isinstance(payload,dict) else None
+    if not isinstance(value,str) or not 10<=len(value)<=3000:
+        raise RuntimeError("Invalid private review text")
+    return value
+
 def callback(data):
     url = required("ANKETA_CALLBACK_URL")
     parsed = urlparse(url)
@@ -248,6 +267,11 @@ def inspect(pid, mode='profile'):
                 raise RuntimeError("Authentication not confirmed")
             if mode=="proof":
                 return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
+            if mode in ("review_publish","review_proof"):
+                from review_live_workflow import run_review
+                text=required("ANKETA_PRIVATE_REVIEW")
+                return {"profile":{"id":pid},"review_publication":run_review(ctx,pid,OWNER_HOST,mode,text)}
+
             print("LOOKUP_STAGE: search-profile")
             search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
@@ -606,12 +630,14 @@ def main():
     result=None
     status="error"
     mode=os.environ.get("ANKETA_LOOKUP_MODE","profile")
-    if mode not in ("profile","ratings","mapping","dryfill","publish","proof"):
+    if mode not in ("profile","ratings","mapping","dryfill","publish","proof","review_publish","review_proof"):
         raise RuntimeError("Invalid lookup mode")
     try:
         if mode in ("dryfill","publish"):
             # Never put selected ratings into workflow_dispatch or Actions logs.
             os.environ["ANKETA_DRYFILL_SELECTIONS"]=json.dumps(load_private_dryfill(pid,nonce),ensure_ascii=False)
+        if mode in ("review_publish","review_proof"):
+            os.environ["ANKETA_PRIVATE_REVIEW"]=load_private_review(pid,nonce,mode)
         result=inspect(pid,mode)
         if result:
             status="found"
@@ -624,9 +650,9 @@ def main():
                     "proxy" if "Proxy" in type(e).__name__ else
                     "navigation-or-login")
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
-    profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish","proof") and isinstance(result,dict) else result
+    profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish","proof","review_publish","review_proof") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"mode":mode,"status":status})
+    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"review_publication":result.get("review_publication") if mode in ("review_publish","review_proof") and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":

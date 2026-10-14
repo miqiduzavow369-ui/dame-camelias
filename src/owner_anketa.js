@@ -1,5 +1,6 @@
 // Owner-only questionnaire. Profile identity must come from a verified
 // proxy-backed lookup service; never guess a name, age, or district.
+import {reviewGuard} from "./review_publication_guard.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const ID_PATTERN = /^\d{1,9}$/;
@@ -57,6 +58,19 @@ async function deliverSavedProof(env,send,account,id){
     await rememberProofMessage(env,delivered?.message_id);
     return true;
   }catch{return false;} // invalidated Telegram file_id: re-check site read-only
+}
+const REVIEW_PENDING_KEY="owner_anketa_review_pending_v1:yan_first:";
+const REVIEW_ARCHIVE_KEY="owner_anketa_review_proof_archive_v1:yan_first:";
+async function deliverSavedReviewProof(env,send,id){
+  const proof=await env.VISITORS_KV?.get(REVIEW_ARCHIVE_KEY+id,"json");
+  if(proof?.account!=="yan_first" || proof.profileId!==id ||
+     typeof proof.fileId!=="string" || proof.fileId.length>300)return false;
+  const res=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:proof.fileId,
+    caption:"✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+      "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва",
+    reply_markup:proofNav(id)});
+  await rememberProofMessage(env,res?.message_id);
+  return true;
 }
 const PUBLICATION_KEY = "owner_anketa_publication_v1:";
 async function publicationStatus(env,id,kind) {
@@ -190,6 +204,8 @@ async function profileKeyboard(env,id){
   ...(!rating?[[{text:"⭐ Опубликовать оценку",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
   ...(!review?[[{text:"✍️ Опубликовать отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
   ...(rating?[[{text:"📸 Подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
+  ...(review?.status==="published"?[[{text:"📸 Подтверждение отзыва",callback_data:"owner_anketa:reviewproof:"+id}]]:[]),
+  ...(review && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
   [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:saved:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
@@ -448,6 +464,34 @@ export async function ownerDryfillPayload(request,env) {
   return Response.json({selections,metElsewhere:state.metElsewhere===true},
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
+export async function ownerReviewPayload(request,env) {
+  if(!env.ANKETA_CALLBACK_TOKEN ||
+      request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+    return new Response("Forbidden",{status:403});
+  const url=new URL(request.url),id=url.searchParams.get("profile_id")||"";
+  const nonce=url.searchParams.get("nonce")||"",mode=url.searchParams.get("mode")||"";
+  if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce)||
+      !["review_publish","review_proof"].includes(mode))
+    return new Response("Invalid request",{status:400});
+  const current=await stateGet(env);
+  if(!current || current.id!==id || current.nonce!==nonce ||
+      current.account!=="yan_first" || !["review_dispatch","review_recheck"].includes(current.step) ||
+      !await selectedAccount(env,id) || !await savedGet(env,id) ||
+      typeof current.text!=="string" || current.text.length<10 || current.text.length>3000 ||
+      !(current.agreedAt>0) || Date.now()-current.agreedAt>30*60*1000)
+    return new Response("Stale",{status:409});
+  if(mode==="review_publish"){
+    if(current.step!=="review_dispatch"||current.payloadIssued===true)
+      return new Response("Already issued",{status:409});
+    const guard=await reviewGuard(env,id,"review_status");
+    if(!guard.claimed||guard.status!=="submission_maybe_sent")
+      return new Response("Submission not authorized",{status:409});
+    // Consume BEFORE returning the payload: Actions retries can never submit twice.
+    await statePut(env,{...current,payloadIssued:true});
+  }
+  return Response.json({text:current.text},
+    {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+}
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
@@ -458,6 +502,51 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  if(["review_publish","review_proof"].includes(data.mode)){
+    if(!current || current.id!==id || current.nonce!==nonce ||
+       !["review_dispatch","review_recheck"].includes(current.step) ||
+       current.account!=="yan_first")return new Response("Stale",{status:409});
+    const publication=data.review_publication||{};
+    const proof=publication.proof;
+    if(data.status==="found" && publication.confirmed===true &&
+       proof?.account==="yan_first" && proof.profile_id===id &&
+       proof.text_verified===true && proof.mime==="image/jpeg" &&
+       typeof proof.image==="string" && proof.image.length<950000 &&
+       /^[A-Za-z0-9+/]+={0,2}$/.test(proof.image)){
+      const bytes=Uint8Array.from(atob(proof.image),x=>x.charCodeAt(0));
+      if(bytes.length<1000||bytes.length>700000||bytes[0]!==255||bytes[1]!==216)
+        return new Response("Invalid proof",{status:400});
+      const payload=new FormData();
+      payload.append("chat_id",OWNER_ID);
+      payload.append("caption","✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+        "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва");
+      payload.append("reply_markup",JSON.stringify(proofNav(id)));
+      payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"review-"+id+".jpg");
+      const delivered=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
+        {method:"POST",body:payload});
+      if(!delivered.ok)throw new Error("Review proof Telegram delivery failed");
+      const telegramData=await delivered.json();
+      if(!telegramData.ok)throw new Error("Review proof Telegram API rejected");
+      await rememberProofMessage(env,telegramData.result?.message_id);
+      const fileId=telegramData.result?.photo?.at(-1)?.file_id;
+      if(typeof fileId==="string"&&fileId.length<300)
+        await env.VISITORS_KV.put(REVIEW_ARCHIVE_KEY+id,
+          JSON.stringify({account:"yan_first",profileId:id,fileId,savedAt:new Date().toISOString()}));
+      await reviewGuard(env,id,"review_verified",current.claimNonce);
+      await recordPublication(env,id,"review","published","verified-comments-screenshot");
+      try{await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);}catch{}
+      await statePut(env,{...current,step:"review_result",text:null,completedAt:Date.now()});
+      await clearProgress(env,send);
+      return Response.json({ok:true,reviewPublished:true});
+    }
+    // No positive proof is NOT success, including timeout after a POST.
+    await recordPublication(env,id,"review","needs_verification","review-submit-unverified");
+    await statePut(env,{...current,step:"review_result",text:current.text,
+      attempted:publication.attempted===true});
+    await progressSay(env,send,"🌷 Публикацию отзыва пока не удалось подтвердить.\n\n🌹 Анкета №"+id+
+      "\n🔒 Повторная отправка заблокирована. Мы можем проверить результат без повторной публикации.");
+    return Response.json({ok:true,reviewPublished:false});
+  }
   const proofLoading=current?.step==="proof_loading" && data.mode==="proof";
   if(proofLoading){
     if(current.id!==id || current.nonce!==nonce || current.account!=="yan_first")
@@ -733,7 +822,9 @@ export async function handleOwnerAnketa(update,env,send) {
   const isProfileLink=owner && Boolean(msg?.text) && Boolean(parseProfileLink(txt));
   const typedLink=owner && Boolean(msg?.text) &&
     (isProfileLink || (state?.step==="number" && /^https?:\/\//i.test(txt)));
-  if (!ownerAction && !typedLink) return false;
+  const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
+    ["review_input","review_preview"].includes(state?.step) && !txt.startsWith("/");
+  if (!ownerAction && !typedLink && !reviewText) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
     return true;
@@ -749,6 +840,131 @@ export async function handleOwnerAnketa(update,env,send) {
   if (command==="/anketa") {
     const url=txt.split(/\s+/)[1] ?? "";
     await inspect(env,send,url); return true;
+  }
+  if(reviewText){
+    const id=String(state?.id||"");
+    if(!ID_PATTERN.test(id)||!await savedGet(env,id)||!await selectedAccount(env,id)||await publicationStatus(env,id,"review")){
+      await showLibrary(env,send);return true;
+    }
+    if(txt.length<10||txt.length>3000){
+      await navigationSay(env,send,"✍️ Отзыв должен содержать от 10 до 3000 символов. Пришлите исправленный текст.",
+        buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}]]));return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
+    await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:txt,nonce});
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
+    await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+      "\n\n💬 Ваш текст:\n\n"+txt+"\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
+      buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  const reviewAgree=/^owner_anketa:reviewagree:([a-f0-9]{16})$/.exec(data);
+  if(reviewAgree){
+    const current=await stateGet(env);
+    if(current?.step!=="review_preview" || current.nonce!==reviewAgree[1] ||
+        !await selectedAccount(env,current.id) || await publicationStatus(env,current.id,"review")){
+      await showLibrary(env,send);return true;
+    }
+    await statePut(env,{...current,step:"review_agreed",agreedAt:Date.now()});
+    await navigationSay(env,send,"✅ ДОСТОВЕРНОСТЬ ПОДТВЕРЖДЕНА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
+      "\n\n💬 Текст отзыва:\n\n"+current.text+
+      "\n\nПодтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов."+
+      "\n\n✨ Всё готово. Для отправки нажмите кнопку публикации.",
+      buttons([[{text:"✅ Опубликовать отзыв",callback_data:"owner_anketa:reviewfinal:"+current.nonce}],
+        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+current.nonce}],
+        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
+  }
+  const reviewProof=/^owner_anketa:reviewproof:(\d{1,9})$/.exec(data);
+  if(reviewProof){
+    const id=reviewProof[1];
+    if(!await selectedAccount(env,id) || !await savedGet(env,id) ||
+       (await publicationStatus(env,id,"review"))?.status!=="published"){
+      await showLibrary(env,send);return true;
+    }
+    if(!await deliverSavedReviewProof(env,send,id))
+      await navigationSay(env,send,"🌷 Скриншот пока недоступен. Попробуйте проверить отзыв позже.");
+    return true;
+  }
+  const reviewCheck=/^owner_anketa:reviewcheck:(\d{1,9})$/.exec(data);
+  if(reviewCheck){
+    const id=reviewCheck[1],pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
+    const guard=await reviewGuard(env,id,"review_status");
+    if(!await selectedAccount(env,id)||!await savedGet(env,id)||!guard.claimed||
+       guard.status==="published"||pending?.account!==ACTIVE_ACCOUNT||
+       pending.id!==id||!HOST_PATTERN.test(pending.host||"")||
+       typeof pending.text!=="string"||pending.text.length<10||
+       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"")){
+      await navigationSay(env,send,"🌷 Сейчас проверка недоступна. Повторная публикация запрещена.");return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
+      nonce,text:pending.text,claimNonce:pending.claimNonce,
+      agreedAt:Date.now(),host:pending.host});
+    await progressSay(env,send,"🔎 ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
+      "\n📸 Ищем опубликованный отзыв и подтверждение.");
+    let launched=false;
+    try{launched=(await dispatchLookup(env,id,nonce,"review_proof",pending.host)).ok;}catch{}
+    if(!launched)await progressSay(env,send,"🌷 Не удалось начать проверку. Повторная отправка не выполнялась.");
+    return true;
+  }
+  const reviewFinal=/^owner_anketa:reviewfinal:([a-f0-9]{16})$/.exec(data);
+  if(reviewFinal){
+    const current=await stateGet(env);
+    if(current?.step!=="review_agreed" || current.nonce!==reviewFinal[1] ||
+       current.account!==ACTIVE_ACCOUNT || !ID_PATTERN.test(String(current.id)) ||
+       !(current.agreedAt>0) || Date.now()-current.agreedAt>15*60*1000 ||
+       typeof current.text!=="string" || current.text.length<10 || current.text.length>3000 ||
+       !await selectedAccount(env,current.id) || !await savedGet(env,current.id)){
+      await navigationSay(env,send,"🌷 Подтверждение устарело. Откройте анкету и проверьте отзыв заново.");return true;
+    }
+    if(await ensureNoRepeat(env,current.id,"review",send))return true;
+    let claimed;
+    try{claimed=await reviewGuard(env,current.id,"review_claim",current.nonce);}
+    catch{await navigationSay(env,send,"🌷 Не удалось защитить отзыв от повторов. Ничего не отправлено.");return true;}
+    if(!claimed.claimed){
+      await navigationSay(env,send,"🔒 Публикация уже начиналась. Повторная отправка запрещена.");return true;
+    }
+    await recordPublication(env,current.id,"review","publishing","atomic-owner-review-claim");
+    // Keep approved text for future read-only verification across chat/TTL expiry.
+    const pendingProfile=await savedGet(env,current.id);
+    if(!pendingProfile?.host || !HOST_PATTERN.test(pendingProfile.host)){
+      await navigationSay(env,send,"🔒 Не удалось определить адрес анкеты. Повторная отправка заблокирована.");return true;
+    }
+    await env.VISITORS_KV.put(REVIEW_PENDING_KEY+current.id,JSON.stringify({
+      id:current.id,account:ACTIVE_ACCOUNT,text:current.text,
+      claimNonce:current.nonce,host:pendingProfile.host,agreedAt:current.agreedAt,
+      savedAt:new Date().toISOString()
+    }));
+
+    const saved=await savedGet(env,current.id);
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const next={...current,step:"review_dispatch",nonce,claimNonce:current.nonce,
+      payloadIssued:false,confirmedAt:Date.now()};
+    if(!saved || !await statePut(env,next)){
+      await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
+    }
+    await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
+      "\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
+    let launched=false;
+    try{launched=(await dispatchLookup(env,current.id,nonce,"review_publish",saved.host)).ok;}catch{}
+    if(!launched)
+      await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\n\n🔒 Анкета №"+
+        current.id+" защищена от повторной отправки.");
+    return true;
+  }
+  const reviewEdit=/^owner_anketa:reviewedit:([a-f0-9]{16})$/.exec(data);
+  if(reviewEdit){
+    const current=await stateGet(env);
+    if(!["review_preview","review_agreed"].includes(current?.step)||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
+      await showLibrary(env,send);return true;
+    }
+    await statePut(env,{step:"review_input",id:current.id,account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"✍️ ИЗМЕНИТЬ ОТЗЫВ\n\n🌹 Анкета №"+current.id+
+      "\n\n💬 Пришлите исправленный текст одним сообщением.",
+      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+current.id}]]));return true;
   }
   if (typedLink) {
     await trackAnketaMessage(env,msg?.message_id);
@@ -809,7 +1025,11 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(await ensureNoRepeat(env,savedReview[1],"review",send))return true;
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
-    await say(env,send,"✍️ Раздел отзывов скоро появится.\n\n💕 Пока можно работать с оценками.",await profileKeyboard(env,savedReview[1]));
+    await statePut(env,{step:"review_input",id:savedReview[1],account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+savedReview[1]+
+      "\n\n💬 Отправьте текст отзыва одним сообщением.\n\n✨ Затем сможете проверить и изменить его.",
+      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+savedReview[1]}],
+        [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));
     return true;
   }
   const savedRating=/^owner_anketa:savedrating:(\d{1,9})$/.exec(data);
