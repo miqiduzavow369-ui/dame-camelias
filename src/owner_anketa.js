@@ -1,5 +1,6 @@
 // Owner-only questionnaire. Profile identity must come from a verified
 // proxy-backed lookup service; never guess a name, age, or district.
+import {reviewGuard} from "./review_publication_guard.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const ID_PATTERN = /^\d{1,9}$/;
@@ -448,6 +449,34 @@ export async function ownerDryfillPayload(request,env) {
   return Response.json({selections,metElsewhere:state.metElsewhere===true},
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
+export async function ownerReviewPayload(request,env) {
+  if(!env.ANKETA_CALLBACK_TOKEN ||
+      request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+    return new Response("Forbidden",{status:403});
+  const url=new URL(request.url),id=url.searchParams.get("profile_id")||"";
+  const nonce=url.searchParams.get("nonce")||"",mode=url.searchParams.get("mode")||"";
+  if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce)||
+      !["review_publish","review_proof"].includes(mode))
+    return new Response("Invalid request",{status:400});
+  const current=await stateGet(env);
+  if(!current || current.id!==id || current.nonce!==nonce ||
+      current.account!=="yan_first" || !["review_dispatch","review_recheck"].includes(current.step) ||
+      !await selectedAccount(env,id) || !await savedGet(env,id) ||
+      typeof current.text!=="string" || current.text.length<10 || current.text.length>3000 ||
+      !(current.agreedAt>0) || Date.now()-current.agreedAt>30*60*1000)
+    return new Response("Stale",{status:409});
+  if(mode==="review_publish"){
+    if(current.step!=="review_dispatch"||current.payloadIssued===true)
+      return new Response("Already issued",{status:409});
+    const guard=await reviewGuard(env,id,"review_status");
+    if(!guard.claimed||guard.status!=="submission_maybe_sent")
+      return new Response("Submission not authorized",{status:409});
+    // Consume BEFORE returning the payload: Actions retries can never submit twice.
+    await statePut(env,{...current,payloadIssued:true});
+  }
+  return Response.json({text:current.text},
+    {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+}
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
@@ -458,6 +487,50 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  if(["review_publish","review_proof"].includes(data.mode)){
+    if(!current || current.id!==id || current.nonce!==nonce ||
+       !["review_dispatch","review_recheck"].includes(current.step) ||
+       current.account!=="yan_first")return new Response("Stale",{status:409});
+    const publication=data.review_publication||{};
+    const proof=publication.proof;
+    if(data.status==="found" && publication.confirmed===true &&
+       proof?.account==="yan_first" && proof.profile_id===id &&
+       proof.text_verified===true && proof.mime==="image/jpeg" &&
+       typeof proof.image==="string" && proof.image.length<950000 &&
+       /^[A-Za-z0-9+/]+={0,2}$/.test(proof.image)){
+      const bytes=Uint8Array.from(atob(proof.image),x=>x.charCodeAt(0));
+      if(bytes.length<1000||bytes.length>700000||bytes[0]!==255||bytes[1]!==216)
+        return new Response("Invalid proof",{status:400});
+      const payload=new FormData();
+      payload.append("chat_id",OWNER_ID);
+      payload.append("caption","✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+        "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва");
+      payload.append("reply_markup",JSON.stringify(proofNav(id)));
+      payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"review-"+id+".jpg");
+      const delivered=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
+        {method:"POST",body:payload});
+      if(!delivered.ok)throw new Error("Review proof Telegram delivery failed");
+      const telegramData=await delivered.json();
+      if(!telegramData.ok)throw new Error("Review proof Telegram API rejected");
+      await rememberProofMessage(env,telegramData.result?.message_id);
+      const fileId=telegramData.result?.photo?.at(-1)?.file_id;
+      if(typeof fileId==="string"&&fileId.length<300)
+        await env.VISITORS_KV.put("owner_anketa_review_proof_archive_v1:yan_first:"+id,
+          JSON.stringify({account:"yan_first",profileId:id,fileId,savedAt:new Date().toISOString()}));
+      await reviewGuard(env,id,"review_verified",current.claimNonce);
+      await recordPublication(env,id,"review","published","verified-comments-screenshot");
+      await statePut(env,{...current,step:"review_result",text:null,completedAt:Date.now()});
+      await clearProgress(env,send);
+      return Response.json({ok:true,reviewPublished:true});
+    }
+    // No positive proof is NOT success, including timeout after a POST.
+    await recordPublication(env,id,"review","needs_verification","review-submit-unverified");
+    await statePut(env,{...current,step:"review_result",text:current.text,
+      attempted:publication.attempted===true});
+    await progressSay(env,send,"🌷 Публикацию отзыва пока не удалось подтвердить.\n\n🌹 Анкета №"+id+
+      "\n🔒 Повторная отправка заблокирована. Мы можем проверить результат без повторной публикации.");
+    return Response.json({ok:true,reviewPublished:false});
+  }
   const proofLoading=current?.step==="proof_loading" && data.mode==="proof";
   if(proofLoading){
     if(current.id!==id || current.nonce!==nonce || current.account!=="yan_first")
