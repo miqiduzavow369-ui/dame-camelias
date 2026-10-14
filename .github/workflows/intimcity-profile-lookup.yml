@@ -2,6 +2,11 @@ name: Verify Intimcity profile identity (bot)
 on:
   workflow_dispatch:
     inputs:
+      user_id:
+        description: "Optional Telegram user for isolated profile lookup"
+        required: false
+        default: ""
+        type: string
       profile_id:
         description: "Profile number (digits)"
         required: true
@@ -52,6 +57,7 @@ jobs:
           INTIMCITY_PASSWORD: ${{ secrets.INTIMCITY_PASSWORD }}
           ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
           ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
+          INTIMCITY_LOOKUP_USER_ID: ${{ inputs.user_id }}
           INTIMCITY_PROFILE_ID: ${{ inputs.profile_id }}
           INTIMCITY_SITE_HOST: ${{ inputs.site_host }}
           ANKETA_LOOKUP_NONCE: ${{ inputs.nonce }}
