@@ -162,11 +162,27 @@ async function chooseAccount(env,id){
   }),{expirationTtl:1800});
   return true;
 }
-function accountPicker(id){
+function statusBadge(record){
+  if(record?.status==="published")return "✅ ЗАВЕРШЕНО";
+  if(record)return "🔒 ТРЕБУЕТ ПРОВЕРКИ";
+  return "🟡 ДОСТУПНО";
+}
+async function accountPicker(env,id){
+  // Never show an available slot when KV cannot be read.
+  let first="⭐ Оценка — ⚠️ НЕИЗВЕСТНО | ✍️ Отзыв — ⚠️ НЕИЗВЕСТНО";
+  if(env.VISITORS_KV){
+    try{
+      const [rating,review]=await Promise.all([
+        publicationStatus(env,id,"rating"),publicationStatus(env,id,"review")
+      ]);
+      first="⭐ Оценка — "+statusBadge(rating)+" | ✍️ Отзыв — "+statusBadge(review);
+    }catch{}
+  }
   return buttons([
-    [{text:"👨‍💻 Ян Первый",callback_data:"owner_anketa:account1:"+id}],
-    [{text:"🔒 Ян Второй (не подключён)",callback_data:"owner_anketa:account2:"+id}],
-    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}]
+    [{text:"👨‍💻 Ян Первый\n"+first,callback_data:"owner_anketa:account1:"+id}],
+    [{text:"🔒 Ян Второй (не подключён)\n⭐ Оценка — ⛔ НЕДОСТУПНО | ✍️ Отзыв — ⛔ НЕДОСТУПНО",callback_data:"owner_anketa:account2:"+id}],
+    [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+    [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
 }
 const LIBRARY_KEY = "owner_anketa_library:"+OWNER_ID;
@@ -303,7 +319,7 @@ async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
   if(!record){await showLibrary(env,send);return;}
   await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
-    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",accountPicker(id));
+    "\n\n👤 Выберите аккаунт Intimcity для работы с анкетой:",await accountPicker(env,id));
 }
 const CHAT_IDS_KEY="owner_anketa_chat_ids:"+OWNER_ID;
 const NAV_MESSAGE_KEY="owner_anketa_navigation:"+OWNER_ID;
@@ -1244,7 +1260,7 @@ export async function handleOwnerAnketa(update,env,send) {
   if(account2){
     await navigationSay(env,send,"🔒 ЯН ВТОРОЙ\n🌹 Анкета №"+account2[1]+
       "\n\nДля данной анкеты доступны:\n\n"+await availabilitySummary(env,account2[1],"yan_second")+
-      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",accountPicker(account2[1]));
+      "\n\n🔒 Аккаунт пока не подключён.\n\n💕 Выберите действие:",await accountPicker(env,account2[1]));
     return true;
   }
   const proofRequest=/^owner_anketa:proof:(\d{1,9})$/.exec(data);
