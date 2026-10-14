@@ -5,8 +5,9 @@ const USER_ID = "5627932577";
 const KEY = "trial_cabinet_v1:" + USER_ID + ":";
 const PIN_SHA256 = "edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9";
 const PROFILE_URL = /^https:\/\/([a-z0-9-]+\.intimcity\.rip)\/indi\/anketa(\d{1,9})\.htm$/i;
+const PREMIUM="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
 const menu = {inline_keyboard:[
-  [{text:"➕ Добавить анкету",callback_data:"trial_cabinet:add"}],
+  [{text:"➕ Ввести новую анкету",callback_data:"trial_cabinet:add"}],
   [{text:"🔄 Обновить",callback_data:"trial_cabinet:open"}],
   [{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]
 ]};
@@ -19,6 +20,37 @@ async function matchesPin(value) {
 }
 async function reply(env,send,text,keyboard) {
   return send(env,"sendMessage",{chat_id:USER_ID,text,...(keyboard?{reply_markup:keyboard}:{})});
+}
+async function cabinetPage(env,send,text,remaining,buttons){
+  const previous=await get(env,"navigation").catch(()=>null);
+  let sent=null;
+  const count=Number(remaining);
+  if(Number.isInteger(count)&&count>=0&&count<=20&&env.BOT_TOKEN){
+    try{
+      const url=PREMIUM+"balance_"+String(count).padStart(2,"0")+".png";
+      const img=await fetch(url,{signal:AbortSignal.timeout(8000)});
+      if(!img.ok)throw Error("card fetch");
+      const bytes=await img.arrayBuffer();
+      const header=new Uint8Array(bytes.slice(0,4));
+      if(bytes.byteLength<100||bytes.byteLength>500000||header.join(",")!=="137,80,78,71")throw Error("card png");
+      const form=new FormData();
+      form.set("chat_id",USER_ID);
+      form.set("caption",text.slice(0,1000));
+      form.set("protect_content","true");
+      form.set("reply_markup",JSON.stringify(buttons));
+      form.set("photo",new Blob([bytes],{type:"image/png"}),"balance.png");
+      const result=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{method:"POST",body:form,signal:AbortSignal.timeout(12000)});
+      const body=await result.json();
+      if(!result.ok||!body.ok||!body.result?.message_id)throw Error("telegram photo");
+      sent=body.result;
+    }catch(e){console.error("Trial premium card fallback",String(e).slice(0,80));}
+  }
+  if(!sent)sent=await reply(env,send,"🌹 DAME CAMELIAS\\n\\n🔐 ЛИЧНЫЙ КАБИНЕТ\\n\\n"+text,buttons);
+  if(Number.isSafeInteger(sent?.message_id)){
+    await put(env,"navigation",{id:sent.message_id,at:Date.now()});
+    if(Number.isSafeInteger(previous?.id)&&previous.id!==sent.message_id)
+      await send(env,"deleteMessage",{chat_id:USER_ID,message_id:previous.id}).catch(()=>{});
+  }
 }
 export async function handleTrialCabinet(update,env,send) {
   const callback=update.callback_query;
@@ -43,6 +75,9 @@ export async function handleTrialCabinet(update,env,send) {
   if(callback)await send(env,"answerCallbackQuery",{callback_query_id:callback.id}).catch(()=>{});
   if(action==="trial_cabinet:home"){
     await env.VISITORS_KV.delete(KEY+"pending");
+    const nav=await get(env,"navigation").catch(()=>null);
+    if(Number.isSafeInteger(nav?.id))await send(env,"deleteMessage",{chat_id:USER_ID,message_id:nav.id}).catch(()=>{});
+    await env.VISITORS_KV.delete(KEY+"navigation");
     return "home";
   }
   const txt=String(msg?.text??"").trim();
@@ -74,6 +109,12 @@ export async function handleTrialCabinet(update,env,send) {
       return true;
     }
   }
+  if(action.startsWith("trial_cabinet:profile:")){
+    const id=action.slice("trial_cabinet:profile:".length);
+    const profiles=await get(env,"profiles")??[];
+    if(profiles.some(p=>p.id===id))await reply(env,send,"🌹 АНКЕТА №"+id+"\n\n⏳ Анкета сохранена, но ещё не проверена. После подключения проверки здесь появится карточка анкеты и доступные действия.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
+    return true;
+  }
   if(action==="trial_cabinet:add"){
     await put(env,"pending",{mode:"url"},{expirationTtl:1800});
     await reply(env,send,"🌹 Пришлите полную HTTPS-ссылку на анкету Intimcity.");
@@ -98,7 +139,8 @@ export async function handleTrialCabinet(update,env,send) {
     const balance=await credits(env,USER_ID,"status");
     remaining=String(balance.available??balance.remaining??balance.balance??"уточняется");
   }catch{}
-  const listing=profiles.length?profiles.map(p=>"🌹 Анкета №"+p.id+"\n"+p.url).join("\n\n"):"Анкет пока нет.";
-  await reply(env,send,"🌹 МОИ АНКЕТЫ\n\n💎 Баланс: "+remaining+"\n\n"+listing+"\n\nℹ️ Размещение публикаций в пробном кабинете пока недоступно.",menu);
+  const listing=profiles.length?profiles.map(p=>"🌹 Анкета №"+p.id+" — ожидает проверки").join("\n"):"🌷 Сохранённых анкет пока нет.";
+  const rows=[...profiles.map(p=>[{text:"🌹 АНКЕТА №"+p.id+" · ожидает проверки",callback_data:"trial_cabinet:profile:"+p.id}]),...menu.inline_keyboard];
+  await cabinetPage(env,send,"🆔 Telegram ID: "+USER_ID+"\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.\n\n"+listing+"\n\nℹ️ Проверка анкет и публикации в пробном кабинете ещё не подключены.",remaining,{inline_keyboard:rows});
   return true;
 }
