@@ -354,7 +354,7 @@ def inspect(pid, mode='profile'):
                     if (parsed.scheme == "https" and not parsed.username and
                             not parsed.password and not parsed.port and
                             parsed.hostname in (OWNER_HOST, "cdn2.intimtur.com") and
-                            re.search(r"\\.(?:jpg|jpeg|png|webp)$", parsed.path, re.I)):
+                            re.search(r"\.(?:jpg|jpeg|png|webp)$", parsed.path, re.I)):
                         card_thumbnail = candidate
                 except Exception:
                     pass
