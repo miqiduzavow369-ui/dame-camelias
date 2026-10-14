@@ -397,20 +397,10 @@ async function closeClientFlow(env,send,id,proofMessageId){
   let scope=null;
   try{scope=await env.VISITORS_KV?.get(CLIENT_FLOW_KEY,"json");}catch{}
   // Never delete historical chat messages if the flow marker is unavailable.
-  if(scope?.id===String(id) && Number.isFinite(scope.since)){
-    let messages=[];
-    try{messages=await env.VISITORS_KV?.get(CHAT_IDS_KEY,"json")||[];}catch{}
-    if(Array.isArray(messages)){
-      const eligible=messages.filter(x=>Number.isSafeInteger(x.id)&&
-        Number(x.at)>=scope.since && Date.now()-Number(x.at)<47*3600000);
-      const failed=[];
-      for(const entry of eligible){
-        try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:entry.id});}
-        catch{failed.push(entry);}
-      }
-      const remaining=messages.filter(x=>Number(x.at)<scope.since).concat(failed).slice(-150);
-      try{await env.VISITORS_KV?.put(CHAT_IDS_KEY,JSON.stringify(remaining),{expirationTtl:172800});}catch{}
-    }
+  // Never delete a range of tracked bot messages: it can contain audit reports,
+  // verification results or messages belonging to another navigation branch.
+  // Navigation messages are replaced independently by navigationSay().
+  if(scope?.id===String(id)){
     try{await env.VISITORS_KV?.delete(CLIENT_FLOW_KEY);}catch{}
   }
   // Delete only the proof message whose Thank You button was pressed.
