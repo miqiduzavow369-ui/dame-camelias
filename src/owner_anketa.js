@@ -899,12 +899,23 @@ export async function handleOwnerAnketa(update,env,send) {
     const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+"652282","json");
     const status=await publicationStatus(env,"652282","review");
     const claim=await reviewGuard(env,"652282","review_status");
-    if(!await selectedAccount(env,"652282") || !await savedGet(env,"652282") ||
-       !pending || pending.account!=="yan_first" || pending.id!=="652282" ||
-       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"") ||
-       !["publishing","needs_verification"].includes(status?.status) ||
-       claim.status!=="submission_maybe_sent"){
-      await navigationSay(env,send,"🔒 Восстановление недоступно: статус требует дополнительной проверки.");return true;
+    const selected=await selectedAccount(env,"652282");
+    const saved=await savedGet(env,"652282");
+    const faults=[
+      ...(!selected?["Выбор аккаунта устарел — выберите ЯН ПЕРВЫЙ заново"]:[]),
+      ...(!saved?["Анкета удалена из сохранённых"]:[]),
+      ...(!pending?["Не найдена запись исходной попытки"]:[]),
+      ...(pending && (pending.account!=="yan_first" || pending.id!=="652282" ||
+        !/^[a-f0-9]{16}$/.test(pending.claimNonce||""))?["Данные старой попытки требуют сверки"]:[]),
+      ...(!["publishing","needs_verification"].includes(status?.status)?["Статус отзыва: "+String(status?.status||"отсутствует")]:[]),
+      ...(claim.status!=="submission_maybe_sent"?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
+    ];
+    if(faults.length){
+      await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\\n\\n"+
+        faults.map(x=>"• "+x).join("\\n")+"\\n\\n"+
+        "Ничего на сайт не отправлено. Не снимайте блокировку вручную.",
+        buttons([[{text:"👨‍💻 Выбрать Ян Первый",callback_data:"owner_anketa:account1:652282"}],
+          [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:652282"}]]));return true;
     }
     await navigationSay(env,send,"🌹 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
       "Вы подтвердили, что прежняя отправка не дошла до сайта. "+
