@@ -1392,7 +1392,7 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{step:"review_input",id:savedReview[1],account:ACTIVE_ACCOUNT});
     await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+savedReview[1]+
       "\n\n💬 Отправьте текст отзыва одним сообщением.\n\n✨ Затем сможете проверить и изменить его.",
-      buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+savedReview[1]}],
+      buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedReview[1]}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));
     return true;
   }
