@@ -96,7 +96,7 @@ test("stale verify button does not relaunch already verified profile",async()=>{
  await handleTrialCabinet(m.message(uid,"2222"),m.env,m.send);
  await handleTrialCabinet(m.callback(uid,"trial_cabinet:add"),m.env,m.send);
  await handleTrialCabinet(m.message(uid,"https://b.intimcity.rip/indi/anketa698842.htm"),m.env,m.send);
- m.records.set("cabinet_v2:5627932577:saved:698842",JSON.stringify({id:"698842",name:"Verified"}));
+ m.records.set("cabinet_v2:5627932577:saved:698842",JSON.stringify({id:"698842",name:"Verified",url:"https://b.intimcity.rip/indi/anketa698842.htm",verifiedAt:Date.now()}));
  await handleTrialCabinet(m.callback(uid,"trial_cabinet:verify:698842"),m.env,m.send);
  const last=m.sent.filter(x=>x.method==="sendMessage").at(-1).payload.text;
  assert.match(last,/уже подтверждена/);
