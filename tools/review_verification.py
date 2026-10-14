@@ -13,6 +13,12 @@ def normalize_text(text):
     return " ".join(str(text).split())
 
 
+def review_text_matches(actual, expected):
+    """Accept only the site-added final period; all other text must match."""
+    actual, expected = normalize_text(actual), normalize_text(expected)
+    return actual == expected or (not expected.endswith(".") and actual == expected + ".")
+
+
 class CommentsParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -71,7 +77,7 @@ def find_exact_review(html, profile_id, expected_text):
     parser = CommentsParser()
     parser.feed(html)
     found = [entry for entry in parser.entries
-             if entry["profile_id"] == pid and entry["text"] == expected]
+             if entry["profile_id"] == pid and review_text_matches(entry["text"], expected)]
     return found[0] if len(found) == 1 else None
 
 

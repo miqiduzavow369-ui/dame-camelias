@@ -26,7 +26,11 @@ class ReviewVerifierTests(unittest.TestCase):
     def test_whitespace_only_normalization(self):
         self.assertIsNotNone(module.find_exact_review(item(771053,"Текст   настоящего\n отзыва"),771053,"Текст настоящего отзыва"))
     def test_punctuation_matters(self):
-        self.assertIsNone(module.find_exact_review(item(771053,"Текст настоящего отзыва."),771053,"Текст настоящего отзыва"))
+        self.assertIsNone(module.find_exact_review(item(771053,"Текст настоящего отзыва!"),771053,"Текст настоящего отзыва"))
+    def test_site_added_final_period(self):
+        text="Очень классная, был у нее не так давно. Очень позитивная, поржали и потрахались. Все супер"
+        self.assertIsNotNone(module.find_exact_review(item(652282,text+"."),652282,text))
+        self.assertFalse(module.review_text_matches(text+"!!",text))
     def test_url_validation(self):
         self.assertTrue(module.validate_comments_url("https://b.intimcity.rip/user_comments.php?pageCommentsMy=1","b.intimcity.rip"))
         self.assertFalse(module.validate_comments_url("https://evil.com/user_comments.php","b.intimcity.rip"))
