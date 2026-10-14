@@ -413,7 +413,16 @@ async function closeClientFlow(env,send,id,proofMessageId){
     }
     try{await env.VISITORS_KV?.delete(CLIENT_FLOW_KEY);}catch{}
   }
-  await closeProofMessages(env,send,proofMessageId);
+  // Delete only the proof message whose Thank You button was pressed.
+  if(Number.isSafeInteger(proofMessageId)){
+    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:proofMessageId});}catch{}
+    try{
+      const saved=await env.VISITORS_KV?.get(PROOF_MESSAGE_KEY,"json");
+      if(Array.isArray(saved))
+        await env.VISITORS_KV?.put(PROOF_MESSAGE_KEY,
+          JSON.stringify(saved.filter(x=>x.id!==proofMessageId)),{expirationTtl:172800});
+    }catch{}
+  }
   await clearProgress(env,send);
 }
 async function cleanAnketaChat(env,send){
