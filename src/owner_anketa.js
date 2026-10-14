@@ -66,7 +66,6 @@ async function closeProofMessages(env,send,callbackMessageId){
 }
 function proofNav(id){return buttons([
   [{text:"🌹 Спасибо",callback_data:"owner_anketa:proofthanks:"+id}],
-  [{text:"👨‍💻 Вернуться к клиенту",callback_data:"owner_anketa:proofthanks:"+id}],
   [{text:"🌹 К анкете",callback_data:"owner_anketa:saved:"+id}],
   [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
