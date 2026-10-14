@@ -37,7 +37,18 @@ export class OrderReminder {
         if (!/^\d{5,16}$/.test(uid))return Response.json({error:"invalid_user"},{status:400});
         let ledger=await storage.get("credits_v1");
         if(!ledger){
-          ledger={grant:uid==="5866034656"?10:0,spent:0,claims:{},history:[],createdAt:now};
+          ledger={grant:uid==="5866034656"?10:0,grantRevision:uid==="5866034656"?1:0,
+            spent:0,claims:{},history:[],createdAt:now};
+          await storage.put("credits_v1",ledger);
+        }
+        const nextGrant=input.grant;
+        if(nextGrant && Number.isSafeInteger(nextGrant.revision) &&
+           Number.isSafeInteger(nextGrant.totalGranted) &&
+           nextGrant.revision>=0 && nextGrant.totalGranted>=ledger.grant &&
+           nextGrant.totalGranted<=1000000 &&
+           nextGrant.revision>(ledger.grantRevision||0)){
+          ledger.grant=nextGrant.totalGranted;
+          ledger.grantRevision=nextGrant.revision;
           await storage.put("credits_v1",ledger);
         }
         const claims=ledger.claims||{};
