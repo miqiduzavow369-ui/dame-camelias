@@ -32,7 +32,7 @@ def load_private_dryfill(pid, nonce):
         raise RuntimeError("Invalid private payload host")
     from urllib.parse import urlencode
     address=parsed._replace(path="/api/anketa/dryfill-payload",
-                             query=urlencode({"profile_id":pid,"nonce":nonce}),
+                             query=urlencode({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce}),
                              fragment="").geturl()
     req=Request(address,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
@@ -54,7 +54,7 @@ def report_review_stage(pid, nonce, kind):
     if original.scheme!="https" or original.path!="/api/anketa/result" or not original.netloc:
         raise RuntimeError("Invalid review audit URL")
     url=original._replace(path="/api/anketa/review-stage",query="",fragment="").geturl()
-    body=json.dumps({"profile_id":pid,"nonce":nonce,"type":kind}).encode("utf-8")
+    body=json.dumps({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce,"type":kind}).encode("utf-8")
     req=Request(url,method="POST",data=body,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
         "Content-Type":"application/json","User-Agent":"DameCameliasBot/1.0"})
@@ -70,7 +70,7 @@ def load_private_review(pid, nonce, mode):
     if base.scheme!="https" or base.path!="/api/anketa/result" or not base.netloc:
         raise RuntimeError("Invalid private review callback host")
     url=base._replace(path="/api/anketa/review-payload",
-                      query=urlencode({"profile_id":pid,"nonce":nonce,"mode":mode}),
+                      query=urlencode({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce,"mode":mode}),
                       fragment="").geturl()
     req=Request(url,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
@@ -218,7 +218,7 @@ def capture_verified_proof(ctx, pid, expected_date=None):
             raise RuntimeError("Proof image too large")
         print("PROOF: matching checked entry captured",flush=True)
         return {"date":result["date"],"image":base64.b64encode(image).decode("ascii"),
-                "mime":"image/jpeg","account":"yan_first"}
+                "mime":"image/jpeg","account":"yan_first","profile_id":pid}
     finally:
         page.close()
 

@@ -1,7 +1,8 @@
 import { reminderCall } from "./reminders.js";
-import { handleTrialCabinet } from "./trial_cabinet.js";
-import { handleOwnerAnketa, handleAnketaLookupResult, ownerDryfillPayload, ownerReviewPayload, ownerReviewStage, ownerRatingFormApi, serveProfileThumbnail } from "./owner_anketa.js";
-import {clientLookupCallback} from "./client_lookup.js";
+import {handleCabinet,cabinetEndpoint} from "./cabinet_runtime.js";
+import {registry} from "./client_registry.js";
+import {validWebApp} from "./telegram_auth.js";
+import { serveProfileThumbnail } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
@@ -106,7 +107,7 @@ async function sendPhotoFile(env, data, url) {
 }
 function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}]]};
-  if (key === "home") { const id=String(env.__ownerMenuChatId ?? ""); return {inline_keyboard: id==="5866034656" ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : id==="5627932577" ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN}; }
+  if (key === "home") { const id=String(env.__ownerMenuChatId ?? ""); return {inline_keyboard: id==="5866034656" ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : env.__clientMenu ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN}; }
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
     [{text:"📝 Оставить заявку",callback_data:"order"}],
@@ -158,6 +159,10 @@ function keyboard(key, env) {
 }
 // Send a new page then remove the previous one: works for both photo and text messages.
 async function sendPage(env, chatId, key) {
+  if(key==="home"&&String(chatId)!=="5866034656"){
+    const {client}=await registry(env,{action:"get",userId:String(chatId)});
+    env={...env,__clientMenu:client?.active===true&&env.CABINET_CLIENTS_ENABLED!=="false"};
+  }
   const payload = {
     chat_id: chatId,
     parse_mode: "HTML",
@@ -353,19 +358,9 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
-  const trialHandled = await handleTrialCabinet(update, env, telegram);
-  if (trialHandled) {
-    if (trialHandled==="home" && update.callback_query?.message?.chat?.id)
-      await sendPage(env,update.callback_query.message.chat.id,"home");
-    return;
-  }
-  const ownerHandled = await handleOwnerAnketa(update, env, telegram);
-  if (ownerHandled) {
-    // The owner module removes its temporary navigation on "В начало".
-    // Restore the actual main menu instead of leaving an empty chat.
-    if (update.callback_query?.data === "owner_anketa:home" && update.callback_query.message?.chat?.id) {
-      await sendPage(env, update.callback_query.message.chat.id, "home");
-    }
+  const cabinetHandled=await handleCabinet(update,env);
+  if(cabinetHandled){
+    if(cabinetHandled==="home")await sendPage(env,update.callback_query.message.chat.id,"home");
     return;
   }
   const person = update.callback_query?.from || update.message?.from;
@@ -443,18 +438,7 @@ const ORDER_MANAGER_CHAT_ID = 5866034656;
 const encoder = new TextEncoder();
 const toHex = bytes => [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, "0")).join("");
 const plain = value => String(value ?? "").slice(0, 2000).replace(/[\u0000-\u001f\u007f]/g, " ").trim();
-async function validWebApp(initData, token, maxAge = 600) {
-  if (!initData || initData.length > 12000) return false;
-  const params = new URLSearchParams(initData);
-  const hash = params.get("hash");
-  const date = Number(params.get("auth_date"));
-  if (!hash || !/^[a-f0-9]{64}$/i.test(hash) || !Number.isSafeInteger(date) || Math.abs(Date.now()/1000 - date) > maxAge) return false;
-  params.delete("hash");
-  const data = [...params.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => k + "=" + v).join("\n");
-  const secret = await crypto.subtle.sign("HMAC", await crypto.subtle.importKey("raw", encoder.encode("WebAppData"), { name:"HMAC", hash:"SHA-256" }, false, ["sign"]), encoder.encode(token));
-  const key = await crypto.subtle.importKey("raw", secret, { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
-  return toHex(await crypto.subtle.sign("HMAC", key, encoder.encode(data))) === hash.toLowerCase();
-}
+
 async function receiveOrder(request, env) {
   if (!env.BOT_TOKEN) return new Response("Not configured", {status:503});
   if (Number(request.headers.get("content-length") || 0) > 50000) return new Response("Too large", {status:413});
@@ -606,7 +590,7 @@ export default {
     if (request.method === "GET" && /^\/api\/anketa\/(?:photo|card)\/\d{1,9}$/.test(url.pathname))
       return serveProfileThumbnail(request,env);
     if (request.method === "POST" && url.pathname === "/api/anketa/ratings")
-      return ownerRatingFormApi(request,env,telegram,validWebApp);
+      return cabinetEndpoint(request,env,"ratings");
     if (url.pathname === "/api/order" && request.method === "OPTIONS") return new Response(null, {status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type"}});
     if (url.pathname === "/api/order/activity" && request.method === "POST") {
       let input;
@@ -620,16 +604,13 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/anketa/health")
       return new Response("anketa-handler-v2", {headers:{"Content-Type":"text/plain","Cache-Control":"no-store"}});
     if (request.method === "POST" && url.pathname === "/api/anketa/review-stage")
-      return ownerReviewStage(request,env);
+      return cabinetEndpoint(request,env,"stage");
     if (request.method === "GET" && url.pathname === "/api/anketa/review-payload")
-      return ownerReviewPayload(request,env);
+      return cabinetEndpoint(request,env,"review");
     if (request.method === "GET" && url.pathname === "/api/anketa/dryfill-payload")
-      return ownerDryfillPayload(request,env);
+      return cabinetEndpoint(request,env,"dryfill");
     if (request.method === "POST" && url.pathname === "/api/anketa/result") {
-      const raw=await request.clone().json().catch(()=>null);
-      if(raw && Object.hasOwn(raw,"user_id") && String(raw.user_id).length>0)
-        return clientLookupCallback(request,env,telegram);
-      return handleAnketaLookupResult(request,env,telegram);
+      return cabinetEndpoint(request,env,"result");
     }
     if (request.method !== "POST" || url.pathname !== "/webhook") return new Response("Not found", { status: 404 });
     if (!env.BOT_TOKEN || !env.WEBHOOK_SECRET) return new Response("Not configured", { status: 503 });
