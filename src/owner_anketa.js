@@ -375,10 +375,11 @@ async function showSaved(env,send,id) {
       [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
       [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
     ]);
-  const photo=record.profile?.photoUrl;
+  const photo=profileCardUrl(id,record.host);
+  const hasCard=!!(await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer").catch(()=>null));
   // Telegram places a photo above the caption. Only use our persisted R2
   // thumbnail; fall back to the current text card when the image is missing.
-  if(typeof photo==="string" && photo===thumbnailUrl(id,record.host)){
+  if(hasCard){
     try{
       const response=await send(env,"sendPhoto",{
         chat_id:OWNER_ID,photo,caption:text,reply_markup:markup
@@ -691,17 +692,32 @@ export function thumbnailUrl(id,host){
 }
 export async function serveProfileThumbnail(request,env){
   const url=new URL(request.url);
-  const match=/^\/api\/anketa\/photo\/(\d{1,9})$/.exec(url.pathname);
+  const match=/^\/api\/anketa\/(photo|card)\/(\d{1,9})$/.exec(url.pathname);
   const host=url.searchParams.get("site")||"";
   if(!match || !HOST_PATTERN.test(host) || !env.VISITORS_KV)
     return new Response("Not found",{status:404});
-  const bytes=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+host+"/"+match[1]+".jpg","arrayBuffer");
+  const bytes=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+host+"/"+match[2]+(match[1]==="card"?".card.jpg":".jpg"),"arrayBuffer");
   if(!bytes)return new Response("Not found",{status:404});
   return new Response(bytes,{headers:{
     "Content-Type":"image/jpeg",
     "Cache-Control":"public, max-age=3600",
     "X-Content-Type-Options":"nosniff"
   }});
+}
+async function saveProfileCard(env,profile,id,host){
+  if(!env.VISITORS_KV || !profile || String(profile.id)!==id ||
+     typeof profile.cardData!=="string" || profile.cardData.length>145000 ||
+     !/^[A-Za-z0-9+/]+={0,2}$/.test(profile.cardData))return false;
+  try{
+    const bytes=Uint8Array.from(atob(profile.cardData),x=>x.charCodeAt(0));
+    if(bytes.length<3000 || bytes.length>105000 || bytes[0]!==255 || bytes[1]!==216 ||
+       bytes[bytes.length-2]!==255 || bytes[bytes.length-1]!==217)return false;
+    await env.VISITORS_KV.put(THUMBNAIL_PREFIX+host+"/"+id+".card.jpg",bytes);
+    return true;
+  }catch(e){console.error("Profile banner KV save failed",String(e));return false;}
+}
+function profileCardUrl(id,host){
+  return "https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/card/"+id+"?site="+encodeURIComponent(host);
 }
 async function saveProfileThumbnail(env,profile,id,host){
   if(!env.VISITORS_KV || !profile || String(profile.id)!==id ||
@@ -735,8 +751,10 @@ export async function handleAnketaLookupResult(request,env,send) {
      current?.id===id && current?.nonce===nonce && HOST_PATTERN.test(current.host||"")){
     const stored=await saveProfileThumbnail(env,data.profile,id,current.host);
     if(stored)data.profile.photoUrl=stored;
+    await saveProfileCard(env,data.profile,id,current.host);
   }
   if(data.profile && "photoData" in data.profile)delete data.profile.photoData;
+  if(data.profile && "cardData" in data.profile)delete data.profile.cardData;
   // A working example profile may have a DIFFERENT ID from the review.
   // Verify its destination, then resume proof for the original review ID.
   // No saved domain is changed until Telegram confirms photo delivery.
