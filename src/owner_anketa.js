@@ -368,7 +368,7 @@ async function showSaved(env,send,id) {
   await navigationSay(env,send,"🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее",buttons([
       [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
-      [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
+      [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
       [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
     ]));
 }
