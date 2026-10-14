@@ -58,7 +58,7 @@ class LiveReviewTests(unittest.TestCase):
         ctx=Context()
         real={"account":"yan_first","profile_id":PID,"text_verified":True,"image":"jpeg","mime":"image/jpeg"}
         with patch("review_live_workflow.capture_review_proof",side_effect=[None,real]) as find:
-            result=run_review(ctx,PID,HOST,"review_publish",TEXT)
+            result=run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None)
         self.assertEqual(result["proof"],real)
         self.assertEqual(Form.submit.clicked,1)
         self.assertEqual(ctx.page.field.value,TEXT)
@@ -67,7 +67,7 @@ class LiveReviewTests(unittest.TestCase):
     def test_existing_review_not_submitted_again(self):
         ctx=Context()
         with patch("review_live_workflow.capture_review_proof",return_value={"verified":True}):
-            result=run_review(ctx,PID,HOST,"review_publish",TEXT)
+            result=run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None)
         self.assertFalse(result["attempted"])
         self.assertTrue(result["already_exists"])
         self.assertEqual(ctx.calls,0)
@@ -80,7 +80,7 @@ class LiveReviewTests(unittest.TestCase):
     def test_uncertain_result_never_retries_submission(self):
         ctx=Context()
         with patch("review_live_workflow.capture_review_proof",return_value=None):
-            result=run_review(ctx,PID,HOST,"review_publish",TEXT)
+            result=run_review(ctx,PID,HOST,"review_publish",TEXT,report_stage=lambda kind:None)
         self.assertTrue(result["attempted"])
         self.assertFalse(result["confirmed"])
         self.assertEqual(Form.submit.clicked,1)

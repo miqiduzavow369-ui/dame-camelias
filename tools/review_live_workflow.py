@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from review_text_entry import stage_review_text
 from review_proof_capture import capture_review_proof
 
-def run_review(ctx, pid, host, mode, approved_text):
+def run_review(ctx, pid, host, mode, approved_text, report_stage=None):
     if mode not in ("review_publish","review_proof"):
         raise ValueError("Unsupported review mode")
     if not re.fullmatch(r"\d{1,9}",str(pid)) or not re.fullmatch(r"[a-z0-9-]+\.intimcity\.rip",host):
@@ -45,6 +45,11 @@ def run_review(ctx, pid, host, mode, approved_text):
         stage_review_text(page,approved_text)
         if field.input_value()!=approved_text:
             raise RuntimeError("Approved review not preserved")
+        # The durable stage audit MUST succeed before any external POST.
+        # If it fails, the site submit is never clicked.
+        if not callable(report_stage):
+            raise RuntimeError("Missing mandatory submission audit")
+        report_stage("review_submit_boundary")
         # One external POST, never automatically repeat it on timeout.
         attempted=True
         print("REVIEW: one confirmed submission attempt",flush=True)
