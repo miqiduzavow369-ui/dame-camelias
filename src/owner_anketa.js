@@ -239,8 +239,8 @@ async function showAccountPicker(env,send,id){
         if(!Number.isSafeInteger(firstId))throw Error("Profile photo not delivered");
         const dailyPhoto=dailyCardUrl(today.remaining);
         if(!dailyPhoto)throw Error("Missing prepared daily PNG");
-        const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,
-          photo:dailyPhoto,caption:"🕛 Обновление в 00:00 по московскому времени.",reply_markup:keys});
+        const result=await sendPreparedCard(env,dailyPhoto,
+          "🕛 Обновление в 00:00 по московскому времени.",keys);
         if(!Number.isSafeInteger(result?.message_id))
           throw Error("Prepared daily banner not delivered");
         const lastId=result.message_id;
@@ -405,6 +405,30 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
   }
 }
 const PREMIUM_CARDS="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
+async function sendPreparedCard(env,url,caption,reply_markup){
+  // Download the public static PNG from GitHub in the Worker and upload it
+  // directly to Telegram. Telegram's servers never need to fetch GitHub URLs.
+  const image=await fetch(url,{signal:AbortSignal.timeout(10000)});
+  if(!image.ok)throw Error("Premium PNG HTTP "+image.status);
+  const bytes=await image.arrayBuffer();
+  if(bytes.byteLength<100 || bytes.byteLength>500000)
+    throw Error("Premium PNG invalid size");
+  const data=new Uint8Array(bytes);
+  if(data[0]!==137||data[1]!==80||data[2]!==78||data[3]!==71)
+    throw Error("Premium PNG invalid signature");
+  const form=new FormData();
+  form.set("chat_id",OWNER_ID);
+  form.set("caption",caption);
+  form.set("reply_markup",JSON.stringify(reply_markup));
+  form.set("photo",new Blob([bytes],{type:"image/png"}),"premium.png");
+  const result=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
+    method:"POST",body:form,signal:AbortSignal.timeout(15000)
+  });
+  const parsed=await result.json();
+  if(!result.ok || parsed.ok!==true || !Number.isSafeInteger(parsed.result?.message_id))
+    throw Error("Telegram premium photo: "+String(parsed.description||result.status).slice(0,180));
+  return parsed.result;
+}
 function balanceCardUrl(count){
   return Number.isInteger(count)&&count>=0&&count<=20 ? PREMIUM_CARDS+"balance_"+String(count).padStart(2,"0")+".png" : null;
 }
@@ -435,7 +459,7 @@ async function showLibrary(env,send){
   const url=balanceCardUrl(remaining);
   if(url){
     try{
-      const response=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:"🆔 Telegram ID: "+OWNER_ID+info,reply_markup:keys});
+      const response=await sendPreparedCard(env,url,"🆔 Telegram ID: "+OWNER_ID+info,keys);
       if(!Number.isSafeInteger(response?.message_id))throw Error("Telegram premium card not sent");
       await trackAnketaMessage(env,response.message_id);
       let previous=null;
