@@ -338,6 +338,26 @@ def inspect(pid, mode='profile'):
             results = page.locator("#idBigSearchFindCount")
             if results.count() and results.first.get_attribute("data-arrid") not in (None, pid):
                 raise RuntimeError("Search result ID does not match requested profile")
+            # Extract only the thumbnail belonging to the verified search-result card.
+            # Never use unrelated gallery images or the site's advertising assets.
+            card_thumbnail = ""
+            photo_nodes = card.locator(".imganketa img")
+            if photo_nodes.count() == 1:
+                try:
+                    photo_data = photo_nodes.first.evaluate("""img => ({
+                        src: img.getAttribute('data-src') || img.currentSrc || img.src || '',
+                        alt: img.getAttribute('alt') || ''
+                    })""")
+                    from urllib.parse import urljoin
+                    candidate = urljoin(page.url, photo_data.get("src", ""))
+                    parsed = urlparse(candidate)
+                    if (parsed.scheme == "https" and not parsed.username and
+                            not parsed.password and not parsed.port and
+                            parsed.hostname in (OWNER_HOST, "cdn2.intimtur.com") and
+                            re.search(r"\\.(?:jpg|jpeg|png|webp)$", parsed.path, re.I)):
+                        card_thumbnail = candidate
+                except Exception:
+                    pass
             print("LOOKUP_STAGE: locate-profile-link")
             link = card.locator(f'a[href$="/indi/anketa{pid}.htm"]')
             visible_links = [item for item in link.all() if item.is_visible()]
@@ -361,6 +381,8 @@ def inspect(pid, mode='profile'):
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
             profile = extract(profile_page,pid)
+            if profile and card_thumbnail:
+                profile["photoUrl"] = card_thumbnail
             if mode in ("review_publish","review_proof"):
                 # Same verified profile search, card, popup and identity as ratings.
                 # Reviews diverge only after the exact profile tab is open.
