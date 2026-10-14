@@ -1450,9 +1450,9 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
     const existingDraft=await reviewDraftGet(env,savedReview[1]);
     if(existingDraft){
-      await navigationSay(env,send,"✍️ СОХРАНЁННЫЙ ЧЕРНОВИК\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+savedReview[1]+
-        "\\n\\n💬 Ваш текст:\\n\\n"+existingDraft.text+
-        "\\n\\nПродолжить работу с черновиком или начать заново?",
+      await navigationSay(env,send,"✍️ СОХРАНЁННЫЙ ЧЕРНОВИК\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+savedReview[1]+
+        "\n\n💬 Ваш текст:\n\n"+existingDraft.text+
+        "\n\nПродолжить работу с черновиком или начать заново?",
         buttons([[{text:"📝 Продолжить черновик",callback_data:"owner_anketa:draftresume:"+savedReview[1]}],
           [{text:"🆕 Начать заново",callback_data:"owner_anketa:draftnew:"+savedReview[1]}],
           [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedReview[1]}]]));
