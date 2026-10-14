@@ -54,6 +54,13 @@ export class OrderReminder {
           await storage.put("daily_claims",used);
           return Response.json({ok:true,remaining:1-occupied});
         }
+        if(input.type==="daily_release"){
+          if(!used[key] || used[key].nonce!==nonce || used[key].status!=="reserved")
+            return Response.json({ok:false},{status:409});
+          delete used[key];
+          await storage.put("daily_claims",used);
+          return Response.json({ok:true,remaining:Math.max(0,2-Object.keys(used).length)});
+        }
         if(input.type==="daily_complete"){
           if(!used[key]||used[key].nonce!==nonce)return Response.json({ok:false},{status:409});
           if(used[key].status!=="completed"){
