@@ -1,5 +1,6 @@
 import {clientKey} from "./client_isolation.js";
 import {dispatchClientLookup} from "./client_lookup.js";
+import {matchingVerifiedProfile} from "./client_profile_view.js";
 import { credits } from "./publication_credits.js";
 
 // Independent trial cabinet. Existing owner state and publication routines remain untouched.
@@ -126,7 +127,7 @@ export async function handleTrialCabinet(update,env,send) {
     const stored=profiles.find(p=>p.id===id);
     if(stored){
       const verified=await env.VISITORS_KV.get(clientKey(USER_ID,"saved",id),"json");
-      if(verified){
+      if(matchingVerifiedProfile(stored.url,verified)){
         await navigateText(env,send,"✅ АНКЕТА ПОДТВЕРЖДЕНА\n\n🌹 "+verified.name+" · №"+id+"\nВозраст: "+verified.age+"\nМетро: "+verified.metro+"\n\n⏳ Система оценок и отзывов подключается отдельно.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
       }else{
         await navigateText(env,send,"🌹 АНКЕТА №"+id+"\n\nВы можете проверить сохранённую ссылку.",{inline_keyboard:[[{text:"🔎 Проверить анкету",callback_data:"trial_cabinet:verify:"+id}],[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
@@ -140,7 +141,7 @@ export async function handleTrialCabinet(update,env,send) {
     const stored=profiles.find(p=>p.id===id);
     if(!stored)return true;
     const previouslyVerified=await env.VISITORS_KV.get(clientKey(USER_ID,"saved",id),"json");
-    if(previouslyVerified?.id===id){
+    if(matchingVerifiedProfile(stored.url,previouslyVerified)){
       await navigateText(env,send,"✅ Анкета №"+id+" уже подтверждена.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
       return true;
     }
