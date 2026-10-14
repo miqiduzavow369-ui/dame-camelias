@@ -283,11 +283,6 @@ def inspect(pid, mode='profile'):
                 raise RuntimeError("Authentication not confirmed")
             if mode=="proof":
                 return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
-            if mode in ("review_publish","review_proof"):
-                from review_live_workflow import run_review
-                text=required("ANKETA_PRIVATE_REVIEW")
-                return {"profile":{"id":pid},"review_publication":run_review(ctx,pid,OWNER_HOST,mode,text,report_stage=(lambda kind: report_review_stage(pid,required("ANKETA_LOOKUP_NONCE"),kind)) if mode=="review_publish" else None)}
-
             print("LOOKUP_STAGE: search-profile")
             search = page.locator('input#searchStr[name="phones"]')
             visible_search = [item for item in search.all() if item.is_visible()]
@@ -340,6 +335,17 @@ def inspect(pid, mode='profile'):
             print("LOOKUP_STAGE: extract-profile")
             profile_page.wait_for_timeout(1800)
             profile = extract(profile_page,pid)
+            if mode in ("review_publish","review_proof"):
+                # Same verified profile search, card, popup and identity as ratings.
+                # Reviews diverge only after the exact profile tab is open.
+                if not profile:
+                    raise RuntimeError("Review profile identity not verified")
+                print("REVIEW_STAGE: verified-profile-from-search",flush=True)
+                from review_live_workflow import run_review
+                approved=required("ANKETA_PRIVATE_REVIEW")
+                stage=(lambda kind: report_review_stage(pid,required("ANKETA_LOOKUP_NONCE"),kind)) if mode=="review_publish" else None
+                return {"profile":profile,"review_publication":run_review(
+                    ctx,pid,OWNER_HOST,mode,approved,report_stage=stage,profile_page=profile_page)}
             if mode not in ("ratings","mapping","dryfill","publish") or not profile:
                 return profile
             print("LOOKUP_STAGE: read-visible-rating-criteria")
