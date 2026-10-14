@@ -1,0 +1,28 @@
+name: Publication credit tests
+on:
+  push:
+    paths:
+      - "src/owner_anketa.js"
+      - "src/publication_credits.js"
+      - "src/credits_banner.js"
+      - "src/reminders.js"
+      - "tests/publication_credits.test.mjs"
+      - ".github/workflows/publication-credit-tests.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run credit and banner tests
+        run: node --test tests/publication_credits.test.mjs
+      - name: Syntax check bot and existing state
+        run: |
+          node --check src/index.js
+          node --check src/owner_anketa.js
+          node --check src/reminders.js
