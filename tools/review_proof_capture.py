@@ -38,12 +38,10 @@ def capture_review_proof(ctx, host, profile_id, expected_text, max_pages=8):
             card = page.locator(f"#ankcrd{pid}")
             if card.count() != 1:
                 raise RuntimeError("Review card ambiguous")
-            table = card.evaluate_handle("""card => {
-                let node=card.nextElementSibling;
-                while(node && node.tagName==='BR') node=node.nextElementSibling;
-                return node && node.matches('table.rating-block-wrapper')?node:null;
-            }""").as_element()
-            if table is None:
+            # Keep a Locator, not an ElementHandle: ElementHandle has no
+            # .locator() method in Python Playwright.
+            table = card.locator("xpath=following-sibling::*[1][self::table[contains(concat(' ',normalize-space(@class),' '),' rating-block-wrapper ')]]")
+            if table.count()!=1:
                 raise RuntimeError("Matching review table missing")
             actual = table.locator("td.ver11 p")
             if actual.count() != 1 or not review_text_matches(actual.inner_text(), expected_text):
