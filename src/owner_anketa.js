@@ -149,6 +149,24 @@ async function statePut(env, state) {
     { expirationTtl: TTL_SECONDS });
   return true;
 }
+const REVIEW_DRAFT_KEY="owner_anketa_review_draft_v1:yan_first:";
+const REVIEW_DRAFT_TTL=7*24*3600;
+async function reviewDraftSave(env,state){
+  if(!env.VISITORS_KV || !ID_PATTERN.test(String(state?.id)) ||
+     state.account!==ACTIVE_ACCOUNT || typeof state.text!=="string" ||
+     state.text.length<10 || state.text.length>3000)return;
+  try{await env.VISITORS_KV.put(REVIEW_DRAFT_KEY+state.id,
+    JSON.stringify({id:String(state.id),account:ACTIVE_ACCOUNT,text:state.text,savedAt:Date.now()}),
+    {expirationTtl:REVIEW_DRAFT_TTL});}catch{}
+}
+async function reviewDraftGet(env,id){
+  if(!env.VISITORS_KV || !ID_PATTERN.test(String(id)))return null;
+  try{
+    const x=await env.VISITORS_KV.get(REVIEW_DRAFT_KEY+id,"json");
+    return x?.id===String(id)&&x.account===ACTIVE_ACCOUNT&&
+      typeof x.text==="string"&&x.text.length>=10&&x.text.length<=3000?x:null;
+  }catch{return null;}
+}
 const ACCOUNT_SELECTION_KEY = "owner_anketa_selected_account:"+OWNER_ID;
 const ACTIVE_ACCOUNT = "yan_first";
 async function selectedAccount(env,id){
@@ -1124,6 +1142,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
     await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:txt,nonce});
+    await reviewDraftSave(env,{id,account:ACTIVE_ACCOUNT,text:txt});
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
       "\n\n💬 Ваш текст:\n\n"+txt+"\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
@@ -1300,6 +1319,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await showLibrary(env,send);return true;
     }
     await statePut(env,{...draft,step:"review_preview",editing:false,agreedAt:null});
+    await reviewDraftSave(env,draft);
     await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+draft.id+
       "\n\n💬 Ваш текст:\n\n"+draft.text+
       "\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
@@ -1315,6 +1335,7 @@ export async function handleOwnerAnketa(update,env,send) {
     if(!["review_preview","review_agreed"].includes(current?.step)||current.nonce!==reviewEdit[1]||!await selectedAccount(env,current.id)){
       await showLibrary(env,send);return true;
     }
+    await reviewDraftSave(env,current);
     await statePut(env,{...current,step:"review_input",editing:true,agreedAt:null});
     await navigationSay(env,send,"✍️ ИЗМЕНИТЬ ОТЗЫВ\n\n🌹 Анкета №"+current.id+
       "\n\n💬 Ваш предыдущий текст сохранён:\n\n"+current.text+
@@ -1395,6 +1416,31 @@ export async function handleOwnerAnketa(update,env,send) {
     await progressSay(env,send,"🌸 Минуточку, пожалуйста!\n\n💕 Мы готовим для вас подтверждение опубликованных оценок.\n📸 Совсем скоро пришлём красивый отчёт с фотографией.");
     return true;
   }
+  const draftRoute=/^owner_anketa:draft(resume|new):(\d{1,9})$/.exec(data);
+  if(draftRoute){
+    const [,choice,id]=draftRoute;
+    if(!await savedGet(env,id)||!await selectedAccount(env,id)||
+       await publicationStatus(env,id,"review")){await showSaved(env,send,id);return true;}
+    const draft=await reviewDraftGet(env,id);
+    if(choice==="resume"){
+      if(!draft){await navigationSay(env,send,"🌷 Черновик больше недоступен.",buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));return true;}
+      const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
+      await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:draft.text,nonce});
+      await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+        "\n\n💬 Ваш текст:\n\n"+draft.text+
+        "\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
+        buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
+          [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
+          [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
+      return true;
+    }
+    await env.VISITORS_KV?.delete(REVIEW_DRAFT_KEY+id);
+    await statePut(env,{step:"review_input",id,account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
+      "\n\n💬 Отправьте новый текст отзыва одним сообщением.",
+      buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
+    return true;
+  }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
   if(savedReview){
     if(!await selectedAccount(env,savedReview[1])){
@@ -1402,6 +1448,16 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     if(await ensureNoRepeat(env,savedReview[1],"review",send))return true;
     if(!await savedGet(env,savedReview[1])){await showLibrary(env,send);return true;}
+    const existingDraft=await reviewDraftGet(env,savedReview[1]);
+    if(existingDraft){
+      await navigationSay(env,send,"✍️ СОХРАНЁННЫЙ ЧЕРНОВИК\\n\\n👨‍💻 ЯН ПЕРВЫЙ\\n🌹 Анкета №"+savedReview[1]+
+        "\\n\\n💬 Ваш текст:\\n\\n"+existingDraft.text+
+        "\\n\\nПродолжить работу с черновиком или начать заново?",
+        buttons([[{text:"📝 Продолжить черновик",callback_data:"owner_anketa:draftresume:"+savedReview[1]}],
+          [{text:"🆕 Начать заново",callback_data:"owner_anketa:draftnew:"+savedReview[1]}],
+          [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedReview[1]}]]));
+      return true;
+    }
     await statePut(env,{step:"review_input",id:savedReview[1],account:ACTIVE_ACCOUNT});
     await navigationSay(env,send,"✍️ НОВЫЙ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+savedReview[1]+
       "\n\n💬 Отправьте текст отзыва одним сообщением.\n\n✨ Затем сможете проверить и изменить его.",
