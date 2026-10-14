@@ -226,7 +226,7 @@ async function showAccountPicker(env,send,id){
   const message="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n👥 Выберите аккаунт для работы с анкетой:";
   const limitText="📅 ДЛЯ ЭТОЙ АНКЕТЫ СЕГОДНЯ ДОСТУПНО "+
-    (today?today.remaining:"—")+" ПУБЛИКАЦИИ\n\n🕛 Обновление в 00:00 по московскому времени.";
+    (today?today.remaining:"—")+" "+(today?.remaining===1?"ПУБЛИКАЦИЯ":"ПУБЛИКАЦИИ")+\n    "\n\n🕛 Обновление в 00:00 по московскому времени.";
   const keys=await accountPicker(env,id);
   if(today){
     let firstId=null;
