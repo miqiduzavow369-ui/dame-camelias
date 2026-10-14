@@ -7,6 +7,36 @@ const TTL_SECONDS = 1800;
 // Owner verified this live publication on 2026-10-13. Historical backfill:
 // immutable even if the bot's chat or Cloudflare KV data are cleared.
 const VERIFIED_FIRST_PUBLICATION = "652282";
+const PROOF_ARCHIVE_KEY="owner_anketa_proof_archive_v1:";
+function proofArchiveKey(account,id){return PROOF_ARCHIVE_KEY+account+":"+id;}
+async function savedProof(env,account,id){
+  if(account!==ACTIVE_ACCOUNT || !ID_PATTERN.test(String(id)))return null;
+  try{
+    const x=await env.VISITORS_KV?.get(proofArchiveKey(account,id),"json");
+    return x?.account===account && x.profileId===String(id) &&
+      typeof x.fileId==="string" && x.fileId.length<300 &&
+      /^\d{2}\.\d{2}\.\d{4}$/.test(x.date||"")?x:null;
+  }catch{return null;}
+}
+function proofText(account,id,date){
+  const display=account==="yan_first"?"Ян Первый":"Аккаунт";
+  return "🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваши оценки опубликованы!\n👨‍💻 Клиент - "+display+
+    "\n🆔 Анкета №"+id+"\n📅 "+date+"\n📸 Подтверждение публикации прилагается.";
+}
+function proofNav(id){return buttons([
+  [{text:"🌹 К анкете",callback_data:"owner_anketa:saved:"+id}],
+  [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}],
+  [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
+]);}
+async function deliverSavedProof(env,send,account,id){
+  const archive=await savedProof(env,account,id);
+  if(!archive)return false;
+  try{
+    await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:archive.fileId,
+      caption:proofText(account,id,archive.date),reply_markup:proofNav(id)});
+    return true;
+  }catch{return false;} // invalidated Telegram file_id: re-check site read-only
+}
 const PUBLICATION_KEY = "owner_anketa_publication_v1:";
 async function publicationStatus(env,id,kind) {
   if(!ID_PATTERN.test(String(id)) || !["rating","review"].includes(kind))return null;
@@ -428,14 +458,24 @@ export async function handleAnketaLookupResult(request,env,send) {
       return new Response("Invalid photo",{status:400});
     const payload=new FormData();
     payload.append("chat_id",OWNER_ID);
-    payload.append("caption","🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваши оценки опубликованы!\n👨‍💻 Клиент - Ян Первый\n🆔 Анкета №"+id+
-      "\n📅 "+proof.date+"\n📸 Подтверждение публикации прилагается.");
+    payload.append("caption",proofText(current.account,id,proof.date));
+    payload.append("reply_markup",JSON.stringify(proofNav(id)));
     payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+id+".jpg");
     const telegramResponse=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
       {method:"POST",body:payload});
     if(!telegramResponse.ok)throw new Error("Proof telegram photo rejected: "+telegramResponse.status);
     const telegramData=await telegramResponse.json();
     if(!telegramData.ok)throw new Error("Proof telegram API rejected");
+    // Telegram stores the photo; keep its reusable file_id in persistent KV.
+    // This is per account + profile and survives deleting the saved anketa.
+    const telegramPhoto=telegramData.result?.photo;
+    const fileId=Array.isArray(telegramPhoto)?telegramPhoto.at(-1)?.file_id:null;
+    if(typeof fileId==="string" && fileId.length<300 && env.VISITORS_KV){
+      try{await env.VISITORS_KV.put(proofArchiveKey(current.account,id),JSON.stringify({
+        account:current.account,profileId:id,fileId,date:proof.date,
+        savedAt:new Date().toISOString()
+      }));}catch{console.error("Proof archive write failed");}
+    }
     await clearProgress(env,send);
     await recordPublication(env,id,"rating","published","verified-checked-list-screenshot");
     await statePut(env,{...current,step:"publication_result",proofDeliveredAt:Date.now()});
@@ -725,6 +765,7 @@ export async function handleOwnerAnketa(update,env,send) {
     const rec=await savedGet(env,id);
     const rated=await publicationStatus(env,id,"rating");
     if(!rec || !rated){await say(env,send,"🌷 Оценка для этой анкеты ещё не публиковалась.");return true;}
+    if(await deliverSavedProof(env,send,ACTIVE_ACCOUNT,id))return true;
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     await statePut(env,{step:"proof_loading",id,nonce,account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host});
     let started=false;
