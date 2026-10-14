@@ -3,6 +3,26 @@
 import {reviewGuard} from "./review_publication_guard.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
+const CABINET_SESSION_KEY = "owner_cabinet_session:"+OWNER_ID;
+const CABINET_PENDING_KEY = "owner_cabinet_pending:"+OWNER_ID;
+const CABINET_FAIL_KEY = "owner_cabinet_failed:"+OWNER_ID;
+// Temporary PIN 1111 represented by its SHA-256 digest; replace with a Cloudflare secret later.
+// Future IDs must be explicitly authorized in code before their individual secrets are used.
+const INITIAL_OWNER_PIN_HASH = "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c";
+async function pinDigest(pin){
+  const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pin));
+  return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function cabinetAuthorized(env){
+  if(!env.VISITORS_KV)return false;
+  try{return (await env.VISITORS_KV.get(CABINET_SESSION_KEY,"json"))?.expiresAt>Date.now();}catch{return false;}
+}
+async function cabinetChallenge(env,send){
+  if(!env.VISITORS_KV){await navigationSay(env,send,"⚠️ Вход временно недоступен: хранилище не отвечает.");return;}
+  await env.VISITORS_KV.put(CABINET_PENDING_KEY,"1",{expirationTtl:600});
+  await navigationSay(env,send,"🔐 ЛИЧНЫЙ КАБИНЕТ\n\nВведите ваш индивидуальный код доступа сообщением в этот чат.\n\n⏳ На ввод отведено 10 минут.",buttons([[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]));
+}
+
 const ID_PATTERN = /^\d{1,9}$/;
 const TTL_SECONDS = 1800;
 // Owner verified this live publication on 2026-10-13. Historical backfill:
@@ -921,6 +941,45 @@ export async function handleOwnerAnketa(update,env,send) {
   const command=txt.split(/\s+/)[0].split("@")[0];
   const owner=ownerAllowed(update);
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
+  if(owner){
+    const pending=await env.VISITORS_KV?.get(CABINET_PENDING_KEY).catch(()=>null);
+    if(pending && msg?.text && !txt.startsWith("/")){
+      try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
+      const attempts=Number(await env.VISITORS_KV?.get(CABINET_FAIL_KEY).catch(()=>0)||0);
+      if(attempts>=5){
+        await env.VISITORS_KV?.delete(CABINET_PENDING_KEY).catch(()=>{});
+        await navigationSay(env,send,"🔒 Слишком много попыток. Повторите вход через 15 минут.");
+        return true;
+      }
+      const configuredHash=String(env.OWNER_CABINET_PIN_SHA256||INITIAL_OWNER_PIN_HASH).toLowerCase();
+      const matched=await pinDigest(txt)===configuredHash;
+      if(matched){
+        await env.VISITORS_KV.put(CABINET_SESSION_KEY,JSON.stringify({expiresAt:Date.now()+12*3600000}),{expirationTtl:43200});
+        await env.VISITORS_KV.delete(CABINET_PENDING_KEY);
+        await env.VISITORS_KV.delete(CABINET_FAIL_KEY);
+        await showLibrary(env,send);
+      }else{
+        await env.VISITORS_KV.put(CABINET_FAIL_KEY,String(attempts+1),{expirationTtl:900});
+        await navigationSay(env,send,"🔐 Неверный код. Попробуйте снова.\n\nПосле пяти неудачных попыток вход временно блокируется.");
+      }
+      return true;
+    }
+    if(ownerAction || (msg?.text && parseProfileLink(txt))){
+      if(data==="owner_anketa:home"){
+        await env.VISITORS_KV?.delete(CABINET_PENDING_KEY).catch(()=>{});
+        await env.VISITORS_KV?.delete(CABINET_SESSION_KEY).catch(()=>{});
+      }else if(!(await cabinetAuthorized(env))){
+        if(cb)await send(env,"answerCallbackQuery",{callback_query_id:cb.id}).catch(()=>{});
+        const failed=Number(await env.VISITORS_KV?.get(CABINET_FAIL_KEY).catch(()=>0)||0);
+        if(failed>=5){
+          await navigationSay(env,send,"🔒 Вход временно заблокирован. Повторите через 15 минут.");
+        }else{
+          await cabinetChallenge(env,send);
+        }
+        return true;
+      }
+    }
+  }
   const state=owner && !ownerAction ? await stateGet(env) : null;
   // Intimcity profile links take priority over general order free-text routing,
   // including when the previous owner prompt came from an older Worker version.
