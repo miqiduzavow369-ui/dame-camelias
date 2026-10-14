@@ -132,6 +132,31 @@ def capture_verified_proof(ctx, pid, expected_date=None):
         if card.count()!=1:
             print("PROOF: profile card missing or ambiguous",flush=True)
             return None
+        # The site uses lazy-loaded photos. The card may be visible in the
+        # screenshot clip while its photo has not been requested yet.
+        photo=card.locator(".imganketa img").first
+        if photo.count()!=1:
+            raise RuntimeError("Checked profile photo element missing")
+        photo.scroll_into_view_if_needed(timeout=10000)
+        try:
+            photo.evaluate("""async img => {
+                img.loading='eager';
+                if (!img.complete || !img.naturalWidth) {
+                    await new Promise((resolve,reject)=>{
+                        const timer=setTimeout(()=>reject(Error('photo-load-timeout')),12000);
+                        img.addEventListener('load',()=>{clearTimeout(timer);resolve()}, {once:true});
+                        img.addEventListener('error',()=>{clearTimeout(timer);reject(Error('photo-load-error'))}, {once:true});
+                        if(img.complete && img.naturalWidth){clearTimeout(timer);resolve()}
+                    });
+                }
+                if(img.decode) await img.decode();
+                if(img.naturalWidth<40 || img.naturalHeight<40)
+                    throw Error('profile-photo-empty');
+            }""")
+        except Exception:
+            print("PROOF: matching record found but profile photo not loaded",flush=True)
+            return None
+        print("PROOF: profile photo loaded",flush=True)
         # In the provided HTML, each story card is followed by its OWN rating table.
         result=page.evaluate("""({id,date}) => {
             const card=document.getElementById('ankcrd'+id);
