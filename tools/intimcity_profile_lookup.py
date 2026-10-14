@@ -358,6 +358,23 @@ def inspect(pid, mode='profile'):
                         card_thumbnail = candidate
                 except Exception:
                     pass
+            # The same search page can also expose an ID-keyed hover image.
+            # Use it only as a fallback, never an image from another profile.
+            if not card_thumbnail:
+                try:
+                    hover_src = page.evaluate("""id => {
+                        const item = window.dw_Tooltip?.content_vars?.[id];
+                        return typeof item?.img === 'string' ? item.img : '';
+                    }""", pid)
+                    hover_url = urlparse(hover_src)
+                    if (hover_url.scheme == "https" and
+                            hover_url.hostname == "cdn2.intimtur.com" and
+                            not hover_url.username and not hover_url.password and
+                            not hover_url.port and not hover_url.query and
+                            re.search(r"\.(?:jpg|jpeg|png|webp)$", hover_url.path, re.I)):
+                        card_thumbnail = hover_src
+                except Exception:
+                    pass
             print("LOOKUP_STAGE: locate-profile-link")
             link = card.locator(f'a[href$="/indi/anketa{pid}.htm"]')
             visible_links = [item for item in link.all() if item.is_visible()]
