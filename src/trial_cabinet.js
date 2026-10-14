@@ -34,6 +34,11 @@ export async function handleTrialCabinet(update,env,send) {
   }
   if(!allowed||!env.VISITORS_KV) return selected;
   let pending=await get(env,"pending");
+  const locked=await get(env,"lock");
+  if(locked?.until>Date.now()){
+    if(selected||pending) await reply(env,send,"🔒 Вход временно заблокирован. Повторите через 15 минут.");
+    return Boolean(selected||pending);
+  }
   if(!selected&&!pending)return false;
   if(callback)await send(env,"answerCallbackQuery",{callback_query_id:callback.id}).catch(()=>{});
   if(action==="trial_cabinet:home"){
@@ -44,11 +49,18 @@ export async function handleTrialCabinet(update,env,send) {
   if(!(await get(env,"session"))?.verified){
     if(pending?.mode==="pin"&&msg?.text){
       if(pending.attempts>=4){
+        await put(env,"lock",{until:Date.now()+15*60*1000},{expirationTtl:900});
         await env.VISITORS_KV.delete(KEY+"pending");
         await reply(env,send,"🔒 Лимит попыток. Повторите вход позже.");
         return true;
       }
       if(!(await matchesPin(txt))){
+        if(pending.attempts>=3){
+          await put(env,"lock",{until:Date.now()+15*60*1000},{expirationTtl:900});
+          await env.VISITORS_KV.delete(KEY+"pending");
+          await reply(env,send,"🔒 Лимит попыток. Повторите через 15 минут.");
+          return true;
+        }
         await put(env,"pending",{mode:"pin",attempts:pending.attempts+1},{expirationTtl:900});
         await reply(env,send,"🔐 Код не подошёл.");
         return true;
