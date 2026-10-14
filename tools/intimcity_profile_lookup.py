@@ -420,6 +420,39 @@ def inspect(pid, mode='profile'):
                     if 500 <= len(photo_bytes) <= 100000:
                         import base64
                         profile["photoData"] = base64.b64encode(photo_bytes).decode("ascii")
+                        # Pre-render compact Telegram banner, independently of the WebApp thumbnail.
+                        try:
+                            from io import BytesIO
+                            from PIL import Image, ImageDraw, ImageFont
+                            portrait=Image.open(BytesIO(photo_bytes)).convert("RGB")
+                            canvas=Image.new("RGB",(800,250),(20,17,15))
+                            draw=ImageDraw.Draw(canvas)
+                            gold=(216,172,99)
+                            draw.rounded_rectangle((6,6,793,243),radius=23,outline=(120,87,47),width=3)
+                            portrait.thumbnail((152,204))
+                            px=34+(152-portrait.width)//2
+                            py=23+(204-portrait.height)//2
+                            canvas.paste(portrait,(px,py))
+                            draw.rounded_rectangle((32,21,188,229),radius=12,outline=gold,width=3)
+                            fontfile="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+                            font_bold="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+                            titlefont=ImageFont.truetype(fontfile,32)
+                            namefont=ImageFont.truetype(font_bold,44)
+                            smallfont=ImageFont.truetype(fontfile,27)
+                            draw.text((220,32),"DAME CAMELIAS",font=titlefont,fill=gold)
+                            name=str(profile.get("name") or "").replace("\\n"," ").strip()
+                            while name and draw.textbbox((0,0),name,font=namefont)[2]>540:
+                                name=name[:-1]
+                            draw.text((220,96),name or "Анкета",font=namefont,fill=(241,224,192))
+                            draw.text((220,167),"Анкета №"+pid,font=smallfont,fill=(205,179,143))
+                            output=BytesIO()
+                            canvas.save(output,format="JPEG",quality=77,optimize=True)
+                            card_bytes=output.getvalue()
+                            if len(card_bytes)<100000:
+                                profile["cardData"]=base64.b64encode(card_bytes).decode("ascii")
+                                print("LOOKUP_CARD_CAPTURE: ok",flush=True)
+                        except Exception as card_error:
+                            print("LOOKUP_CARD_CAPTURE: unavailable="+type(card_error).__name__,flush=True)
                         print("LOOKUP_PHOTO_CAPTURE: ok",flush=True)
                     else:
                         print("LOOKUP_PHOTO_CAPTURE: invalid_size",flush=True)
