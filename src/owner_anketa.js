@@ -553,44 +553,44 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
-  // Verify the supplied domain by a read-only lookup before migrating records.
-  if(current?.step==="domain_verify" && current.id===id && current.nonce===nonce && data.mode==="profile"){
+  // A working example profile may have a DIFFERENT ID from the review.
+  // Verify its destination, then resume proof for the original review ID.
+  // No saved domain is changed until Telegram confirms photo delivery.
+  if(current?.step==="domain_verify" && current.verifyId===id &&
+     current.nonce===nonce && data.mode==="profile"){
     const verified=validProfile(data.profile,id,current.host);
     if(data.status!=="found"||!verified){
-      await statePut(env,{step:"domain_recovery",id,mode:current.mode});
-      await navigationSay(env,send,"🌷 Не удалось подтвердить работу ссылки. Проверьте домен и пришлите актуальную ссылку на эту же анкету №"+id+".\n\n🔒 Все сохранённые данные и блокировки повторной публикации остаются без изменений.");
+      await statePut(env,{step:"domain_recovery",id:current.targetId,mode:current.mode});
+      await navigationSay(env,send,"🌷 Ссылка пока не подтвердилась. Пришлите рабочую ссылку на любую действующую анкету Intimcity.\n\n🔒 Данные и домены не изменены.");
       return Response.json({ok:true,domainUpdated:false});
     }
-    const changed=await switchVerifiedDomain(env,current.host);
-    // Resume the original read-only proof automatically after a verified move.
-    // Publication/claim guards remain untouched; no review_publish dispatch.
-    if(current.mode==="review_proof"){
-      const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
-      const guard=await reviewGuard(env,id,"review_status");
-      if(pending?.account===ACTIVE_ACCOUNT && String(pending.id)===id &&
-         typeof pending.text==="string" && pending.text.length>=10 &&
-         /^[a-f0-9]{16}$/.test(pending.claimNonce||"") &&
-         guard.claimed && guard.status!=="published"){
-        const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-        await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
-          nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,
-          agreedAt:Date.now(),host:current.host});
-        let dispatched=false;
-        try{dispatched=(await dispatchLookup(env,id,proofNonce,"review_proof",current.host)).ok;}catch{}
-        if(dispatched){
-          await progressSay(env,send,"✅ Актуальный домен подтверждён: https://"+current.host+
-            "/\n\n🌹 Анкета №"+id+
-            "\n📸 Автоматически проверяю опубликованный отзыв и готовлю скриншот с фотографией.\n🔒 Повторной публикации не будет.");
-          return Response.json({ok:true,domainUpdated:true,proofDispatched:true});
-        }
-        await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
-        await navigationSay(env,send,"✅ Новый домен подтверждён.\n\n🌷 Не удалось запустить проверку скриншота. Нажмите «🔎 Проверить отзыв» в меню анкеты.");
-        return Response.json({ok:true,domainUpdated:true,proofDispatched:false});
-      }
+    const originalId=String(current.targetId);
+    if(current.mode!=="review_proof" || !ID_PATTERN.test(originalId))
+      return new Response("Invalid recovery context",{status:409});
+    const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+originalId,"json");
+    const guard=await reviewGuard(env,originalId,"review_status");
+    if(pending?.account!==ACTIVE_ACCOUNT || String(pending.id)!==originalId ||
+       typeof pending.text!=="string"||pending.text.length<10 ||
+       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"")||!guard.claimed){
+      await statePut(env,{step:"domain_recovery",id:originalId,mode:"review_proof"});
+      await navigationSay(env,send,"🌷 Новый адрес доступен, но данные для безопасной проверки исходного отзыва не найдены. Ничего не публиковалось и домен не изменён.");
+      return Response.json({ok:true,domainUpdated:false,proofDispatched:false});
     }
-    await statePut(env,{step:"domain_updated",id,host:current.host,verifiedAt:Date.now()});
-    await navigationSay(env,send,"✅ АКТУАЛЬНЫЙ ДОМЕН ПОДТВЕРЖДЁН\n\n🌹 Анкета №"+id+"\n🔗 https://"+current.host+"/\n💾 Обновлены адреса сохранённых анкет: "+changed+".\n\n⭐ Оценки, ✍️ отзывы и история сохранены без повторной публикации.\n\nОткройте анкету и нажмите «🔎 Проверить отзыв» ещё раз.",buttons([[{text:"🌹 К анкете №"+id,callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
-    return Response.json({ok:true,domainUpdated:true});
+    const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    await statePut(env,{step:"review_recheck",id:originalId,account:ACTIVE_ACCOUNT,
+      nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,
+      agreedAt:Date.now(),host:current.host,recoveryHost:current.host,
+      verifiedViaId:id});
+    let dispatched=false;
+    try{dispatched=(await dispatchLookup(env,originalId,proofNonce,"review_proof",current.host)).ok;}catch{}
+    if(!dispatched){
+      await statePut(env,{step:"domain_recovery",id:originalId,mode:"review_proof"});
+      await navigationSay(env,send,"🌷 Ссылка работает, но не удалось запустить проверку отзыва. Сохранённые домены пока не изменены.");
+      return Response.json({ok:true,domainUpdated:false,proofDispatched:false});
+    }
+    await progressSay(env,send,"✅ Актуальная ссылка проверена.\n\n✍️ Ищу уже опубликованный отзыв к анкете №"+originalId+
+      " в разделе «Ваши отзывы».\n📸 После получения скриншота обновлю домен сохранённых анкет аккаунта ЯН ПЕРВЫЙ.\n🔒 Повторной публикации не будет.");
+    return Response.json({ok:true,domainUpdated:false,proofDispatched:true});
   }
   if(["review_publish","review_proof"].includes(data.mode)){
     if(!current || current.id!==id || current.nonce!==nonce ||
@@ -622,10 +622,20 @@ export async function handleAnketaLookupResult(request,env,send) {
       if(typeof fileId==="string"&&fileId.length<300)
         await env.VISITORS_KV.put(REVIEW_ARCHIVE_KEY+id,
           JSON.stringify({account:"yan_first",profileId:id,fileId,savedAt:new Date().toISOString()}));
+      // Only Telegram's accepted screenshot authorizes changing saved hosts.
+      if(current.recoveryHost){
+        try{
+          const updated=await switchVerifiedDomain(env,current.recoveryHost);
+          console.log("Review proof delivered; saved profile domains updated",updated);
+        }catch(e){
+          console.error("Review proof delivered, but domain migration failed",String(e));
+          await say(env,send,"⚠️ Скриншот доставлен, но обновить домены сохранённых анкет пока не удалось.");
+        }
+      }
       await reviewGuard(env,id,"review_verified",current.claimNonce);
       await recordPublication(env,id,"review","published","verified-comments-screenshot");
       try{await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);}catch{}
-      await statePut(env,{...current,step:"review_result",text:null,completedAt:Date.now()});
+      await statePut(env,{...current,host:current.recoveryHost||current.host,step:"review_result",text:null,completedAt:Date.now()});
       await clearProgress(env,send);
       return Response.json({ok:true,reviewPublished:true});
     }
@@ -635,7 +645,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       attempted:publication.attempted===true});
     if(data.mode==="review_proof" && data.status==="error"){
       await statePut(env,{step:"domain_recovery",id,mode:"review_proof"});
-      await navigationSay(env,send,"🌷 Извините, возможно, сайт перешёл на другой домен или временно недоступен.\n\n🔗 Пришлите, пожалуйста, актуальную рабочую ссылку на страницу анкеты №"+id+".\n\n💕 Я проверю её и обновлю адреса сохранённых анкет. Оценки и отзывы останутся на месте.\n🔒 Повторной публикации не будет.",buttons([[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
+      await navigationSay(env,send,"🌷 Извините, возможно, сайт перешёл на другой домен или временно недоступен.\n\n🔗 Пришлите актуальную рабочую ссылку на любую анкету этого сайта (не обязательно №"+id+").\n\n💕 Я проверю её и обновлю адреса сохранённых анкет. Оценки и отзывы останутся на месте.\n🔒 Повторной публикации не будет.",buttons([[{text:"🌹 Мои анкеты",callback_data:"owner_anketa:open"}]]));
       return Response.json({ok:true,domainRecoveryRequested:true});
     }
     await progressSay(env,send,"🌷 Публикацию отзыва пока не удалось подтвердить.\n\n🌹 Анкета №"+id+
@@ -927,19 +937,23 @@ export async function handleOwnerAnketa(update,env,send) {
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
   if(state?.step==="domain_recovery" && !ownerAction && Boolean(msg?.text)){
     const link=parseProfileLink(txt);
-    if(!link || link.id!==state.id){
-      await navigationSay(env,send,"🌷 Пришлите прямую рабочую ссылку именно на анкету №"+state.id+" с актуальным доменом Intimcity.");
+    if(!link){
+      await navigationSay(env,send,"🌷 Пришлите прямую ссылку на любую рабочую анкету сайта Intimcity. Номер может отличаться от анкеты №"+state.id+".");
       return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    await statePut(env,{step:"domain_verify",id:link.id,host:link.host,nonce,mode:state.mode});
+    const targetId=String(state.id);
+    await statePut(env,{step:"domain_verify",verifyId:link.id,targetId,
+      host:link.host,nonce,mode:state.mode});
     const started=await dispatchLookup(env,link.id,nonce,"profile",link.host).catch(()=>({ok:false}));
     if(!started.ok){
-      await statePut(env,{step:"domain_recovery",id:link.id,mode:state.mode});
-      await navigationSay(env,send,"🌷 Сейчас не получилось проверить новый адрес. Пришлите ссылку ещё раз позже.");
+      await statePut(env,{step:"domain_recovery",id:targetId,mode:state.mode});
+      await navigationSay(env,send,"🌷 Не получилось проверить новый адрес. Пожалуйста, повторите ссылку позже.");
       return true;
     }
-    await navigationSay(env,send,"🔎 Проверяю новый адрес анкеты №"+link.id+"…\n\n💾 Сохранённые данные обновлю только после подтверждения страницы.");
+    await navigationSay(env,send,"🔎 Проверяю действующий адрес анкеты №"+link.id+
+      "…\n\n✍️ Затем проверю ваш ранее опубликованный отзыв №"+targetId+
+      ". Домен обновлю только после отправки скриншота в Telegram.");
     return true;
   }
   if (data==="owner_anketa:home") {await closeProofMessages(env,send,cb?.message?.photo?.length?cb.message.message_id:null);await cleanAnketaChat(env,send);await clearProgress(env,send);try{await env.VISITORS_KV?.delete(NAV_MESSAGE_KEY);}catch{} return true;}
