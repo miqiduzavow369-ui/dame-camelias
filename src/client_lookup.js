@@ -31,3 +31,47 @@ export async function acceptClientLookup(env,userId,result){
  await env.VISITORS_KV.put(key,JSON.stringify({...flow,status:"verified",verifiedAt:Date.now()}));
  return true;
 }
+
+export async function dispatchClientLookup(env,userId,profileId,host,nonce){
+ if(!validClientId(userId)||!validProfileId(profileId)||!HOST.test(host)||!NONCE.test(nonce))
+   return {ok:false,reason:"Invalid lookup identifiers"};
+ if(!env.DC_ACTIONS_TOKEN||!env.ANKETA_CALLBACK_TOKEN)
+   return {ok:false,reason:"Profile verification is not configured"};
+ const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/intimcity-profile-lookup.yml/dispatches",{
+  method:"POST",headers:{
+   Authorization:"Bearer "+env.DC_ACTIONS_TOKEN,Accept:"application/vnd.github+json",
+   "User-Agent":"dame-camelias-worker","X-GitHub-Api-Version":"2022-11-28",
+   "Content-Type":"application/json"
+  },body:JSON.stringify({ref:"main",inputs:{
+    user_id:String(userId),profile_id:String(profileId),site_host:host,mode:"profile",nonce
+  }}),signal:AbortSignal.timeout(15000)
+ });
+ return {ok:response.status===204,reason:response.status===204?"":"GitHub HTTP "+response.status};
+}
+export async function clientLookupCallback(request,env,send){
+ if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
+   return new Response("Forbidden",{status:403});
+ let data;try{data=await request.json();}catch{return new Response("Invalid JSON",{status:400});}
+ const uid=String(data?.user_id??"");
+ // A client callback may NEVER be dispatched to owner state.
+ if(!validClientId(uid)||uid==="5866034656")return new Response("Invalid client",{status:400});
+ const flow=await env.VISITORS_KV?.get(clientKey(uid,"flow"),"json");
+ if(!flow||flow.nonce!==data.nonce||flow.profileId!==String(data.profile_id)||flow.status!=="pending")
+   return new Response("Stale callback",{status:409});
+ if(data.mode!=="profile")return new Response("Invalid mode",{status:400});
+ if(data.status!=="found"){
+  await env.VISITORS_KV.put(clientKey(uid,"flow"),JSON.stringify({...flow,status:"not_found"}));
+  await send(env,"sendMessage",{chat_id:uid,text:"🌷 Не удалось подтвердить анкету №"+flow.profileId+". Попробуйте повторить проверку."});
+  return Response.json({ok:true,verified:false});
+ }
+ const saved=await acceptClientLookup(env,uid,data);
+ if(!saved)return new Response("Invalid profile",{status:422});
+ const profile=await env.VISITORS_KV.get(clientKey(uid,"saved",flow.profileId),"json");
+ await send(env,"sendMessage",{
+  chat_id:uid,text:"✅ АНКЕТА ПОДТВЕРЖДЕНА\\n🌹 "+profile.name+" · №"+profile.id+
+   "\\nВозраст: "+profile.age+"\\nМетро: "+profile.metro+
+   "\\n\\nВернитесь в «Мои анкеты» для дальнейших действий.",
+  reply_markup:{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]}
+ });
+ return Response.json({ok:true,verified:true});
+}
