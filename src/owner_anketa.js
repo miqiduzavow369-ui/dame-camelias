@@ -988,6 +988,11 @@ export async function handleOwnerAnketa(update,env,send) {
     (isProfileLink || (["number","domain_recovery"].includes(state?.step) && /^https?:\/\//i.test(txt)));
   const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
     ["review_input","review_preview"].includes(state?.step) && !txt.startsWith("/");
+  // Expired cabinet sessions must not allow continuing a pending review draft.
+  if(reviewText && !(await cabinetAuthorized(env))){
+    await cabinetChallenge(env,send);
+    return true;
+  }
   if (!ownerAction && !typedLink && !reviewText) return false;
   if (!owner) {
     if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id,text:"Недоступно"});
