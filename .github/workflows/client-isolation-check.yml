@@ -6,6 +6,8 @@ on:
     paths:
       - src/client_isolation.js
       - src/client_lookup.js
+      - src/trial_cabinet.js
+      - src/index.js
       - tools/intimcity_profile_lookup.py
       - .github/workflows/intimcity-profile-lookup.yml
       - tests/client_isolation.test.mjs
@@ -15,6 +17,8 @@ on:
     paths:
       - src/client_isolation.js
       - src/client_lookup.js
+      - src/trial_cabinet.js
+      - src/index.js
       - tests/client_isolation.test.mjs
       - tests/client_lookup.test.mjs
 permissions:
@@ -28,5 +32,5 @@ jobs:
         with:
           node-version: "22"
       - run: python -m py_compile tools/intimcity_profile_lookup.py
-      - run: node --check src/client_isolation.js && node --check src/client_lookup.js
+      - run: node --check src/client_isolation.js && node --check src/client_lookup.js && node --check src/trial_cabinet.js && node --check src/index.js
       - run: node --test tests/client_isolation.test.mjs tests/client_lookup.test.mjs tests/trial_cabinet.test.mjs
