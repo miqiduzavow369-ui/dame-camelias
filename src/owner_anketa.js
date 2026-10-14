@@ -765,7 +765,7 @@ export async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,text:txt,nonce});
     try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     await navigationSay(env,send,"👀 ПРОВЕРКА ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
-      "\n\n💬 Ваш текст:\n\n"+txt+"\n\n🌷 Проверьте содержание. Публикация пока недоступна.",
+      "\n\n💬 Ваш текст:\n\n"+txt+"\n\n☑️ Подтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.\n\n🌷 Публикация пока недоступна.",
       buttons([[{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
         [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:"+id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
