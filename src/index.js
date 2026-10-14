@@ -586,7 +586,7 @@ export default {
       if (!result.ok) return new Response("Form unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","X-Content-Type-Options":"nosniff","Cache-Control":"no-store"}});
     }
-    if (request.method === "GET" && /^\/api\/anketa\/photo\/\d{1,9}$/.test(url.pathname))
+    if (request.method === "GET" && /^\/api\/anketa\/(?:photo|card)\/\d{1,9}$/.test(url.pathname))
       return serveProfileThumbnail(request,env);
     if (request.method === "POST" && url.pathname === "/api/anketa/ratings")
       return ownerRatingFormApi(request,env,telegram,validWebApp);
