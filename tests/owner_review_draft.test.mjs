@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {handleOwnerAnketa} from "../src/owner_anketa.js";
+import {handleOwnerAnketa,ownerReviewPayload} from "../src/owner_anketa.js";
 
 const OWNER=5866034656;
 const PREFIX="owner_anketa_";
@@ -72,4 +72,57 @@ test("consent is explicit and editing clears it",async()=>{
  const changed=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
  assert.equal(changed.step,"review_input");
  assert.equal(changed.agreedAt,undefined);
+});
+
+test("review publication requires consent, claims once and issues single private grant",async()=>{
+  const s=setup();
+  const oldFetch=globalThis.fetch;
+  let dispatched=0;
+  globalThis.fetch=async (_url,options)=>{
+    dispatched++;
+    assert.equal(options.method,"POST");
+    return {status:204};
+  };
+  const claimed=new Map();
+  s.env.DC_ACTIONS_TOKEN="testing-actions-token";
+  s.env.ANKETA_CALLBACK_TOKEN="testing-callback-token";
+  s.env.ORDER_REMINDERS={
+    idFromName:name=>name,
+    get:name=>({fetch:async(_url,options)=>{
+      const data=JSON.parse(options.body);
+      if(data.type==="review_claim"){
+        if(claimed.has(name))return Response.json({claimed:false,status:"submission_maybe_sent"});
+        claimed.set(name,true);
+        return Response.json({claimed:true,status:"submission_maybe_sent"});
+      }
+      if(data.type==="review_status")return Response.json({
+        claimed:claimed.has(name),status:claimed.has(name)?"submission_maybe_sent":"available"});
+      return Response.json({ok:true});
+    }})
+  };
+  try{
+    await handleOwnerAnketa(s.cb("owner_anketa:savedreview:771053"),s.env,s.send);
+    const original="Реальный текст автора об этой встрече и качестве общения.";
+    await handleOwnerAnketa(s.msg(original),s.env,s.send);
+    const initial=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+    await handleOwnerAnketa(s.cb("owner_anketa:reviewfinal:"+initial.nonce),s.env,s.send);
+    assert.equal(dispatched,0,"must not publish without explicit consent");
+    await handleOwnerAnketa(s.cb("owner_anketa:reviewagree:"+initial.nonce),s.env,s.send);
+    await handleOwnerAnketa(s.cb("owner_anketa:reviewfinal:"+initial.nonce),s.env,s.send);
+    const next=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+    assert.equal(next.step,"review_dispatch");
+    assert.equal(dispatched,1);
+    assert.equal(claimed.size,1);
+    assert.ok(s.store.has("owner_anketa_review_pending_v1:yan_first:771053"));
+    await handleOwnerAnketa(s.cb("owner_anketa:reviewfinal:"+initial.nonce),s.env,s.send);
+    assert.equal(dispatched,1,"duplicate callback must never publish twice");
+    const url="https://worker.example/api/anketa/review-payload?profile_id=771053&nonce="+
+      next.nonce+"&mode=review_publish";
+    const headers={Authorization:"Bearer testing-callback-token"};
+    const granted=await ownerReviewPayload(new Request(url,{headers}),s.env);
+    assert.equal(granted.status,200);
+    assert.equal((await granted.json()).text,original);
+    const repeated=await ownerReviewPayload(new Request(url,{headers}),s.env);
+    assert.equal(repeated.status,409,"private grant cannot be re-issued");
+  } finally {globalThis.fetch=oldFetch;}
 });
