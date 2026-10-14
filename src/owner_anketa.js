@@ -143,6 +143,32 @@ async function profileKeyboard(env,id){
   [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);}
+const ACCOUNT_CARD_FILES={yan_first:"yan_first.jpg"};
+async function accountCardNavigation(env,send,account,id,text,reply_markup){
+  const file=ACCOUNT_CARD_FILES[account];
+  if(!file)return navigationSay(env,send,text,reply_markup);
+  const url="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/"+file;
+  // Check before asking Telegram to fetch the photo, so missing assets
+  // do not interrupt the account menu during a staged deployment.
+  try{
+    const image=await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(5000)});
+    if(!image.ok || !String(image.headers.get("content-type")||"").startsWith("image/"))
+      return navigationSay(env,send,text,reply_markup);
+    const rows=reply_markup?.inline_keyboard||[];
+    const markup=buttons([...rows,...(rows.some(r=>r.some(x=>x.callback_data==="owner_anketa:home"))?[]:[[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]])]);
+    const result=await send(env,"sendPhoto",{chat_id:OWNER_ID,photo:url,caption:text,reply_markup:markup});
+    await trackAnketaMessage(env,result?.message_id);
+    let old=null;
+    try{old=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+    if(Number.isSafeInteger(result?.message_id))
+      try{await env.VISITORS_KV?.put(NAV_MESSAGE_KEY,JSON.stringify({id:result.message_id,at:Date.now()}),{expirationTtl:172800});}catch{}
+    if(Number.isSafeInteger(old?.id) && old.id!==result?.message_id)
+      try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:old.id});}catch{}
+    return result;
+  }catch{
+    return navigationSay(env,send,text,reply_markup);
+  }
+}
 async function showLibrary(env,send){
   // Keep important audit and publication reports in the conversation.
   const ids=await libraryGet(env);
@@ -678,7 +704,7 @@ export async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Не удалось сохранить выбор аккаунта. Попробуйте ещё раз.");return true;
     }
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
-    await navigationSay(env,send,"👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
+    await accountCardNavigation(env,send,ACTIVE_ACCOUNT,account1[1],"👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+account1[1]+
       "\n\nДля данной анкеты доступны:\n\n"+summary+
       "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
     return true;
