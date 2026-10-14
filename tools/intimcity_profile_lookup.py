@@ -145,8 +145,8 @@ def capture_verified_proof(ctx, pid, expected_date=None):
             const actual=(stamp.textContent||'').trim();
             if(date && actual!==date)return null;
             const a=card.getBoundingClientRect(),b=table.getBoundingClientRect();
-            return {date:actual,x:Math.max(0,Math.floor(a.left+scrollX)),
-                y:Math.max(0,Math.floor(a.top+scrollY)),
+            return {date:actual,x:Math.max(0,Math.floor(Math.min(a.left,b.left)+scrollX)),
+                y:Math.max(0,Math.floor(Math.min(a.top,b.top)+scrollY)),
                 width:Math.ceil(Math.max(a.right,b.right)-Math.min(a.left,b.left)),
                 height:Math.ceil(b.bottom-a.top)};
         }""",{"id":pid,"date":expected_date})
