@@ -30,6 +30,51 @@ export class OrderReminder {
       // Dedicated DO identities for one-shot owner review submission.
       // Durable Object storage serializes claims; unlike KV get+put,
       // concurrent Telegram callbacks cannot each win the same claim.
+      // Per-Telegram-ID publication credits; independent of reminder data.
+      // Only this object's verified server-side callers can operate on credits.
+      if (String(input.type||"").startsWith("credits_")) {
+        const uid=String(input.userId||"");
+        if (!/^\\d{5,16}$/.test(uid))return Response.json({error:"invalid_user"},{status:400});
+        let ledger=await storage.get("credits_v1");
+        if(!ledger){
+          ledger={grant:uid==="5866034656"?10:0,spent:0,claims:{},history:[],createdAt:now};
+          await storage.put("credits_v1",ledger);
+        }
+        const claims=ledger.claims||{};
+        const occupied=Object.values(claims).filter(x=>x.status==="reserved").length;
+        const balance=Math.max(0,ledger.grant-ledger.spent-occupied);
+        if(input.type==="credits_status")
+          return Response.json({grant:ledger.grant,spent:ledger.spent,
+            available:balance,reserved:occupied,remaining:ledger.grant-ledger.spent});
+        const key=String(input.kind)+":"+String(input.profileId||"");
+        if(!["rating","review"].includes(input.kind) ||
+           !/^\\d{1,9}$/.test(String(input.profileId)) ||
+           !/^[a-f0-9]{12,16}$/.test(String(input.nonce||"")))
+          return Response.json({error:"invalid_claim"},{status:400});
+        if(input.type==="credits_reserve"){
+          if(claims[key])return Response.json({ok:false,reason:"already_claimed"});
+          if(balance<=0)return Response.json({ok:false,reason:"empty"});
+          claims[key]={status:"reserved",nonce:input.nonce,at:now};
+          ledger.claims=claims;
+          await storage.put("credits_v1",ledger);
+          return Response.json({ok:true,available:balance-1});
+        }
+        if(input.type==="credits_complete"){
+          const claim=claims[key];
+          if(!claim || claim.nonce!==input.nonce)
+            return Response.json({ok:false,reason:"missing_reservation"},{status:409});
+          if(claim.status==="completed")
+            return Response.json({ok:true,already:true,remaining:ledger.grant-ledger.spent});
+          if(claim.status!=="reserved")
+            return Response.json({ok:false,reason:"invalid_status"},{status:409});
+          claim.status="completed";claim.completedAt=now;
+          ledger.spent++;
+          ledger.history=[...(ledger.history||[]),{key,at:now}].slice(-500);
+          await storage.put("credits_v1",ledger);
+          return Response.json({ok:true,remaining:ledger.grant-ledger.spent});
+        }
+        return Response.json({error:"invalid_action"},{status:400});
+      }
       if (input.type === "review_claim") {
         if (input.account !== "yan_first" || !/^\d{1,9}$/.test(String(input.profileId)) ||
             !/^[a-f0-9]{16}$/.test(String(input.nonce)))
