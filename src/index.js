@@ -342,7 +342,15 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
-  if (await handleOwnerAnketa(update, env, telegram)) return;
+  const ownerHandled = await handleOwnerAnketa(update, env, telegram);
+  if (ownerHandled) {
+    // The owner module removes its temporary navigation on "В начало".
+    // Restore the actual main menu instead of leaving an empty chat.
+    if (update.callback_query?.data === "owner_anketa:home" && update.callback_query.message?.chat?.id) {
+      await sendPage(env, update.callback_query.message.chat.id, "home");
+    }
+    return;
+  }
   const person = update.callback_query?.from || update.message?.from;
   const chat = update.callback_query?.message?.chat || update.message?.chat;
   const action = update.callback_query?.data || (update.message?.text || "").split(/\s+/)[0].split("@")[0];
