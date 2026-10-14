@@ -360,11 +360,8 @@ async function handle(update, env) {
     if (cb.data?.startsWith("quick:")) {
       const selected=cb.data.slice(6);
       if (selected==="ОТМЕНА") {
-        const state=quickState(cb.message),start=state?.d?.startId;
-        if (Number.isInteger(start) && cb.message.message_id-start<=120 && cb.message.message_id>=start) {
-          for(let id=start;id<=cb.message.message_id;id+=10)
-            await Promise.all(Array.from({length:Math.min(10,cb.message.message_id-id+1)},(_,i)=>telegram(env,"deleteMessage",{chat_id:cb.message.chat.id,message_id:id+i}).catch(()=>{})));
-        }
+        // Never delete a numerical range: it may contain unrelated user messages.
+        await telegram(env,"deleteMessage",{chat_id:cb.message.chat.id,message_id:cb.message.message_id}).catch(()=>{});
         await sendPage(env,cb.message.chat.id,"order");
         return;
       }
@@ -391,15 +388,8 @@ async function handle(update, env) {
   await trackVisitor(env,update.message.from,update.message.chat,visitorInterest(update)).catch(err=>console.error("Visitor tracking:",err));
   const cmd = (update.message.text || "").split(" ")[0].split("@")[0];
   if (cmd === "/start" && /^cancel_\d+$/.test((update.message.text||"").split(/\s+/)[1]||"")) {
-    const first=Number((update.message.text||"").split(/\s+/)[1].slice(7));
-    const last=update.message.message_id;
-    if (Number.isSafeInteger(first) && first>0 && last>=first && last-first<=150) {
-      for (let id=first;id<=last;id+=10) {
-        await Promise.all(Array.from({length:Math.min(10,last-id+1)},(_,i)=>
-          telegram(env,"deleteMessage",{chat_id:update.message.chat.id,message_id:id+i}).catch(()=>{})
-        ));
-      }
-    }
+    // Cancel only this command; do not erase the intervening chat history.
+    await telegram(env,"deleteMessage",{chat_id:update.message.chat.id,message_id:update.message.message_id}).catch(()=>{});
     await sendPage(env,update.message.chat.id,"order");
     return;
   }
