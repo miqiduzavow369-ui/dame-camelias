@@ -324,9 +324,8 @@ async function profileKeyboard(env,id){
   ...(review?.status==="published"?[[{text:"📸 Подтверждение отзыва",callback_data:"owner_anketa:reviewproof:"+id}]]:[]),
   ...(review && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
   ...(id==="652282" && review && review.status!=="published"?[[{text:"🔓 Восстановить отзыв №652282",callback_data:"owner_anketa:reviewrecoverask:652282"}]]:[]),
-  [{text:"👥 К выбору клиентов",callback_data:"owner_anketa:accounts:"+id}],
+  [{text:"⬅️ К клиентам",callback_data:"owner_anketa:accounts:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
-  [{text:"⬅️ К моим анкетам",callback_data:"owner_anketa:open"}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);}
 const ACCOUNT_CARD_FILES={yan_first:"yan_first.jpg"};
