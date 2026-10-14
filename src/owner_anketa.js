@@ -693,30 +693,28 @@ export async function serveProfileThumbnail(request,env){
   const url=new URL(request.url);
   const match=/^\/api\/anketa\/photo\/(\d{1,9})$/.exec(url.pathname);
   const host=url.searchParams.get("site")||"";
-  if(!match || !HOST_PATTERN.test(host) || !env.PROFILE_PHOTOS)
+  if(!match || !HOST_PATTERN.test(host) || !env.VISITORS_KV)
     return new Response("Not found",{status:404});
-  const obj=await env.PROFILE_PHOTOS.get(THUMBNAIL_PREFIX+host+"/"+match[1]+".jpg");
-  if(!obj)return new Response("Not found",{status:404});
-  return new Response(obj.body,{headers:{
+  const bytes=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+host+"/"+match[1]+".jpg","arrayBuffer");
+  if(!bytes)return new Response("Not found",{status:404});
+  return new Response(bytes,{headers:{
     "Content-Type":"image/jpeg",
-    "Cache-Control":"public, max-age=86400",
+    "Cache-Control":"public, max-age=3600",
     "X-Content-Type-Options":"nosniff"
   }});
 }
 async function saveProfileThumbnail(env,profile,id,host){
-  if(!env.PROFILE_PHOTOS || !profile || String(profile.id)!==id ||
+  if(!env.VISITORS_KV || !profile || String(profile.id)!==id ||
      typeof profile.photoData!=="string" || profile.photoData.length>140000 ||
      !/^[A-Za-z0-9+/]+={0,2}$/.test(profile.photoData))return "";
   try{
     const bytes=Uint8Array.from(atob(profile.photoData),x=>x.charCodeAt(0));
     if(bytes.length<500 || bytes.length>100000 || bytes[0]!==0xff || bytes[1]!==0xd8 ||
        bytes[bytes.length-2]!==0xff || bytes[bytes.length-1]!==0xd9)return "";
-    await env.PROFILE_PHOTOS.put(THUMBNAIL_PREFIX+host+"/"+id+".jpg",bytes,{
-      httpMetadata:{contentType:"image/jpeg"}
-    });
+    await env.VISITORS_KV.put(THUMBNAIL_PREFIX+host+"/"+id+".jpg",bytes);
     return thumbnailUrl(id,host);
   }catch(e){
-    console.error("Profile thumbnail R2 save failed",String(e));
+    console.error("Profile thumbnail KV save failed",String(e));
     return "";
   }
 }
