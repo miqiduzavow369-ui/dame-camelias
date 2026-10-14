@@ -564,7 +564,8 @@ function validProfile(data, id, host) {
   if(typeof data.photoUrl==="string" && data.photoUrl.length<1600){
     try{
       const u=new URL(data.photoUrl);
-      if(u.protocol==="https:" && ["cdn2.intimtur.com",host].includes(u.hostname) &&
+      if(u.protocol==="https:" && (["cdn2.intimtur.com",host].includes(u.hostname) ||
+          u.href===thumbnailUrl(id,host)) &&
           !u.username && !u.password && !u.port && !u.search && !u.hash &&
           /\.(?:jpg|jpeg|png|webp)$/i.test(u.pathname))photoUrl=u.href;
     }catch{}
@@ -662,6 +663,42 @@ export async function ownerReviewPayload(request,env) {
   return Response.json({text:current.text},
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
+const THUMBNAIL_PREFIX="profile-thumbnails/";
+export function thumbnailUrl(id,host){
+  return "https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(host);
+}
+export async function serveProfileThumbnail(request,env){
+  const url=new URL(request.url);
+  const match=/^\/api\/anketa\/photo\/(\d{1,9})$/.exec(url.pathname);
+  const host=url.searchParams.get("site")||"";
+  if(!match || !HOST_PATTERN.test(host) || !env.PROFILE_PHOTOS)
+    return new Response("Not found",{status:404});
+  const obj=await env.PROFILE_PHOTOS.get(THUMBNAIL_PREFIX+host+"/"+match[1]+".jpg");
+  if(!obj)return new Response("Not found",{status:404});
+  return new Response(obj.body,{headers:{
+    "Content-Type":"image/jpeg",
+    "Cache-Control":"public, max-age=86400",
+    "X-Content-Type-Options":"nosniff"
+  }});
+}
+async function saveProfileThumbnail(env,profile,id,host){
+  if(!env.PROFILE_PHOTOS || !profile || String(profile.id)!==id ||
+     typeof profile.photoData!=="string" || profile.photoData.length>140000 ||
+     !/^[A-Za-z0-9+/]+={0,2}$/.test(profile.photoData))return "";
+  try{
+    const bytes=Uint8Array.from(atob(profile.photoData),x=>x.charCodeAt(0));
+    if(bytes.length<500 || bytes.length>100000 || bytes[0]!==0xff || bytes[1]!==0xd8 ||
+       bytes[bytes.length-2]!==0xff || bytes[bytes.length-1]!==0xd9)return "";
+    await env.PROFILE_PHOTOS.put(THUMBNAIL_PREFIX+host+"/"+id+".jpg",bytes,{
+      httpMetadata:{contentType:"image/jpeg"}
+    });
+    return thumbnailUrl(id,host);
+  }catch(e){
+    console.error("Profile thumbnail R2 save failed",String(e));
+    return "";
+  }
+}
+
 export async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
@@ -672,6 +709,14 @@ export async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  // Only trusted, authenticated lookup callbacks may upload profile photos.
+  // Bind the bytes to this exact profile and active lookup nonce.
+  if(data.status==="found" && ["profile","ratings"].includes(data.mode) &&
+     current?.id===id && current?.nonce===nonce && HOST_PATTERN.test(current.host||"")){
+    const stored=await saveProfileThumbnail(env,data.profile,id,current.host);
+    if(stored)data.profile.photoUrl=stored;
+  }
+  if(data.profile && "photoData" in data.profile)delete data.profile.photoData;
   // A working example profile may have a DIFFERENT ID from the review.
   // Verify its destination, then resume proof for the original review ID.
   // No saved domain is changed until Telegram confirms photo delivery.
