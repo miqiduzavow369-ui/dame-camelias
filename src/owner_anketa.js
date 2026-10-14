@@ -2,6 +2,7 @@
 // proxy-backed lookup service; never guess a name, age, or district.
 import {reviewGuard} from "./review_publication_guard.js";
 import {credits} from "./publication_credits.js";
+import {renderCreditsBanner} from "./credits_banner.js";
 const OWNER_ID = "5866034656";
 const PREFIX = "owner_anketa_state:";
 const CABINET_SESSION_KEY = "owner_cabinet_session:"+OWNER_ID;
@@ -378,7 +379,32 @@ async function showLibrary(env,send){
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
-  await navigationSay(env,send,heading+info,keys);
+  // Telegram photos include buttons and editable balance in the caption.
+  // If image rendering/upload fails, the complete cabinet remains usable.
+  try{
+    const picture=await renderCreditsBanner(OWNER_ID,remaining);
+    const payload=new FormData();
+    payload.set("chat_id",OWNER_ID);
+    payload.set("caption",heading+info);
+    payload.set("reply_markup",JSON.stringify(keys));
+    payload.set("photo",new Blob([picture],{type:"image/png"}),"balance.png");
+    const tgRes=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{
+      method:"POST",body:payload,signal:AbortSignal.timeout(14000)
+    });
+    const result=await tgRes.json();
+    if(!tgRes.ok || result.ok!==true || !Number.isSafeInteger(result.result?.message_id))
+      throw Error("Telegram balance image failed");
+    const messageId=result.result.message_id;
+    await trackAnketaMessage(env,messageId);
+    let previous=null;
+    try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
+    try{await env.VISITORS_KV?.put(NAV_MESSAGE_KEY,JSON.stringify({id:messageId,at:Date.now()}),{expirationTtl:172800});}catch{}
+    if(Number.isSafeInteger(previous?.id)&&previous.id!==messageId && Date.now()-Number(previous.at)<47*3600000)
+      try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous.id});}catch{}
+  }catch(e){
+    console.error("Balance banner display fallback",String(e));
+    await navigationSay(env,send,heading+info,keys);
+  }
 }
 async function requireCredit(env,send){
   try{
