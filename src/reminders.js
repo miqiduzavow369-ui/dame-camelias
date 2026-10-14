@@ -61,11 +61,12 @@ export class OrderReminder {
           return Response.json({ok:false,reason:"scope"},{status:403});
         const claim=await storage.get("review_claim");
         if (!claim || claim.nonce!==input.nonce ||
-            !["submission_maybe_sent","preflight_failed"].includes(claim.status) || claim.boundaryAt ||
-            await storage.get("review_recovery_652282"))
+            !["preflight_failed","submission_started","submission_maybe_sent"].includes(claim.status))
           return Response.json({ok:false,reason:"not-eligible"},{status:409});
+        const prior=await storage.get("review_recovery_652282")||{count:0};
         await storage.put("review_recovery_652282",{
-          at:now,oldNonce:claim.nonce,status:"owner-confirmed-absent"
+          at:now,oldNonce:claim.nonce,count:prior.count+1,
+          previousStatus:claim.status,status:"owner-authorized-temporary-retry"
         });
         await storage.delete("review_claim");
         return Response.json({ok:true});
