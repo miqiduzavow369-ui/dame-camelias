@@ -229,6 +229,30 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
    env.__cabinetAuthorized=uid;
    if(uid===TRIAL_ID)await migrateTrial(storage,env);
+   // Exhaustion affects client navigation only. Result/proof callbacks below
+   // must still finish accepted work; reservations are not spent credits.
+   let balance;
+   try{balance=await credits(env,uid,"status");}
+   catch{
+    if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id});
+    await send(env,"sendMessage",{chat_id:uid,text:"🌷 Сейчас не удалось проверить баланс. Попробуйте открыть кабинет позже."});
+    return {handled:true};
+   }
+   const emptyProfile=/^owner_anketa:balance_empty:(\d{1,9})$/.exec(action);
+   if(balance.available===0&&balance.reserved===0){
+    const text=String(update.message?.text||"");
+    const flow=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
+    const navigating=!!update.callback_query||text.startsWith("/")||/^https:\/\//.test(text)||["number","review_input","review_preview"].includes(flow?.step);
+    if(navigating){
+     if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id});
+     await engine.showExhaustedCabinet(env,send,emptyProfile?.[1],balance);
+     return {handled:true};
+    }
+   }else if(emptyProfile){
+    // A top-up takes effect on the next click, including an old zero-balance button.
+    action="owner_anketa:saved:"+emptyProfile[1];
+    update={...update,callback_query:{...update.callback_query,data:action}};
+   }
   }
   if(uid===OWNER_ID&&(String(update.callback_query?.data||"").startsWith("clients:")||await storage.get("admin_pending"))&&!(await env.VISITORS_KV.get("owner_cabinet_session:"+uid,"json"))?.authorized){
     await storage.delete("admin_pending");
@@ -270,6 +294,10 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  if(event.kind==="ratings"){
   const session=uid===OWNER_ID?await env.VISITORS_KV.get("owner_cabinet_session:"+uid,"json"):await storage.get("client_session");
   if(uid===OWNER_ID?!session?.authorized:session?.version!==client?.authVersion)return {status:403,body:"Cabinet authorization required"};
+  if(uid!==OWNER_ID){
+   const balance=await credits(env,uid,"status");
+   if(balance.available===0&&balance.reserved===0)return {status:403,body:"Publication balance exhausted"};
+  }
  }
  const finishing=event.kind==="result"||(event.kind==="review"&&new URL(event.url).searchParams.get("mode")==="review_proof");
  if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false")&&!finishing)return {status:403,body:"Forbidden"};
