@@ -20,3 +20,8 @@ class_name = "OrderReminder"
 tag = "order-reminders-v1"
 new_sqlite_classes = ["OrderReminder"]
 
+# Approved initial rollout: keep new client actions and publications paused.
+[vars]
+CABINET_CLIENTS_ENABLED = "false"
+CABINET_PUBLICATIONS_ENABLED = "false"
+

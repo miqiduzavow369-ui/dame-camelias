@@ -1,0 +1,50 @@
+name: Multi-client isolation checks
+on:
+  push:
+    branches:
+      - feat/multi-client-isolation-foundation
+    paths:
+      - src/client_isolation.js
+      - src/client_lookup.js
+      - src/client_profile_view.js
+      - src/client_review_draft.js
+      - src/client_publication_policy.js
+      - src/trial_cabinet.js
+      - src/index.js
+      - tools/intimcity_profile_lookup.py
+      - .github/workflows/intimcity-profile-lookup.yml
+      - tests/client_isolation.test.mjs
+      - tests/client_lookup.test.mjs
+      - tests/client_profile_view.test.mjs
+      - tests/client_review_draft.test.mjs
+      - tests/client_review_state_isolation.test.mjs
+      - tests/client_publication_policy.test.mjs
+      - .github/workflows/client-isolation-check.yml
+  pull_request:
+    paths:
+      - src/client_isolation.js
+      - src/client_lookup.js
+      - src/client_profile_view.js
+      - src/client_review_draft.js
+      - src/client_publication_policy.js
+      - src/trial_cabinet.js
+      - src/index.js
+      - tests/client_isolation.test.mjs
+      - tests/client_lookup.test.mjs
+      - tests/client_profile_view.test.mjs
+      - tests/client_review_draft.test.mjs
+      - tests/client_review_state_isolation.test.mjs
+      - tests/client_publication_policy.test.mjs
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m py_compile tools/intimcity_profile_lookup.py
+      - run: node --check src/client_isolation.js && node --check src/client_lookup.js && node --check src/client_profile_view.js && node --check src/client_review_draft.js && node --check src/client_publication_policy.js && node --check src/trial_cabinet.js && node --check src/index.js
+      - run: node --test tests/client_isolation.test.mjs tests/client_lookup.test.mjs tests/client_profile_view.test.mjs tests/client_review_draft.test.mjs tests/client_review_state_isolation.test.mjs tests/client_publication_policy.test.mjs tests/trial_cabinet.test.mjs

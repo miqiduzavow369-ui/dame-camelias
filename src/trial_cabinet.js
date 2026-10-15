@@ -1,3 +1,6 @@
+import {clientKey} from "./client_isolation.js";
+import {dispatchClientLookup} from "./client_lookup.js";
+import {matchingVerifiedProfile} from "./client_profile_view.js";
 import { credits } from "./publication_credits.js";
 
 // Independent trial cabinet. Existing owner state and publication routines remain untouched.
@@ -121,7 +124,44 @@ export async function handleTrialCabinet(update,env,send) {
   if(action.startsWith("trial_cabinet:profile:")){
     const id=action.slice("trial_cabinet:profile:".length);
     const profiles=await get(env,"profiles")??[];
-    if(profiles.some(p=>p.id===id))await navigateText(env,send,"🌹 АНКЕТА №"+id+"\n\n⏳ Анкета сохранена, но ещё не проверена. После подключения проверки здесь появится карточка анкеты и доступные действия.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
+    const stored=profiles.find(p=>p.id===id);
+    if(stored){
+      const verified=await env.VISITORS_KV.get(clientKey(USER_ID,"saved",id),"json");
+      if(matchingVerifiedProfile(stored.url,verified)){
+        await navigateText(env,send,"✅ АНКЕТА ПОДТВЕРЖДЕНА\n\n🌹 "+verified.name+" · №"+id+"\nВозраст: "+verified.age+"\nМетро: "+verified.metro+"\n\n⏳ Система оценок и отзывов подключается отдельно.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
+      }else{
+        await navigateText(env,send,"🌹 АНКЕТА №"+id+"\n\nВы можете проверить сохранённую ссылку.",{inline_keyboard:[[{text:"🔎 Проверить анкету",callback_data:"trial_cabinet:verify:"+id}],[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]]});
+      }
+    }
+    return true;
+  }
+  if(action.startsWith("trial_cabinet:verify:")){
+    const id=action.slice("trial_cabinet:verify:".length);
+    const profiles=await get(env,"profiles")??[];
+    const stored=profiles.find(p=>p.id===id);
+    if(!stored)return true;
+    const previouslyVerified=await env.VISITORS_KV.get(clientKey(USER_ID,"saved",id),"json");
+    if(matchingVerifiedProfile(stored.url,previouslyVerified)){
+      await navigateText(env,send,"✅ Анкета №"+id+" уже подтверждена.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
+      return true;
+    }
+    const url=PROFILE_URL.exec(stored.url);
+    if(!url||url[2]!==id)return true;
+    const current=await env.VISITORS_KV.get(clientKey(USER_ID,"flow"),"json");
+    if(current?.status==="pending"&&Date.now()-Number(current.startedAt)<8*60*1000){
+      await navigateText(env,send,"⏳ Проверка анкеты уже выполняется.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
+      return true;
+    }
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const flow={mode:"profile",status:"pending",profileId:id,host:url[1],nonce,startedAt:Date.now()};
+    await env.VISITORS_KV.put(clientKey(USER_ID,"flow"),JSON.stringify(flow),{expirationTtl:1800});
+    const dispatched=await dispatchClientLookup(env,USER_ID,id,url[1],nonce).catch(()=>({ok:false}));
+    if(!dispatched.ok){
+      await env.VISITORS_KV.put(clientKey(USER_ID,"flow"),JSON.stringify({...flow,status:"failed"}),{expirationTtl:1800});
+      await navigateText(env,send,"🌷 Проверка временно недоступна. Попробуйте позже.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
+      return true;
+    }
+    await navigateText(env,send,"🌸 Проверяю анкету №"+id+"…\n\nРезультат придёт отдельным сообщением.",{inline_keyboard:[[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]]});
     return true;
   }
   if(action==="trial_cabinet:add"){
@@ -146,7 +186,7 @@ export async function handleTrialCabinet(update,env,send) {
   let remaining="недоступен";
   try {
     const balance=await credits(env,USER_ID,"status");
-    remaining=String(balance.available??balance.remaining??balance.balance??"уточняется");
+    remaining=String(balance.remaining??balance.available??balance.balance??"уточняется");
   }catch{}
   
   const rows=[...profiles.map(p=>[{text:"🌹 АНКЕТА №"+p.id,callback_data:"trial_cabinet:profile:"+p.id}]),...menu.inline_keyboard];

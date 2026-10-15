@@ -32,7 +32,7 @@ def load_private_dryfill(pid, nonce):
         raise RuntimeError("Invalid private payload host")
     from urllib.parse import urlencode
     address=parsed._replace(path="/api/anketa/dryfill-payload",
-                             query=urlencode({"profile_id":pid,"nonce":nonce}),
+                             query=urlencode({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce}),
                              fragment="").geturl()
     req=Request(address,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
@@ -54,7 +54,7 @@ def report_review_stage(pid, nonce, kind):
     if original.scheme!="https" or original.path!="/api/anketa/result" or not original.netloc:
         raise RuntimeError("Invalid review audit URL")
     url=original._replace(path="/api/anketa/review-stage",query="",fragment="").geturl()
-    body=json.dumps({"profile_id":pid,"nonce":nonce,"type":kind}).encode("utf-8")
+    body=json.dumps({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce,"type":kind}).encode("utf-8")
     req=Request(url,method="POST",data=body,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
         "Content-Type":"application/json","User-Agent":"DameCameliasBot/1.0"})
@@ -70,7 +70,7 @@ def load_private_review(pid, nonce, mode):
     if base.scheme!="https" or base.path!="/api/anketa/result" or not base.netloc:
         raise RuntimeError("Invalid private review callback host")
     url=base._replace(path="/api/anketa/review-payload",
-                      query=urlencode({"profile_id":pid,"nonce":nonce,"mode":mode}),
+                      query=urlencode({"user_id":os.environ.get("INTIMCITY_LOOKUP_USER_ID",""),"profile_id":pid,"nonce":nonce,"mode":mode}),
                       fragment="").geturl()
     req=Request(url,headers={
         "Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
@@ -218,7 +218,7 @@ def capture_verified_proof(ctx, pid, expected_date=None):
             raise RuntimeError("Proof image too large")
         print("PROOF: matching checked entry captured",flush=True)
         return {"date":result["date"],"image":base64.b64encode(image).decode("ascii"),
-                "mime":"image/jpeg","account":"yan_first"}
+                "mime":"image/jpeg","account":"yan_first","profile_id":pid}
     finally:
         page.close()
 
@@ -826,7 +826,10 @@ def main():
         print("LOOKUP: failed to verify profile identity; category=" + category + "; exception_type=" + type(e).__name__,flush=True)
     profile=result.get("profile") if mode in ("ratings","mapping","dryfill","publish","proof","review_publish","review_proof") and isinstance(result,dict) else result
     catalog=result.get("catalog",[]) if mode in ("ratings","mapping") and isinstance(result,dict) else []
-    callback({"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"review_publication":result.get("review_publication") if mode in ("review_publish","review_proof") and isinstance(result,dict) else None,"mode":mode,"status":status})
+    user_id=os.environ.get("INTIMCITY_LOOKUP_USER_ID","").strip()
+    if user_id and (not user_id.isdecimal() or not 5<=len(user_id)<=16):
+        raise RuntimeError("Invalid client lookup identity")
+    callback({"user_id":user_id,"profile_id":pid,"nonce":nonce,"profile":profile,"catalog":catalog,"dryfill":result.get("dryfill") if mode=="dryfill" and isinstance(result,dict) else None,"publication":result.get("publication") if mode=="publish" and isinstance(result,dict) else None,"proof":result.get("proof") if mode=="proof" and isinstance(result,dict) else None,"review_publication":result.get("review_publication") if mode in ("review_publish","review_proof") and isinstance(result,dict) else None,"mode":mode,"status":status})
     print("PASS: result delivered to existing bot")
 
 if __name__=="__main__":

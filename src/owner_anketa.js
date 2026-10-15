@@ -1,21 +1,28 @@
-// Owner-only questionnaire. Profile identity must come from a verified
+import {claimPublication,publicationState} from "./publication_claim.js";
+// Shared user cabinet with backward-compatible owner keys. Identity comes from a verified
 // proxy-backed lookup service; never guess a name, age, or district.
 import {reviewGuard} from "./review_publication_guard.js";
 import {credits} from "./publication_credits.js";
 import {dailyLimit,moscowDay} from "./daily_publication_limit.js";
-const OWNER_ID = "5866034656";
+// Per-request lexical context: no shared mutable current-user variable.
+export function createCabinet(userId="5866034656") {
+if(!/^\d{5,16}$/.test(String(userId)))throw Error("Invalid cabinet identity");
+const OWNER_ID = String(userId);
+const isOwner = OWNER_ID === "5866034656";
+const privatePrefix = value => isOwner ? value : "cabinet_v3:"+OWNER_ID+":"+value;
 const PREFIX = "owner_anketa_state:";
 const CABINET_SESSION_KEY = "owner_cabinet_session:"+OWNER_ID;
 const CABINET_PENDING_KEY = "owner_cabinet_pending:"+OWNER_ID;
 const CABINET_FAIL_KEY = "owner_cabinet_failed:"+OWNER_ID;
-// Temporary PIN 1111 represented by its SHA-256 digest; replace with a Cloudflare secret later.
-// Future IDs must be explicitly authorized in code before their individual secrets are used.
+// Preserve the existing owner digest; OWNER_CABINET_PIN_SHA256 overrides it.
+// New clients are administered through the private Durable Object registry.
 const INITIAL_OWNER_PIN_HASH = "0ffe1abd1a08215353c233d6e009613e95eec4253832a761af28ff37ac5a150c";
 async function pinDigest(pin){
   const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(pin));
   return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function cabinetAuthorized(env){
+  if(!isOwner)return env.__cabinetAuthorized === OWNER_ID;
   if(!env.VISITORS_KV)return false;
   try{return (await env.VISITORS_KV.get(CABINET_SESSION_KEY,"json"))?.authorized===true;}catch{return false;}
 }
@@ -30,7 +37,7 @@ const TTL_SECONDS = 1800;
 // Owner verified this live publication on 2026-10-13. Historical backfill:
 // immutable even if the bot's chat or Cloudflare KV data are cleared.
 const VERIFIED_FIRST_PUBLICATION = "652282";
-const PROOF_ARCHIVE_KEY="owner_anketa_proof_archive_v1:";
+const PROOF_ARCHIVE_KEY=privatePrefix("owner_anketa_proof_archive_v1:");
 function proofArchiveKey(account,id){return PROOF_ARCHIVE_KEY+account+":"+id;}
 async function savedProof(env,account,id){
   if(account!==ACTIVE_ACCOUNT || !ID_PATTERN.test(String(id)))return null;
@@ -58,14 +65,10 @@ async function rememberProofMessage(env,messageId){
     await env.VISITORS_KV.put(PROOF_MESSAGE_KEY,JSON.stringify(list.slice(-30)),{expirationTtl:172800});
   }catch{}
 }
-async function closeProofMessages(env,send,callbackMessageId){
-  let list=[];
-  try{list=await env.VISITORS_KV?.get(PROOF_MESSAGE_KEY,"json")||[];}catch{}
-  const ids=new Set(Array.isArray(list)?list.filter(x=>Number.isSafeInteger(x.id)&&Date.now()-x.at<47*3600000).map(x=>x.id):[]);
-  if(Number.isSafeInteger(callbackMessageId))ids.add(callbackMessageId);
-  for(const id of ids){try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:id});}catch{}}
-  try{await env.VISITORS_KV?.delete(PROOF_MESSAGE_KEY);}catch{}
+async function closeProofMessages(){
+  // Receipts remain in the chat; only the navigation messages are replaced.
 }
+
 function proofNav(id){return buttons([
   [{text:"🌹 Спасибо",callback_data:"owner_anketa:proofthanks:"+id}],
   [{text:"🌹 К анкете",callback_data:"owner_anketa:saved:"+id}],
@@ -82,8 +85,8 @@ async function deliverSavedProof(env,send,account,id){
     return true;
   }catch{return false;} // invalidated Telegram file_id: re-check site read-only
 }
-const REVIEW_PENDING_KEY="owner_anketa_review_pending_v1:yan_first:";
-const REVIEW_ARCHIVE_KEY="owner_anketa_review_proof_archive_v1:yan_first:";
+const REVIEW_PENDING_KEY=privatePrefix("owner_anketa_review_pending_v1:yan_first:");
+const REVIEW_ARCHIVE_KEY=privatePrefix("owner_anketa_review_proof_archive_v1:yan_first:");
 async function deliverSavedReviewProof(env,send,id){
   const proof=await env.VISITORS_KV?.get(REVIEW_ARCHIVE_KEY+id,"json");
   if(proof?.account!=="yan_first" || proof.profileId!==id ||
@@ -95,28 +98,36 @@ async function deliverSavedReviewProof(env,send,id){
   await rememberProofMessage(env,res?.message_id);
   return true;
 }
-const PUBLICATION_KEY = "owner_anketa_publication_v1:";
+const PUBLICATION_KEY = privatePrefix("owner_anketa_publication_v1:");
 async function publicationStatus(env,id,kind) {
   if(!ID_PATTERN.test(String(id)) || !["rating","review"].includes(kind))return null;
-  if(kind==="rating" && String(id)===VERIFIED_FIRST_PUBLICATION)
-    return {status:"published",at:"2026-10-13",source:"owner-public-verification"};
-  return await env.VISITORS_KV?.get(PUBLICATION_KEY+kind+":"+id,"json")||null;
+  if(isOwner && String(id)===VERIFIED_FIRST_PUBLICATION)
+    return {status:"published",at:kind==="rating"?"2026-10-13":"2026-10-14",source:"owner-public-verification"};
+  const local=await env.VISITORS_KV?.get(PUBLICATION_KEY+kind+":"+id,"json");
+  if(local)return local;
+  if(!isOwner&&(String(id)===VERIFIED_FIRST_PUBLICATION||await env.VISITORS_KV.get("owner_anketa_publication_v1:"+kind+":"+id,"json")))return {status:"unavailable",shared:true};
+  const global=kind==="review"?await reviewGuard(env,id,"review_status"):await publicationState(env,id,kind);
+  return global.claimed?{status:"unavailable",shared:true}:null;
 }
-async function recordPublication(env,id,kind,status,source) {
+async function recordPublication(env,id,kind,status,source,receipt={}) {
   if(!env.VISITORS_KV || !ID_PATTERN.test(String(id)) ||
       !["rating","review"].includes(kind) ||
       !["publishing","published","needs_verification"].includes(status))
     return false;
   const key=PUBLICATION_KEY+kind+":"+id;
-  const before=await publicationStatus(env,id,kind);
+  const before=await env.VISITORS_KV.get(key,"json");
   if(before?.status==="published" || (before && status==="publishing"))return false;
   await env.VISITORS_KV.put(key,JSON.stringify({
-    status,source,at:new Date().toISOString()
+    ...before,...receipt,status,source,at:new Date().toISOString()
   })); // no expiration: independent of chat, profile library, and 30-minute draft TTL
   return true;
 }
 async function ensureNoRepeat(env,id,kind,send) {
-  const found=await publicationStatus(env,id,kind);
+  let found=await publicationStatus(env,id,kind);
+  if(!isOwner&&!found){
+    found=await env.VISITORS_KV.get("owner_anketa_publication_v1:"+kind+":"+id,"json");
+    if(String(id)===VERIFIED_FIRST_PUBLICATION)found={status:"published"};
+  }
   if(!found)return false;
   await say(env,send,found.status==="published" ?
     "✅ "+(kind==="rating"?"Оценка опубликована":"Отзыв опубликован")+
@@ -136,22 +147,32 @@ function parseProfileLink(input) {
   } catch { return null; }
 }
 
-export function ownerAllowed(update) {
+function ownerAllowed(update) {
   const from = update.callback_query?.from ?? update.message?.from;
   const chat = update.callback_query?.message?.chat ?? update.message?.chat;
   return String(from?.id ?? "") === OWNER_ID &&
     String(chat?.id ?? "") === OWNER_ID && chat?.type === "private";
 }
 async function stateGet(env) {
-  return env.VISITORS_KV ? await env.VISITORS_KV.get(PREFIX + OWNER_ID, "json") : null;
+  return env.VISITORS_KV ? await env.VISITORS_KV.get(env.__operationKey||PREFIX + OWNER_ID, "json") : null;
 }
 async function statePut(env, state) {
   if (!env.VISITORS_KV) return false;
-  await env.VISITORS_KV.put(PREFIX + OWNER_ID, JSON.stringify(state),
-    { expirationTtl: TTL_SECONDS });
+  if(state.step==="ratings"&&state.profile?.id&&ID_PATTERN.test(String(state.profile.id)))
+    await env.VISITORS_KV.put("cabinet_rating_draft:"+OWNER_ID+":"+state.profile.id,JSON.stringify({host:state.host,url:state.profile.url,selected:state.selected||{},catalog:state.catalog,metElsewhere:state.metElsewhere===true}),{expirationTtl:604800});
+  if(/^[a-f0-9]{12}$/.test(state.nonce||"")&&(["publishing","review_dispatch","review_recheck","proof_loading"].includes(state.step)||await env.VISITORS_KV.get("cabinet_operation:"+OWNER_ID+":"+state.nonce)))
+    await env.VISITORS_KV.put("cabinet_operation:"+OWNER_ID+":"+state.nonce,JSON.stringify(state));
+  await env.VISITORS_KV.put(env.__operationKey||PREFIX + OWNER_ID, JSON.stringify(state),
+    ["publishing","review_dispatch","review_recheck","proof_loading","publication_result","review_result"].includes(state.step)?{}:{ expirationTtl: TTL_SECONDS });
   return true;
 }
-const REVIEW_DRAFT_KEY="owner_anketa_review_draft_v1:yan_first:";
+async function ratingDraftGet(env,id,host,catalog){
+ const draft=await env.VISITORS_KV.get("cabinet_rating_draft:"+OWNER_ID+":"+id,"json");
+ if(!draft||draft.host!==host||JSON.stringify(draft.catalog)!==JSON.stringify(catalog))return {};
+ const selected={};for(const [i,v] of Object.entries(draft.selected||{}))if(catalog[Number(i)]?.options?.includes(v))selected[i]=v;
+ return {selected,metElsewhere:draft.metElsewhere===true,draftReady:Object.keys(selected).length>0};
+}
+const REVIEW_DRAFT_KEY=privatePrefix("owner_anketa_review_draft_v1:yan_first:");
 const REVIEW_DRAFT_TTL=7*24*3600;
 async function reviewDraftSave(env,state){
   if(!env.VISITORS_KV || !ID_PATTERN.test(String(state?.id)) ||
@@ -373,10 +394,9 @@ async function profileKeyboard(env,id){
   return buttons([
   ...(!rating?[[{text:"⭐ Опубликовать оценку",callback_data:"owner_anketa:savedrating:"+id}]]:[]),
   ...(!review?[[{text:"✍️ Опубликовать отзыв",callback_data:"owner_anketa:savedreview:"+id}]]:[]),
-  ...(rating?[[{text:"📸 Подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
+  ...(rating&&!rating.shared?[[{text:"📸 Подтверждение оценки",callback_data:"owner_anketa:proof:"+id}]]:[]),
   ...(review?.status==="published"?[[{text:"📸 Подтверждение отзыва",callback_data:"owner_anketa:reviewproof:"+id}]]:[]),
-  ...(review && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
-  ...(id==="652282" && review && review.status!=="published"?[[{text:"🔓 Восстановить отзыв №652282",callback_data:"owner_anketa:reviewrecoverask:652282"}]]:[]),
+  ...(review && !review.shared && review.status!=="published"?[[{text:"🔎 Проверить отзыв",callback_data:"owner_anketa:reviewcheck:"+id}]]:[]),
   [{text:"⬅️ К клиентам",callback_data:"owner_anketa:accounts:"+id}],
   [{text:"🗑 Удалить анкету",callback_data:"owner_anketa:deleteask:"+id}],
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
@@ -421,6 +441,7 @@ async function sendPreparedCard(env,url,caption,reply_markup){
     throw Error("Premium PNG invalid signature");
   const form=new FormData();
   form.set("chat_id",OWNER_ID);
+  if(!isOwner)form.set("protect_content","true");
   form.set("caption",caption);
   if(reply_markup)form.set("reply_markup",JSON.stringify(reply_markup));
   form.set("photo",new Blob([bytes],{type:"image/png"}),"premium.png");
@@ -448,17 +469,18 @@ async function showLibrary(env,send){
       buttons([[{text:"🔄 Обновить кабинет",callback_data:"owner_anketa:open"}]]));
     return;
   }
-  const remaining=balance.remaining;
+  const remaining=balance.available;
   const heading="🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n🆔 Telegram ID: "+OWNER_ID+
     "\n\n💎 ВАМ ДОСТУПНО: "+remaining+" ПУБЛИКАЦИЙ";
   const info=remaining>0?
     "\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.":
     "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌹 Обратитесь к администратору за заказом публикаций.";
-  const keys=remaining>0?libraryKeyboard(ids):buttons([
+  let keys=remaining>0?libraryKeyboard(ids):buttons([
     ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
+  if(isOwner)keys={inline_keyboard:[...keys.inline_keyboard,[{text:"➕ Добавить клиента",callback_data:"clients:add"}],[{text:"👥 Клиенты",callback_data:"clients:list"}]]};
   const url=balanceCardUrl(remaining);
   let bannerError="not_in_library";
   if(url){
@@ -477,8 +499,12 @@ async function showLibrary(env,send){
       console.error("Prepared premium card unavailable",bannerError);
     }
   }
-  // Temporary owner-only diagnostic; remove after the premium image works.
-  await navigationSay(env,send,heading+info+"\n\n🛠 Диагностика плашки v2: "+bannerError,keys);
+  // A clean text fallback keeps the cabinet usable when image upload fails.
+  await navigationSay(env,send,heading+info,keys);
+}
+async function releaseUnsubmitted(env,id,kind,nonce,date){
+  await credits(env,OWNER_ID,"release",kind,id,nonce);
+  await dailyLimit(env,OWNER_ID,id,"release",kind,nonce,date);
 }
 async function reserveDailySlot(env,send,id,kind,nonce){
   const date=moscowDay();
@@ -595,16 +621,6 @@ async function closeClientFlow(env,send,id,proofMessageId){
   // Navigation messages are replaced independently by navigationSay().
   if(scope?.id===String(id)){
     try{await env.VISITORS_KV?.delete(CLIENT_FLOW_KEY);}catch{}
-  }
-  // Delete only the proof message whose Thank You button was pressed.
-  if(Number.isSafeInteger(proofMessageId)){
-    try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:proofMessageId});}catch{}
-    try{
-      const saved=await env.VISITORS_KV?.get(PROOF_MESSAGE_KEY,"json");
-      if(Array.isArray(saved))
-        await env.VISITORS_KV?.put(PROOF_MESSAGE_KEY,
-          JSON.stringify(saved.filter(x=>x.id!==proofMessageId)),{expirationTtl:172800});
-    }catch{}
   }
   await clearProgress(env,send);
 }
@@ -756,13 +772,13 @@ async function dispatchLookup(env,id,nonce,mode="profile",siteHost="a.intimcity.
       "User-Agent":"dame-camelias-worker",
       "X-GitHub-Api-Version":"2022-11-28",
       "Content-Type":"application/json"},
-    body:JSON.stringify({ref:"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost}}),
+    body:JSON.stringify({ref:env.CABINET_ACTIONS_REF||"main",inputs:{profile_id:id,nonce,mode,site_host:siteHost,user_id:OWNER_ID}}),
     signal:AbortSignal.timeout(15000)});
   if(response.status===204) return {ok:true};
   const descriptions={401:"GitHub отклонил токен (401)",403:"GitHub запретил запуск: проверь Actions Write и срок токена (403)",404:"GitHub не нашёл workflow или у токена нет доступа к репозиторию (404)",422:"GitHub не принял параметры запуска (422)",429:"GitHub ограничил число запросов (429)"};
-  return {ok:false,reason:descriptions[response.status]||("GitHub HTTP "+response.status)};
+  return {ok:false,definitiveFailure:[401,403,404,422].includes(response.status),reason:descriptions[response.status]||("GitHub HTTP "+response.status)};
 }
-export async function ownerDryfillPayload(request,env) {
+async function ownerDryfillPayload(request,env) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
     return new Response("Forbidden",{status:403});
@@ -791,7 +807,7 @@ export async function ownerDryfillPayload(request,env) {
   return Response.json({selections,metElsewhere:state.metElsewhere===true},
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
-export async function ownerReviewStage(request,env) {
+async function ownerReviewStage(request,env) {
   if(!env.ANKETA_CALLBACK_TOKEN ||
      request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
     return new Response("Forbidden",{status:403});
@@ -805,10 +821,11 @@ export async function ownerReviewStage(request,env) {
   if(state?.step!=="review_dispatch" || state.id!==id || state.nonce!==nonce ||
      state.account!=="yan_first" || !/^[a-f0-9]{16}$/.test(state.claimNonce||"") ||
      state.payloadIssued!==true)return new Response("Stale",{status:409});
-  const result=await reviewGuard(env,id,data.type,state.claimNonce);
+  let result;
+  try{result=await reviewGuard(env,id,data.type,state.claimNonce);}catch{return new Response("Stage rejected",{status:409});}
   return Response.json(result,{status:result.ok?200:409});
 }
-export async function ownerReviewPayload(request,env) {
+async function ownerReviewPayload(request,env) {
   if(!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
     return new Response("Forbidden",{status:403});
@@ -820,7 +837,7 @@ export async function ownerReviewPayload(request,env) {
   const current=await stateGet(env);
   if(!current || current.id!==id || current.nonce!==nonce ||
       current.account!=="yan_first" || !["review_dispatch","review_recheck"].includes(current.step) ||
-      !await selectedAccount(env,id) || !await savedGet(env,id) ||
+      !await savedGet(env,id) ||
       typeof current.text!=="string" || current.text.length<10 || current.text.length>3000 ||
       !(current.agreedAt>0) || Date.now()-current.agreedAt>30*60*1000)
     return new Response("Stale",{status:409});
@@ -837,10 +854,10 @@ export async function ownerReviewPayload(request,env) {
     {headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }
 const THUMBNAIL_PREFIX="profile-thumbnails/";
-export function thumbnailUrl(id,host){
+function thumbnailUrl(id,host){
   return "https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(host);
 }
-export async function serveProfileThumbnail(request,env){
+async function serveProfileThumbnail(request,env){
   const url=new URL(request.url);
   const match=/^\/api\/anketa\/(photo|card)\/(\d{1,9})$/.exec(url.pathname);
   const host=url.searchParams.get("site")||"";
@@ -885,12 +902,13 @@ async function saveProfileThumbnail(env,profile,id,host){
   }
 }
 
-export async function handleAnketaLookupResult(request,env,send) {
+async function handleAnketaLookupResult(request,env,send) {
   if (!env.ANKETA_CALLBACK_TOKEN ||
       request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)
     return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"reached"}});
   let data;
   try {data=await request.json();}catch{return new Response("Invalid JSON",{status:400});}
+  if(data.user_id&&String(data.user_id)!==OWNER_ID)return new Response("User mismatch",{status:403});
   const id=String(data.profile_id??""),nonce=String(data.nonce??"");
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
@@ -898,7 +916,8 @@ export async function handleAnketaLookupResult(request,env,send) {
   // Only trusted, authenticated lookup callbacks may upload profile photos.
   // Bind the bytes to this exact profile and active lookup nonce.
   if(data.status==="found" && ["profile","ratings"].includes(data.mode) &&
-     current?.id===id && current?.nonce===nonce && HOST_PATTERN.test(current.host||"")){
+     current?.id===id && current?.nonce===nonce && HOST_PATTERN.test(current.host||"") &&
+     ((current.step==="loading"&&data.mode==="profile")||(current.step==="ratings_loading"&&data.mode==="ratings")) && validProfile(data.profile,id,current.host)){
     const stored=await saveProfileThumbnail(env,data.profile,id,current.host);
     if(stored)data.profile.photoUrl=stored;
     await saveProfileCard(env,data.profile,id,current.host);
@@ -930,7 +949,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     }
     const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     await statePut(env,{step:"review_recheck",id:originalId,account:ACTIVE_ACCOUNT,
-      nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,
+      nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
       agreedAt:Date.now(),host:current.host,recoveryHost:current.host,
       verifiedViaId:id});
     let dispatched=false;
@@ -956,10 +975,11 @@ export async function handleAnketaLookupResult(request,env,send) {
        typeof proof.image==="string" && proof.image.length<950000 &&
        /^[A-Za-z0-9+/]+={0,2}$/.test(proof.image)){
       const bytes=Uint8Array.from(atob(proof.image),x=>x.charCodeAt(0));
-      if(bytes.length<1000||bytes.length>700000||bytes[0]!==255||bytes[1]!==216)
+      if(bytes.length<1000||bytes.length>700000||bytes[0]!==255||bytes[1]!==216||bytes.at(-2)!==255||bytes.at(-1)!==217)
         return new Response("Invalid proof",{status:400});
       const payload=new FormData();
       payload.append("chat_id",OWNER_ID);
+    if(!isOwner)payload.append("protect_content","true");
       payload.append("caption","✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
         "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва");
       payload.append("reply_markup",JSON.stringify(proofNav(id)));
@@ -1017,7 +1037,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     if(current.id!==id || current.nonce!==nonce || current.account!=="yan_first")
       return new Response("Stale",{status:409});
     const proof=data.proof;
-    if(data.status!=="found" || !proof || proof.account!=="yan_first" ||
+    if(data.status!=="found" || !proof || proof.account!=="yan_first" || proof.profile_id!==id || proof.mime!=="image/jpeg" ||
        !/^\d{2}\.\d{2}\.\d{4}$/.test(proof.date||"") ||
        typeof proof.image!=="string" || proof.image.length>950000 ||
        !/^[A-Za-z0-9+/]+={0,2}$/.test(proof.image))
@@ -1030,10 +1050,11 @@ export async function handleAnketaLookupResult(request,env,send) {
       return new Response("Proof date mismatch",{status:409});
     const binary=atob(proof.image);
     const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
-    if(bytes.length<1000 || bytes.length>700000 || bytes[0]!==255 || bytes[1]!==216)
+    if(bytes.length<1000 || bytes.length>700000 || bytes[0]!==255 || bytes[1]!==216 || bytes.at(-2)!==255 || bytes.at(-1)!==217)
       return new Response("Invalid photo",{status:400});
     const payload=new FormData();
     payload.append("chat_id",OWNER_ID);
+    if(!isOwner)payload.append("protect_content","true");
     payload.append("caption",proofText(current.account,id,proof.date));
     payload.append("reply_markup",JSON.stringify(proofNav(id)));
     payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+id+".jpg");
@@ -1098,7 +1119,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       }
       await statePut(env,next);
     }
-    const title=attempt.confirmed===true?"✅ ПУБЛИКАЦИЯ ПОДТВЕРЖДЕНА":
+    const title=attempt.confirmed===true?"🔎 ОЖИДАЕМ ПОДТВЕРЖДЕНИЕ ПУБЛИКАЦИИ":
        attempt.attempted===true||!data.publication?"⚠️ РЕЗУЛЬТАТ ПУБЛИКАЦИИ НЕ ПОДТВЕРЖДЁН":
        "❌ ПУБЛИКАЦИЯ НЕ ВЫПОЛНЕНА";
     await say(env,send,title+"\n\n🆔 Анкета №"+id+
@@ -1228,7 +1249,7 @@ export async function handleAnketaLookupResult(request,env,send) {
     if(current.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,id)){
       await say(env,send,"🌷 Выбор аккаунта устарел. Откройте анкету и выберите 👨‍💻 Ян Первый.");return Response.json({ok:false},{status:409});
     }
-    const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{}};
+    const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{},...await ratingDraftGet(env,id,current.host,orderedCatalog)};
     await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
     await navigationSay(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
@@ -1236,7 +1257,7 @@ export async function handleAnketaLookupResult(request,env,send) {
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
   }
-  const found=validProfile(data.profile,id,current.host);
+  const found=data.status==="found"?validProfile(data.profile,id,current.host):null;
   if(!found) {
     await statePut(env,{step:"number"});
     const empty = data.status === "not_found";
@@ -1271,6 +1292,8 @@ async function inspect(env,send,urlText) {
     return;
   }
   const {id,host}=link;
+  const existing=await savedGet(env,id);
+  if(existing?.confirmed&&existing.profile?.url===`https://${host}/indi/anketa${id}.htm`){await showSaved(env,send,id);return;}
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
   if(!await statePut(env,{step:"loading",id,host,nonce})) {
     await say(env,send,"⚠️ Хранилище недоступно.");
@@ -1281,12 +1304,12 @@ async function inspect(env,send,urlText) {
   catch {dispatched={ok:false,reason:"Не удалось связаться с GitHub API"};}
   if(!dispatched?.ok) {
     await statePut(env,{step:"number"});
-    await say(env,send,"🌷 Не получилось начать проверку анкеты.\n\n💕 Пожалуйста, попробуйте ещё раз чуть позже.\n\nТехническая информация: "+dispatched.reason);
+    await say(env,send,"🌷 Не получилось начать проверку анкеты.\n\n💕 Пожалуйста, попробуйте ещё раз чуть позже."+(isOwner?"\n\nТехническая информация: "+dispatched.reason:""));
     return;
   }
   await navigationSay(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
 }
-export async function handleOwnerAnketa(update,env,send) {
+async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
   const msg=update.message;
   const data=String(cb?.data ?? "");
@@ -1296,7 +1319,7 @@ export async function handleOwnerAnketa(update,env,send) {
   const ownerAction=data.startsWith("owner_anketa:") || command==="/anketa";
   if(owner){
     const pending=await env.VISITORS_KV?.get(CABINET_PENDING_KEY).catch(()=>null);
-    if(pending && msg?.text && !txt.startsWith("/")){
+    if(isOwner && pending && msg?.text && !txt.startsWith("/")){
       try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
       const attempts=Number(await env.VISITORS_KV?.get(CABINET_FAIL_KEY).catch(()=>0)||0);
       if(attempts>=5){
@@ -1420,67 +1443,8 @@ export async function handleOwnerAnketa(update,env,send) {
         [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+current.id}],
         [{text:"📋 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
-  if(data==="owner_anketa:reviewrecoverask:652282"){
-    const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+"652282","json");
-    const status=await publicationStatus(env,"652282","review");
-    const claim=await reviewGuard(env,"652282","review_status");
-    const selected=await selectedAccount(env,"652282");
-    const saved=await savedGet(env,"652282");
-    const faults=[
-      ...(!selected?["Выбор аккаунта устарел — выберите ЯН ПЕРВЫЙ заново"]:[]),
-      ...(!saved?["Анкета удалена из сохранённых"]:[]),
-      ...(!pending?["Не найдена запись исходной попытки"]:[]),
-      ...(pending && (pending.account!=="yan_first" || pending.id!=="652282" ||
-        !/^[a-f0-9]{16}$/.test(pending.claimNonce||""))?["Данные старой попытки требуют сверки"]:[]),
-      ...(!["publishing","needs_verification"].includes(status?.status)?["Статус отзыва: "+String(status?.status||"отсутствует")]:[]),
-      ...(!["preflight_failed","submission_started","submission_maybe_sent"].includes(claim.status)?["Защита отправки: "+String(claim.status||"неизвестно")]:[])
-    ];
-    if(faults.length){
-      await navigationSay(env,send,"🔒 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
-        faults.map(x=>"• "+x).join("\n")+"\n\n"+
-        "Ничего на сайт не отправлено. Не снимайте блокировку вручную.",
-        buttons([[{text:"👨‍💻 Выбрать Ян Первый",callback_data:"owner_anketa:account1:652282"}],
-          [{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:652282"}]]));return true;
-    }
-    await navigationSay(env,send,"🌹 ВОССТАНОВЛЕНИЕ ОТЗЫВА №652282\n\n"+
-      "Временный режим ручных повторных попыток. "+
-      "Будет снята только текущая блокировка отзыва ЯН ПЕРВЫЙ для этой анкеты. "+
-      "Повторного отправления сейчас не будет.\n\nПодтвердить восстановление?",
-      buttons([[{text:"✅ Восстановить черновик",callback_data:"owner_anketa:reviewrecoverconfirm:652282"}],
-        [{text:"⬅️ Отмена",callback_data:"owner_anketa:account1:652282"}]]));
-    return true;
-  }
-  if(data==="owner_anketa:reviewrecoverconfirm:652282"){
-    const id="652282";
-    const pending=await env.VISITORS_KV?.get(REVIEW_PENDING_KEY+id,"json");
-    const status=await publicationStatus(env,id,"review");
-    if(await env.VISITORS_KV?.get(REVIEW_ARCHIVE_KEY+id)){
-      await navigationSay(env,send,"✅ Отзыв уже подтверждён. Повторная публикация отключена.");return true;
-    }
-    if(!await selectedAccount(env,id) || !await savedGet(env,id) ||
-       !pending || pending.account!=="yan_first" || pending.id!==id ||
-       !/^[a-f0-9]{16}$/.test(pending.claimNonce||"") ||
-       typeof pending.text!=="string" || pending.text.length<10 || pending.text.length>3000 ||
-       !["publishing","needs_verification"].includes(status?.status)){
-      await navigationSay(env,send,"🔒 Нельзя восстановить этот отзыв.");return true;
-    }
-    const result=await reviewGuard(env,id,"review_recover_652282",pending.claimNonce);
-    if(!result.ok){
-      await navigationSay(env,send,"🔒 Старая попытка не может быть безопасно разблокирована.");return true;
-    }
-    // The DO guard has been atomically released. Restore exactly the old text
-    // as an unagreed draft; require a fresh truth confirmation and final click.
-    await env.VISITORS_KV.delete(PUBLICATION_KEY+"review:"+id);
-    await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);
-    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
-    await statePut(env,{step:"review_preview",id,account:ACTIVE_ACCOUNT,nonce,text:pending.text});
-    await navigationSay(env,send,"✍️ ОТЗЫВ ВОССТАНОВЛЕН\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №652282\n\n"+
-      "💬 Ваш исходный текст без изменений:\n\n"+pending.text+
-      "\n\nПодтверждаю, что текст соответствует реальности и не ведет в заблуждение клиентов.",
-      buttons([[{text:"☐ Подтвердить достоверность",callback_data:"owner_anketa:reviewagree:"+nonce}],
-        [{text:"✏️ Изменить текст",callback_data:"owner_anketa:reviewedit:"+nonce}],
-        [{text:"⬅️ К анкете",callback_data:"owner_anketa:account1:652282"}]]));
-    return true;
+  if(data.startsWith("owner_anketa:reviewrecover")){
+    await navigationSay(env,send,"🔒 Повторная публикация исторического отзыва запрещена. Доступна только проверка подтверждения.");return true;
   }
   const reviewProof=/^owner_anketa:reviewproof:(\d{1,9})$/.exec(data);
   if(reviewProof){
@@ -1506,7 +1470,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
-      nonce,text:pending.text,claimNonce:pending.claimNonce,
+      nonce,text:pending.text,claimNonce:pending.claimNonce,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
       agreedAt:Date.now(),host:pending.host});
     await progressSay(env,send,"🔎 ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
       "\n📸 Ищем опубликованный отзыв и подтверждение.");
@@ -1544,9 +1508,11 @@ export async function handleOwnerAnketa(update,env,send) {
     try{claimed=await reviewGuard(env,current.id,"review_claim",current.nonce);}
     catch{await navigationSay(env,send,"🌷 Не удалось защитить отзыв от повторов. Ничего не отправлено.");return true;}
     if(!claimed.claimed){
+      await credits(env,OWNER_ID,"release","review",current.id,current.nonce);
+      await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);
       await navigationSay(env,send,"🔒 Публикация уже начиналась. Повторная отправка запрещена.");return true;
     }
-    await recordPublication(env,current.id,"review","publishing","atomic-owner-review-claim");
+    await recordPublication(env,current.id,"review","publishing","atomic-owner-review-claim",{userId:OWNER_ID,creditNonce:current.nonce,dailyDate});
     // Keep approved text for future read-only verification across chat/TTL expiry.
     const pendingProfile=await savedGet(env,current.id);
     if(!pendingProfile?.host || !HOST_PATTERN.test(pendingProfile.host)){
@@ -1554,7 +1520,7 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await env.VISITORS_KV.put(REVIEW_PENDING_KEY+current.id,JSON.stringify({
       id:current.id,account:ACTIVE_ACCOUNT,text:current.text,
-      claimNonce:current.nonce,host:pendingProfile.host,agreedAt:current.agreedAt,
+      claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,host:pendingProfile.host,agreedAt:current.agreedAt,
       savedAt:new Date().toISOString()
     }));
 
@@ -1568,7 +1534,9 @@ export async function handleOwnerAnketa(update,env,send) {
     await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
       "\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
     let launched=false;
-    try{launched=(await dispatchLookup(env,current.id,nonce,"review_publish",saved.host)).ok;}catch{}
+    let dispatchResult;
+    try{dispatchResult=await dispatchLookup(env,current.id,nonce,"review_publish",saved.host);launched=dispatchResult.ok;}catch{}
+    if(dispatchResult?.definitiveFailure)await releaseUnsubmitted(env,current.id,"review",current.nonce,dailyDate);
     if(!launched)
       await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\n\n🔒 Анкета №"+
         current.id+" защищена от повторной отправки.");
@@ -1670,10 +1638,10 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     const rec=await savedGet(env,id);
     const rated=await publicationStatus(env,id,"rating");
-    if(!rec || !rated){await say(env,send,"🌷 Оценка для этой анкеты ещё не публиковалась.");return true;}
+    if(!rec || !rated || rated.shared){await say(env,send,"🌷 Оценка для этой анкеты ещё не публиковалась.");return true;}
     if(await deliverSavedProof(env,send,ACTIVE_ACCOUNT,id))return true;
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    await statePut(env,{step:"proof_loading",id,nonce,account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host});
+    await statePut(env,{step:"proof_loading",id,nonce,account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,creditNonce:rated.creditNonce,dailyDate:rated.dailyDate});
     let started=false;
     try{started=(await dispatchLookup(env,id,nonce,"proof",rec.host)).ok;}catch{}
     if(!started){
@@ -1760,8 +1728,8 @@ export async function handleOwnerAnketa(update,env,send) {
       }
     }
     if(rec.catalog?.length){
-      await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce});
-      await navigationSay(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Все отметки начинаются с чистого листа.",
+      await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,profile:rec.profile,host:rec.host,catalog:organizeCatalog(rec.catalog),selected:{},nonce,...await ratingDraftGet(env,rec.profile.id,rec.host,organizeCatalog(rec.catalog))});
+      await navigationSay(env,send,"🌹 ВАША ФОРМА ГОТОВА!\n\n💎 Откройте сохранённый перечень услуг и отметьте нужное.\n💕 Сохранённый выбор восстановится, если перечень услуг не изменился.",
         buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+nonce}}],
         [{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+savedRating[1]}]]));
       return true;
@@ -1803,7 +1771,7 @@ export async function handleOwnerAnketa(update,env,send) {
       return true;
     }
     const prior=await savedGet(env,current.profile.id);
-    await savedPut(env,{profile:current.profile,host:current.host,catalog:prior?.catalog||[]});
+    await savedPut(env,{profile:current.profile,host:current.host,catalog:prior?.host===current.host?prior.catalog||[]:[]});
     await statePut(env,{step:"chosen",profile:current.profile,host:current.host,nonce});
     await showSaved(env,send,current.profile.id);
     return true;
@@ -1867,7 +1835,14 @@ export async function handleOwnerAnketa(update,env,send) {
       return true;
     }
     // Permanent per-profile guard before the external submission is dispatched.
-    if(!await recordPublication(env,current.profile.id,"rating","publishing","owner-confirmation")){
+    let claim;
+    try{claim=await claimPublication(env,OWNER_ID,current.profile.id,"rating",current.nonce);}catch{}
+    if(!claim?.ok){
+      await credits(env,OWNER_ID,"release","rating",current.profile.id,current.nonce);
+      await dailyLimit(env,OWNER_ID,current.profile.id,"release","rating",current.nonce,dailyDate);
+      await say(env,send,"🔒 Публикация этой оценки уже начиналась или временно недоступна.");return true;
+    }
+    if(!await recordPublication(env,current.profile.id,"rating","publishing","owner-confirmation",{userId:OWNER_ID,creditNonce:current.nonce,dailyDate})){
       await say(env,send,"🔒 Публикация уже была начата или завершена. Повтор запрещён.");
       return true;
     }
@@ -1891,7 +1866,9 @@ export async function handleOwnerAnketa(update,env,send) {
     }
     await progressSay(env,send,"🌹 Спасибо за доверие!\n\n💕 Сейчас мы публикуем ваши оценки для анкеты №"+pending.id+".\n📸 Пожалуйста, подождите немного — по завершении пришлём подтверждение с фотографией.");
     let launched=false;
-    try{launched=(await dispatchLookup(env,pending.id,nonce,"publish",current.host)).ok;}catch{}
+    let dispatchResult;
+    try{dispatchResult=await dispatchLookup(env,pending.id,nonce,"publish",current.host);launched=dispatchResult.ok;}catch{}
+    if(dispatchResult?.definitiveFailure)await releaseUnsubmitted(env,pending.id,"rating",current.nonce,dailyDate);
     if(!launched){
       // Dispatch may have succeeded despite a transport timeout. Do not restore
       // the ready-to-publish state or trigger a second attempt.
@@ -2066,7 +2043,7 @@ export async function handleOwnerAnketa(update,env,send) {
   return ownerAction;
 }
 
-export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
+async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   if (Number(request.headers.get("content-length")||0)>30000) return new Response("Too large",{status:413});
   let input;
   try { input=await request.json(); } catch {return new Response("Invalid JSON",{status:400});}
@@ -2142,3 +2119,16 @@ export async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   }
   return Response.json({ok:true});
 }
+
+return {ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi};
+}
+const ownerCabinet=createCabinet();
+export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
+export const ownerDryfillPayload = (...args) => ownerCabinet.ownerDryfillPayload(...args);
+export const ownerReviewStage = (...args) => ownerCabinet.ownerReviewStage(...args);
+export const ownerReviewPayload = (...args) => ownerCabinet.ownerReviewPayload(...args);
+export const thumbnailUrl = (...args) => ownerCabinet.thumbnailUrl(...args);
+export const serveProfileThumbnail = (...args) => ownerCabinet.serveProfileThumbnail(...args);
+export const handleAnketaLookupResult = (...args) => ownerCabinet.handleAnketaLookupResult(...args);
+export const handleOwnerAnketa = (...args) => ownerCabinet.handleOwnerAnketa(...args);
+export const ownerRatingFormApi = (...args) => ownerCabinet.ownerRatingFormApi(...args);

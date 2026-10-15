@@ -11,9 +11,16 @@ export async function dailyLimit(env,userId,profileId,type,kind="",nonce="",date
      !/^\d{5,16}$/.test(uid) || !/^\d{4}-\d{2}-\d{2}$/.test(date))
     throw Error("Daily allowance unavailable");
   const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("daily-profile:"+id+":"+date));
+  const settlement={ledger:"daily",action:type,userId:uid,profileId:id,kind,nonce,date};
+  if(["complete","release"].includes(type)&&env.__enqueueLedger)await env.__enqueueLedger(settlement);
   const res=await object.fetch("https://reminder.internal/",{
     method:"POST",body:JSON.stringify({type:"daily_"+type,userId:uid,profileId:id,moscowDate:date,kind,nonce})
   });
   if(!res.ok)throw Error("Daily allowance request failed");
-  return res.json();
+  const result=await res.json();
+  if(["complete","release"].includes(type)){
+    if(!result.ok)throw Error("Daily settlement pending");
+    if(env.__settleLedger)await env.__settleLedger(settlement);
+  }
+  return result;
 }

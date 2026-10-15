@@ -1,3 +1,8 @@
+import {credits} from "./publication_credits.js";
+import {dailyLimit} from "./daily_publication_limit.js";
+import {cabinetEvent} from "./cabinet_runtime.js";
+import {validWebApp} from "./telegram_auth.js";
+import {registryRequest} from "./client_registry.js";
 import {INTERNAL_PATH, readLedgerBackup} from "./admin_ledger_backup.js";
 const DELAY = 2 * 60 * 60 * 1000;
 const REASONS = { price: "Стоимость", timing: "Сроки", help: "Нужна помощь" };
@@ -22,13 +27,28 @@ export async function reminderCall(env, person, chat, payload) {
   return response.json();
 }
 export class OrderReminder {
-  constructor(ctx, env) { this.ctx = ctx; this.env = env; }
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; this.cabinetTail=Promise.resolve(); }
+  exclusive(task){
+    const result=this.cabinetTail.then(task);this.cabinetTail=result.catch(()=>{});return result;
+  }
   async fetch(request) {
     if (new URL(request.url).pathname === INTERNAL_PATH)
       return this.ctx.blockConcurrencyWhile(() => readLedgerBackup(request, this.env, this.ctx.storage));
     const input = await request.json();
+    if(input.type==="cabinet_event")return this.exclusive(async()=>Response.json(await cabinetEvent(this.ctx.storage,this.env,input,undefined,validWebApp)));
     return this.ctx.blockConcurrencyWhile(async () => {
       const storage = this.ctx.storage;
+      if(input.type==="publication_status"){
+        if(!/^\d{1,9}$/.test(String(input.profileId))||!["rating","review"].includes(input.kind))return Response.json({ok:false},{status:400});
+        return Response.json({claimed:!!await storage.get("publication_claim")});
+      }
+      if(input.type==="publication_claim"){
+        if(!/^[1-9]\d{4,15}$/.test(String(input.userId))||!/^\d{1,9}$/.test(String(input.profileId))||!["rating","review"].includes(input.kind)||!/^[a-f0-9]{12,16}$/.test(input.nonce||""))return Response.json({ok:false},{status:400});
+        if(await storage.get("publication_claim"))return Response.json({ok:false});
+        await storage.put("publication_claim",{userId:input.userId,nonce:input.nonce,at:Date.now()});
+        return Response.json({ok:true});
+      }
+      if(input.type==="registry")return Response.json(await registryRequest(storage,input));
       const state = await storage.get("state") || {};
       const now = Date.now();
       // Dedicated DO identities for one-shot owner review submission.
@@ -59,7 +79,8 @@ export class OrderReminder {
           return Response.json({ok:true,remaining:1-occupied});
         }
         if(input.type==="daily_release"){
-          if(!used[key] || used[key].nonce!==nonce || used[key].status!=="reserved")
+          if(!used[key])return Response.json({ok:true,already:true});
+          if(used[key].nonce!==nonce || used[key].status!=="reserved")
             return Response.json({ok:false},{status:409});
           delete used[key];
           await storage.put("daily_claims",used);
@@ -96,10 +117,21 @@ export class OrderReminder {
         }
         const claims=ledger.claims||{};
         const occupied=Object.values(claims).filter(x=>x.status==="reserved").length;
-        const balance=Math.max(0,ledger.grant-ledger.spent-occupied);
+        const total=ledger.grant+(ledger.adjustment||0);
+        const balance=Math.max(0,total-ledger.spent-occupied);
+        if(input.type==="credits_adjust"){
+          if(String(input.actorId)!=="5866034656"||!Number.isSafeInteger(input.target)||input.target<0||input.target>1000000||!/^[a-f0-9]{16}$/.test(input.operation||""))return Response.json({ok:false},{status:403});
+          ledger.adjustments=ledger.adjustments||{};
+          if(ledger.adjustments[input.operation])return Response.json({ok:true,already:true});
+          if(input.expected!==balance)return Response.json({ok:false,reason:"balance_changed"});
+          const delta=input.target-balance;ledger.adjustment=(ledger.adjustment||0)+delta;
+          ledger.adjustments[input.operation]={at:now,delta,target:input.target};
+          ledger.history=[...(ledger.history||[]),{type:"adjust",at:now,delta,operation:input.operation}];
+          await storage.put("credits_v1",ledger);return Response.json({ok:true,available:input.target});
+        }
         if(input.type==="credits_status")
           return Response.json({grant:ledger.grant,spent:ledger.spent,
-            available:balance,reserved:occupied,remaining:ledger.grant-ledger.spent});
+            available:balance,reserved:occupied,remaining:ledger.grant+(ledger.adjustment||0)-ledger.spent});
         const key=String(input.kind)+":"+String(input.profileId||"");
         if(!["rating","review"].includes(input.kind) ||
            !/^\d{1,9}$/.test(String(input.profileId)) ||
@@ -113,19 +145,27 @@ export class OrderReminder {
           await storage.put("credits_v1",ledger);
           return Response.json({ok:true,available:balance-1});
         }
+        if(input.type==="credits_release"){
+          const claim=claims[key];
+          if(!claim)return Response.json({ok:true,already:true});
+          if(claim.nonce!==input.nonce||claim.status!=="reserved")return Response.json({ok:false},{status:409});
+          delete claims[key];ledger.claims=claims;
+          ledger.history=[...(ledger.history||[]),{key,type:"release",at:now}];
+          await storage.put("credits_v1",ledger);return Response.json({ok:true});
+        }
         if(input.type==="credits_complete"){
           const claim=claims[key];
           if(!claim || claim.nonce!==input.nonce)
             return Response.json({ok:false,reason:"missing_reservation"},{status:409});
           if(claim.status==="completed")
-            return Response.json({ok:true,already:true,remaining:ledger.grant-ledger.spent});
+            return Response.json({ok:true,already:true,remaining:ledger.grant+(ledger.adjustment||0)-ledger.spent});
           if(claim.status!=="reserved")
             return Response.json({ok:false,reason:"invalid_status"},{status:409});
           claim.status="completed";claim.completedAt=now;
           ledger.spent++;
-          ledger.history=[...(ledger.history||[]),{key,at:now}].slice(-500);
+          ledger.history=[...(ledger.history||[]),{key,at:now}];
           await storage.put("credits_v1",ledger);
-          return Response.json({ok:true,remaining:ledger.grant-ledger.spent});
+          return Response.json({ok:true,remaining:ledger.grant+(ledger.adjustment||0)-ledger.spent});
         }
         return Response.json({error:"invalid_action"},{status:400});
       }
@@ -225,8 +265,24 @@ export class OrderReminder {
     });
   }
   async alarm() {
+    return this.exclusive(()=>this.runAlarm());
+  }
+  async runAlarm() {
     return this.ctx.blockConcurrencyWhile(async () => {
       const storage = this.ctx.storage, state = await storage.get("state");
+      const settlements=await storage.get("ledger_outbox");
+      if(settlements){
+        for(const [key,entry] of Object.entries(settlements)){
+          try{
+            if(entry.ledger==="credits")await credits(this.env,entry.userId,entry.action||"complete",entry.kind,entry.profileId,entry.nonce);
+            else await dailyLimit(this.env,entry.userId,entry.profileId,entry.action||"complete",entry.kind,entry.nonce,entry.date);
+            delete settlements[key];
+          }catch{ /* Keep ambiguous financial results for the next alarm. */ }
+        }
+        await storage.put("ledger_outbox",settlements);
+        if(Object.keys(settlements).length)await storage.setAlarm(Date.now()+60000);
+        return;
+      }
       if (state?.pendingReports?.length) {
         const pending=[];
         for (const report of state.pendingReports) {
