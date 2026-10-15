@@ -2,6 +2,7 @@ import {validWebApp} from "./telegram_auth.js";
 import {createCabinet} from "./owner_anketa.js";
 import {registry,OWNER_ID,TRIAL_ID,validId,pinRecord} from "./client_registry.js";
 import {credits,adjustCredits} from "./publication_credits.js";
+import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publication_archive.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -91,7 +92,13 @@ async function migrateTrial(storage,env){
  await storage.put("legacy_urls",urls);
  await storage.put("trial_imported",true);
 }
+async function clearAdminMedia(storage,env,send){
+ const messages=await storage.get("admin_archive_media")||[];
+ for(const id of messages)if(Number.isSafeInteger(id))await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:id}).catch(()=>{});
+ await storage.delete("admin_archive_media");
+}
 async function clearAdminNavigation(storage,env,send){
+ await clearAdminMedia(storage,env,send);
  const previous=await storage.get("admin_navigation");
  if(Number.isSafeInteger(previous))await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:previous}).catch(()=>{});
  await storage.delete("admin_navigation");
@@ -102,10 +109,20 @@ async function admin(update,env,storage,send){
  const pending=await storage.get("admin_pending");
  if((pending||await storage.get("admin_navigation"))&&(text.startsWith("/")||action&&!action.startsWith("clients:"))){await storage.delete("admin_pending");await clearAdminNavigation(storage,env,send);return false;}
  if(!action.startsWith("clients:")&&!pending)return false;
- const say=async(value,rows=[],backAction="clients:menu")=>{
+ await clearAdminMedia(storage,env,send);
+ const html=value=>String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+ const archive=async userId=>{
+  const result=await cabinetRPC(env,userId,{kind:"admin_archive",actorId:OWNER_ID});
+  if(result.status!==200)throw Error("Archive unavailable");return result.archive;
+ };
+ const say=async(value,rows=[],backAction="clients:menu",photo=null)=>{
   const previous=await storage.get("admin_navigation");
-  const backLabel=backAction==="clients:list"?"⬅️ К клиенткам":String(backAction).startsWith("clients:view:")?"⬅️ К карточке клиентки":"⬅️ Администратор";
-  const sent=await send(env,"sendMessage",{chat_id:uid,text:"🌹 <b>DAME CAMELIAS</b>\n\n"+value,parse_mode:"HTML",reply_markup:{inline_keyboard:[...rows,...(backAction?[[{text:backLabel,callback_data:backAction}]]:[]),[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}});
+  const backLabel=backAction==="clients:list"?"⬅️ К клиенткам":String(backAction).startsWith("clients:view:")?"⬅️ К карточке клиентки":String(backAction).startsWith("clients:pubday:")?"⬅️ К аккаунтам":String(backAction).startsWith("clients:pubs:")?"⬅️ К датам":"⬅️ Администратор";
+  const text="🌹 <b>DAME CAMELIAS</b>\n\n"+value;
+  const common={chat_id:uid,parse_mode:"HTML",reply_markup:{inline_keyboard:[...rows,...(backAction?[[{text:backLabel,callback_data:backAction}]]:[]),[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}};
+  let sent;
+  if(photo){try{sent=await send(env,"sendPhoto",{...common,photo,caption:text});}catch{}}
+  if(!sent)sent=await send(env,"sendMessage",{...common,text});
   if(Number.isSafeInteger(sent?.message_id)){
    await storage.put("admin_navigation",sent.message_id);
    if(Number.isSafeInteger(previous)&&previous!==sent.message_id)await send(env,"deleteMessage",{chat_id:uid,message_id:previous}).catch(()=>{});
@@ -128,17 +145,65 @@ async function admin(update,env,storage,send){
   await storage.delete("admin_pending");const result=await registry(env,{action:"list",actorId:uid});
   await say("👥 <b>КЛИЕНТКИ</b>\n\n"+(result.clients.length?"💕 Выберите аккаунт, чтобы управлять доступом и балансом.":"🌷 Пока ни одной клиентки не добавлено. Вернитесь в административное меню, чтобы добавить первую."),result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+"ID "+c.id,callback_data:"clients:view:"+c.id}]));return true;
  }
+ const dates=/^clients:pubs:(\d{5,16})(?::(\d{1,5}))?$/.exec(action);
+ const date=/^clients:pubday:(\d{5,16}):(\d{8})$/.exec(action);
+ const account=/^clients:pubacct:(\d{5,16}):(\d{8}):([a-z][a-z0-9_]{0,11}):(\d{1,5})$/.exec(action);
+ const history=dates||date||account;
+ if(history){
+  await storage.delete("admin_pending");
+  const target=history[1],backToClient="clients:view:"+target;
+  const {client:c}=await registry(env,{action:"get",userId:target});
+  if(!c){await say("🌷 <b>АККАУНТ НЕ НАЙДЕН</b>\n\nОткройте список клиенток и выберите нужный аккаунт.",[],"clients:list");return true;}
+  let saved;
+  try{saved=await archive(target);}catch{await say("🌷 <b>АРХИВ ВРЕМЕННО НЕДОСТУПЕН</b>\n\nПопробуйте открыть публикации позже.",[],backToClient);return true;}
+  if(dates){
+   const days=[...new Set(saved.items.map(x=>x.date))].sort().reverse();
+   const page=Math.min(Number(dates[2]||0),Math.max(0,Math.ceil(days.length/12)-1));
+   const rows=days.slice(page*12,page*12+12).map(day=>[{text:"📅 "+displayArchiveDate(day),callback_data:"clients:pubday:"+target+":"+day}]);
+   const pages=[];
+   if(page>0)pages.push({text:"⬅️ Новее",callback_data:"clients:pubs:"+target+":"+(page-1)});
+   if((page+1)*12<days.length)pages.push({text:"Ранее ➡️",callback_data:"clients:pubs:"+target+":"+(page+1)});
+   if(pages.length)rows.push(pages);
+   await say("📚 <b>ПУБЛИКАЦИИ</b>\n\n🆔 Клиентка: "+target+"\n\n"+(days.length?"💕 Выберите дату публикации.":"🌷 Подтверждённых публикаций пока нет."),rows,backToClient);return true;
+  }
+  const day=history[2],items=saved.items.filter(x=>x.date===day),backToDates="clients:pubs:"+target;
+  if(date){
+   const accounts=[...new Set(items.map(x=>x.account))].sort();
+   await say("📅 <b>"+displayArchiveDate(day)+"</b>\n\n🆔 Клиентка: "+target+"\n\n"+(accounts.length?"💕 Выберите аккаунт, с которого выполнены публикации.":"🌷 За эту дату подтверждённых публикаций нет."),accounts.map(name=>[{text:"👨‍💻 "+accountLabel(name),callback_data:"clients:pubacct:"+target+":"+day+":"+name+":0"}]),backToDates);return true;
+  }
+  const name=account[3],receipts=items.filter(x=>x.account===name&&x.fileId);
+  const page=Math.min(Number(account[4]),Math.max(0,Math.ceil(receipts.length/8)-1));
+  const batch=receipts.slice(page*8,page*8+8),backToAccounts="clients:pubday:"+target+":"+day;
+  const media=batch.map(x=>({type:"photo",media:x.fileId,caption:(x.kind==="rating"?"⭐ <b>ПОДТВЕРЖДЕНИЕ ОЦЕНКИ</b>":"✍️ <b>ПОДТВЕРЖДЕНИЕ ОТЗЫВА</b>")+"\n\n👨‍💻 "+html(accountLabel(name))+"\n🌹 Анкета №"+x.profileId+"\n📅 "+displayArchiveDate(day),parse_mode:"HTML"}));
+  let failed=false;
+  if(media.length){
+   try{
+    const delivered=media.length===1?[await send(env,"sendPhoto",{chat_id:uid,photo:media[0].media,caption:media[0].caption,parse_mode:"HTML"})]:await send(env,"sendMediaGroup",{chat_id:uid,media});
+    const ids=Array.isArray(delivered)?delivered.map(x=>x.message_id).filter(Number.isSafeInteger):[];
+    if(ids.length!==media.length)throw Error("Archive media delivery failed");
+    await storage.put("admin_archive_media",ids);
+   }catch{failed=true;}
+  }
+  const rows=[],pages=[];
+  if(page>0)pages.push({text:"⬅️ Предыдущие",callback_data:"clients:pubacct:"+target+":"+day+":"+name+":"+(page-1)});
+  if((page+1)*8<receipts.length)pages.push({text:"Следующие ➡️",callback_data:"clients:pubacct:"+target+":"+day+":"+name+":"+(page+1)});
+  if(pages.length)rows.push(pages);
+  await say("📚 <b>ПОДТВЕРЖДЕНИЯ ПУБЛИКАЦИЙ</b>\n\n📅 "+displayArchiveDate(day)+"\n👨‍💻 "+html(accountLabel(name))+"\n🆔 Клиентка: "+target+"\n\n"+(failed?"🌷 Не удалось открыть сохранённые скриншоты. Попробуйте позже.":batch.length?"💕 Сохранённые подтверждения показаны выше.":"🌷 Сохранённых скриншотов для этого аккаунта и даты нет."),rows,backToAccounts);return true;
+ }
  const view=/^clients:view:(\d{5,16})$/.exec(action);
  if(view){
   await storage.delete("admin_pending");const {client:c}=await registry(env,{action:"get",userId:view[1]});
   if(!c){await say("🌷 <b>АККАУНТ НЕ НАЙДЕН</b>\n\nОткройте список клиенток и выберите нужный аккаунт.",[],"clients:list");return true;}
   const b=await credits(env,c.id,"status");
+  let firstPhoto=null;
+  try{firstPhoto=(await archive(c.id)).firstProfile?.cardUrl||null;}catch{}
   await say("👤 <b>КАРТОЧКА КЛИЕНТКИ</b>\n\n🆔 Telegram ID: "+c.id+"\n"+(c.active?"🟢 Доступ открыт":"🔒 Доступ приостановлен")+"\n\n💎 Доступно публикаций: <b>"+b.available+"</b>\n✅ Использовано: "+b.spent+"\n⏳ В резерве: "+b.reserved+"\n\n💕 Выберите действие:",[
+    [{text:"📚 Публикации",callback_data:"clients:pubs:"+c.id}],
     [{text:c.active?"⏸ Приостановить доступ":"▶️ Восстановить доступ",callback_data:"clients:"+(c.active?"suspend:":"resume:")+c.id}],
     [{text:"💎 Пополнить баланс",callback_data:"clients:topup:"+c.id}],
     [{text:"⚖️ Изменить остаток",callback_data:"clients:balance:"+c.id}],
     [{text:"🔑 Изменить код доступа",callback_data:"clients:pin:"+c.id}]
-  ],"clients:list");return true;
+  ],"clients:list",firstPhoto);return true;
  }
  const select=/^clients:(suspend|resume|topup|pin|balance):(\d{5,16})$/.exec(action);
  if(select){
@@ -193,6 +258,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const queue=await storage.get("ledger_outbox")||{};delete queue[settlementKey(entry)];await storage.put("ledger_outbox",queue);
  };
  const event=input.event;
+ if(event.kind==="admin_archive"){
+  // This event is only constructed by the authenticated owner's private UI.
+  // Public cabinet endpoints never accept this event kind from request bodies.
+  if(event.actorId!==OWNER_ID)return {status:403,body:"Forbidden"};
+  return {status:200,archive:await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid)};
+ }
  const client=uid===OWNER_ID?null:(await registry(env,{action:"get",userId:uid})).client;
  const engine=createCabinet(uid);
  if(event.kind==="update"){
