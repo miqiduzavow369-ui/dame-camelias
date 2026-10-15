@@ -1,3 +1,4 @@
+import {sendWithLoadingEmoji} from "./loading_emoji.js";
 import {claimPublication,publicationState} from "./publication_claim.js";
 // Shared user cabinet with backward-compatible owner keys. Identity comes from a verified
 // proxy-backed lookup service; never guess a name, age, or district.
@@ -598,7 +599,7 @@ async function navigationSay(env,send,text,reply_markup,parse_mode){
   let previous=null;
   try{previous=await env.VISITORS_KV?.get(NAV_MESSAGE_KEY,"json");}catch{}
   if(Number.isSafeInteger(previous?.id)){
-    try{const edited=await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:previous.id,text,reply_markup:markup,...(parse_mode?{parse_mode}:{})});
+    try{const edited=await sendWithLoadingEmoji(env,send,"editMessageText",{chat_id:OWNER_ID,message_id:previous.id,text,reply_markup:markup,...(parse_mode?{parse_mode}:{})});
       if(edited)return edited;
     }catch(e){if(String(e).includes("message is not modified"))return {message_id:previous.id};}
   }
@@ -656,7 +657,7 @@ const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback
 // Keep meaningful bot replies and found-profile cards in Telegram history.
 // Only the transient progress message is updated; owner-entered IDs are cleaned up.
 async function say(env, send, text, reply_markup, parse_mode) {
-  const response=await send(env,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{}),...(parse_mode?{parse_mode}:{})});
+  const response=await sendWithLoadingEmoji(env,send,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{}),...(parse_mode?{parse_mode}:{})});
   await trackAnketaMessage(env,response?.message_id);
   return response;
 }
@@ -666,7 +667,7 @@ async function progressSay(env,send,text){
   try{old=await env.VISITORS_KV?.get(PROGRESS_KEY,"json");}catch{}
   if(Number.isSafeInteger(old?.id)){
     try{
-      await send(env,"editMessageText",{chat_id:OWNER_ID,message_id:old.id,text});
+      await sendWithLoadingEmoji(env,send,"editMessageText",{chat_id:OWNER_ID,message_id:old.id,text});
       return;
     }catch(e){
       if(String(e).includes("message is not modified"))return;
@@ -971,7 +972,7 @@ async function handleAnketaLookupResult(request,env,send) {
       await navigationSay(env,send,"🌷 Ссылка работает, но не удалось запустить проверку отзыва. Сохранённые домены пока не изменены.");
       return Response.json({ok:true,domainUpdated:false,proofDispatched:false});
     }
-    await progressSay(env,send,"✅ Актуальная ссылка проверена.\n\n✍️ Ищу уже опубликованный отзыв к анкете №"+originalId+
+    await progressSay(env,send,"⏳ Актуальная ссылка проверена.\n\n✍️ Ищу уже опубликованный отзыв к анкете №"+originalId+
       " в разделе «Ваши отзывы».\n📸 После получения скриншота обновлю домен сохранённых анкет аккаунта ЯН ПЕРВЫЙ.\n🔒 Повторной публикации не будет.");
     return Response.json({ok:true,domainUpdated:false,proofDispatched:true});
   }
@@ -1126,7 +1127,7 @@ async function handleAnketaLookupResult(request,env,send) {
       let proofStarted=false;
       try {proofStarted=(await dispatchLookup(env,id,proofNonce,"proof",current.host)).ok;}catch{}
       if(proofStarted){
-        await progressSay(env,send,"🌸 Ещё немного терпения!\n\n💕 Мы завершаем оформление ваших оценок.\n📸 Как только всё будет готово, пришлём красивое подтверждение с фотографией.");
+        await progressSay(env,send,"⏳ Ещё немного терпения!\n\n💕 Мы завершаем оформление ваших оценок.\n📸 Как только всё будет готово, пришлём красивое подтверждение с фотографией.");
         return Response.json({ok:true,proofStarted:true});
       }
       await statePut(env,next);
@@ -1319,7 +1320,7 @@ async function inspect(env,send,urlText) {
     await say(env,send,"🌷 Не получилось начать проверку анкеты.\n\n💕 Пожалуйста, попробуйте ещё раз чуть позже."+(isOwner?"\n\nТехническая информация: "+dispatched.reason:""));
     return;
   }
-  await navigationSay(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
+  await navigationSay(env,send,"⏳ Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
 }
 async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
@@ -1402,7 +1403,7 @@ async function handleOwnerAnketa(update,env,send) {
       await navigationSay(env,send,"🌷 Не получилось проверить новый адрес. Пожалуйста, повторите ссылку позже.");
       return true;
     }
-    await navigationSay(env,send,"🔎 Проверяю действующий адрес анкеты №"+link.id+
+    await navigationSay(env,send,"⏳ Проверяю действующий адрес анкеты №"+link.id+
       "…\n\n✍️ Затем проверю ваш ранее опубликованный отзыв №"+targetId+
       ". Домен обновлю только после отправки скриншота в Telegram.");
     return true;
@@ -1484,7 +1485,7 @@ async function handleOwnerAnketa(update,env,send) {
     await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
       nonce,text:pending.text,claimNonce:pending.claimNonce,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
       agreedAt:Date.now(),host:pending.host});
-    await progressSay(env,send,"🔎 ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
+    await progressSay(env,send,"⏳ ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
       "\n📸 Ищем опубликованный отзыв и подтверждение.");
     let launched=false;
     try{launched=(await dispatchLookup(env,id,nonce,"review_proof",pending.host)).ok;}catch{}
@@ -1543,7 +1544,7 @@ async function handleOwnerAnketa(update,env,send) {
     if(!saved || !await statePut(env,next)){
       await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
     }
-    await progressSay(env,send,"🌹 ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
+    await progressSay(env,send,"⏳ ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
       "\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
     let launched=false;
     let dispatchResult;
@@ -1661,7 +1662,7 @@ async function handleOwnerAnketa(update,env,send) {
       await say(env,send,"⚠️ Проверку пока не удалось запустить. Ничего на сайте не изменено.");
       return true;
     }
-    await progressSay(env,send,"🌸 Минуточку, пожалуйста!\n\n💕 Мы готовим для вас подтверждение опубликованных оценок.\n📸 Совсем скоро пришлём красивый отчёт с фотографией.");
+    await progressSay(env,send,"⏳ Минуточку, пожалуйста!\n\n💕 Мы готовим для вас подтверждение опубликованных оценок.\n📸 Совсем скоро пришлём красивый отчёт с фотографией.");
     return true;
   }
   const draftRoute=/^owner_anketa:draft(resume|new):(\d{1,9})$/.exec(data);
@@ -1813,7 +1814,7 @@ async function handleOwnerAnketa(update,env,send) {
     if(!await statePut(env,pending)){
       await say(env,send,"⚠️ Не удалось сохранить подготовку. Ничего не опубликовано.");return true;
     }
-    await progressSay(env,send,"🌹 Спасибо! Ваши оценки получены.\n\n💕 Сейчас мы аккуратно проверяем все детали перед публикацией.\n✨ Пожалуйста, подождите немного — скоро сообщим, когда всё будет готово.");
+    await progressSay(env,send,"⏳ Спасибо! Ваши оценки получены.\n\n💕 Сейчас мы аккуратно проверяем все детали перед публикацией.\n✨ Пожалуйста, подождите немного — скоро сообщим, когда всё будет готово.");
     let started=false;
     try{started=(await dispatchLookup(env,pending.id,nonce,"dryfill",current.host)).ok;}catch{}
     if(!started){
@@ -1876,7 +1877,7 @@ async function handleOwnerAnketa(update,env,send) {
         try{await send(env,"editMessageReplyMarkup",{chat_id:OWNER_ID,message_id:cb.message.message_id,reply_markup:buttons([])});}catch{}
       }
     }
-    await progressSay(env,send,"🌹 Спасибо за доверие!\n\n💕 Сейчас мы публикуем ваши оценки для анкеты №"+pending.id+".\n📸 Пожалуйста, подождите немного — по завершении пришлём подтверждение с фотографией.");
+    await progressSay(env,send,"⏳ Спасибо за доверие!\n\n💕 Сейчас мы публикуем ваши оценки для анкеты №"+pending.id+".\n📸 Пожалуйста, подождите немного — по завершении пришлём подтверждение с фотографией.");
     let launched=false;
     let dispatchResult;
     try{dispatchResult=await dispatchLookup(env,pending.id,nonce,"publish",current.host);launched=dispatchResult.ok;}catch{}
@@ -2046,7 +2047,7 @@ async function handleOwnerAnketa(update,env,send) {
         await say(env,send,"🌷 Не удалось начать загрузку оценок. Попробуйте ещё раз немного позже.");
         return true;
       }
-      await say(env,send,"🌸 Минутку, пожалуйста!\n\n💕 Проверяю доступные категории оценок для анкеты "+current.profile.name+".\n✨ Скоро всё будет готово!");
+      await say(env,send,"⏳ Минутку, пожалуйста!\n\n💕 Проверяю доступные категории оценок для анкеты "+current.profile.name+".\n✨ Скоро всё будет готово!");
       return true;
     }
     await say(env,send,"✍️ Раздел отзывов пока подготавливается.\n\n💕 Спасибо за терпение!");

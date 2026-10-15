@@ -102,6 +102,21 @@ test("owner personal cabinet no longer exposes client administration buttons",as
  assert.ok(!markup.inline_keyboard.flat().some(x=>x.callback_data?.startsWith("clients:")));
 });
 
+test("only authenticated owner can select a premium waiting hourglass without touching credits",async()=>{
+ const s=setup();await s.create(a);await s.login(a);
+ const update=uid=>({message:{message_id:7,from:{id:uid},chat:{id:uid,type:"private"},text:"⏳",entities:[{type:"custom_emoji",offset:0,length:1,custom_emoji_id:"1234567890123456789"}]}});
+ const run=uid=>cabinetEvent(s.store(uid),s.env,{userId:uid,event:{kind:"update",update:update(uid)}},s.send);
+ const initial=await credits(s.env,a,"status");
+ await run(a);assert.equal(s.kv.has("cabinet_loading_emoji_v1"),false);
+ await run(owner);assert.equal(s.kv.has("cabinet_loading_emoji_v1"),false);
+ s.store(owner).map.set("private:owner_cabinet_session:"+owner,{value:JSON.stringify({authorized:true}),expires:0});
+ await run(owner);
+ assert.deepEqual(JSON.parse(s.kv.get("cabinet_loading_emoji_v1")),{id:"1234567890123456789",alt:"⏳"});
+ const p=s.sent.filter(x=>x.payload.entities).at(-1).payload;assert.equal(p.chat_id,owner);assert.match(p.text,/ЧАСЫ ОЖИДАНИЯ ПОДКЛЮЧЕНЫ/);
+ assert.equal(p.text.slice(p.entities[0].offset,p.entities[0].offset+p.entities[0].length),"⏳");
+ assert.deepEqual(await credits(s.env,a,"status"),initial);
+});
+
 test("owner archive groups only this client's dates and accounts, shows first profile card and retained receipts",async()=>{
  const s=setup();await s.create(a,"777777",0);await s.create(b);
  s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
@@ -250,6 +265,7 @@ test("untrusted or cross-user result cannot mutate an existing operation",async(
 
 test("profile lookup, stale result, user confirmation and saved URL reuse use the common engine",async()=>{
  const s=setup();await s.create(a);await s.login(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+ s.kv.set("cabinet_loading_emoji_v1",JSON.stringify({id:"1234567890123456789",alt:"⏳"}));
  await credits(s.env,a,"reserve","rating","111111","aaaaaaaaaaaa");
  await credits(s.env,a,"complete","rating","111111","aaaaaaaaaaaa");
  await credits(s.env,a,"reserve","review","222222","bbbbbbbbbbbb");
@@ -264,6 +280,7 @@ test("profile lookup, stale result, user confirmation and saved URL reuse use th
   assert.deepEqual(await credits(s.env,a,"status"),initialBalance);
   let state=JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);
   assert.equal(state.step,"loading");
+  assert.ok(s.sent.some(x=>x.payload.text?.startsWith("⏳ ")&&x.payload.entities?.[0].custom_emoji_id==="1234567890123456789"));
   assert.equal(JSON.parse(calls.find(x=>x.url.includes("dispatches")).opt.body).inputs.user_id,a);
   const result={user_id:a,profile_id:profile,nonce:state.nonce,mode:"profile",status:"found",profile:{id:profile,name:"Anna",age:28,metro:"Центр",url}};
   const deliver=value=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"result",url:"https://worker/api/anketa/result",method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify(value)}},s.send);
