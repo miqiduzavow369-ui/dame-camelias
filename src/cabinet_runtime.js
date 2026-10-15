@@ -339,7 +339,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    env.__cabinetAuthorized=uid;
    if(uid===TRIAL_ID)await migrateTrial(storage,env);
    const flow=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
-   const cabinetInput=/^(owner_anketa|trial_cabinet):/.test(action)||command==="/anketa"||/^https?:\/\/[a-z0-9-]+\.intimcity\.rip\//i.test(update.message?.text||"")||["number","review_input","review_preview","domain_recovery"].includes(flow?.step);
+   const cabinetInput=/^(owner_anketa|trial_cabinet):/.test(action)||command==="/anketa"||/^https?:\/\/[a-z0-9-]+\.intimcity\.[a-z]{2,10}\//i.test(update.message?.text||"")||["number","review_input","review_preview","domain_recovery"].includes(flow?.step);
    if(!cabinetInput)return {handled:false};
    // Exhaustion affects client navigation only. Result/proof callbacks below
    // must still finish accepted work; reservations are not spent credits.

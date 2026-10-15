@@ -333,6 +333,97 @@ test("trial migration preserves original profile, authorization, spent credits a
  await s.run(uid,"owner_anketa:open");assert.equal((await credits(s.env,uid,"status")).available,1);
 });
 
+test("old suffix is never visited and replacement must verify the same profile before resuming",async()=>{
+ const s=setup();await s.create(a);await s.login(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+ const initial=await credits(s.env,a,"status"),calls=[],original=globalThis.fetch;
+ const state=()=>JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);
+ const deliver=body=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"result",url:"https://x/result",method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify({user_id:a,...body})}},s.send);
+ globalThis.fetch=async(url,opt)=>{if(String(url).includes("/dispatches")){calls.push(JSON.parse(opt.body).inputs);return new Response(null,{status:204});}return new Response("missing",{status:404});};
+ try{
+  await s.run(a,"owner_anketa:new");await s.run(a,"https://a.intimcity.gip/indi/anketa"+profile+".htm");
+  assert.equal(state().step,"domain_recovery");assert.equal(calls.length,0);
+  assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/действующий сайт/);
+  await s.run(a,"https://b.intimcity.rip/indi/anketa999999.htm");assert.equal(calls.length,0);
+  await s.run(a,"https://example.com/indi/anketa"+profile+".htm");assert.equal(calls.length,0);
+  const url="https://b.intimcity.rip/indi/anketa"+profile+".htm";await s.run(a,url);
+  assert.equal(calls.at(-1).mode,"domain_probe");const probe=state();
+  const reply={profile_id:profile,nonce:probe.nonce,mode:"domain_probe",status:"found",profile:{id:profile,name:"Anna",age:28,metro:"Центр",url}};
+  assert.equal((await deliver({...reply,nonce:"aaaaaaaaaaaa"})).status,409);
+  assert.equal((await deliver(reply)).status,200);assert.equal(calls.at(-1).mode,"profile");
+  const resumed=state();assert.equal(resumed.host,"b.intimcity.rip");assert.equal(resumed.step,"loading");
+  assert.equal((await deliver({profile_id:profile,nonce:resumed.nonce,mode:"profile",status:"found",profile:reply.profile})).status,200);
+  assert.equal(state().step,"confirm");await s.run(a,"owner_anketa:confirm:"+state().nonce);
+  assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_saved:"+a+":"+profile).value).host,"b.intimcity.rip");
+  assert.deepEqual(await credits(s.env,a,"status"),initial);
+  assert.ok(!calls.some(x=>["publish","review_publish"].includes(x.mode)));
+ }finally{globalThis.fetch=original;}
+});
+
+test("domain recovery preserves every workflow snapshot and never repeats accepted publications",async()=>{
+ const modes={profile:"loading",ratings:"ratings_loading",mapping:"audit_loading",dryfill:"dryfill_loading",publish:"publishing",proof:"proof_loading",review_publish:"review_dispatch",review_proof:"review_recheck"};
+ const original=globalThis.fetch;
+ try{for(const [mode,step] of Object.entries(modes)){
+  const s=setup();await s.create(a);await s.login(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+  await credits(s.env,a,"reserve","rating",profile,"aaaaaaaaaaaa");
+  const ledger=s.objects.get("publication-credits:"+a).storage,initial=await ledger.get("credits_v1"),calls=[];
+  globalThis.fetch=async(url,opt)=>{if(String(url).includes("/dispatches")){calls.push(JSON.parse(opt.body).inputs);return new Response(null,{status:204});}return new Response("missing",{status:404});};
+  const host="a.intimcity.rip",url="https://"+host+"/indi/anketa"+profile+".htm";
+  const saved={host,confirmed:true,profile:{id:profile,name:"Anna",age:28,metro:"Центр",url},catalog:[{label:"Test",options:["5"]}]};
+  s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify(saved));
+  s.kv.set("owner_anketa_saved:"+a+":999999",JSON.stringify({...saved,profile:{...saved.profile,id:"999999"}}));
+  s.kv.set("cabinet_rating_draft:"+a+":"+profile,JSON.stringify({host,url,selected:{0:"5"},catalog:saved.catalog}));
+  s.kv.set("profile-thumbnails/"+host+"/"+profile+".card.jpg",new Uint8Array([1,2,3]));
+  const proofKey="cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+profile;
+  s.kv.set(proofKey,JSON.stringify({fileId:"existing_receipt",savedAt:"2026-10-15T10:00:00Z"}));const proof=s.kv.get(proofKey);
+  const snapshot={step,id:profile,nonce:"bbbbbbbbbbbb",previousNonce:"cccccccccccc",account:"yan_first",host,profile:saved.profile,catalog:saved.catalog,selected:{0:"5"},metElsewhere:true,text:"Текст ранее согласованного отзыва клиентки",creditNonce:"aaaaaaaaaaaa",claimNonce:"dddddddddddddddd",dailyDate:"2026-10-15",agreedAt:Date.now()-3600000,prepublish:true};
+  await s.store(a).put("private:owner_anketa_state:"+a,{value:JSON.stringify(snapshot),expires:0});
+  if(["publish","proof","review_publish","review_proof"].includes(mode))await s.store(a).put("private:cabinet_operation:"+a+":"+snapshot.nonce,{value:JSON.stringify(snapshot),expires:0});
+  const get=()=>JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);
+  const deliver=body=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"result",url:"https://x/result",method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify({user_id:a,profile_id:profile,...body})}},s.send);
+  assert.equal((await deliver({nonce:snapshot.nonce,mode,status:"error"})).status,200,mode);
+  assert.equal(get().step,"domain_recovery");
+  assert.equal(JSON.parse(s.kv.get("owner_anketa_saved:"+a+":"+profile)).host,host);
+  if(mode==="dryfill"){
+   assert.equal((await s.run(a,"owner_anketa:home")).home,true);
+   await s.run(a,"owner_anketa:saved:"+profile);
+   assert.ok(s.sent.filter(x=>x.payload.reply_markup).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="owner_anketa:domain_resume:"+profile));
+  }
+  await s.run(a,"https://b.intimcity.rip/indi/anketa"+profile+".htm");const probe=get();
+  assert.equal(calls.at(-1).mode,"domain_probe");
+  assert.equal((await deliver({nonce:probe.nonce,mode:"domain_probe",status:"found",profile:{...saved.profile,url:"https://b.intimcity.rip/indi/anketa"+profile+".htm"}})).status,200);
+  const resumed=get(),expectedMode=mode==="publish"?"proof":mode==="review_publish"?"review_proof":mode;
+  assert.equal(calls.at(-1).mode,expectedMode,mode);assert.equal(calls.at(-1).site_host,"b.intimcity.rip");
+  assert.equal(resumed.host,"b.intimcity.rip");assert.deepEqual(resumed.selected,snapshot.selected);assert.equal(resumed.text,snapshot.text);
+  assert.equal(resumed.creditNonce,snapshot.creditNonce);assert.equal(resumed.claimNonce,snapshot.claimNonce);assert.equal(resumed.dailyDate,snapshot.dailyDate);
+  assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_saved:"+a+":"+profile).value).host,"b.intimcity.rip");
+  assert.equal(JSON.parse(s.kv.get("owner_anketa_saved:"+a+":999999")).host,host);
+  assert.equal(s.kv.get(proofKey),proof);assert.deepEqual(await ledger.get("credits_v1"),initial);
+  assert.deepEqual(s.kv.get("profile-thumbnails/b.intimcity.rip/"+profile+".card.jpg"),new Uint8Array([1,2,3]));
+  assert.equal((await deliver({nonce:snapshot.nonce,mode,status:"error"})).status,409);
+  assert.ok(!calls.some(x=>["publish","review_publish"].includes(x.mode)));
+ }}finally{globalThis.fetch=original;}
+});
+
+test("failed domain probe preserves saved host and late recovery does not replace another open profile",async()=>{
+ const s=setup();await s.create(a);await s.login(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+ const active={step:"ratings",profile:{id:"999999"},host:"a.intimcity.rip",nonce:"cccccccccccc"};
+ const archived={step:"proof_loading",id:profile,host:"a.intimcity.rip",nonce:"bbbbbbbbbbbb",account:"yan_first"};
+ await s.store(a).put("private:owner_anketa_state:"+a,{value:JSON.stringify(active),expires:0});
+ await s.store(a).put("private:cabinet_operation:"+a+":"+archived.nonce,{value:JSON.stringify(archived),expires:0});
+ const deliver=body=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"result",url:"https://x/result",method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify({user_id:a,profile_id:profile,...body})}},s.send);
+ assert.equal((await deliver({nonce:archived.nonce,mode:"proof",status:"error"})).status,200);
+ assert.deepEqual(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value),active);
+ assert.ok(s.sent.filter(x=>x.payload.reply_markup).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="owner_anketa:domain_resume:"+profile));
+ await s.run(a,"owner_anketa:domain_resume:"+profile);
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response(null,{status:204});
+ try{
+  await s.run(a,"https://b.intimcity.rip/indi/anketa"+profile+".htm");
+  const probe=JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);
+  assert.equal((await deliver({nonce:probe.nonce,mode:"domain_probe",status:"error"})).status,200);
+  assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value).step,"domain_recovery");
+ }finally{globalThis.fetch=original;}
+});
+
 test("setting available balance preserves spends and reservations and does not revive deducted credits on topup",async()=>{
  const {adjustCredits}=await import("../src/publication_credits.js");
  const s=setup();await s.create(a,"777777",10);

@@ -137,7 +137,15 @@ async function ensureNoRepeat(env,id,kind,send) {
     "\nРезультат предыдущей попытки ещё требует подтверждения.");
   return true;
 }
+const DOMAIN_RESUME_KEY="owner_anketa_domain_resume:"+OWNER_ID+":";
+const RECOVERY_MODES={profile:["loading"],ratings:["ratings_loading"],mapping:["audit_loading"],dryfill:["dryfill_loading"],publish:["publishing"],proof:["proof_loading"],review_publish:["review_dispatch"],review_proof:["review_recheck"]};
+const recoverable=(mode,step)=>Array.isArray(RECOVERY_MODES[mode])&&RECOVERY_MODES[mode].includes(step);
 const HOST_PATTERN = /^[a-z0-9-]+\.intimcity\.rip$/;
+function oldProfileLink(input){
+ try{const url=new URL(String(input).trim()),match=/^\/indi\/anketa(\d{1,9})\.htm$/.exec(url.pathname);
+ return url.protocol==="https:"&&!url.username&&!url.password&&!url.port&&!url.search&&!url.hash&&/^[a-z0-9-]+\.intimcity\.[a-z]{2,10}$/.test(url.hostname)&&match?{id:match[1],host:url.hostname}:null;
+ }catch{return null;}
+}
 function parseProfileLink(input) {
   try {
     const url = new URL(String(input).trim());
@@ -164,7 +172,7 @@ async function statePut(env, state) {
   if(/^[a-f0-9]{12}$/.test(state.nonce||"")&&(["publishing","review_dispatch","review_recheck","proof_loading"].includes(state.step)||await env.VISITORS_KV.get("cabinet_operation:"+OWNER_ID+":"+state.nonce)))
     await env.VISITORS_KV.put("cabinet_operation:"+OWNER_ID+":"+state.nonce,JSON.stringify(state));
   await env.VISITORS_KV.put(env.__operationKey||PREFIX + OWNER_ID, JSON.stringify(state),
-    ["publishing","review_dispatch","review_recheck","proof_loading","publication_result","review_result"].includes(state.step)?{}:{ expirationTtl: TTL_SECONDS });
+    ["publishing","review_dispatch","review_recheck","proof_loading","publication_result","review_result","domain_recovery","domain_refresh_verify"].includes(state.step)?{}:{ expirationTtl: TTL_SECONDS });
   return true;
 }
 async function ratingDraftGet(env,id,host,catalog){
@@ -570,7 +578,9 @@ async function showSaved(env,send,id) {
   if(!record){await showLibrary(env,send);return;}
   const text="🌹 АНКЕТА №"+id+"\n\n👩‍🦰 "+record.profile.name+
     "\n\n💎 Цифры рядом с оценкой ⭐ и отзывом ✍️ показывают, сколько публикаций ещё доступно на каждом аккаунте.\n\n1️⃣ — доступно для публикации\n\n0️⃣ — уже опубликовано ранее";
+  const recovering=await env.VISITORS_KV.get(DOMAIN_RESUME_KEY+id,"json");
   const markup=buttons([
+      ...(recovering?[[{text:"🔗 Обновить ссылку",callback_data:"owner_anketa:domain_resume:"+id}]]:[]),
       [{text:"👥 Выбрать аккаунт",callback_data:"owner_anketa:accounts:"+id}],
       [{text:"🔐 В личный кабинет",callback_data:"owner_anketa:open"}],
       [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
@@ -926,6 +936,15 @@ async function handleAnketaLookupResult(request,env,send) {
   if(!ID_PATTERN.test(id)||!/^[a-f0-9]{12}$/.test(nonce))
     return new Response("Invalid request",{status:400});
   const current=await stateGet(env);
+  if(current?.step==="domain_refresh_verify"&&current.id===id&&current.nonce===nonce&&data.mode==="domain_probe"){
+    const verified=data.status==="found"?validProfile(data.profile,id,current.host):null;
+    if(!verified){await statePut(env,{step:"domain_recovery",id,recoveryKey:current.recoveryKey});await showDomainRecovery(env,send,id);return Response.json({ok:true,domainUpdated:false});}
+    if(!await resumeVerifiedDomain(env,send,current))return new Response("Recovery context unavailable",{status:409});
+    return Response.json({ok:true,domainUpdated:true});
+  }
+  if(data.status==="error"&&current?.id===id&&current.nonce===nonce&&recoverable(data.mode,current.step)){
+    await requestDomainRecovery(env,send,current,data.mode);return Response.json({ok:true,domainRecoveryRequested:true});
+  }
   // Only trusted, authenticated lookup callbacks may upload profile photos.
   // Bind the bytes to this exact profile and active lookup nonce.
   if(data.status==="found" && ["profile","ratings"].includes(data.mode) &&
@@ -1298,13 +1317,86 @@ async function askNumber(env,send) {
   }
   await navigationSay(env,send,"🌹 ДОБРО ПОЖАЛОВАТЬ В DAME CAMELIAS!\n\n💕 Давайте найдём вашу анкету.\n\n🔗 Пришлите, пожалуйста, полную ссылку на анкету с актуальным доменом Intimcity одним сообщением.\n\n✨ Я бережно проверю данные и предложу дальнейшие шаги.");
 }
+async function showDomainRecovery(env,send,id,late=false){
+ const text="🌹 DAME CAMELIAS\n\n🌐 ОБНОВИМ ССЫЛКУ НА АНКЕТУ\n\n🌹 Анкета №"+id+
+  "\n\n🌷 Возможно, прежний домен устарел или сайт временно недоступен.\n\n💕 Откройте свою анкету через действующий сайт и пришлите её полную ссылку одним сообщением. Номер анкеты должен остаться прежним."+
+  "\n\n🔒 Сохраним ваш шаг, выбранные оценки, текст отзыва, баланс, историю и подтверждения. Уже отправленные действия повторно публиковаться не будут.";
+ const rows=[[{text:"🔗 Обновить ссылку",callback_data:"owner_anketa:domain_resume:"+id}]];
+ rows.push([{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]);
+ if(late)await say(env,send,text,buttons(rows));else await navigationSay(env,send,text,buttons(rows));
+}
+async function requestDomainRecovery(env,send,resume,mode){
+ const id=String(resume.id||resume.profile?.id||"");if(!ID_PATTERN.test(id))return false;
+ const key=DOMAIN_RESUME_KEY+id;
+ await env.VISITORS_KV.put(key,JSON.stringify({id,mode,resume,createdAt:Date.now()}));
+ const original="cabinet_operation:"+OWNER_ID+":"+resume.nonce;
+ if(/^[a-f0-9]{12}$/.test(resume.nonce||"")&&await env.VISITORS_KV.get(original))
+  await env.VISITORS_KV.put(original,JSON.stringify({...resume,step:"domain_recovery",id,recoveryKey:key}));
+ await statePut(env,{step:"domain_recovery",id,recoveryKey:key});
+ if(!env.__operationKey)await clearProgress(env,send);
+ await showDomainRecovery(env,send,id,!!env.__operationKey);return true;
+}
+async function verifyRecoveryLink(env,send,state,text){
+ const link=parseProfileLink(text);
+ if(!link||link.id!==state.id){
+  await navigationSay(env,send,"🌹 DAME CAMELIAS\n\n🔗 НУЖНА ССЫЛКА НА ТУ ЖЕ АНКЕТУ\n\n🌹 Ожидаем анкету №"+state.id+"\n\n💕 Откройте именно её через действующий сайт и пришлите полную HTTPS-ссылку с актуальным доменом.",buttons([[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}]]));return;
+ }
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+ await statePut(env,{step:"domain_refresh_verify",id:state.id,host:link.host,nonce,recoveryKey:state.recoveryKey});
+ const started=await dispatchLookup(env,link.id,nonce,"domain_probe",link.host).catch(()=>({ok:false}));
+ if(!started.ok){await statePut(env,state);await showDomainRecovery(env,send,state.id);return;}
+ await navigationSay(env,send,"⏳ Проверяю новую ссылку на анкету №"+state.id+"…\n\n💕 Затем продолжим с сохранённого шага. Публикации и списания сейчас не выполняются.");
+}
+async function resumeVerifiedDomain(env,send,current){
+ const recovery=await env.VISITORS_KV.get(current.recoveryKey,"json");
+ if(!recovery||recovery.id!==current.id||!recoverable(recovery.mode,recovery.resume?.step))return false;
+ const id=current.id,host=current.host;
+ const rehost=state=>({...state,host,...(state.profile?{profile:{...state.profile,url:"https://"+host+"/indi/anketa"+id+".htm"}}:{})});
+ const record=await savedGet(env,id);
+ if(record){
+  await env.VISITORS_KV.put(PROFILE_KEY+id,JSON.stringify({...rehost(record),updatedAt:Date.now()}));
+  for(const suffix of [".jpg",".card.jpg"]){
+   const target=THUMBNAIL_PREFIX+host+"/"+id+suffix;
+   if(!await env.VISITORS_KV.get(target,"arrayBuffer")){
+    const image=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+record.host+"/"+id+suffix,"arrayBuffer");
+    if(image)await env.VISITORS_KV.put(target,image);
+   }
+  }
+ }
+ const draftKey="cabinet_rating_draft:"+OWNER_ID+":"+id,draft=await env.VISITORS_KV.get(draftKey,"json");
+ if(draft)await env.VISITORS_KV.put(draftKey,JSON.stringify({...draft,host,url:"https://"+host+"/indi/anketa"+id+".htm"}),{expirationTtl:604800});
+ const pending=await env.VISITORS_KV.get(REVIEW_PENDING_KEY+id,"json");
+ if(pending)await env.VISITORS_KV.put(REVIEW_PENDING_KEY+id,JSON.stringify({...pending,host}));
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+ let mode=recovery.mode,next=rehost(recovery.resume);
+ if(mode==="publish"){mode="proof";next={...next,step:"proof_loading",account:ACTIVE_ACCOUNT};}
+ if(mode==="review_publish"){mode="review_proof";next={...next,step:"review_recheck",account:ACTIVE_ACCOUNT};}
+ next={...next,id,nonce};
+ if(mode==="ratings")next.previousNonce=nonce;
+ if(["dryfill","review_proof"].includes(mode))next.agreedAt=Date.now();
+ if(next.account===ACTIVE_ACCOUNT)await chooseAccount(env,id);
+ await statePut(env,next);
+ const started=await dispatchLookup(env,id,nonce,mode,host).catch(()=>({ok:false}));
+ if(!started.ok){await requestDomainRecovery(env,send,next,mode);return true;}
+ await env.VISITORS_KV.delete(current.recoveryKey);
+ await navigationSay(env,send,"⏳ Новый адрес анкеты №"+id+" проверен.\n\n💕 Продолжаем с сохранённого шага."+(["proof","review_proof"].includes(mode)?"\n📸 Только проверяем результат — повторной отправки не будет.":"\n🔒 Выбранные данные сохранены. Новая публикация без подтверждения не запускается."));
+ return true;
+}
 async function inspect(env,send,urlText) {
   const link=parseProfileLink(urlText);
   if (!link) {
+    const previous=oldProfileLink(urlText);
+    if(previous){
+     const key=DOMAIN_RESUME_KEY+previous.id,recovery=await env.VISITORS_KV.get(key,"json");
+     if(recovery){await statePut(env,{step:"domain_recovery",id:previous.id,recoveryKey:key});await showDomainRecovery(env,send,previous.id);}
+     else await requestDomainRecovery(env,send,{step:"loading",id:previous.id,host:previous.host},"profile");return;
+    }
     await say(env,send,"🌷 Кажется, ссылка указана не полностью.\n\n💕 Пришлите, пожалуйста, прямую ссылку на вашу анкету с актуальным доменом Intimcity. Я помогу продолжить.");
     return;
   }
   const {id,host}=link;
+  const recoveryKey=DOMAIN_RESUME_KEY+id;
+  if(await env.VISITORS_KV.get(recoveryKey,"json")){await verifyRecoveryLink(env,send,{step:"domain_recovery",id,recoveryKey},urlText);return;}
   const existing=await savedGet(env,id);
   if(existing?.confirmed&&existing.profile?.url===`https://${host}/indi/anketa${id}.htm`){await showSaved(env,send,id);return;}
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
@@ -1353,7 +1445,7 @@ async function handleOwnerAnketa(update,env,send) {
       }
       return true;
     }
-    if(ownerAction || (msg?.text && parseProfileLink(txt))){
+    if(ownerAction || (msg?.text && oldProfileLink(txt))){
       if(data==="owner_anketa:home"){
         await env.VISITORS_KV?.delete(CABINET_PENDING_KEY).catch(()=>{});
       }else if(!(await cabinetAuthorized(env))){
@@ -1371,7 +1463,7 @@ async function handleOwnerAnketa(update,env,send) {
   const state=owner && !ownerAction ? await stateGet(env) : null;
   // Intimcity profile links take priority over general order free-text routing,
   // including when the previous owner prompt came from an older Worker version.
-  const isProfileLink=owner && Boolean(msg?.text) && Boolean(parseProfileLink(txt));
+  const isProfileLink=owner && Boolean(msg?.text) && Boolean(oldProfileLink(txt));
   const typedLink=owner && Boolean(msg?.text) &&
     (isProfileLink || (["number","domain_recovery"].includes(state?.step) && /^https?:\/\//i.test(txt)));
   const reviewText=owner && !ownerAction && !typedLink && Boolean(msg?.text) &&
@@ -1387,10 +1479,19 @@ async function handleOwnerAnketa(update,env,send) {
     return true;
   }
   if(cb) await send(env,"answerCallbackQuery",{callback_query_id:cb.id});
+  const domainResume=/^owner_anketa:domain_resume:(\d{1,9})$/.exec(data);
+  if(domainResume){
+   const id=domainResume[1],key=DOMAIN_RESUME_KEY+id,recovery=await env.VISITORS_KV.get(key,"json");
+   if(!recovery){await showLibrary(env,send);return true;}
+   await statePut(env,{step:"domain_recovery",id,recoveryKey:key});await showDomainRecovery(env,send,id);return true;
+  }
+  if(state?.step==="domain_recovery"&&state.recoveryKey&&!ownerAction&&Boolean(msg?.text)){
+   await verifyRecoveryLink(env,send,state,txt);return true;
+  }
   if(state?.step==="domain_recovery" && !ownerAction && Boolean(msg?.text)){
     const link=parseProfileLink(txt);
-    if(!link){
-      await navigationSay(env,send,"🌷 Пришлите прямую ссылку на любую рабочую анкету сайта Intimcity. Номер может отличаться от анкеты №"+state.id+".");
+    if(!link||link.id!==String(state.id)){
+      await navigationSay(env,send,"🌷 Пришлите актуальную ссылку именно на анкету №"+state.id+". Номер должен остаться прежним.");
       return true;
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
