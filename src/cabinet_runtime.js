@@ -1,3 +1,4 @@
+import {LOADING_EMOJI_KEY,selectedLoadingEmoji} from "./loading_emoji.js";
 import {validWebApp} from "./telegram_auth.js";
 import {createCabinet} from "./owner_anketa.js";
 import {registry,OWNER_ID,TRIAL_ID,validId,pinRecord} from "./client_registry.js";
@@ -44,7 +45,7 @@ export async function cabinetEndpoint(request,env,kind){
 }
 async function telegram(env,method,data){
  const response=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/"+method,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...data,protect_content:String(data.chat_id)!==OWNER_ID}),signal:AbortSignal.timeout(10000)});
- const result=await response.json();if(!response.ok||!result.ok)throw Error("Telegram delivery failed");return result.result;
+ const result=await response.json();if(!response.ok||!result.ok){const error=Error("Telegram delivery failed");error.telegramCode=result.error_code||response.status;throw error;}return result.result;
 }
 // Private storage is authoritative in the per-user DO. Legacy owner keys are
 // lazily imported and mirrored for rollback; absence/expiry is also persisted.
@@ -359,6 +360,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     action="owner_anketa:saved:"+emptyProfile[1];
     update={...update,callback_query:{...update.callback_query,data:action}};
    }
+  }
+  const loadingEmoji=uid===OWNER_ID?selectedLoadingEmoji(update.message):null;
+  if(loadingEmoji&&!(await storage.get("admin_pending"))&&(await env.VISITORS_KV.get("owner_cabinet_session:"+uid,"json"))?.authorized){
+   const text="🌹 DAME CAMELIAS\n\n"+loadingEmoji.alt+" ЧАСЫ ОЖИДАНИЯ ПОДКЛЮЧЕНЫ\n\n💕 Этот эмодзи будет появляться в сообщениях, пока мы проверяем анкету или готовим результат.";
+   try{
+    await send(env,"sendMessage",{chat_id:uid,text,entities:[{type:"custom_emoji",offset:text.indexOf(loadingEmoji.alt),length:loadingEmoji.alt.length,custom_emoji_id:loadingEmoji.id}],reply_markup:{inline_keyboard:[[{text:"👑 Администратор",callback_data:"clients:menu"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}});
+   }catch(error){
+    if(error.telegramCode!==400)throw error;
+    await send(env,"sendMessage",{chat_id:uid,text:"🌹 DAME CAMELIAS\n\n⏳ Telegram пока не разрешил боту использовать эти премиум-часы. Проверьте Premium у аккаунта, которому принадлежит бот. Пока будут обычные часы.",reply_markup:{inline_keyboard:[[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}});return {handled:true};
+   }
+   await rawEnv.VISITORS_KV.put(LOADING_EMOJI_KEY,JSON.stringify(loadingEmoji));
+   return {handled:true};
   }
   if(uid===OWNER_ID&&(String(update.callback_query?.data||"").startsWith("clients:")||await storage.get("admin_pending"))&&!(await env.VISITORS_KV.get("owner_cabinet_session:"+uid,"json"))?.authorized){
     await storage.delete("admin_pending");
