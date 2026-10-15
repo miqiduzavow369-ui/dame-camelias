@@ -13,12 +13,12 @@ export async function publicationEligibility(env,userId,profileId,kind){
    credits(env,uid,"status"),
    dailyLimit(env,uid,pid,"status",kind)
   ]);
-  const remaining=Number(balance?.remaining);
+  const remaining=balance?.available;
   if(!Number.isSafeInteger(remaining)||remaining<=0)
    return {allowed:false,reason:"credits"};
   // Daily Object is shared across all Telegram IDs for this profile.
   // An unknown response cannot be interpreted as permission.
-  if(!day||day.allowed!==true)
+  if(!Number.isSafeInteger(day?.remaining)||day.remaining<=0)
    return {allowed:false,reason:"daily_limit"};
   return {allowed:true,remaining};
  }catch{
