@@ -469,13 +469,16 @@ async function showLibrary(env,send,knownBalance){
       buttons([[{text:"🔄 Обновить кабинет",callback_data:"owner_anketa:open"}]]));
     return;
   }
-  const remaining=balance.available;
+  // A reservation prevents concurrent overspending; it is not a completed debit.
+  // Display the unspent balance and explain any temporarily reserved credits.
+  const remaining=balance.remaining??(balance.available+balance.reserved);
+  const pending=balance.reserved>0?"\n\n⏳ В резерве: "+balance.reserved+"\n💕 Списание — только после подтверждения оценки или отзыва скриншотом.":"";
   const heading="🌹 DAME CAMELIAS\n\n🔐 ЛИЧНЫЙ КАБИНЕТ\n🆔 Telegram ID: "+OWNER_ID+
     "\n\n💎 ВАМ ДОСТУПНО: "+remaining+" ПУБЛИКАЦИЙ";
-  const info=remaining>0?
+  const info=pending+(remaining>0?
     "\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.":
     (!isOwner&&balance.reserved===0?"\n\n🌹 МОИ АНКЕТЫ":"")+
-    "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌷 Обратитесь к администратору, чтобы пополнить баланс.\n💕 Ваши анкеты и подтверждения сохранены.";
+    "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌷 Обратитесь к администратору, чтобы пополнить баланс.\n💕 Ваши анкеты и подтверждения сохранены.");
   let keys=remaining>0?libraryKeyboard(ids):buttons([
     ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:(!isOwner&&balance.reserved===0?"owner_anketa:balance_empty:":"owner_anketa:saved:")+id}]),
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
