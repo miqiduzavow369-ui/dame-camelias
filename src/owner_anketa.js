@@ -1336,7 +1336,7 @@ async function requestDomainRecovery(env,send,resume,mode){
  if(!env.__operationKey)await clearProgress(env,send);
  await showDomainRecovery(env,send,id,!!env.__operationKey);return true;
 }
-async function verifyRecoveryLink(env,send,state,text){
+async function verifyRecoveryLink(env,send,state,text,messageId){
  const link=parseProfileLink(text);
  if(!link||link.id!==state.id){
   await navigationSay(env,send,"🌹 DAME CAMELIAS\n\n🔗 НУЖНА ССЫЛКА НА ТУ ЖЕ АНКЕТУ\n\n🌹 Ожидаем анкету №"+state.id+"\n\n💕 Откройте именно её через действующий сайт и пришлите полную HTTPS-ссылку с актуальным доменом.",buttons([[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}]]));return;
@@ -1345,6 +1345,7 @@ async function verifyRecoveryLink(env,send,state,text){
  await statePut(env,{step:"domain_refresh_verify",id:state.id,host:link.host,nonce,recoveryKey:state.recoveryKey});
  const started=await dispatchLookup(env,link.id,nonce,"domain_probe",link.host).catch(()=>({ok:false}));
  if(!started.ok){await statePut(env,state);await showDomainRecovery(env,send,state.id);return;}
+ if(Number.isSafeInteger(messageId))try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:messageId});}catch{}
  await navigationSay(env,send,"⏳ Проверяю новую ссылку на анкету №"+state.id+"…\n\n💕 Затем продолжим с сохранённого шага. Публикации и списания сейчас не выполняются.");
 }
 async function resumeVerifiedDomain(env,send,current){
@@ -1486,7 +1487,7 @@ async function handleOwnerAnketa(update,env,send) {
    await statePut(env,{step:"domain_recovery",id,recoveryKey:key});await showDomainRecovery(env,send,id);return true;
   }
   if(state?.step==="domain_recovery"&&state.recoveryKey&&!ownerAction&&Boolean(msg?.text)){
-   await verifyRecoveryLink(env,send,state,txt);return true;
+   await verifyRecoveryLink(env,send,state,txt,msg.message_id);return true;
   }
   if(state?.step==="domain_recovery" && !ownerAction && Boolean(msg?.text)){
     const link=parseProfileLink(txt);
@@ -1504,6 +1505,7 @@ async function handleOwnerAnketa(update,env,send) {
       await navigationSay(env,send,"🌷 Не получилось проверить новый адрес. Пожалуйста, повторите ссылку позже.");
       return true;
     }
+    if(Number.isSafeInteger(msg.message_id))try{await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:msg.message_id});}catch{}
     await navigationSay(env,send,"⏳ Проверяю действующий адрес анкеты №"+link.id+
       "…\n\n✍️ Затем проверю ваш ранее опубликованный отзыв №"+targetId+
       ". Домен обновлю только после отправки скриншота в Telegram.");

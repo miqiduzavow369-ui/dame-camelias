@@ -345,7 +345,12 @@ test("old suffix is never visited and replacement must verify the same profile b
   assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/действующий сайт/);
   await s.run(a,"https://b.intimcity.rip/indi/anketa999999.htm");assert.equal(calls.length,0);
   await s.run(a,"https://example.com/indi/anketa"+profile+".htm");assert.equal(calls.length,0);
+  const beforeLink=s.sent.length;
   const url="https://b.intimcity.rip/indi/anketa"+profile+".htm";await s.run(a,url);
+  const checking=s.sent.slice(beforeLink);
+  const removed=checking.findIndex(x=>x.method==="deleteMessage"&&x.payload.chat_id===a&&x.payload.message_id===77);
+  const waiting=checking.findIndex(x=>x.payload.text?.startsWith("⏳ Проверяю новую ссылку"));
+  assert.ok(removed>=0&&waiting>removed,"remove only the submitted link before showing recovery progress");
   assert.equal(calls.at(-1).mode,"domain_probe");const probe=state();
   const reply={profile_id:profile,nonce:probe.nonce,mode:"domain_probe",status:"found",profile:{id:profile,name:"Anna",age:28,metro:"Центр",url}};
   assert.equal((await deliver({...reply,nonce:"aaaaaaaaaaaa"})).status,409);
