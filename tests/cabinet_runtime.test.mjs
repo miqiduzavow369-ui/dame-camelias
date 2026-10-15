@@ -250,11 +250,18 @@ test("untrusted or cross-user result cannot mutate an existing operation",async(
 
 test("profile lookup, stale result, user confirmation and saved URL reuse use the common engine",async()=>{
  const s=setup();await s.create(a);await s.login(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+ await credits(s.env,a,"reserve","rating","111111","aaaaaaaaaaaa");
+ await credits(s.env,a,"complete","rating","111111","aaaaaaaaaaaa");
+ await credits(s.env,a,"reserve","review","222222","bbbbbbbbbbbb");
+ const initialBalance=await credits(s.env,a,"status");
+ const ledger=s.objects.get("publication-credits:"+a).storage;
+ const initialLedger=await ledger.get("credits_v1");
  const calls=[];const original=globalThis.fetch;
  globalThis.fetch=async(url,opt)=>{calls.push({url:String(url),opt});if(String(url).includes("/dispatches"))return new Response(null,{status:204});return new Response("missing",{status:404});};
  try{
   const url="https://b.intimcity.rip/indi/anketa"+profile+".htm";
   await s.run(a,url);
+  assert.deepEqual(await credits(s.env,a,"status"),initialBalance);
   let state=JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);
   assert.equal(state.step,"loading");
   assert.equal(JSON.parse(calls.find(x=>x.url.includes("dispatches")).opt.body).inputs.user_id,a);
@@ -262,15 +269,37 @@ test("profile lookup, stale result, user confirmation and saved URL reuse use th
   const deliver=value=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"result",url:"https://worker/api/anketa/result",method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify(value)}},s.send);
   assert.equal((await deliver({...result,nonce:"bbbbbbbbbbbb"})).status,409);
   assert.equal((await deliver(result)).status,200);
+  assert.deepEqual(await ledger.get("credits_v1"),initialLedger);
   state=JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);assert.equal(state.step,"confirm");
   await s.run(a,"owner_anketa:confirm:"+state.nonce);
   const saved=JSON.parse(s.store(a).map.get("private:owner_anketa_saved:"+a+":"+profile).value);
   assert.equal(saved.confirmed,true);assert.equal(saved.profile.name,"Anna");
+  assert.deepEqual(await ledger.get("credits_v1"),initialLedger);
   assert.equal((await deliver(result)).status,409);
   const before=calls.filter(x=>x.url.includes("dispatches")).length;await s.run(a,url);
   assert.equal(calls.filter(x=>x.url.includes("dispatches")).length,before);
+  await s.run(a,"owner_anketa:saved:"+profile);
+  await s.run(a,"owner_anketa:accounts:"+profile);
+  await s.run(a,"owner_anketa:open");
+  assert.deepEqual(await credits(s.env,a,"status"),initialBalance);
+  assert.deepEqual(await ledger.get("credits_v1"),initialLedger);
   assert.equal(s.store(b).map.has("private:owner_anketa_saved:"+a+":"+profile),false);
  }finally{globalThis.fetch=original;}
+});
+
+test("cabinet displays unspent balance separately from reservations until proof is delivered",async()=>{
+ const s=setup();await s.create(a,"777777",1);await s.login(a);
+ await credits(s.env,a,"reserve","rating",profile,"aaaaaaaaaaaa");
+ await s.run(a,"owner_anketa:open");
+ const pending=s.sent.filter(x=>x.payload.text).at(-1).payload.text;
+ assert.match(pending,/ВАМ ДОСТУПНО: 1 ПУБЛИКАЦИЙ/);
+ assert.match(pending,/В резерве: 1/);assert.match(pending,/только после подтверждения/);
+ assert.doesNotMatch(pending,/ЛИМИТ ИСЧЕРПАН/);
+ assert.equal((await credits(s.env,a,"status")).spent,0);
+ await credits(s.env,a,"release","rating",profile,"aaaaaaaaaaaa");
+ await s.run(a,"owner_anketa:open");
+ const released=s.sent.filter(x=>x.payload.text).at(-1).payload.text;
+ assert.match(released,/ВАМ ДОСТУПНО: 1 ПУБЛИКАЦИЙ/);assert.doesNotMatch(released,/В резерве/);
 });
 
 test("trial migration preserves original profile, authorization, spent credits and legacy KV",async()=>{
