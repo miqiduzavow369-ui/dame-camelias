@@ -212,9 +212,9 @@ test("settlement outbox retries ledger completion without issuing another public
  assert.equal((await credits(s.env,a,"status")).spent,1);
 });
 
-test("proof callback binds screenshot to user and profile, settles once and retains permanent receipt",async()=>{
+test("last-credit proof completes, settles once and remains visible after exhausted navigation",async()=>{
  const {dailyLimit,moscowDay}=await import("../src/daily_publication_limit.js");
- const s=setup();await s.create(a);await s.create(b);await s.login(a);const date=moscowDay();
+ const s=setup();await s.create(a,"777777",1);await s.create(b);await s.login(a);const date=moscowDay();
  await credits(s.env,a,"reserve","rating",profile,"aaaaaaaaaaaa");await dailyLimit(s.env,a,profile,"reserve","rating","aaaaaaaaaaaa",date);
  const current={step:"proof_loading",id:profile,nonce:"bbbbbbbbbbbb",account:"yan_first",host:"b.intimcity.rip",creditNonce:"aaaaaaaaaaaa",dailyDate:date};
  await s.store(a).put("private:cabinet_operation:"+a+":"+current.nonce,{value:JSON.stringify(current),expires:0});
@@ -231,13 +231,90 @@ test("proof callback binds screenshot to user and profile, settles once and reta
   assert.equal((await deliver()).status,200);assert.equal(photos.length,1);
   assert.equal(photos[0].get("chat_id"),a);assert.equal(photos[0].get("protect_content"),"true");
   assert.equal((await credits(s.env,a,"status")).spent,1);assert.equal((await credits(s.env,b,"status")).spent,0);
+  assert.equal((await credits(s.env,a,"status")).available,0);
   assert.equal((await dailyLimit(s.env,a,profile,"status")).remaining,1);
   assert.equal((await deliver()).status,409);assert.equal(photos.length,1);
   assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value).step,"number");
   assert.ok(s.store(a).map.has("private:cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+profile));
   const before=s.sent.length;await s.run(a,"owner_anketa:home");
+  assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
   assert.ok(!s.sent.slice(before).some(x=>x.method==="deleteMessage"&&x.payload.message_id===800));
  }finally{globalThis.fetch=original;}
+});
+
+test("zero-credit client buttons return to own library and profile selection offers topup only",async()=>{
+ const s=setup();await s.create(a,"777777",0);await s.create(b);
+ s.kv.set("owner_anketa_library:"+a,JSON.stringify([profile]));
+ s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify({profile:{id:profile,name:"Anna"},host:"b.intimcity.rip"}));
+ s.kv.set("owner_anketa_library:"+b,JSON.stringify(["222333"]));
+ await s.login(a);
+ const latest=()=>s.sent.filter(x=>x.payload.text||x.payload.caption).at(-1).payload;
+ const buttons=p=>p.reply_markup.inline_keyboard.flat();
+ for(const action of ["owner_anketa:home","owner_anketa:saved:"+profile,"owner_anketa:savedreview:"+profile,"owner_anketa:proofthanks:"+profile]){
+  await s.run(a,action);
+  const p=latest();assert.match(p.text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
+  assert.ok(buttons(p).some(x=>x.callback_data==="owner_anketa:balance_empty:"+profile));
+  assert.ok(!buttons(p).some(x=>/:(?:new|savedreview|savedrating):?/.test(x.callback_data||"")));
+  assert.ok(!JSON.stringify(p).includes("222333"));
+ }
+ const update={callback_query:{id:"general",from:{id:a},message:{message_id:22,chat:{id:a,type:"private"}},data:"services"}};
+ assert.equal((await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"update",update}},s.send)).handled,true);
+ assert.match(latest().text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
+ await s.run(a,"owner_anketa:balance_empty:"+profile);
+ assert.match(latest().text,/ЛИМИТ ПУБЛИКАЦИЙ ИСЧЕРПАН/);
+ assert.match(latest().text,/пополнения баланса/);
+ assert.ok(buttons(latest()).some(x=>x.url==="https://t.me/DameCamelias"));
+ assert.ok(!buttons(latest()).some(x=>/savedrating|savedreview|deleteask/.test(x.callback_data||"")));
+ assert.equal((await credits(s.env,a,"status")).spent,0);
+ assert.equal((await credits(s.env,b,"status")).available,3);
+});
+
+test("topup unlocks old zero-balance profile buttons without resetting history",async()=>{
+ const s=setup();await s.create(a,"777777",1);
+ await credits(s.env,a,"reserve","rating",profile,"aaaaaaaaaaaa");
+ await credits(s.env,a,"complete","rating",profile,"aaaaaaaaaaaa");
+ s.kv.set("owner_anketa_library:"+a,JSON.stringify([profile]));
+ s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify({profile:{id:profile,name:"Anna"},host:"b.intimcity.rip"}));
+ await s.login(a);
+ await registry(s.env,{action:"topup",actorId:owner,userId:a,amount:2,operation:"eeeeeeeeeeeeeeee"});
+ await s.run(a,"owner_anketa:balance_empty:"+profile);
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Anna/);
+ const balance=await credits(s.env,a,"status");assert.equal(balance.available,2);assert.equal(balance.spent,1);
+ assert.equal(s.objects.get("publication-credits:"+a).storage.map.get("credits_v1").history.length,1);
+});
+
+test("reserved last credit is not exhaustion and zero balance denies stale rating forms",async()=>{
+ const s=setup();await s.create(a,"777777",1);await s.login(a);
+ await credits(s.env,a,"reserve","rating",profile,"aaaaaaaaaaaa");
+ await s.run(a,"owner_anketa:new");
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/полную ссылку/);
+ await credits(s.env,a,"complete","rating",profile,"aaaaaaaaaaaa");
+ await s.run(a,"https://b.intimcity.rip/indi/anketa123123.htm");
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
+ const response=await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"ratings",url:"https://x/ratings",method:"POST",headers:{},body:"{}"}},s.send);
+ assert.equal(response.status,403);assert.match(response.body,/balance exhausted/);
+});
+
+test("zero-credit policy leaves owner administration accessible",async()=>{
+ const {adjustCredits}=await import("../src/publication_credits.js");
+ const s=setup();s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
+ await adjustCredits(s.env,owner,0,10,"dddddddddddddddd",owner);
+ await s.run(owner,"clients:add");
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Telegram ID клиента/);
+});
+
+test("completed publication card renders HTML on photo and text fallback with clear next action",async()=>{
+ for(const hasPhoto of [true,false]){
+  const s=setup();await s.create(a);await s.login(a);
+  s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify({profile:{id:profile,name:"Anna"},host:"b.intimcity.rip"}));
+  for(const kind of ["rating","review"])s.kv.set("cabinet_v3:"+a+":owner_anketa_publication_v1:"+kind+":"+profile,JSON.stringify({status:"published"}));
+  if(hasPhoto)s.kv.set("profile-thumbnails/b.intimcity.rip/"+profile+".card.jpg","image bytes");
+  await s.run(a,"owner_anketa:account1:"+profile);
+  const p=s.sent.filter(x=>x.payload.text?.includes("Все доступные публикации")||x.payload.caption?.includes("Все доступные публикации")).at(-1).payload;
+  assert.equal(p.parse_mode,"HTML");
+  assert.match(p.text||p.caption,/Подтверждения ваших публикаций доступны ниже/);
+  assert.ok(!(p.text||p.caption).includes("Выберите действие"));
+ }
 });
 
 test("review payload and submission boundary are single use and cannot be borrowed by another client",async()=>{

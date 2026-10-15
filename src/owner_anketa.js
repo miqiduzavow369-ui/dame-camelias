@@ -459,11 +459,11 @@ function balanceCardUrl(count){
 function dailyCardUrl(count){
   return Number.isInteger(count)&&count>=0&&count<=2 ? PREMIUM_CARDS+"daily_"+count+".png" : null;
 }
-async function showLibrary(env,send){
+async function showLibrary(env,send,knownBalance){
   await clearExtraNavigation(env,send);
   const ids=await libraryGet(env);
   let balance;
-  try{balance=await credits(env,OWNER_ID,"status");}
+  try{balance=knownBalance||await credits(env,OWNER_ID,"status");}
   catch{
     await navigationSay(env,send,"⚠️ Сейчас не удалось проверить баланс публикаций. Пожалуйста, попробуйте позже.",
       buttons([[{text:"🔄 Обновить кабинет",callback_data:"owner_anketa:open"}]]));
@@ -474,9 +474,10 @@ async function showLibrary(env,send){
     "\n\n💎 ВАМ ДОСТУПНО: "+remaining+" ПУБЛИКАЦИЙ";
   const info=remaining>0?
     "\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.":
-    "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌹 Обратитесь к администратору за заказом публикаций.";
+    (!isOwner&&balance.reserved===0?"\n\n🌹 МОИ АНКЕТЫ":"")+
+    "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌷 Обратитесь к администратору, чтобы пополнить баланс.\n💕 Ваши анкеты и подтверждения сохранены.";
   let keys=remaining>0?libraryKeyboard(ids):buttons([
-    ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
+    ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:(!isOwner&&balance.reserved===0?"owner_anketa:balance_empty:":"owner_anketa:saved:")+id}]),
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
@@ -501,6 +502,15 @@ async function showLibrary(env,send){
   }
   // A clean text fallback keeps the cabinet usable when image upload fails.
   await navigationSay(env,send,heading+info,keys);
+}
+async function showExhaustedCabinet(env,send,id,balance){
+  if(!id||!(await libraryGet(env)).includes(id))return showLibrary(env,send,balance);
+  await navigationSay(env,send,
+    "🌹 DAME CAMELIAS\n\n💎 ЛИМИТ ПУБЛИКАЦИЙ ИСЧЕРПАН\n\nДоступно публикаций: 0\n\n"+
+    "💕 Ваши анкеты, история и подтверждения сохранены.\n\n"+
+    "🌷 Чтобы продолжить работу, обратитесь к администратору для пополнения баланса.",
+    buttons([[{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
+      [{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}]]));
 }
 async function releaseUnsubmitted(env,id,kind,nonce,date){
   await credits(env,OWNER_ID,"release",kind,id,nonce);
@@ -528,7 +538,7 @@ async function requireCredit(env,send){
     return false;
   }
 }
-async function profileBannerNavigation(env,send,record,id,text,markup){
+async function profileBannerNavigation(env,send,record,id,text,markup,parseMode){
   await clearExtraNavigation(env,send);
   const photo=profileCardUrl(id,record.host);
   const hasCard=!!(await env.VISITORS_KV?.get(THUMBNAIL_PREFIX+record.host+"/"+id+".card.jpg","arrayBuffer").catch(()=>null));
@@ -536,7 +546,7 @@ async function profileBannerNavigation(env,send,record,id,text,markup){
   if(hasCard){
     try{
       const response=await send(env,"sendPhoto",{
-        chat_id:OWNER_ID,photo,caption:text,reply_markup:markup
+        chat_id:OWNER_ID,photo,caption:text,reply_markup:markup,...(parseMode?{parse_mode:parseMode}:{})
       });
       if(Number.isSafeInteger(response?.message_id)){
         await trackAnketaMessage(env,response.message_id);
@@ -550,7 +560,7 @@ async function profileBannerNavigation(env,send,record,id,text,markup){
       }
     }catch(e){console.error("Saved profile thumbnail unavailable",String(e));}
   }
-  return navigationSay(env,send,text,markup);
+  return navigationSay(env,send,text,markup,parseMode);
 }
 async function showSaved(env,send,id) {
   const record=await savedGet(env,id);
@@ -1614,7 +1624,7 @@ async function handleOwnerAnketa(update,env,send) {
     const summary=await availabilitySummary(env,account1[1],ACTIVE_ACCOUNT);
     await profileBannerNavigation(env,send,rec,account1[1],"👥 КЛИЕНТ\n\n👨‍💻 ЯН ПЕРВЫЙ\n\n🌹 Ваша анкета №"+account1[1]+
       "\n\n"+summary+
-      "\n\n💕 Выберите действие:",await profileKeyboard(env,account1[1]));
+      (summary.includes("Все доступные публикации завершены!")?"\n\n📸 Подтверждения ваших публикаций доступны ниже.":"\n\n💕 Выберите действие:"),await profileKeyboard(env,account1[1]),"HTML");
     return true;
   }
   const account2=/^owner_anketa:account2:(\d{1,9})$/.exec(data);
@@ -2120,7 +2130,7 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
-return {ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi};
+return {ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
