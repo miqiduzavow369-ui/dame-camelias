@@ -1,8 +1,9 @@
+import {handleModeration,MODERATION_CHAT,MODERATOR_ID} from "../src/review_moderation.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {OrderReminder} from "../src/reminders.js";
 import {registry,pinRecord} from "../src/client_registry.js";
-import {cabinetEvent,privateActor,cabinetEndpoint} from "../src/cabinet_runtime.js";
+import {cabinetRPC,cabinetEvent,privateActor,cabinetEndpoint} from "../src/cabinet_runtime.js";
 import {createCabinet} from "../src/owner_anketa.js";
 import {credits} from "../src/publication_credits.js";
 import {claimPublication} from "../src/publication_claim.js";
@@ -637,6 +638,67 @@ test("review payload and submission boundary are single use and cannot be borrow
  assert.equal((await stage("review_submit_boundary")).status,200);
  assert.equal((await stage("review_submit_boundary")).status,409);
  assert.equal((await stage("review_preflight_failed")).status,409);
+});
+
+test("review moderation edits in group, dispatches once only after owner approval and reports after client proof",async()=>{
+ const s=setup();await s.create(a);s.env.DC_ACTIONS_TOKEN="test-actions";
+ s.env.ORDER_REMINDERS.get("cabinet-events:v1:"+a);const storage=s.objects.get("cabinet-events:v1:"+a).storage;
+ await storage.put("client_session",{version:1});
+ const ticket="aaaaaaaaaaaaaaaa",text="Исходный отзыв клиентки, ожидающий проверки.";
+ const put=(key,value)=>storage.put("private:"+key,{value:JSON.stringify(value),expires:0});
+ await put("owner_anketa_saved:"+a+":"+profile,{host:"b.intimcity.rip",profile:{id:profile,name:"Anna"}});
+ await put("owner_anketa_selected_account:"+a,{profileId:profile,account:"yan_first",expiresAt:Date.now()+100000});
+ await put("owner_anketa_state:"+a,{step:"review_agreed",id:profile,nonce:ticket,account:"yan_first",text,agreedAt:Date.now()});
+ const sent=[],dispatches=[];let nextId=100;const original=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>{
+  if(String(url).includes("/dispatches")){dispatches.push(JSON.parse(options.body).inputs);return new Response(null,{status:204});}
+  if(String(url).includes("api.telegram.org")){
+   const method=String(url).split("/").at(-1),payload=typeof options.body==="string"?JSON.parse(options.body):Object.fromEntries(options.body.entries());sent.push({method,payload});
+   return Response.json({ok:true,result:{message_id:payload.message_id||++nextId,...(method==="sendPhoto"?{photo:[{file_id:"review_proof_file"}]}:{})}});
+  }return new Response("missing",{status:404});
+ };
+ const record=()=>s.objects.get("review-moderation:v1:"+a+":"+ticket).storage.map.get("moderation");
+ const groupAction=(name,version=record().version)=>({callback_query:{id:"group",from:{id:Number(MODERATOR_ID)},message:{message_id:record().messageId,chat:{id:Number(MODERATION_CHAT),type:"supergroup"}},data:"reviewmod:"+name+":"+a+":"+ticket+":"+version}});
+ try{
+  const update=s.update(a,"owner_anketa:reviewfinal:"+ticket);update.callback_query.from.username="test_client";
+  await cabinetRPC(s.env,a,{kind:"update",update});assert.equal(dispatches.length,0);assert.equal((await credits(s.env,a,"status")).reserved,0);
+  assert.equal(record().status,"pending");assert.equal(record().username,"test_client");
+  const clientWaiting=sent.filter(x=>String(x.payload.chat_id)===a&&x.payload.text?.includes("ПУБЛИКУЕМ ОТЗЫВ")).length;
+  await handleModeration(groupAction("edit"),s.env);
+  const corrected="Исправленный администратором реальный текст отзыва.";
+  await handleModeration({message:{message_id:999,from:{id:Number(MODERATOR_ID)},chat:{id:Number(MODERATION_CHAT),type:"supergroup"},reply_to_message:{message_id:record().editPromptId},text:corrected}},s.env);
+  assert.equal(record().text,corrected);assert.equal(dispatches.length,0);
+  await handleModeration(groupAction("approve",1),s.env);assert.equal(dispatches.length,0);
+  const approvedButton=groupAction("approve");await handleModeration(approvedButton,s.env);await handleModeration(approvedButton,s.env);
+  assert.equal(dispatches.length,1);assert.equal(dispatches[0].mode,"review_publish");assert.equal((await credits(s.env,a,"status")).spent,0);assert.equal((await credits(s.env,a,"status")).reserved,1);
+  assert.equal(sent.filter(x=>String(x.payload.chat_id)===a&&x.payload.text?.includes("ПУБЛИКУЕМ ОТЗЫВ")).length,clientWaiting);
+  const active=JSON.parse(storage.map.get("private:owner_anketa_state:"+a).value);assert.equal(active.text,corrected);
+  const image=Buffer.alloc(1200);image[0]=255;image[1]=216;image[1198]=255;image[1199]=217;
+  const result={user_id:a,profile_id:profile,nonce:active.nonce,mode:"review_publish",status:"found",review_publication:{confirmed:true,proof:{account:"yan_first",profile_id:profile,text_verified:true,mime:"image/jpeg",image:image.toString("base64")}}};
+  const deliver=()=>cabinetEndpoint(new Request("https://x/api/anketa/result",{method:"POST",headers:{Authorization:"Bearer callback"},body:JSON.stringify(result)}),s.env,"result");
+  assert.equal((await deliver()).status,200);assert.equal(record().status,"published");
+  assert.equal((await credits(s.env,a,"status")).spent,1);assert.equal((await credits(s.env,a,"status")).reserved,0);
+  const moderation=s.objects.get("review-moderation:v1:"+a+":"+ticket);await moderation.obj.alarm();await moderation.obj.alarm();
+  const photo=sent.findIndex(x=>x.method==="sendPhoto"&&String(x.payload.chat_id)===a);
+  const notices=sent.map((x,i)=>({x,i})).filter(({x})=>x.method==="sendMessage"&&String(x.payload.chat_id)===MODERATION_CHAT&&x.payload.text?.includes("Подтверждение доставлено"));
+  assert.equal(notices.length,1);assert.ok(notices[0].i>photo);assert.ok(notices[0].x.payload.text.includes("https://t.me/c/3900552612/"+record().messageId));
+  assert.equal((await deliver()).status,409);assert.equal(dispatches.length,1);
+ }finally{globalThis.fetch=original;}
+});
+
+test("cancelling moderation preserves credits and draft, removes waiting and rejects other actors",async()=>{
+ const s=setup();await s.create(a);await s.login(a);
+ const ticket="aaaaaaaaaaaaaaaa",text="Сохранённый реальный текст отзыва клиентки.";
+ s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify({profile:{id:profile},host:"b.intimcity.rip"}));
+ await s.store(a).put("private:cabinet_review_moderation:"+a+":"+ticket,{value:JSON.stringify({status:"pending",snapshot:{step:"review_agreed",id:profile,nonce:ticket,account:"yan_first",text},waitingMessageId:800}),expires:0});
+ await s.store(a).put("private:owner_anketa_state:"+a,{value:JSON.stringify({step:"review_moderation",moderationTicket:ticket}),expires:0});
+ const call=actorId=>cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"review_moderation",actorId,action:"cancel",ticket}},s.send);
+ const balance=await credits(s.env,a,"status");assert.equal((await call(b)).status,403);
+ assert.equal((await call(owner)).ok,true);assert.equal((await call(owner)).already,true);
+ assert.deepEqual(await credits(s.env,a,"status"),balance);
+ assert.equal(JSON.parse(s.store(a).map.get("private:cabinet_v3:"+a+":owner_anketa_review_draft_v1:yan_first:"+profile).value).text,text);
+ assert.equal(s.sent.filter(x=>x.payload.text?.includes("Отзыв не отправлен")).length,1);
+ assert.ok(s.sent.some(x=>x.method==="deleteMessage"&&x.payload.message_id===800&&x.payload.chat_id===a));
 });
 
 test("stale administrative confirmation cannot apply a different pending change",async()=>{

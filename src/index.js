@@ -1,3 +1,4 @@
+import {handleModeration} from "./review_moderation.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
@@ -360,6 +361,7 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  if(await handleModeration(update,env))return;
   const cabinetHandled=await handleCabinet(update,env);
   if(cabinetHandled){
     if(cabinetHandled==="home")await sendPage(env,update.callback_query.message.chat.id,"home");

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {handleOwnerAnketa,ownerReviewPayload} from "../src/owner_anketa.js";
+import {createCabinet,handleOwnerAnketa,ownerReviewPayload} from "../src/owner_anketa.js";
 
 const OWNER=5866034656;
 const PREFIX="owner_anketa_";
@@ -117,6 +117,10 @@ test("review publication requires consent, claims once and issues single private
     assert.equal(dispatched,0,"must not publish without explicit consent");
     await handleOwnerAnketa(s.cb("owner_anketa:reviewagree:"+initial.nonce),s.env,s.send);
     await handleOwnerAnketa(s.cb("owner_anketa:reviewfinal:"+initial.nonce),s.env,s.send);
+    const waiting=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
+    assert.equal(waiting.step,"review_moderation");assert.equal(dispatched,0);assert.equal(claimed.size,0);
+    const engine=createCabinet(String(OWNER));
+    assert.equal((await engine.moderateReview(s.env,s.send,{action:"approve",ticket:initial.nonce,text:original})).ok,true);
     const next=JSON.parse(s.store.get("owner_anketa_state:"+OWNER));
     assert.equal(next.step,"review_dispatch");
     assert.equal(dispatched,1);
