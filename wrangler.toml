@@ -20,8 +20,8 @@ class_name = "OrderReminder"
 tag = "order-reminders-v1"
 new_sqlite_classes = ["OrderReminder"]
 
-# Owner-approved client testing; real publications remain paused.
+# Owner-approved publication testing with manual confirmation in Telegram.
 [vars]
 CABINET_CLIENTS_ENABLED = "true"
-CABINET_PUBLICATIONS_ENABLED = "false"
+CABINET_PUBLICATIONS_ENABLED = "true"
 
