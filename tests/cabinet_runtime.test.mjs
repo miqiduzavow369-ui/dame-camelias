@@ -1,3 +1,4 @@
+import {AGREEMENT_SECTIONS,AGREEMENT_VERSION} from "../src/agreement.js";
 import {handleModeration,MODERATION_CHAT,MODERATOR_ID} from "../src/review_moderation.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -101,6 +102,52 @@ test("owner personal cabinet no longer exposes client administration buttons",as
  await s.run(owner,"owner_anketa:open");
  const markup=s.sent.filter(x=>x.payload.reply_markup).at(-1).payload.reply_markup;
  assert.ok(!markup.inline_keyboard.flat().some(x=>x.callback_data?.startsWith("clients:")));
+});
+
+test("agreement signed before account creation appears before grant, in admin card and under add profile even at zero balance",async()=>{
+ const s=setup();s.env.ORDER_REMINDERS.get("agreement:v1:"+a);
+ const signed={userId:a,version:AGREEMENT_VERSION,acceptedAt:Date.parse("2026-10-15T20:00:00Z"),sections:AGREEMENT_SECTIONS};
+ await s.objects.get("agreement:v1:"+a).storage.put("accepted",signed);
+ s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
+ await s.run(owner,"clients:add");await s.run(owner,a);
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Соглашение подписано/);
+ await s.create(a);await s.login(a);
+ const rows=s.sent.filter(x=>x.payload.reply_markup&&x.payload.chat_id===a).at(-1).payload.reply_markup.inline_keyboard;
+ const add=rows.findIndex(row=>row.some(x=>x.callback_data==="owner_anketa:new"));
+ assert.equal(rows[add+1][0].callback_data,"agreement:signed");
+ await s.run(owner,"clients:view:"+a);assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/✅ Соглашение подписано/);
+ const {adjustCredits}=await import("../src/publication_credits.js");await adjustCredits(s.env,a,0,3,"ffffffffffffffff",owner);await s.run(a,"owner_anketa:open");
+ assert.ok(s.sent.filter(x=>x.payload.reply_markup&&x.payload.chat_id===a).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="agreement:signed"));
+ assert.deepEqual(await s.objects.get("agreement:v1:"+a).storage.get("accepted"),signed);
+ await s.create(b);s.env.ORDER_REMINDERS.get("agreement:v1:"+b);await s.objects.get("agreement:v1:"+b).storage.put("declinedAt",Date.now());
+ await s.login(b);assert.ok(s.sent.filter(x=>x.payload.chat_id===b&&x.payload.reply_markup).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="owner_anketa:new"));
+ await s.run(owner,"clients:view:"+b);assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/❌ Отказалась от соглашения/);
+ assert.equal((await credits(s.env,b,"status")).available,3);
+});
+
+test("public agreement webhook completes before registration and returns to main without creating a client or spending credits",async()=>{
+ const {default:worker}=await import("../src/index.js");const s=setup();s.env.WEBHOOK_SECRET="test-webhook";
+ const sent=[],original=globalThis.fetch;let nextId=100;
+ globalThis.fetch=async(url,options)=>{
+  if(String(url).includes("api.telegram.org")){const method=String(url).split("/").at(-1),p=typeof options.body==="string"?JSON.parse(options.body):Object.fromEntries(options.body.entries());sent.push({method,p});return Response.json({ok:true,result:{message_id:p.message_id||++nextId}});}return new Response("missing",{status:404});
+ };
+ const perform=async(data,messageId)=>{
+  const update={callback_query:{id:"agree",from:{id:Number(a)},message:{message_id:messageId,chat:{id:Number(a),type:"private"}},data}},jobs=[];
+  await worker.fetch(new Request("https://x/webhook",{method:"POST",headers:{"X-Telegram-Bot-Api-Secret-Token":"test-webhook"},body:JSON.stringify(update)}),s.env,{waitUntil:p=>jobs.push(p)});await Promise.all(jobs);
+ };
+ try{
+  await perform("agreement:start",1);
+  for(let i=0;i<6;i++){
+   const message=sent.filter(x=>x.p.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data?.startsWith("agreement:")).at(-1);
+   const storage=s.objects.get("agreement:v1:"+a).storage;
+   await perform(message.p.reply_markup.inline_keyboard[0][0].callback_data,(await storage.get("navigation")).id);
+  }
+  assert.equal((await s.objects.get("agreement:v1:"+a).storage.get("accepted")).userId,a);
+  assert.equal((await registry(s.env,{action:"get",userId:a})).client,null);
+  assert.ok(!s.objects.has("publication-credits:"+a));
+  const home=sent.filter(x=>x.p.reply_markup?.inline_keyboard?.flat().some(b=>b.callback_data==="agreement:start")).at(-1);assert.ok(home);
+  assert.equal(await s.objects.get("agreement:v1:"+a).storage.get("navigation"),undefined);
+ }finally{globalThis.fetch=original;}
 });
 
 test("only authenticated owner can select a premium waiting hourglass without touching credits",async()=>{
@@ -223,6 +270,7 @@ test("welcome and home show ADMINISTRATOR only in the owner's private chat",asyn
    await Promise.all(jobs);
    const buttons=messages.slice(start).flatMap(x=>x.reply_markup?.inline_keyboard?.flat()||[]);
    assert.equal(buttons.some(x=>x.text==="👑 АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
+   if(page==="home")assert.ok(buttons.some(x=>x.text==="📜 Соглашение"&&x.callback_data==="agreement:start"));
   }
  }finally{globalThis.fetch=original;}
 });

@@ -1,3 +1,4 @@
+import {agreementEvent} from "./agreement.js";
 import {moderationEvent,moderationIndex,moderationAlarm,moderationRPC} from "./review_moderation.js";
 import {credits} from "./publication_credits.js";
 import {dailyLimit} from "./daily_publication_limit.js";
@@ -36,6 +37,7 @@ export class OrderReminder {
     if (new URL(request.url).pathname === INTERNAL_PATH)
       return this.ctx.blockConcurrencyWhile(() => readLedgerBackup(request, this.env, this.ctx.storage));
     const input = await request.json();
+    if(input.type==="agreement")return this.exclusive(async()=>Response.json(await agreementEvent(this.ctx.storage,this.env,input)));
     if(input.type==="review_moderation")return this.exclusive(async()=>Response.json(await moderationEvent(this.ctx.storage,this.env,input)));
     if(input.type==="review_moderation_index")return this.ctx.blockConcurrencyWhile(async()=>Response.json(await moderationIndex(this.ctx.storage,input)));
     if(input.type==="cabinet_event")return this.exclusive(async()=>Response.json(await cabinetEvent(this.ctx.storage,this.env,input,undefined,validWebApp)));

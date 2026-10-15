@@ -1,3 +1,4 @@
+import {handleAgreement} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint} from "./cabinet_runtime.js";
@@ -9,7 +10,8 @@ const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
   [{ text: "✨ Как работаем", callback_data: "how" }, { text: "💖 Зачем это?", callback_data: "reviews" }],
   [{ text: "❓ Вопросы", callback_data: "faq" }, { text: "💎 Цены", callback_data: "services" }],
-  [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }]
+  [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }],
+  [{text:"📜 Соглашение",callback_data:"agreement:start"}]
 ]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
@@ -362,6 +364,12 @@ async function quickReply(env,update){
 }
 async function handle(update, env) {
   if(await handleModeration(update,env))return;
+  const agreement=await handleAgreement(update,env);
+  if(agreement?.handled){
+    if(agreement.home)await sendPage(env,update.callback_query.message.chat.id,"home");
+    else if(agreement.cabinet){const result=await handleCabinet({...update,callback_query:{...update.callback_query,data:"owner_anketa:open"}},env);if(!result||result==="home")await sendPage(env,update.callback_query.message.chat.id,"home");}
+    return;
+  }
   const cabinetHandled=await handleCabinet(update,env);
   if(cabinetHandled){
     if(cabinetHandled==="home")await sendPage(env,update.callback_query.message.chat.id,"home");
