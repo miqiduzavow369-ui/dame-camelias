@@ -124,11 +124,14 @@ test("owner archive groups only this client's dates and accounts, shows first pr
  const dates=s.sent.filter(x=>x.payload.text).at(-1).payload.reply_markup.inline_keyboard.flat();
  assert.deepEqual(dates.filter(x=>x.callback_data.startsWith("clients:pubday:")).map(x=>x.text),["📅 15.10.2026","📅 14.10.2026"]);
  await s.run(owner,"clients:pubday:"+a+":20261015");
+ const profiles=s.sent.filter(x=>x.payload.text).at(-1).payload.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(profiles.filter(x=>x.callback_data.startsWith("clients:pubprofile:")).map(x=>x.text),["🌹 Анкета №"+profile]);
+ await s.run(owner,"clients:pubprofile:"+a+":20261015:"+profile);
  const accounts=s.sent.filter(x=>x.payload.text).at(-1).payload.reply_markup.inline_keyboard.flat();
- assert.deepEqual(accounts.filter(x=>x.callback_data.startsWith("clients:pubacct:")).map(x=>x.text),["👨‍💻 Ян Первый"]);
+ assert.deepEqual(accounts.filter(x=>x.callback_data.startsWith("clients:p:")).map(x=>x.text),["👨‍💻 Ян Первый"]);
  const send=async(e,m,p)=>{const result=await s.send(e,m,p);return m==="sendMediaGroup"?[{message_id:8001},{message_id:8002}]:result;};
  const run=data=>cabinetEvent(s.store(owner),s.env,{userId:owner,event:{kind:"update",update:s.update(owner,data)}},send);
- await run("clients:pubacct:"+a+":20261015:yan_first:0");
+ await run("clients:p:"+a+":20261015:"+profile+":yan_first:0");
  const gallery=s.sent.find(x=>x.method==="sendMediaGroup").payload;
  assert.equal(gallery.chat_id,owner);assert.deepEqual(gallery.media.map(x=>x.media),["new_rating","new_review"]);
  assert.ok(!JSON.stringify(gallery).includes("other_client_file"));
@@ -153,21 +156,32 @@ test("archive access requires owner identity and PIN; empty clients have no prev
  assert.ok(!p.reply_markup.inline_keyboard.flat().some(x=>x.callback_data.startsWith("clients:pubday:")));
 });
 
-test("archive receipt pages are bounded and missing screenshot files stay empty",async()=>{
+test("archive profiles paginate and receipts stay scoped to date, profile and account",async()=>{
  const s=setup();await s.create(a);s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
- for(let i=0;i<9;i++)s.kv.set("cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+(111111+i),JSON.stringify({account:"yan_first",profileId:String(111111+i),fileId:"receipt_"+i,savedAt:"2026-10-15T12:00:00Z"}));
+ for(let i=0;i<13;i++)s.kv.set("cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+(111111+i),JSON.stringify({account:"yan_first",profileId:String(111111+i),fileId:"receipt_"+i,savedAt:"2026-10-15T12:00:00Z"}));
+ s.kv.set("cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_second:111111",JSON.stringify({account:"yan_second",profileId:"111111",fileId:"second_account",savedAt:"2026-10-15T12:00:00Z"}));
  s.kv.set("cabinet_v3:"+a+":owner_anketa_publication_v1:review:999999",JSON.stringify({status:"published",account:"yan_second",at:"2026-10-16T12:00:00Z"}));
- const send=async(e,m,p)=>{const result=await s.send(e,m,p);return m==="sendMediaGroup"?p.media.map((_,i)=>({message_id:9000+i})):result;};
- const run=data=>cabinetEvent(s.store(owner),s.env,{userId:owner,event:{kind:"update",update:s.update(owner,data)}},send);
- await run("clients:pubacct:"+a+":20261015:yan_first:0");
- assert.equal(s.sent.find(x=>x.method==="sendMediaGroup").payload.media.length,8);
- let last=s.sent.filter(x=>x.payload.text).at(-1).payload;
- assert.ok(last.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="clients:pubacct:"+a+":20261015:yan_first:1"));
- await run("clients:pubacct:"+a+":20261015:yan_first:1");
- assert.equal(s.sent.filter(x=>x.method==="sendPhoto").at(-1).payload.photo,"receipt_8");
- const before=s.sent.length;await run("clients:pubacct:"+a+":20261016:yan_second:0");
+ const latest=()=>s.sent.filter(x=>x.payload.text).at(-1).payload;
+ const buttons=()=>latest().reply_markup.inline_keyboard.flat();
+ await s.run(owner,"clients:pubday:"+a+":20261015");
+ assert.equal(buttons().filter(x=>x.callback_data.startsWith("clients:pubprofile:")).length,12);
+ assert.ok(buttons().some(x=>x.callback_data==="clients:pubday:"+a+":20261015:1"));
+ await s.run(owner,"clients:pubday:"+a+":20261015:1");
+ assert.deepEqual(buttons().filter(x=>x.callback_data.startsWith("clients:pubprofile:")).map(x=>x.text),["🌹 Анкета №111123"]);
+ await s.run(owner,"clients:pubprofile:"+a+":20261015:111112");
+ assert.deepEqual(buttons().filter(x=>x.callback_data.startsWith("clients:p:")).map(x=>x.text),["👨‍💻 Ян Первый"]);
+ assert.ok(buttons().some(x=>x.text==="⬅️ К анкетам"));
+ await s.run(owner,"clients:p:"+a+":20261015:111111:yan_first:0");
+ assert.equal(s.sent.filter(x=>x.method==="sendPhoto").at(-1).payload.photo,"receipt_0");
+ assert.ok(buttons().some(x=>x.text==="⬅️ К аккаунтам"));
+ await s.run(owner,"clients:p:"+a+":20261015:111111:yan_second:0");
+ assert.equal(s.sent.filter(x=>x.method==="sendPhoto").at(-1).payload.photo,"second_account");
+ const before=s.sent.length;await s.run(owner,"clients:p:"+a+":20261016:999999:yan_second:0");
  assert.ok(!s.sent.slice(before).some(x=>["sendPhoto","sendMediaGroup"].includes(x.method)));
- assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Сохранённых скриншотов.*нет/);
+ assert.match(latest().text,/Сохранённых скриншотов.*нет/);
+ await s.run(owner,"clients:pubacct:"+a+":20261015:yan_first:0");
+ assert.match(latest().text,/Выберите анкету/);
+ assert.ok(Buffer.byteLength("clients:p:1234567890123456:20261015:123456789:abcdefghijkl:99999")<=64);
 });
 
 test("welcome and home show ADMINISTRATOR only in the owner's private chat",async()=>{
