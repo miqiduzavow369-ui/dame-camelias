@@ -481,7 +481,6 @@ async function showLibrary(env,send,knownBalance){
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
-  if(isOwner)keys={inline_keyboard:[...keys.inline_keyboard,[{text:"➕ Добавить клиента",callback_data:"clients:add"}],[{text:"👥 Клиенты",callback_data:"clients:list"}]]};
   const url=balanceCardUrl(remaining);
   let bannerError="not_in_library";
   if(url){

@@ -68,6 +68,61 @@ test("admin requires owner private identity and PIN; create is reviewable and id
  await s.run(owner,confirmation);assert.equal((await credits(s.env,b,"status")).available,7);
  const group=s.update(owner,"clients:add");group.callback_query.message.chat={id:-1,type:"group"};assert.equal(privateActor(group),null);
 });
+
+test("administrator menu has two actions, requires owner PIN and cancels stale input on return",async()=>{
+ const s=setup();await s.create(a);await s.login(a);
+ await s.run(a,"clients:menu");
+ assert.equal(s.store(a).map.has("admin_navigation"),false);
+ await s.run(owner,"clients:menu");
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/индивидуальный код/);
+ s.store(owner).map.set("private:owner_cabinet_session:"+owner,{value:JSON.stringify({authorized:true}),expires:0});
+ await s.run(owner,"clients:menu");
+ const menu=s.sent.filter(x=>x.payload.text).at(-1).payload;
+ assert.deepEqual(menu.reply_markup.inline_keyboard.flat(),[
+  {text:"Добавить ID клиентки",callback_data:"clients:add"},
+  {text:"Клиентки",callback_data:"clients:list"}
+ ]);
+ await s.run(owner,"clients:add");
+ assert.equal((await s.store(owner).get("admin_pending")).mode,"id");
+ await s.run(owner,"clients:menu");
+ assert.equal(await s.store(owner).get("admin_pending"),undefined);
+ await s.run(owner,"clients:list");
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/КЛИЕНТКИ/);
+});
+
+test("owner personal cabinet no longer exposes client administration buttons",async()=>{
+ const s=setup();s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
+ await s.run(owner,"owner_anketa:open");
+ const markup=s.sent.filter(x=>x.payload.reply_markup).at(-1).payload.reply_markup;
+ assert.ok(!markup.inline_keyboard.flat().some(x=>x.callback_data?.startsWith("clients:")));
+});
+
+test("welcome and home show ADMINISTRATOR only in the owner's private chat",async()=>{
+ const {default:worker}=await import("../src/index.js");
+ const s=setup();s.env.WEBHOOK_SECRET="test-webhook";
+ const original=globalThis.fetch;const messages=[];
+ globalThis.fetch=async(url,options)=>{
+  if(String(url).startsWith("https://api.telegram.org/")){
+   const data=typeof options.body==="string"?JSON.parse(options.body):Object.fromEntries(options.body.entries());
+   if(typeof data.reply_markup==="string")data.reply_markup=JSON.parse(data.reply_markup);
+   messages.push(data);
+   return Response.json({ok:true,result:{message_id:messages.length+100,photo:[{file_id:"mock"}]}});
+  }
+  return new Response("No external network in tests",{status:503});
+ };
+ try{
+  for(const uid of [owner,b])for(const page of ["welcome","home"]){
+   const start=messages.length;
+   const update=page==="welcome"?{message:{message_id:1,from:{id:uid},chat:{id:uid,type:"private"},text:"/start"}}:
+     {callback_query:{id:"home",from:{id:uid},message:{message_id:1,chat:{id:uid,type:"private"}},data:"home"}};
+   const jobs=[];
+   await worker.fetch(new Request("https://test/webhook",{method:"POST",headers:{"X-Telegram-Bot-Api-Secret-Token":"test-webhook"},body:JSON.stringify(update)}),s.env,{waitUntil:job=>jobs.push(job)});
+   await Promise.all(jobs);
+   const buttons=messages.slice(start).flatMap(x=>x.reply_markup?.inline_keyboard?.flat()||[]);
+   assert.equal(buttons.some(x=>x.text==="АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
+  }
+ }finally{globalThis.fetch=original;}
+});
 test("atomic rating claims admit exactly one client; credit reserves settle only once",async()=>{
  const s=setup();await s.create(a);await s.create(b);
  const claims=await Promise.all([claimPublication(s.env,a,profile,"rating","aaaaaaaaaaaa"),claimPublication(s.env,b,profile,"rating","bbbbbbbbbbbb")]);
