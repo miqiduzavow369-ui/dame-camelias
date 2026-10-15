@@ -1,3 +1,4 @@
+import {INTERNAL_PATH, readLedgerBackup} from "./admin_ledger_backup.js";
 const DELAY = 2 * 60 * 60 * 1000;
 const REASONS = { price: "Стоимость", timing: "Сроки", help: "Нужна помощь" };
 const escape = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -23,6 +24,8 @@ export async function reminderCall(env, person, chat, payload) {
 export class OrderReminder {
   constructor(ctx, env) { this.ctx = ctx; this.env = env; }
   async fetch(request) {
+    if (new URL(request.url).pathname === INTERNAL_PATH)
+      return this.ctx.blockConcurrencyWhile(() => readLedgerBackup(request, this.env, this.ctx.storage));
     const input = await request.json();
     return this.ctx.blockConcurrencyWhile(async () => {
       const storage = this.ctx.storage;

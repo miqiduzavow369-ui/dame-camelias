@@ -1,0 +1,24 @@
+name: Admin ledger export safety
+on:
+  push:
+    branches: [maintenance/admin-ledger-export-20261015]
+  pull_request:
+    paths: ['src/admin_ledger_backup.js', 'tests/admin_ledger_backup.test.mjs', 'tools/download_admin_ledger.py', '.github/workflows/admin-ledger-backup.yml']
+permissions:
+  contents: read
+jobs:
+  export-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node --test tests/admin_ledger_backup.test.mjs
+      - run: node --check src/admin_ledger_backup.js && node -e "import('./src/index.js')"
+      - run: python -m py_compile tools/download_admin_ledger.py
+      - run: python -m unittest discover -s tests -p 'test_*.py'
