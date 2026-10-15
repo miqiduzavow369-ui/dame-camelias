@@ -697,8 +697,26 @@ test("cancelling moderation preserves credits and draft, removes waiting and rej
  assert.equal((await call(owner)).ok,true);assert.equal((await call(owner)).already,true);
  assert.deepEqual(await credits(s.env,a,"status"),balance);
  assert.equal(JSON.parse(s.store(a).map.get("private:cabinet_v3:"+a+":owner_anketa_review_draft_v1:yan_first:"+profile).value).text,text);
- assert.equal(s.sent.filter(x=>x.payload.text?.includes("Отзыв не отправлен")).length,1);
+ assert.equal(s.sent.filter(x=>x.payload.text?.includes("ПОПРОБУЕМ ДРУГОЙ ОТЗЫВ")).length,1);
  assert.ok(s.sent.some(x=>x.method==="deleteMessage"&&x.payload.message_id===800&&x.payload.chat_id===a));
+ const notice=s.sent.filter(x=>x.payload.text?.includes("ПОПРОБУЕМ ДРУГОЙ ОТЗЫВ")).at(-1);
+ assert.ok(notice.payload.reply_markup.inline_keyboard.flat().some(x=>x.text==="✍️ Ввести другой отзыв"));
+ await s.run(b,"owner_anketa:reviewretry:"+ticket);
+ assert.ok(!JSON.stringify(s.sent.filter(x=>x.payload.chat_id===b)).includes(text));
+ await s.run(a,"owner_anketa:reviewretry:"+ticket);
+ assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value).id,profile);
+ const prompt=s.sent.filter(x=>x.payload.text?.includes("НОВЫЙ ТЕКСТ ОТЗЫВА")).at(-1);
+ assert.equal(prompt.method,"editMessageText","reuse navigation instead of leaving the rejection message behind");
+ const replacement="Другой новый реальный отзыв клиентки для повторной проверки.";
+ await s.run(a,replacement);
+ const preview=JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value);assert.equal(preview.step,"review_preview");assert.notEqual(preview.nonce,ticket);
+ assert.equal(preview.text,replacement);await s.run(a,"owner_anketa:reviewagree:"+preview.nonce);
+ const get=s.env.ORDER_REMINDERS.get,queued=[];
+ s.env.ORDER_REMINDERS.get=name=>name.startsWith("review-moderation:v1:")?{fetch:async(url,options)=>{queued.push(JSON.parse(options.body));return Response.json({ok:true});}}:get(name);
+ await s.run(a,"owner_anketa:reviewfinal:"+preview.nonce);
+ assert.equal(queued.length,1);assert.equal(queued[0].event.text,replacement);assert.equal(queued[0].ticket,preview.nonce);
+ assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value).step,"review_moderation");
+ assert.deepEqual(await credits(s.env,a,"status"),balance);
 });
 
 test("stale administrative confirmation cannot apply a different pending change",async()=>{

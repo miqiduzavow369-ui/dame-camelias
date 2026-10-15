@@ -1424,8 +1424,8 @@ async function moderateReview(env,send,input){
  const key="cabinet_review_moderation:"+OWNER_ID+":"+input.ticket;
  const ticket=await env.VISITORS_KV.get(key,"json");if(!ticket)return {ok:false,note:"Заявка в кабинете не найдена."};
  if(input.action==="cancel"){
-  if(ticket.status==="cancelled")return {ok:true,already:true};
-  if(ticket.status!=="pending")return {ok:false,note:"Отправка уже начиналась. Отмена недоступна."};
+  if(ticket.status==="cancelled"&&ticket.cancelNoticeSent)return {ok:true,already:true};
+  if(!["pending","cancelled"].includes(ticket.status))return {ok:false,note:"Отправка уже начиналась. Отмена недоступна."};
   if(Number.isSafeInteger(ticket.waitingMessageId)){
    await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:ticket.waitingMessageId}).catch(()=>{});
    const progress=await env.VISITORS_KV.get(PROGRESS_KEY,"json");if(progress?.id===ticket.waitingMessageId)await env.VISITORS_KV.delete(PROGRESS_KEY);
@@ -1433,8 +1433,9 @@ async function moderateReview(env,send,input){
   await env.VISITORS_KV.put(key,JSON.stringify({...ticket,status:"cancelled"}));
   await reviewDraftSave(env,ticket.snapshot);
   const active=await stateGet(env);
-  if(active?.step==="review_moderation"&&active.moderationTicket===input.ticket)await statePut(env,{...ticket.snapshot,step:"review_input",editing:true});
-  await say(env,send,"🌹 DAME CAMELIAS\n\n🌷 Отзыв не отправлен. Текст сохранён в черновике, публикации не списывались.",buttons([[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]));return {ok:true};
+  if(active?.step==="review_moderation"&&active.moderationTicket===input.ticket)await statePut(env,{...ticket.snapshot,step:"review_cancelled",moderationTicket:input.ticket});
+  await navigationSay(env,send,"🌹 DAME CAMELIAS\n\n✍️ ПОПРОБУЕМ ДРУГОЙ ОТЗЫВ\n\n🌹 Анкета №"+ticket.snapshot.id+"\n\n🌷 Этот отзыв не отправлен. Публикация не списана.\n\n💕 Напишите другой текст и отправьте его на повторную проверку.",buttons([[{text:"✍️ Ввести другой отзыв",callback_data:"owner_anketa:reviewretry:"+input.ticket}],[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]));
+  await env.VISITORS_KV.put(key,JSON.stringify({...ticket,status:"cancelled",cancelNoticeSent:true}));return {ok:true};
  }
  if(ticket.status==="started")return {ok:true,already:true};
  if(ticket.status!=="pending"||input.action!=="approve"||typeof input.text!=="string"||input.text.length<10||input.text.length>3000)return {ok:false,note:"Заявка уже закрыта или текст некорректен."};
@@ -1810,6 +1811,17 @@ async function handleOwnerAnketa(update,env,send) {
       "\n\n💬 НАПИШИТЕ ТЕКСТ ОТЗЫВА\n\n👇 Введите ваш отзыв в поле сообщения внизу экрана и отправьте его на проверку",
       buttons([[{text:"⬅️ Вернуться к клиенту",callback_data:"owner_anketa:account1:"+id}]]));
     return true;
+  }
+  const retryReview=/^owner_anketa:reviewretry:([a-f0-9]{16})$/.exec(data);
+  if(retryReview){
+    const ticket=await env.VISITORS_KV.get("cabinet_review_moderation:"+OWNER_ID+":"+retryReview[1],"json");
+    const id=String(ticket?.snapshot?.id||"");
+    if(ticket?.status!=="cancelled"||!ID_PATTERN.test(id)||!await savedGet(env,id)){await showLibrary(env,send);return true;}
+    if(await ensureNoRepeat(env,id,"review",send))return true;
+    if(!await requireCredit(env,send))return true;
+    await chooseAccount(env,id);
+    await statePut(env,{step:"review_input",id,account:ACTIVE_ACCOUNT});
+    await navigationSay(env,send,"🌹 DAME CAMELIAS\n\n✍️ НОВЫЙ ТЕКСТ ОТЗЫВА\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+"\n\n💕 Напишите другой отзыв одним сообщением. Затем проверьте текст и подтвердите отправку на проверку.",buttons([[{text:"⬅️ К анкете",callback_data:"owner_anketa:saved:"+id}],[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}]]));return true;
   }
   const savedReview=/^owner_anketa:savedreview:(\d{1,9})$/.exec(data);
   if(savedReview){
