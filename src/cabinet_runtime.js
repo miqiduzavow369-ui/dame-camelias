@@ -271,6 +271,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   let action=String(update.callback_query?.data||"");
   if(uid!==OWNER_ID){
    if(action.startsWith("clients:"))return {handled:true};
+   const home=action==="owner_anketa:home"||action==="trial_cabinet:home";
+   let command=String(update.message?.text||"").trim().split(/\s+/)[0].split("@")[0];
+   const outside=action&&!/^(owner_anketa|trial_cabinet):/.test(action)||command.startsWith("/")&&command!=="/anketa";
+   // Leaving the cabinet must work independently of access, session and balance.
+   // Cancel only unsubmitted input; accepted operations and proofs remain intact.
+   if(home||outside){
+    await storage.delete("login_pending");
+    const draft=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
+    if(["number","review_input","review_preview","domain_recovery"].includes(draft?.step))await env.VISITORS_KV.delete("owner_anketa_state:"+uid);
+    if(outside)return {handled:false};
+    const handled=await engine.handleOwnerAnketa({...update,callback_query:{...update.callback_query,data:"owner_anketa:home"}},env,send);
+    return {handled,home:handled};
+   }
    if(rawEnv.CABINET_CLIENTS_ENABLED==="false"){
     const flow=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
     const selected=/^(owner_anketa|trial_cabinet):/.test(action)||update.message?.text==="/anketa"||/^https:\/\/[^ ]+\.intimcity\.rip\//.test(update.message?.text||"")||["number","review_input","review_preview"].includes(flow?.step);
@@ -303,6 +316,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      if(Number.isSafeInteger(loginMessage))await send(env,"deleteMessage",{chat_id:uid,message_id:loginMessage}).catch(()=>{});
      await storage.delete("login_navigation");
      update={message:{from:{id:uid},chat:{id:uid,type:"private"},text:"/anketa"}};
+     command="/anketa";
     }else{
      await storage.put("login_pending",{expires:Date.now()+600000});
      await loginSay("🔐 ЛИЧНЫЙ КАБИНЕТ\n\nВведите индивидуальный код доступа.");return {handled:true};
@@ -310,6 +324,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
    env.__cabinetAuthorized=uid;
    if(uid===TRIAL_ID)await migrateTrial(storage,env);
+   const flow=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
+   const cabinetInput=/^(owner_anketa|trial_cabinet):/.test(action)||command==="/anketa"||/^https?:\/\/[a-z0-9-]+\.intimcity\.rip\//i.test(update.message?.text||"")||["number","review_input","review_preview","domain_recovery"].includes(flow?.step);
+   if(!cabinetInput)return {handled:false};
    // Exhaustion affects client navigation only. Result/proof callbacks below
    // must still finish accepted work; reservations are not spent credits.
    let balance;
@@ -321,14 +338,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
    const emptyProfile=/^owner_anketa:balance_empty:(\d{1,9})$/.exec(action);
    if(balance.available===0&&balance.reserved===0){
-    const text=String(update.message?.text||"");
-    const flow=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
-    const navigating=!!update.callback_query||text.startsWith("/")||/^https:\/\//.test(text)||["number","review_input","review_preview"].includes(flow?.step);
-    if(navigating){
-     if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id});
-     await engine.showExhaustedCabinet(env,send,emptyProfile?.[1],balance);
-     return {handled:true};
-    }
+    if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id});
+    await engine.showExhaustedCabinet(env,send,emptyProfile?.[1],balance);
+    return {handled:true};
    }else if(emptyProfile){
     // A top-up takes effect on the next click, including an old zero-balance button.
     action="owner_anketa:saved:"+emptyProfile[1];

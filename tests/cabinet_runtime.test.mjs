@@ -364,8 +364,7 @@ test("last-credit proof completes, settles once and remains visible after exhaus
   assert.equal((await deliver()).status,409);assert.equal(photos.length,1);
   assert.equal(JSON.parse(s.store(a).map.get("private:owner_anketa_state:"+a).value).step,"number");
   assert.ok(s.store(a).map.has("private:cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+profile));
-  const before=s.sent.length;await s.run(a,"owner_anketa:home");
-  assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
+  const before=s.sent.length;assert.equal((await s.run(a,"owner_anketa:home")).home,true);
   assert.ok(!s.sent.slice(before).some(x=>x.method==="deleteMessage"&&x.payload.message_id===800));
  }finally{globalThis.fetch=original;}
 });
@@ -378,7 +377,7 @@ test("zero-credit client buttons return to own library and profile selection off
  await s.login(a);
  const latest=()=>s.sent.filter(x=>x.payload.text||x.payload.caption).at(-1).payload;
  const buttons=p=>p.reply_markup.inline_keyboard.flat();
- for(const action of ["owner_anketa:home","owner_anketa:saved:"+profile,"owner_anketa:savedreview:"+profile,"owner_anketa:proofthanks:"+profile]){
+ for(const action of ["owner_anketa:saved:"+profile,"owner_anketa:savedreview:"+profile,"owner_anketa:proofthanks:"+profile]){
   await s.run(a,action);
   const p=latest();assert.match(p.text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
   assert.ok(buttons(p).some(x=>x.callback_data==="owner_anketa:balance_empty:"+profile));
@@ -386,8 +385,10 @@ test("zero-credit client buttons return to own library and profile selection off
   assert.ok(!JSON.stringify(p).includes("222333"));
  }
  const update={callback_query:{id:"general",from:{id:a},message:{message_id:22,chat:{id:a,type:"private"}},data:"services"}};
- assert.equal((await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"update",update}},s.send)).handled,true);
- assert.match(latest().text,/ВАШ ЛИМИТ ИСЧЕРПАН/);
+ const before=s.sent.length;
+ assert.equal((await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"update",update}},s.send)).handled,false);
+ assert.equal(s.sent.length,before);
+ assert.equal((await s.run(a,"owner_anketa:home")).home,true);
  await s.run(a,"owner_anketa:balance_empty:"+profile);
  assert.match(latest().text,/ЛИМИТ ПУБЛИКАЦИЙ ИСЧЕРПАН/);
  assert.match(latest().text,/пополнения баланса/);
@@ -409,6 +410,23 @@ test("topup unlocks old zero-balance profile buttons without resetting history",
  assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Anna/);
  const balance=await credits(s.env,a,"status");assert.equal(balance.available,2);assert.equal(balance.spent,1);
  assert.equal(s.objects.get("publication-credits:"+a).storage.map.get("credits_v1").history.length,1);
+});
+
+test("home and public navigation bypass cabinet balance and session while cancelling only draft input",async()=>{
+ const s=setup();await s.create(a,"777777",0);await s.login(a);
+ const key="private:owner_anketa_state:"+a;
+ for(const action of ["services","order","quick_order","contacts","home","/start","/order"]){
+  s.store(a).map.set(key,{value:JSON.stringify({step:"review_input",id:profile}),expires:0});
+  const update=action.startsWith("/")?s.update(a,action):{callback_query:{id:"public",from:{id:a},message:{message_id:44,chat:{id:a,type:"private"}},data:action}};
+  assert.equal((await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"update",update}},s.send)).handled,false);
+  assert.equal(JSON.parse(s.store(a).map.get(key).value),null);
+  assert.equal((await s.run(a,"Ответ для оформления заказа")).handled,false);
+ }
+ await s.store(a).delete("client_session");s.env.CABINET_CLIENTS_ENABLED="false";
+ s.store(a).map.set(key,{value:JSON.stringify({step:"publishing",id:profile}),expires:0});
+ assert.equal((await s.run(a,"owner_anketa:home")).home,true);
+ assert.equal(JSON.parse(s.store(a).map.get(key).value).step,"publishing");
+ assert.equal((await credits(s.env,a,"status")).available,0);
 });
 
 test("reserved last credit is not exhaustion and zero balance denies stale rating forms",async()=>{
