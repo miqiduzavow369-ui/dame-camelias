@@ -570,12 +570,14 @@ async function scheduledVisitorReport(env, at) {
   }
   await telegram(env,"sendMessage",{chat_id:VISITOR_REPORT_CHAT_ID,text:current,parse_mode:"HTML",disable_web_page_preview:true});
 }
+import {BACKUP_PATH, handleLedgerBackup} from "./admin_ledger_backup.js";
 export default {
   async scheduled(controller,env,ctx) {
     ctx.waitUntil(scheduledVisitorReport(env,controller.scheduledTime).catch(err=>console.error("Scheduled visitor report failed",err)));
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === BACKUP_PATH) return handleLedgerBackup(request, env);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
     if (request.method === "GET" && url.pathname === "/order") {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/order/index.html");

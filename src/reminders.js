@@ -3,6 +3,7 @@ import {dailyLimit} from "./daily_publication_limit.js";
 import {cabinetEvent} from "./cabinet_runtime.js";
 import {validWebApp} from "./telegram_auth.js";
 import {registryRequest} from "./client_registry.js";
+import {INTERNAL_PATH, readLedgerBackup} from "./admin_ledger_backup.js";
 const DELAY = 2 * 60 * 60 * 1000;
 const REASONS = { price: "Стоимость", timing: "Сроки", help: "Нужна помощь" };
 const escape = value => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -31,6 +32,8 @@ export class OrderReminder {
     const result=this.cabinetTail.then(task);this.cabinetTail=result.catch(()=>{});return result;
   }
   async fetch(request) {
+    if (new URL(request.url).pathname === INTERNAL_PATH)
+      return this.ctx.blockConcurrencyWhile(() => readLedgerBackup(request, this.env, this.ctx.storage));
     const input = await request.json();
     if(input.type==="cabinet_event")return this.exclusive(async()=>Response.json(await cabinetEvent(this.ctx.storage,this.env,input,undefined,validWebApp)));
     return this.ctx.blockConcurrencyWhile(async () => {
