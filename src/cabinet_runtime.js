@@ -102,9 +102,9 @@ async function admin(update,env,storage,send){
  const pending=await storage.get("admin_pending");
  if((pending||await storage.get("admin_navigation"))&&(text.startsWith("/")||action&&!action.startsWith("clients:"))){await storage.delete("admin_pending");await clearAdminNavigation(storage,env,send);return false;}
  if(!action.startsWith("clients:")&&!pending)return false;
- const say=async(value,rows=[])=>{
+ const say=async(value,rows=[],withNavigation=true)=>{
   const previous=await storage.get("admin_navigation");
-  const sent=await send(env,"sendMessage",{chat_id:uid,text:value,reply_markup:{inline_keyboard:[...rows,[{text:"👥 Клиенты",callback_data:"clients:list"}],[{text:"⬅️ В кабинет",callback_data:"clients:cancel"}]]}});
+  const sent=await send(env,"sendMessage",{chat_id:uid,text:value,reply_markup:{inline_keyboard:[...rows,...(withNavigation?[[{text:"👥 Клиентки",callback_data:"clients:list"}],[{text:"⬅️ Администратор",callback_data:"clients:menu"}]]:[])]}});
   if(Number.isSafeInteger(sent?.message_id)){
    await storage.put("admin_navigation",sent.message_id);
    if(Number.isSafeInteger(previous)&&previous!==sent.message_id)await send(env,"deleteMessage",{chat_id:uid,message_id:previous}).catch(()=>{});
@@ -113,12 +113,19 @@ async function admin(update,env,storage,send){
  };
  if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id});
  if(action==="clients:cancel"||action.startsWith("owner_anketa:")){await storage.delete("admin_pending");await clearAdminNavigation(storage,env,send);return action==="clients:cancel"?"cabinet":false;}
+ if(action==="clients:menu"){
+  await storage.delete("admin_pending");
+  await say("АДМИНИСТРАТОР\n\nВыберите действие:",[
+    [{text:"Добавить ID клиентки",callback_data:"clients:add"}],
+    [{text:"Клиентки",callback_data:"clients:list"}]
+  ],false);return true;
+ }
  if(action==="clients:add"){
   await storage.put("admin_pending",{mode:"id",expires:Date.now()+600000});await say("➕ ДОБАВИТЬ КЛИЕНТА\n\nПришлите Telegram ID клиента.");return true;
  }
  if(action==="clients:list"){
   await storage.delete("admin_pending");const result=await registry(env,{action:"list",actorId:uid});
-  await say("👥 КЛИЕНТЫ\n\nВыберите клиента для управления.",result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+c.id,callback_data:"clients:view:"+c.id}]));return true;
+  await say("👥 КЛИЕНТКИ\n\nВыберите аккаунт для управления.",result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+c.id,callback_data:"clients:view:"+c.id}]));return true;
  }
  const view=/^clients:view:(\d{5,16})$/.exec(action);
  if(view){

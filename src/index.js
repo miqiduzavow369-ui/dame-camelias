@@ -106,8 +106,10 @@ async function sendPhotoFile(env, data, url) {
   return result.result;
 }
 function keyboard(key, env) {
-  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}]]};
-  if (key === "home") { const id=String(env.__ownerMenuChatId ?? ""); return {inline_keyboard: id==="5866034656" ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}]] : env.__clientMenu ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN}; }
+  const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
+  const adminRow=[{text:"АДМИНИСТРАТОР",callback_data:"clients:menu"}];
+  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
+  if (key === "home") return {inline_keyboard:owner ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],adminRow] : env.__clientMenu ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN};
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
     [{text:"📝 Оставить заявку",callback_data:"order"}],
