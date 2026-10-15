@@ -1,3 +1,4 @@
+import {moderationEvent,moderationIndex,moderationAlarm,moderationRPC} from "./review_moderation.js";
 import {credits} from "./publication_credits.js";
 import {dailyLimit} from "./daily_publication_limit.js";
 import {cabinetEvent} from "./cabinet_runtime.js";
@@ -35,6 +36,8 @@ export class OrderReminder {
     if (new URL(request.url).pathname === INTERNAL_PATH)
       return this.ctx.blockConcurrencyWhile(() => readLedgerBackup(request, this.env, this.ctx.storage));
     const input = await request.json();
+    if(input.type==="review_moderation")return this.exclusive(async()=>Response.json(await moderationEvent(this.ctx.storage,this.env,input)));
+    if(input.type==="review_moderation_index")return this.ctx.blockConcurrencyWhile(async()=>Response.json(await moderationIndex(this.ctx.storage,input)));
     if(input.type==="cabinet_event")return this.exclusive(async()=>Response.json(await cabinetEvent(this.ctx.storage,this.env,input,undefined,validWebApp)));
     return this.ctx.blockConcurrencyWhile(async () => {
       const storage = this.ctx.storage;
@@ -270,6 +273,11 @@ export class OrderReminder {
   async runAlarm() {
     return this.ctx.blockConcurrencyWhile(async () => {
       const storage = this.ctx.storage, state = await storage.get("state");
+      if(await moderationAlarm(storage,this.env))return;
+      const moderationOutbox=await storage.get("moderation_outbox")||{};
+      for(const [ticket,item] of Object.entries(moderationOutbox)){try{await moderationRPC(this.env,item.userId,ticket,{action:"published",proofDelivered:true,profileId:item.profileId});delete moderationOutbox[ticket];}catch{}}
+      await storage.put("moderation_outbox",moderationOutbox);
+      if(Object.keys(moderationOutbox).length)await storage.setAlarm(Date.now()+60000);
       const settlements=await storage.get("ledger_outbox");
       if(settlements){
         for(const [key,entry] of Object.entries(settlements)){

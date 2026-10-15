@@ -1,3 +1,4 @@
+import {moderationRPC} from "./review_moderation.js";
 import {sendWithLoadingEmoji} from "./loading_emoji.js";
 import {claimPublication,publicationState} from "./publication_claim.js";
 // Shared user cabinet with backward-compatible owner keys. Identity comes from a verified
@@ -981,7 +982,7 @@ async function handleAnketaLookupResult(request,env,send) {
     }
     const proofNonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     await statePut(env,{step:"review_recheck",id:originalId,account:ACTIVE_ACCOUNT,
-      nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
+      nonce:proofNonce,text:pending.text,claimNonce:pending.claimNonce,moderationTicket:pending.moderationTicket,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
       agreedAt:Date.now(),host:current.host,recoveryHost:current.host,
       verifiedViaId:id});
     let dispatched=false;
@@ -1049,6 +1050,10 @@ async function handleAnketaLookupResult(request,env,send) {
       try{await env.VISITORS_KV.delete(REVIEW_PENDING_KEY+id);}catch{}
       await statePut(env,{...current,host:current.recoveryHost||current.host,step:"review_result",text:null,completedAt:Date.now()});
       await clearProgress(env,send);
+      if(current.moderationTicket){
+       try{await moderationRPC(env,OWNER_ID,current.moderationTicket,{action:"published",proofDelivered:true,profileId:id});}
+       catch{if(env.__enqueueModerationNotice)await env.__enqueueModerationNotice(current.moderationTicket,id);}
+      }
       return Response.json({ok:true,reviewPublished:true});
     }
     // No positive proof is NOT success, including timeout after a POST.
@@ -1415,6 +1420,53 @@ async function inspect(env,send,urlText) {
   }
   await navigationSay(env,send,"⏳ Минутку, пожалуйста!\n\n💕 Проверяю вашу анкету №"+id+"…\n✨ Скоро всё будет готово!");
 }
+async function moderateReview(env,send,input){
+ const key="cabinet_review_moderation:"+OWNER_ID+":"+input.ticket;
+ const ticket=await env.VISITORS_KV.get(key,"json");if(!ticket)return {ok:false,note:"Заявка в кабинете не найдена."};
+ if(input.action==="cancel"){
+  if(ticket.status==="cancelled")return {ok:true,already:true};
+  if(ticket.status!=="pending")return {ok:false,note:"Отправка уже начиналась. Отмена недоступна."};
+  if(Number.isSafeInteger(ticket.waitingMessageId)){
+   await send(env,"deleteMessage",{chat_id:OWNER_ID,message_id:ticket.waitingMessageId}).catch(()=>{});
+   const progress=await env.VISITORS_KV.get(PROGRESS_KEY,"json");if(progress?.id===ticket.waitingMessageId)await env.VISITORS_KV.delete(PROGRESS_KEY);
+  }
+  await env.VISITORS_KV.put(key,JSON.stringify({...ticket,status:"cancelled"}));
+  await reviewDraftSave(env,ticket.snapshot);
+  const active=await stateGet(env);
+  if(active?.step==="review_moderation"&&active.moderationTicket===input.ticket)await statePut(env,{...ticket.snapshot,step:"review_input",editing:true});
+  await say(env,send,"🌹 DAME CAMELIAS\n\n🌷 Отзыв не отправлен. Текст сохранён в черновике, публикации не списывались.",buttons([[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]));return {ok:true};
+ }
+ if(ticket.status==="started")return {ok:true,already:true};
+ if(ticket.status!=="pending"||input.action!=="approve"||typeof input.text!=="string"||input.text.length<10||input.text.length>3000)return {ok:false,note:"Заявка уже закрыта или текст некорректен."};
+ const current={...ticket.snapshot,text:input.text,agreedAt:Date.now()};
+ const saved=await savedGet(env,current.id);
+ if(current.account!==ACTIVE_ACCOUNT||!saved||!HOST_PATTERN.test(saved.host||""))return {ok:false,note:"Проверьте сохранённую анкету и её адрес."};
+ if(await publicationStatus(env,current.id,"review"))return {ok:false,note:"Публикация этой анкеты уже выполнена или требует проверки."};
+ const balance=await credits(env,OWNER_ID,"status");if(balance.available<=0)return {ok:false,note:"У клиентки нет свободных публикаций."};
+ const dailyDate=moscowDay();
+ const daily=await dailyLimit(env,OWNER_ID,current.id,"reserve","review",current.nonce,dailyDate);
+ if(!daily.ok)return {ok:false,note:"Дневной лимит анкеты исчерпан или действие уже зарезервировано."};
+ let reserved;
+ try{reserved=await credits(env,OWNER_ID,"reserve","review",current.id,current.nonce);}catch{await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);return {ok:false,note:"Не удалось проверить резерв публикации."};}
+ if(!reserved.ok){await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);return {ok:false,note:"Не удалось зарезервировать публикацию."};}
+ let claimed;
+ try{claimed=await reviewGuard(env,current.id,"review_claim",current.nonce);}catch{}
+ if(!claimed?.claimed){await releaseUnsubmitted(env,current.id,"review",current.nonce,dailyDate);return {ok:false,note:"Отзыв уже защищён от повторной отправки."};}
+ if(!await recordPublication(env,current.id,"review","publishing","moderator-approved-review",{userId:OWNER_ID,creditNonce:current.nonce,dailyDate})){
+  await releaseUnsubmitted(env,current.id,"review",current.nonce,dailyDate);return {ok:false,note:"Защита от повторов остановила отправку."};
+ }
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+ const next={...current,host:saved.host,step:"review_dispatch",nonce,claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,payloadIssued:false,confirmedAt:Date.now(),moderationTicket:input.ticket};
+ await env.VISITORS_KV.put(REVIEW_PENDING_KEY+current.id,JSON.stringify({id:current.id,account:ACTIVE_ACCOUNT,text:current.text,claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,host:saved.host,agreedAt:current.agreedAt,savedAt:new Date().toISOString(),moderationTicket:input.ticket}));
+ await env.VISITORS_KV.put(key,JSON.stringify({...ticket,status:"started",text:input.text,operationNonce:nonce}));
+ const active=await stateGet(env);
+ if(active?.moderationTicket!==input.ticket)env={...env,__operationKey:"cabinet_operation:"+OWNER_ID+":"+nonce};
+ await statePut(env,next);
+ let dispatched;
+ try{dispatched=await dispatchLookup(env,current.id,nonce,"review_publish",saved.host);}catch{}
+ if(dispatched?.definitiveFailure)await releaseUnsubmitted(env,current.id,"review",current.nonce,dailyDate);
+ return {ok:true,...(!dispatched?.ok?{note:"Запуск отправки не подтверждён. Повторной автоматической отправки не будет."}:{})};
+}
 async function handleOwnerAnketa(update,env,send) {
   const cb=update.callback_query;
   const msg=update.message;
@@ -1586,7 +1638,7 @@ async function handleOwnerAnketa(update,env,send) {
     }
     const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
     await statePut(env,{step:"review_recheck",id,account:ACTIVE_ACCOUNT,
-      nonce,text:pending.text,claimNonce:pending.claimNonce,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
+      nonce,text:pending.text,claimNonce:pending.claimNonce,moderationTicket:pending.moderationTicket,creditNonce:pending.creditNonce||pending.claimNonce,dailyDate:pending.dailyDate||(pending.savedAt?moscowDay(new Date(pending.savedAt)):undefined),
       agreedAt:Date.now(),host:pending.host});
     await progressSay(env,send,"⏳ ПРОВЕРЯЕМ ОТЗЫВ\n\n🌹 Анкета №"+id+
       "\n📸 Ищем опубликованный отзыв и подтверждение.");
@@ -1598,6 +1650,7 @@ async function handleOwnerAnketa(update,env,send) {
   const reviewFinal=/^owner_anketa:reviewfinal:([a-f0-9]{16})$/.exec(data);
   if(reviewFinal){
     const current=await stateGet(env);
+    if(current?.step==="review_moderation"&&current.moderationTicket===reviewFinal[1])return true;
     if(current?.step!=="review_agreed" || current.nonce!==reviewFinal[1] ||
        current.account!==ACTIVE_ACCOUNT || !ID_PATTERN.test(String(current.id)) ||
        !(current.agreedAt>0) || Date.now()-current.agreedAt>15*60*1000 ||
@@ -1605,59 +1658,24 @@ async function handleOwnerAnketa(update,env,send) {
        !await selectedAccount(env,current.id) || !await savedGet(env,current.id)){
       await navigationSay(env,send,"🌷 Подтверждение устарело. Откройте анкету и проверьте отзыв заново.");return true;
     }
+    const key="cabinet_review_moderation:"+OWNER_ID+":"+current.nonce;
+    const existing=await env.VISITORS_KV.get(key,"json");if(existing)return true;
     if(await ensureNoRepeat(env,current.id,"review",send))return true;
     if(!await requireCredit(env,send))return true;
-    const dailyDate=await reserveDailySlot(env,send,current.id,"review",current.nonce);
-    if(!dailyDate)return true;
-    let creditReservation;
-    try{creditReservation=await credits(env,OWNER_ID,"reserve","review",current.id,current.nonce);}
-    catch{
-      try{await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);}catch{}
-      await say(env,send,"⚠️ Не удалось зарезервировать публикацию. Повторите позже.");return true;
+    await env.VISITORS_KV.put(key,JSON.stringify({status:"pending",snapshot:current}));
+    let queued;
+    try{queued=await moderationRPC(env,OWNER_ID,current.nonce,{action:"enqueue",profileId:current.id,account:current.account,text:current.text,username:cb?.from?.username||msg?.from?.username});}catch{}
+    if(!queued?.ok){
+      await env.VISITORS_KV.put(key,JSON.stringify({status:"delivery_unknown",snapshot:current}));
+      await navigationSay(env,send,"🌷 Не удалось подтвердить передачу отзыва на проверку. Текст сохранён, публикация и списание не выполнялись. Обратитесь к менеджеру.",buttons([[{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}]]));return true;
     }
-    if(!creditReservation.ok){
-      try{await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);}catch{}
-      await say(env,send,"💎 Нет свободных публикаций или эта анкета уже зарезервирована. Проверьте личный кабинет.");
-      return true;
-    }
-    let claimed;
-    try{claimed=await reviewGuard(env,current.id,"review_claim",current.nonce);}
-    catch{await navigationSay(env,send,"🌷 Не удалось защитить отзыв от повторов. Ничего не отправлено.");return true;}
-    if(!claimed.claimed){
-      await credits(env,OWNER_ID,"release","review",current.id,current.nonce);
-      await dailyLimit(env,OWNER_ID,current.id,"release","review",current.nonce,dailyDate);
-      await navigationSay(env,send,"🔒 Публикация уже начиналась. Повторная отправка запрещена.");return true;
-    }
-    await recordPublication(env,current.id,"review","publishing","atomic-owner-review-claim",{userId:OWNER_ID,creditNonce:current.nonce,dailyDate});
-    // Keep approved text for future read-only verification across chat/TTL expiry.
-    const pendingProfile=await savedGet(env,current.id);
-    if(!pendingProfile?.host || !HOST_PATTERN.test(pendingProfile.host)){
-      await navigationSay(env,send,"🔒 Не удалось определить адрес анкеты. Повторная отправка заблокирована.");return true;
-    }
-    await env.VISITORS_KV.put(REVIEW_PENDING_KEY+current.id,JSON.stringify({
-      id:current.id,account:ACTIVE_ACCOUNT,text:current.text,
-      claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,host:pendingProfile.host,agreedAt:current.agreedAt,
-      savedAt:new Date().toISOString()
-    }));
-
-    const saved=await savedGet(env,current.id);
-    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    const next={...current,step:"review_dispatch",nonce,claimNonce:current.nonce,creditNonce:current.nonce,dailyDate,
-      payloadIssued:false,confirmedAt:Date.now()};
-    if(!saved || !await statePut(env,next)){
-      await navigationSay(env,send,"🔒 Попытка защищена от повторов. Отправка не началась.");return true;
-    }
-    await progressSay(env,send,"⏳ ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+
-      "\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
-    let launched=false;
-    let dispatchResult;
-    try{dispatchResult=await dispatchLookup(env,current.id,nonce,"review_publish",saved.host);launched=dispatchResult.ok;}catch{}
-    if(dispatchResult?.definitiveFailure)await releaseUnsubmitted(env,current.id,"review",current.nonce,dailyDate);
-    if(!launched)
-      await progressSay(env,send,"🌷 Не удалось подтвердить запуск публикации.\n\n🔒 Анкета №"+
-        current.id+" защищена от повторной отправки.");
+    await statePut(env,{...current,step:"review_moderation",moderationTicket:current.nonce});
+    await progressSay(env,send,"⏳ ПУБЛИКУЕМ ОТЗЫВ\n\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+current.id+"\n\n💕 Проверяем результат. Скоро пришлём подтверждение.");
+    const waiting=await env.VISITORS_KV.get(PROGRESS_KEY,"json");
+    await env.VISITORS_KV.put(key,JSON.stringify({status:"pending",snapshot:current,waitingMessageId:waiting?.id}));
     return true;
   }
+
   const reviewDraft=/^owner_anketa:reviewdraft:([a-f0-9]{16})$/.exec(data);
   if(reviewDraft){
     const draft=await stateGet(env);
@@ -2236,7 +2254,7 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
-return {ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);

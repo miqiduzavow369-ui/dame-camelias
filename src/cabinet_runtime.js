@@ -280,6 +280,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  }
  const client=uid===OWNER_ID?null:(await registry(env,{action:"get",userId:uid})).client;
  const engine=createCabinet(uid);
+ env.__enqueueModerationNotice=async(ticket,profileId)=>{const outbox=await storage.get("moderation_outbox")||{};outbox[ticket]={ticket,profileId,userId:uid};await storage.put("moderation_outbox",outbox);await storage.setAlarm(Date.now()+60000);};
+ if(event.kind==="review_moderation"){
+  if(event.actorId!==OWNER_ID)return {ok:false,status:403};
+  if(event.action==="approve"&&(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false"||uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false")))return {ok:false,note:"Доступ или публикации отключены."};
+  env.__cabinetAuthorized=uid;return engine.moderateReview(env,send,event);
+ }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
   let action=String(update.callback_query?.data||"");
