@@ -107,7 +107,7 @@ async function sendPhotoFile(env, data, url) {
 }
 function keyboard(key, env) {
   const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
-  const adminRow=[{text:"АДМИНИСТРАТОР",callback_data:"clients:menu"}];
+  const adminRow=[{text:"👑 АДМИНИСТРАТОР",callback_data:"clients:menu"}];
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
   if (key === "home") return {inline_keyboard:owner ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],adminRow] : env.__clientMenu ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN};
   if (key === "how") return {inline_keyboard:[

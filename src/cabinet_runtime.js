@@ -102,9 +102,10 @@ async function admin(update,env,storage,send){
  const pending=await storage.get("admin_pending");
  if((pending||await storage.get("admin_navigation"))&&(text.startsWith("/")||action&&!action.startsWith("clients:"))){await storage.delete("admin_pending");await clearAdminNavigation(storage,env,send);return false;}
  if(!action.startsWith("clients:")&&!pending)return false;
- const say=async(value,rows=[],withNavigation=true)=>{
+ const say=async(value,rows=[],backAction="clients:menu")=>{
   const previous=await storage.get("admin_navigation");
-  const sent=await send(env,"sendMessage",{chat_id:uid,text:value,reply_markup:{inline_keyboard:[...rows,...(withNavigation?[[{text:"👥 Клиентки",callback_data:"clients:list"}],[{text:"⬅️ Администратор",callback_data:"clients:menu"}]]:[])]}});
+  const backLabel=backAction==="clients:list"?"⬅️ К клиенткам":String(backAction).startsWith("clients:view:")?"⬅️ К карточке клиентки":"⬅️ Администратор";
+  const sent=await send(env,"sendMessage",{chat_id:uid,text:"🌹 <b>DAME CAMELIAS</b>\n\n"+value,parse_mode:"HTML",reply_markup:{inline_keyboard:[...rows,...(backAction?[[{text:backLabel,callback_data:backAction}]]:[]),[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}});
   if(Number.isSafeInteger(sent?.message_id)){
    await storage.put("admin_navigation",sent.message_id);
    if(Number.isSafeInteger(previous)&&previous!==sent.message_id)await send(env,"deleteMessage",{chat_id:uid,message_id:previous}).catch(()=>{});
@@ -115,67 +116,69 @@ async function admin(update,env,storage,send){
  if(action==="clients:cancel"||action.startsWith("owner_anketa:")){await storage.delete("admin_pending");await clearAdminNavigation(storage,env,send);return action==="clients:cancel"?"cabinet":false;}
  if(action==="clients:menu"){
   await storage.delete("admin_pending");
-  await say("АДМИНИСТРАТОР\n\nВыберите действие:",[
-    [{text:"Добавить ID клиентки",callback_data:"clients:add"}],
-    [{text:"Клиентки",callback_data:"clients:list"}]
+  await say("👑 <b>АДМИНИСТРАТОР</b>\n\n💕 Добавьте клиентку или откройте управление её доступом и балансом.",[
+    [{text:"➕ Добавить ID клиентки",callback_data:"clients:add"}],
+    [{text:"👥 Клиентки",callback_data:"clients:list"}]
   ],false);return true;
  }
  if(action==="clients:add"){
-  await storage.put("admin_pending",{mode:"id",expires:Date.now()+600000});await say("➕ ДОБАВИТЬ КЛИЕНТА\n\nПришлите Telegram ID клиента.");return true;
+  await storage.put("admin_pending",{mode:"id",expires:Date.now()+600000});await say("➕ <b>НОВАЯ КЛИЕНТКА</b>\n\n🆔 Пришлите Telegram ID клиентки одним сообщением.\n\n💕 Затем назначим код доступа и начальный баланс.");return true;
  }
  if(action==="clients:list"){
   await storage.delete("admin_pending");const result=await registry(env,{action:"list",actorId:uid});
-  await say("👥 КЛИЕНТКИ\n\nВыберите аккаунт для управления.",result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+c.id,callback_data:"clients:view:"+c.id}]));return true;
+  await say("👥 <b>КЛИЕНТКИ</b>\n\n"+(result.clients.length?"💕 Выберите аккаунт, чтобы управлять доступом и балансом.":"🌷 Пока ни одной клиентки не добавлено. Вернитесь в административное меню, чтобы добавить первую."),result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+"ID "+c.id,callback_data:"clients:view:"+c.id}]));return true;
  }
  const view=/^clients:view:(\d{5,16})$/.exec(action);
  if(view){
   await storage.delete("admin_pending");const {client:c}=await registry(env,{action:"get",userId:view[1]});
-  if(!c){await say("Клиент не найден.");return true;}
+  if(!c){await say("🌷 <b>АККАУНТ НЕ НАЙДЕН</b>\n\nОткройте список клиенток и выберите нужный аккаунт.",[],"clients:list");return true;}
   const b=await credits(env,c.id,"status");
-  await say("👤 "+c.id+"\n"+(c.active?"🟢 Доступ открыт":"🔒 Доступ приостановлен")+"\n💎 Доступно: "+b.available+" · использовано: "+b.spent+" · в резерве: "+b.reserved,[
-    [{text:c.active?"⏸ Приостановить":"▶️ Восстановить",callback_data:"clients:"+(c.active?"suspend:":"resume:")+c.id}],
-    [{text:"💎 Добавить публикации",callback_data:"clients:topup:"+c.id}],
+  await say("👤 <b>КАРТОЧКА КЛИЕНТКИ</b>\n\n🆔 Telegram ID: "+c.id+"\n"+(c.active?"🟢 Доступ открыт":"🔒 Доступ приостановлен")+"\n\n💎 Доступно публикаций: <b>"+b.available+"</b>\n✅ Использовано: "+b.spent+"\n⏳ В резерве: "+b.reserved+"\n\n💕 Выберите действие:",[
+    [{text:c.active?"⏸ Приостановить доступ":"▶️ Восстановить доступ",callback_data:"clients:"+(c.active?"suspend:":"resume:")+c.id}],
+    [{text:"💎 Пополнить баланс",callback_data:"clients:topup:"+c.id}],
     [{text:"⚖️ Изменить остаток",callback_data:"clients:balance:"+c.id}],
-    [{text:"🔑 Изменить PIN",callback_data:"clients:pin:"+c.id}]
-  ]);return true;
+    [{text:"🔑 Изменить код доступа",callback_data:"clients:pin:"+c.id}]
+  ],"clients:list");return true;
  }
  const select=/^clients:(suspend|resume|topup|pin|balance):(\d{5,16})$/.exec(action);
  if(select){
   const mode=select[1];
   await storage.put("admin_pending",{mode,userId:select[2],operation:nonce(),expires:Date.now()+600000});
-  await say(mode==="balance"?"Какой доступный остаток установить? Использованные публикации сохранятся.":mode==="topup"?"Сколько публикаций добавить?":mode==="pin"?"Введите новый PIN: от 6 до 12 цифр.":"Подтвердите изменение доступа.",mode==="suspend"||mode==="resume"?[[{text:"✅ Подтвердить",callback_data:"clients:confirm:"+(await storage.get("admin_pending")).operation}]]:[]);return true;
+  const prompts={balance:"⚖️ <b>ИЗМЕНИТЬ ОСТАТОК</b>\n\n💎 Какой доступный остаток установить?\n💕 История использованных публикаций сохранится.",topup:"💎 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>\n\n💕 Сколько публикаций добавить клиентке? Пришлите целое число.",pin:"🔑 <b>НОВЫЙ КОД ДОСТУПА</b>\n\n💕 Назначьте код из 6–12 цифр. После смены потребуется повторный вход.",suspend:"⏸ <b>ПРИОСТАНОВИТЬ ДОСТУП</b>\n\n🌷 Кабинет будет закрыт до восстановления доступа. Анкеты, баланс и история сохранятся.",resume:"▶️ <b>ВОССТАНОВИТЬ ДОСТУП</b>\n\n💕 Клиентка снова сможет войти со своим кодом доступа."};
+  await say(prompts[mode],mode==="suspend"||mode==="resume"?[[{text:"✅ Подтвердить",callback_data:"clients:confirm:"+(await storage.get("admin_pending")).operation}]]:[],"clients:view:"+select[2]);return true;
  }
- if(!pending||pending.expires<Date.now()){await storage.delete("admin_pending");await say("Действие устарело. Откройте раздел заново.");return true;}
+ if(!pending||pending.expires<Date.now()){await storage.delete("admin_pending");await say("⏳ <b>ВРЕМЯ ДЕЙСТВИЯ ИСТЕКЛО</b>\n\n🌷 Вернитесь в административное меню и начните заново.");return true;}
  if(action.startsWith("clients:confirm:")){
   if(action!=="clients:confirm:"+pending.operation)return true;
   if(!["create","suspend","resume","pin","topup","balance"].includes(pending.mode)||!pending.ready&&!["suspend","resume"].includes(pending.mode))return true;
   const result=pending.mode==="balance"?await adjustCredits(env,pending.userId,pending.target,pending.expected,pending.operation,uid):await registry(env,{action:pending.mode,actorId:uid,...pending});
-  await storage.delete("admin_pending");await say(result.ok?"✅ Изменения сохранены.":"Не удалось выполнить действие: "+result.reason);return true;
+  const errors={exists:"Этот аккаунт уже добавлен. Откройте его в списке клиенток.",missing:"Аккаунт не найден. Проверьте список клиенток.",balance_changed:"Баланс уже изменился. Откройте карточку клиентки и повторите действие."};
+  await storage.delete("admin_pending");await say(result.ok?"✅ <b>ИЗМЕНЕНИЯ СОХРАНЕНЫ</b>\n\n💕 Данные клиентки обновлены.":"🌷 <b>НЕ УДАЛОСЬ СОХРАНИТЬ</b>\n\n"+(errors[result.reason]||"Попробуйте начать действие заново."),[],result.ok?"clients:view:"+pending.userId:"clients:menu");return true;
  }
  if(!update.message?.text)return true;
  if(update.message.message_id)await send(env,"deleteMessage",{chat_id:uid,message_id:update.message.message_id}).catch(()=>{});
  if(pending.mode==="id"){
-  if(!validId(text)||text===OWNER_ID){await say("Нужен корректный Telegram ID клиента.");return true;}
-  await storage.put("admin_pending",{...pending,userId:text,mode:"create_pin"});await say("Назначьте PIN: от 6 до 12 цифр.");return true;
+  if(!validId(text)||text===OWNER_ID){await say("🆔 <b>ПРОВЕРЬТЕ TELEGRAM ID</b>\n\n🌷 Пришлите числовой ID клиентки. ID администратора здесь использовать нельзя.");return true;}
+  await storage.put("admin_pending",{...pending,userId:text,mode:"create_pin"});await say("🔑 <b>КОД ДОСТУПА</b>\n\n🆔 Клиентка: "+text+"\n\n💕 Назначьте индивидуальный код из 6–12 цифр.");return true;
  }
  if(pending.mode==="create_pin"||pending.mode==="pin"){
-  if(!/^\d{6,12}$/.test(text)){await say("PIN должен содержать от 6 до 12 цифр.");return true;}
+  if(!/^\d{6,12}$/.test(text)){await say("🔑 <b>ПРОВЕРЬТЕ КОД ДОСТУПА</b>\n\n🌷 Код должен содержать от 6 до 12 цифр. Пришлите его ещё раз.");return true;}
   if(pending.mode==="pin"){
    await storage.put("admin_pending",{...pending,credential:await pinRecord(text),ready:true});
-   await say("Изменить PIN клиента "+pending.userId+"?",[[{text:"✅ Сохранить",callback_data:"clients:confirm:"+pending.operation}]]);return true;
+   await say("🔑 <b>ПОДТВЕРЖДЕНИЕ НОВОГО КОДА</b>\n\n🆔 Клиентка: "+pending.userId+"\n\n💕 Сохранить новый код доступа?",[[{text:"✅ Сохранить код",callback_data:"clients:confirm:"+pending.operation}]],"clients:view:"+pending.userId);return true;
   }
-  await storage.put("admin_pending",{...pending,credential:await pinRecord(text),mode:"create_grant"});await say("Сколько публикаций назначить клиенту?");return true;
+  await storage.put("admin_pending",{...pending,credential:await pinRecord(text),mode:"create_grant"});await say("💎 <b>НАЧАЛЬНЫЙ БАЛАНС</b>\n\n💕 Сколько публикаций назначить клиентке?\n\nПришлите целое число. Можно указать 0 и пополнить баланс позже.");return true;
  }
  if(pending.mode==="balance"){
-  if(!/^\d{1,7}$/.test(text)||Number(text)>1000000){await say("Введите целое допустимое количество.");return true;}
+  if(!/^\d{1,7}$/.test(text)||Number(text)>1000000){await say("💎 <b>ПРОВЕРЬТЕ КОЛИЧЕСТВО</b>\n\n🌷 Пришлите целое число от 0 до 1 000 000.");return true;}
   const balance=await credits(env,pending.userId,"status");
   await storage.put("admin_pending",{...pending,target:Number(text),expected:balance.available,ready:true});
-  await say("Изменить доступный остаток клиента "+pending.userId+" с "+balance.available+" на "+text+"?",[[{text:"✅ Сохранить",callback_data:"clients:confirm:"+pending.operation}]]);return true;
+  await say("⚖️ <b>ПОДТВЕРЖДЕНИЕ ОСТАТКА</b>\n\n🆔 Клиентка: "+pending.userId+"\n💎 Сейчас доступно: "+balance.available+"\n✨ Новый остаток: <b>"+text+"</b>\n\n💕 Сохранить изменение?",[[{text:"✅ Сохранить остаток",callback_data:"clients:confirm:"+pending.operation}]],"clients:view:"+pending.userId);return true;
  }
  if(pending.mode==="create_grant"||pending.mode==="topup"){
-  if(!/^\d{1,7}$/.test(text)||Number(text)>1000000||pending.mode==="topup"&&Number(text)<1){await say("Введите целое допустимое количество.");return true;}
+  if(!/^\d{1,7}$/.test(text)||Number(text)>1000000||pending.mode==="topup"&&Number(text)<1){await say("💎 <b>ПРОВЕРЬТЕ КОЛИЧЕСТВО</b>\n\n🌷 Пришлите целое число "+(pending.mode==="topup"?"от 1":"от 0")+" до 1 000 000.");return true;}
   const next={...pending,mode:pending.mode==="topup"?"topup":"create",operation:pending.operation||nonce(),ready:true,...(pending.mode==="topup"?{amount:Number(text)}:{grant:Number(text)})};
-  await storage.put("admin_pending",next);await say("👤 Клиент "+pending.userId+"\n💎 Публикаций: "+text+"\n\nСохранить?",[[{text:"✅ Сохранить",callback_data:"clients:confirm:"+next.operation}]]);return true;
+  await storage.put("admin_pending",next);await say((next.mode==="create"?"➕ <b>НОВАЯ КЛИЕНТКА</b>":"💎 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>")+"\n\n🆔 Telegram ID: "+pending.userId+"\n💎 "+(next.mode==="create"?"Начальный баланс":"Добавить публикаций")+": <b>"+text+"</b>\n\n💕 Всё верно? Подтвердите сохранение.",[[{text:next.mode==="create"?"✅ Добавить клиентку":"✅ Пополнить баланс",callback_data:"clients:confirm:"+next.operation}]],next.mode==="create"?"clients:menu":"clients:view:"+pending.userId);return true;
  }
  return true;
 }
