@@ -1,3 +1,4 @@
+import {agreementStatus,agreementLabel} from "./agreement.js";
 import {LOADING_EMOJI_KEY,selectedLoadingEmoji} from "./loading_emoji.js";
 import {validWebApp} from "./telegram_auth.js";
 import {createCabinet} from "./owner_anketa.js";
@@ -211,7 +212,8 @@ async function admin(update,env,storage,send){
   const b=await credits(env,c.id,"status");
   let firstPhoto=null;
   try{firstPhoto=(await archive(c.id)).firstProfile?.cardUrl||null;}catch{}
-  await say("👤 <b>КАРТОЧКА КЛИЕНТКИ</b>\n\n🆔 Telegram ID: "+c.id+"\n"+(c.active?"🟢 Доступ открыт":"🔒 Доступ приостановлен")+"\n\n💎 Доступно публикаций: <b>"+b.available+"</b>\n✅ Использовано: "+b.spent+"\n⏳ В резерве: "+b.reserved+"\n\n💕 Выберите действие:",[
+  const agreement=agreementLabel(await agreementStatus(env,c.id));
+  await say("👤 <b>КАРТОЧКА КЛИЕНТКИ</b>\n\n🆔 Telegram ID: "+c.id+"\n"+(c.active?"🟢 Доступ открыт":"🔒 Доступ приостановлен")+"\n"+agreement+"\n\n💎 Доступно публикаций: <b>"+b.available+"</b>\n✅ Использовано: "+b.spent+"\n⏳ В резерве: "+b.reserved+"\n\n💕 Выберите действие:",[
     [{text:"📚 Публикации",callback_data:"clients:pubs:"+c.id}],
     [{text:c.active?"⏸ Приостановить доступ":"▶️ Восстановить доступ",callback_data:"clients:"+(c.active?"suspend:":"resume:")+c.id}],
     [{text:"💎 Пополнить баланс",callback_data:"clients:topup:"+c.id}],
@@ -238,7 +240,7 @@ async function admin(update,env,storage,send){
  if(update.message.message_id)await send(env,"deleteMessage",{chat_id:uid,message_id:update.message.message_id}).catch(()=>{});
  if(pending.mode==="id"){
   if(!validId(text)||text===OWNER_ID){await say("🆔 <b>ПРОВЕРЬТЕ TELEGRAM ID</b>\n\n🌷 Пришлите числовой ID клиентки. ID администратора здесь использовать нельзя.");return true;}
-  await storage.put("admin_pending",{...pending,userId:text,mode:"create_pin"});await say("🔑 <b>КОД ДОСТУПА</b>\n\n🆔 Клиентка: "+text+"\n\n💕 Назначьте индивидуальный код из 6–12 цифр.");return true;
+  await storage.put("admin_pending",{...pending,userId:text,mode:"create_pin"});await say("🔑 <b>КОД ДОСТУПА</b>\n\n🆔 Клиентка: "+text+"\n"+agreementLabel(await agreementStatus(env,text))+"\n\n💕 Назначьте индивидуальный код из 6–12 цифр.");return true;
  }
  if(pending.mode==="create_pin"||pending.mode==="pin"){
   if(!/^\d{6,12}$/.test(text)){await say("🔑 <b>ПРОВЕРЬТЕ КОД ДОСТУПА</b>\n\n🌷 Код должен содержать от 6 до 12 цифр. Пришлите его ещё раз.");return true;}
@@ -257,7 +259,7 @@ async function admin(update,env,storage,send){
  if(pending.mode==="create_grant"||pending.mode==="topup"){
   if(!/^\d{1,7}$/.test(text)||Number(text)>1000000||pending.mode==="topup"&&Number(text)<1){await say("💎 <b>ПРОВЕРЬТЕ КОЛИЧЕСТВО</b>\n\n🌷 Пришлите целое число "+(pending.mode==="topup"?"от 1":"от 0")+" до 1 000 000.");return true;}
   const next={...pending,mode:pending.mode==="topup"?"topup":"create",operation:pending.operation||nonce(),ready:true,...(pending.mode==="topup"?{amount:Number(text)}:{grant:Number(text)})};
-  await storage.put("admin_pending",next);await say((next.mode==="create"?"➕ <b>НОВАЯ КЛИЕНТКА</b>":"💎 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>")+"\n\n🆔 Telegram ID: "+pending.userId+"\n💎 "+(next.mode==="create"?"Начальный баланс":"Добавить публикаций")+": <b>"+text+"</b>\n\n💕 Всё верно? Подтвердите сохранение.",[[{text:next.mode==="create"?"✅ Добавить клиентку":"✅ Пополнить баланс",callback_data:"clients:confirm:"+next.operation}]],next.mode==="create"?"clients:menu":"clients:view:"+pending.userId);return true;
+  await storage.put("admin_pending",next);await say((next.mode==="create"?"➕ <b>НОВАЯ КЛИЕНТКА</b>":"💎 <b>ПОПОЛНЕНИЕ БАЛАНСА</b>")+"\n\n🆔 Telegram ID: "+pending.userId+"\n💎 "+(next.mode==="create"?"Начальный баланс":"Добавить публикаций")+": <b>"+text+"</b>"+(next.mode==="create"?"\n"+agreementLabel(await agreementStatus(env,pending.userId)):"")+"\n\n💕 Всё верно? Подтвердите сохранение.",[[{text:next.mode==="create"?"✅ Добавить клиентку":"✅ Пополнить баланс",callback_data:"clients:confirm:"+next.operation}]],next.mode==="create"?"clients:menu":"clients:view:"+pending.userId);return true;
  }
  return true;
 }

@@ -1,3 +1,4 @@
+import {agreementStatus} from "./agreement.js";
 import {moderationRPC} from "./review_moderation.js";
 import {sendWithLoadingEmoji} from "./loading_emoji.js";
 import {claimPublication,publicationState} from "./publication_claim.js";
@@ -361,9 +362,10 @@ async function switchVerifiedDomain(env,newHost){
   }
   return ids.length;
 }
-const libraryKeyboard=ids=>buttons([
+const libraryKeyboard=(ids,signed=false)=>buttons([
   ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:"owner_anketa:saved:"+id}]),
   [{text:"➕ Ввести новую анкету",callback_data:"owner_anketa:new"}],
+  ...(signed?[[{text:"📜 Подписанное соглашение",callback_data:"agreement:signed"}]]:[]),
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);
 // v1 publication records belong exclusively to yan_first. Never copy their
@@ -489,8 +491,10 @@ async function showLibrary(env,send,knownBalance){
     "\n\n💕 Выберите сохранённую анкету\n✨ Или добавьте новую по актуальной ссылке.":
     (!isOwner&&balance.reserved===0?"\n\n🌹 МОИ АНКЕТЫ":"")+
     "\n\n💎 ВАШ ЛИМИТ ИСЧЕРПАН\n\n🌷 Обратитесь к администратору, чтобы пополнить баланс.\n💕 Ваши анкеты и подтверждения сохранены.");
-  let keys=remaining>0?libraryKeyboard(ids):buttons([
+  const signed=(await agreementStatus(env,OWNER_ID)).status==="accepted";
+  let keys=remaining>0?libraryKeyboard(ids,signed):buttons([
     ...ids.map(id=>[{text:"🌹 АНКЕТА №"+id,callback_data:(!isOwner&&balance.reserved===0?"owner_anketa:balance_empty:":"owner_anketa:saved:")+id}]),
+    ...(signed?[[{text:"📜 Подписанное соглашение",callback_data:"agreement:signed"}]]:[]),
     [{text:"💬 Связаться с менеджером",url:"https://t.me/DameCamelias"}],
     [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
   ]);
