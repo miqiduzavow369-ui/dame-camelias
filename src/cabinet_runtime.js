@@ -117,7 +117,7 @@ async function admin(update,env,storage,send){
  };
  const say=async(value,rows=[],backAction="clients:menu",photo=null)=>{
   const previous=await storage.get("admin_navigation");
-  const backLabel=backAction==="clients:list"?"⬅️ К клиенткам":String(backAction).startsWith("clients:view:")?"⬅️ К карточке клиентки":String(backAction).startsWith("clients:pubday:")?"⬅️ К аккаунтам":String(backAction).startsWith("clients:pubs:")?"⬅️ К датам":"⬅️ Администратор";
+  const backLabel=backAction==="clients:list"?"⬅️ К клиенткам":String(backAction).startsWith("clients:view:")?"⬅️ К карточке клиентки":String(backAction).startsWith("clients:pubprofile:")?"⬅️ К аккаунтам":String(backAction).startsWith("clients:pubday:")?"⬅️ К анкетам":String(backAction).startsWith("clients:pubs:")?"⬅️ К датам":"⬅️ Администратор";
   const text="🌹 <b>DAME CAMELIAS</b>\n\n"+value;
   const common={chat_id:uid,parse_mode:"HTML",reply_markup:{inline_keyboard:[...rows,...(backAction?[[{text:backLabel,callback_data:backAction}]]:[]),[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]}};
   let sent;
@@ -146,9 +146,11 @@ async function admin(update,env,storage,send){
   await say("👥 <b>КЛИЕНТКИ</b>\n\n"+(result.clients.length?"💕 Выберите аккаунт, чтобы управлять доступом и балансом.":"🌷 Пока ни одной клиентки не добавлено. Вернитесь в административное меню, чтобы добавить первую."),result.clients.map(c=>[{text:(c.active?"🟢 ":"🔒 ")+"ID "+c.id,callback_data:"clients:view:"+c.id}]));return true;
  }
  const dates=/^clients:pubs:(\d{5,16})(?::(\d{1,5}))?$/.exec(action);
- const date=/^clients:pubday:(\d{5,16}):(\d{8})$/.exec(action);
- const account=/^clients:pubacct:(\d{5,16}):(\d{8}):([a-z][a-z0-9_]{0,11}):(\d{1,5})$/.exec(action);
- const history=dates||date||account;
+ const date=/^clients:pubday:(\d{5,16}):(\d{8})(?::(\d{1,5}))?$/.exec(action);
+ const profile=/^clients:pubprofile:(\d{5,16}):(\d{8}):(\d{1,9})$/.exec(action);
+ const account=/^clients:p:(\d{5,16}):(\d{8}):(\d{1,9}):([a-z][a-z0-9_]{0,11}):(\d{1,5})$/.exec(action);
+ const legacy=/^clients:pubacct:(\d{5,16}):(\d{8}):[a-z][a-z0-9_]{0,11}:\d{1,5}$/.exec(action);
+ const history=dates||date||profile||account||legacy;
  if(history){
   await storage.delete("admin_pending");
   const target=history[1],backToClient="clients:view:"+target;
@@ -167,13 +169,24 @@ async function admin(update,env,storage,send){
    await say("📚 <b>ПУБЛИКАЦИИ</b>\n\n🆔 Клиентка: "+target+"\n\n"+(days.length?"💕 Выберите дату публикации.":"🌷 Подтверждённых публикаций пока нет."),rows,backToClient);return true;
   }
   const day=history[2],items=saved.items.filter(x=>x.date===day),backToDates="clients:pubs:"+target;
-  if(date){
-   const accounts=[...new Set(items.map(x=>x.account))].sort();
-   await say("📅 <b>"+displayArchiveDate(day)+"</b>\n\n🆔 Клиентка: "+target+"\n\n"+(accounts.length?"💕 Выберите аккаунт, с которого выполнены публикации.":"🌷 За эту дату подтверждённых публикаций нет."),accounts.map(name=>[{text:"👨‍💻 "+accountLabel(name),callback_data:"clients:pubacct:"+target+":"+day+":"+name+":0"}]),backToDates);return true;
+  if(date||legacy){
+   const ids=[...new Set(items.map(x=>x.profileId))].sort((a,b)=>Number(a)-Number(b));
+   const page=Math.min(Number(date?.[3]||0),Math.max(0,Math.ceil(ids.length/12)-1));
+   const rows=ids.slice(page*12,page*12+12).map(id=>[{text:"🌹 Анкета №"+id,callback_data:"clients:pubprofile:"+target+":"+day+":"+id}]);
+   const pages=[];
+   if(page>0)pages.push({text:"⬅️ Предыдущие",callback_data:"clients:pubday:"+target+":"+day+":"+(page-1)});
+   if((page+1)*12<ids.length)pages.push({text:"Следующие ➡️",callback_data:"clients:pubday:"+target+":"+day+":"+(page+1)});
+   if(pages.length)rows.push(pages);
+   await say("📅 <b>"+displayArchiveDate(day)+"</b>\n\n🆔 Клиентка: "+target+"\n\n"+(ids.length?"💕 Выберите анкету, с которой выполнены публикации.":"🌷 За эту дату подтверждённых публикаций нет."),rows,backToDates);return true;
   }
-  const name=account[3],receipts=items.filter(x=>x.account===name&&x.fileId);
-  const page=Math.min(Number(account[4]),Math.max(0,Math.ceil(receipts.length/8)-1));
-  const batch=receipts.slice(page*8,page*8+8),backToAccounts="clients:pubday:"+target+":"+day;
+  const id=history[3],profileItems=items.filter(x=>x.profileId===id),backToProfiles="clients:pubday:"+target+":"+day;
+  if(profile){
+   const accounts=[...new Set(profileItems.map(x=>x.account))].sort();
+   await say("🌹 <b>АНКЕТА №"+id+"</b>\n\n📅 "+displayArchiveDate(day)+"\n🆔 Клиентка: "+target+"\n\n"+(accounts.length?"💕 Выберите аккаунт, с которого выполнены публикации.":"🌷 Для этой анкеты за выбранную дату публикаций нет."),accounts.map(name=>[{text:"👨‍💻 "+accountLabel(name),callback_data:"clients:p:"+target+":"+day+":"+id+":"+name+":0"}]),backToProfiles);return true;
+  }
+  const name=account[4],receipts=profileItems.filter(x=>x.account===name&&x.fileId);
+  const page=Math.min(Number(account[5]),Math.max(0,Math.ceil(receipts.length/8)-1));
+  const batch=receipts.slice(page*8,page*8+8),backToAccounts="clients:pubprofile:"+target+":"+day+":"+id;
   const media=batch.map(x=>({type:"photo",media:x.fileId,caption:(x.kind==="rating"?"⭐ <b>ПОДТВЕРЖДЕНИЕ ОЦЕНКИ</b>":"✍️ <b>ПОДТВЕРЖДЕНИЕ ОТЗЫВА</b>")+"\n\n👨‍💻 "+html(accountLabel(name))+"\n🌹 Анкета №"+x.profileId+"\n📅 "+displayArchiveDate(day),parse_mode:"HTML"}));
   let failed=false;
   if(media.length){
@@ -185,10 +198,10 @@ async function admin(update,env,storage,send){
    }catch{failed=true;}
   }
   const rows=[],pages=[];
-  if(page>0)pages.push({text:"⬅️ Предыдущие",callback_data:"clients:pubacct:"+target+":"+day+":"+name+":"+(page-1)});
-  if((page+1)*8<receipts.length)pages.push({text:"Следующие ➡️",callback_data:"clients:pubacct:"+target+":"+day+":"+name+":"+(page+1)});
+  if(page>0)pages.push({text:"⬅️ Предыдущие",callback_data:"clients:p:"+target+":"+day+":"+id+":"+name+":"+(page-1)});
+  if((page+1)*8<receipts.length)pages.push({text:"Следующие ➡️",callback_data:"clients:p:"+target+":"+day+":"+id+":"+name+":"+(page+1)});
   if(pages.length)rows.push(pages);
-  await say("📚 <b>ПОДТВЕРЖДЕНИЯ ПУБЛИКАЦИЙ</b>\n\n📅 "+displayArchiveDate(day)+"\n👨‍💻 "+html(accountLabel(name))+"\n🆔 Клиентка: "+target+"\n\n"+(failed?"🌷 Не удалось открыть сохранённые скриншоты. Попробуйте позже.":batch.length?"💕 Сохранённые подтверждения показаны выше.":"🌷 Сохранённых скриншотов для этого аккаунта и даты нет."),rows,backToAccounts);return true;
+  await say("📚 <b>ПОДТВЕРЖДЕНИЯ ПУБЛИКАЦИЙ</b>\n\n🌹 Анкета №"+id+"\n📅 "+displayArchiveDate(day)+"\n👨‍💻 "+html(accountLabel(name))+"\n🆔 Клиентка: "+target+"\n\n"+(failed?"🌷 Не удалось открыть сохранённые скриншоты. Попробуйте позже.":batch.length?"💕 Сохранённые подтверждения показаны выше.":"🌷 Сохранённых скриншотов для этого аккаунта и даты нет."),rows,backToAccounts);return true;
  }
  const view=/^clients:view:(\d{5,16})$/.exec(action);
  if(view){
