@@ -79,8 +79,9 @@ test("administrator menu has two actions, requires owner PIN and cancels stale i
  await s.run(owner,"clients:menu");
  const menu=s.sent.filter(x=>x.payload.text).at(-1).payload;
  assert.deepEqual(menu.reply_markup.inline_keyboard.flat(),[
-  {text:"Добавить ID клиентки",callback_data:"clients:add"},
-  {text:"Клиентки",callback_data:"clients:list"}
+  {text:"➕ Добавить ID клиентки",callback_data:"clients:add"},
+  {text:"👥 Клиентки",callback_data:"clients:list"},
+  {text:"🏠 В начало",callback_data:"owner_anketa:home"}
  ]);
  await s.run(owner,"clients:add");
  assert.equal((await s.store(owner).get("admin_pending")).mode,"id");
@@ -88,6 +89,10 @@ test("administrator menu has two actions, requires owner PIN and cancels stale i
  assert.equal(await s.store(owner).get("admin_pending"),undefined);
  await s.run(owner,"clients:list");
  assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/КЛИЕНТКИ/);
+ await s.run(owner,"clients:add");
+ assert.equal((await s.run(owner,"owner_anketa:home")).home,true);
+ assert.equal(await s.store(owner).get("admin_pending"),undefined);
+ assert.equal(await s.store(owner).get("admin_navigation"),undefined);
 });
 
 test("owner personal cabinet no longer exposes client administration buttons",async()=>{
@@ -119,7 +124,7 @@ test("welcome and home show ADMINISTRATOR only in the owner's private chat",asyn
    await worker.fetch(new Request("https://test/webhook",{method:"POST",headers:{"X-Telegram-Bot-Api-Secret-Token":"test-webhook"},body:JSON.stringify(update)}),s.env,{waitUntil:job=>jobs.push(job)});
    await Promise.all(jobs);
    const buttons=messages.slice(start).flatMap(x=>x.reply_markup?.inline_keyboard?.flat()||[]);
-   assert.equal(buttons.some(x=>x.text==="АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
+   assert.equal(buttons.some(x=>x.text==="👑 АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
   }
  }finally{globalThis.fetch=original;}
 });
@@ -355,7 +360,7 @@ test("zero-credit policy leaves owner administration accessible",async()=>{
  const s=setup();s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
  await adjustCredits(s.env,owner,0,10,"dddddddddddddddd",owner);
  await s.run(owner,"clients:add");
- assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Telegram ID клиента/);
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Telegram ID клиентки/);
 });
 
 test("completed publication card renders HTML on photo and text fallback with clear next action",async()=>{
