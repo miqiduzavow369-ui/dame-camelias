@@ -8,9 +8,9 @@ import {credits} from "../src/publication_credits.js";
 import {claimPublication} from "../src/publication_claim.js";
 globalThis.fetch=async()=>new Response("Mock external service unavailable",{status:503});
 const owner="5866034656",a="123456789",b="987654321",profile="771053";
-function memory(){const map=new Map();return {map,async get(k){return structuredClone(map.get(k));},async put(k,v){map.set(k,structuredClone(v));},async delete(k){map.delete(k);},async setAlarm(){},async deleteAlarm(){}};}
+function memory(){const map=new Map();return {map,async get(k){return structuredClone(map.get(k));},async list({prefix,limit=1000,startAfter}){return new Map([...map].filter(([key])=>key.startsWith(prefix)&&(!startAfter||key>startAfter)).sort(([a],[b])=>a.localeCompare(b)).slice(0,limit));},async put(k,v){map.set(k,structuredClone(v));},async delete(k){map.delete(k);},async setAlarm(){},async deleteAlarm(){}};}
 function setup(){
- const kv=new Map(),objects=new Map();const env={BOT_TOKEN:"test-token",ANKETA_CALLBACK_TOKEN:"callback",VISITORS_KV:{async get(k,format){const v=kv.get(k)??null;return format==="json"&&v!==null?JSON.parse(v):v;},async put(k,v){kv.set(k,v);},async delete(k){kv.delete(k);}}};
+ const kv=new Map(),objects=new Map();const env={BOT_TOKEN:"test-token",ANKETA_CALLBACK_TOKEN:"callback",VISITORS_KV:{async get(k,format){if(Array.isArray(k))return new Map(k.map(key=>[key,kv.get(key)??null]));const v=kv.get(k)??null;return format==="json"&&v!==null?JSON.parse(v):v;},async list({prefix,cursor,limit=1000}){const keys=[...kv.keys()].filter(k=>k.startsWith(prefix)).sort(),start=Number(cursor||0);return {keys:keys.slice(start,start+limit).map(name=>({name})),list_complete:start+limit>=keys.length,cursor:String(start+limit)};},async put(k,v){kv.set(k,v);},async delete(k){kv.delete(k);}}};
  env.ORDER_REMINDERS={idFromName:n=>n,get:n=>{
   if(!objects.has(n)){
    const storage=memory();let tail=Promise.resolve();
@@ -100,6 +100,74 @@ test("owner personal cabinet no longer exposes client administration buttons",as
  await s.run(owner,"owner_anketa:open");
  const markup=s.sent.filter(x=>x.payload.reply_markup).at(-1).payload.reply_markup;
  assert.ok(!markup.inline_keyboard.flat().some(x=>x.callback_data?.startsWith("clients:")));
+});
+
+test("owner archive groups only this client's dates and accounts, shows first profile card and retained receipts",async()=>{
+ const s=setup();await s.create(a,"777777",0);await s.create(b);
+ s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
+ const objectName="cabinet-events:v1:"+a;s.env.ORDER_REMINDERS.get(objectName);
+ const target=s.objects.get(objectName).storage;
+ const put=async(key,value)=>target.put("private:"+key,{value:JSON.stringify(value),expires:0});
+ const base="cabinet_v3:"+a+":";
+ for(const [id,kind,at,fileId] of [["111111","rating","2026-10-14T20:59:00Z","old_rating"],[profile,"rating","2026-10-14T21:01:00Z","new_rating"],[profile,"review","2026-10-14T21:02:00Z","new_review"]]){
+  await put(base+(kind==="rating"?"owner_anketa_proof_archive_v1:yan_first:":"owner_anketa_review_proof_archive_v1:yan_first:")+id,{account:"yan_first",profileId:id,fileId,savedAt:at});
+ }
+ await put("owner_anketa_saved:"+a+":111111",{host:"b.intimcity.rip",profile:{id:"111111"}});
+ s.kv.set("profile-thumbnails/b.intimcity.rip/111111.card.jpg",new Uint8Array([1,2]));
+ s.kv.set("cabinet_v3:"+b+":owner_anketa_proof_archive_v1:yan_first:333333",JSON.stringify({account:"yan_first",profileId:"333333",fileId:"other_client_file",savedAt:"2026-10-16T12:00:00Z"}));
+ const original=structuredClone([...target.map]);
+ await s.run(owner,"clients:view:"+a);
+ const card=s.sent.filter(x=>x.method==="sendPhoto").at(-1).payload;
+ assert.equal(card.chat_id,owner);assert.match(card.photo,/\/card\/111111\?/);assert.match(card.caption,/КАРТОЧКА КЛИЕНТКИ/);
+ assert.equal(card.reply_markup.inline_keyboard[0][0].callback_data,"clients:pubs:"+a);
+ await s.run(owner,"clients:pubs:"+a);
+ const dates=s.sent.filter(x=>x.payload.text).at(-1).payload.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(dates.filter(x=>x.callback_data.startsWith("clients:pubday:")).map(x=>x.text),["📅 15.10.2026","📅 14.10.2026"]);
+ await s.run(owner,"clients:pubday:"+a+":20261015");
+ const accounts=s.sent.filter(x=>x.payload.text).at(-1).payload.reply_markup.inline_keyboard.flat();
+ assert.deepEqual(accounts.filter(x=>x.callback_data.startsWith("clients:pubacct:")).map(x=>x.text),["👨‍💻 Ян Первый"]);
+ const send=async(e,m,p)=>{const result=await s.send(e,m,p);return m==="sendMediaGroup"?[{message_id:8001},{message_id:8002}]:result;};
+ const run=data=>cabinetEvent(s.store(owner),s.env,{userId:owner,event:{kind:"update",update:s.update(owner,data)}},send);
+ await run("clients:pubacct:"+a+":20261015:yan_first:0");
+ const gallery=s.sent.find(x=>x.method==="sendMediaGroup").payload;
+ assert.equal(gallery.chat_id,owner);assert.deepEqual(gallery.media.map(x=>x.media),["new_rating","new_review"]);
+ assert.ok(!JSON.stringify(gallery).includes("other_client_file"));
+ await run("clients:pubday:"+a+":20261015");
+ const deleted=s.sent.filter(x=>x.method==="deleteMessage").map(x=>x.payload.message_id);
+ assert.ok(deleted.includes(8001)&&deleted.includes(8002));
+ assert.deepEqual([...target.map],original);assert.equal((await credits(s.env,a,"status")).spent,0);
+});
+
+test("archive access requires owner identity and PIN; empty clients have no preview or date buttons",async()=>{
+ const s=setup();await s.create(a);await s.login(a);
+ const before=s.sent.length;await s.run(a,"clients:pubs:"+a);assert.equal(s.sent.length,before);
+ assert.equal((await cabinetEvent(s.store(a),s.env,{userId:a,event:{kind:"admin_archive",actorId:b}},s.send)).status,403);
+ await s.run(owner,"clients:pubs:"+a);
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/индивидуальный код/);
+ s.store(owner).map.set("private:owner_cabinet_session:"+owner,{value:JSON.stringify({authorized:true}),expires:0});
+ const start=s.sent.length;await s.run(owner,"clients:view:"+a);
+ assert.ok(!s.sent.slice(start).some(x=>x.method==="sendPhoto"));
+ await s.run(owner,"clients:pubs:"+a);
+ const p=s.sent.filter(x=>x.payload.text).at(-1).payload;
+ assert.match(p.text,/публикаций пока нет/);
+ assert.ok(!p.reply_markup.inline_keyboard.flat().some(x=>x.callback_data.startsWith("clients:pubday:")));
+});
+
+test("archive receipt pages are bounded and missing screenshot files stay empty",async()=>{
+ const s=setup();await s.create(a);s.kv.set("owner_cabinet_session:"+owner,JSON.stringify({authorized:true}));
+ for(let i=0;i<9;i++)s.kv.set("cabinet_v3:"+a+":owner_anketa_proof_archive_v1:yan_first:"+(111111+i),JSON.stringify({account:"yan_first",profileId:String(111111+i),fileId:"receipt_"+i,savedAt:"2026-10-15T12:00:00Z"}));
+ s.kv.set("cabinet_v3:"+a+":owner_anketa_publication_v1:review:999999",JSON.stringify({status:"published",account:"yan_second",at:"2026-10-16T12:00:00Z"}));
+ const send=async(e,m,p)=>{const result=await s.send(e,m,p);return m==="sendMediaGroup"?p.media.map((_,i)=>({message_id:9000+i})):result;};
+ const run=data=>cabinetEvent(s.store(owner),s.env,{userId:owner,event:{kind:"update",update:s.update(owner,data)}},send);
+ await run("clients:pubacct:"+a+":20261015:yan_first:0");
+ assert.equal(s.sent.find(x=>x.method==="sendMediaGroup").payload.media.length,8);
+ let last=s.sent.filter(x=>x.payload.text).at(-1).payload;
+ assert.ok(last.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="clients:pubacct:"+a+":20261015:yan_first:1"));
+ await run("clients:pubacct:"+a+":20261015:yan_first:1");
+ assert.equal(s.sent.filter(x=>x.method==="sendPhoto").at(-1).payload.photo,"receipt_8");
+ const before=s.sent.length;await run("clients:pubacct:"+a+":20261016:yan_second:0");
+ assert.ok(!s.sent.slice(before).some(x=>["sendPhoto","sendMediaGroup"].includes(x.method)));
+ assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/Сохранённых скриншотов.*нет/);
 });
 
 test("welcome and home show ADMINISTRATOR only in the owner's private chat",async()=>{
