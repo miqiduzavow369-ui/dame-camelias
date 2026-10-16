@@ -142,7 +142,7 @@ function addFound(result){
   addNonce=result.nonce;const p=result.profile;$("addFoundDetails").textContent=[p.name,p.age+" лет",p.metro?"м. "+p.metro:"","Анкета №"+p.id].filter(Boolean).join(" · ");
   const img=$("addFoundImage");img.hidden=!p.photoUrl;if(p.photoUrl)img.src=p.photoUrl;
   $("addProfileNotice").textContent="Проверьте фотографию и данные, затем подтвердите свою анкету.";
- }else if(result.stage==="loading")$("addProfileNotice").textContent="⏳ Проверяем вашу анкету. Это может занять некоторое время.";
+ }else if(result.stage==="loading")$("addProfileNotice").textContent="⏳ Проверка анкеты может занять пару минут. Пожалуйста, подождите 1–2 минуты, затем нажмите «🔄 Проверить результат поиска».";
  else if(result.stage==="saved"){$("addProfileNotice").textContent="✅ Анкета сохранена.";load().then(()=>showTab("profiles"));}
  else $("addProfileNotice").textContent="Проверка пока не завершена. Если поиск не удался, повторите ввод ссылки.";
 }
