@@ -276,10 +276,11 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      const entry=document.createElement("div");entry.className="rating-form-entry";
      const label=document.createElement("b");label.textContent=item.label;entry.append(label);
      const select=document.createElement("select");select.className="rating-select";select.setAttribute("aria-label",item.label);
-     const empty=document.createElement("option");empty.value="";empty.textContent="Не выбрано";select.append(empty);
+     const indie=/реальн\S*\s+инди/i.test(item.label);if(!indie){const empty=document.createElement("option");empty.value="";empty.textContent="Не выбрано";select.append(empty);}
      for(const option of item.options){const choice=document.createElement("option");choice.value=option;choice.textContent=option;select.append(choice);}
      const fixed=/^(?:isFair|Фото соответствует)$/i.test(item.label.trim());
      if(fixed){select.value="Фото соответствует";select.disabled=true;draft[i]="Фото соответствует";}
+     else if(indie&&item.options.length===1){select.value=item.options[0];draft[i]=item.options[0];select.disabled=true;}
      else if(Object.hasOwn(data.selected,i)&&item.options.includes(data.selected[i]))select.value=data.selected[i];
      select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];};
      entry.append(select);panel.append(entry);
