@@ -302,7 +302,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        const name=document.createElement("span");name.textContent=field.label;
        const chosen=document.createElement("strong");chosen.textContent=value;row.append(name,chosen);review.append(row);}
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";review.append(extra);}
-      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{panel.querySelector(".rating-select")?.focus();};
+      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();const field=panel.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       const notice=document.createElement("p");notice.className="muted";notice.textContent="Это проверка сохранённых значений. Подтверждение размещения и публикация здесь пока недоступны.";
       review.append(notice,back);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
