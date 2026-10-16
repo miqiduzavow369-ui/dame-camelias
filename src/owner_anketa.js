@@ -2296,7 +2296,7 @@ async function miniRatingFormLoad(env,profileId){
  if(state.account!==ACTIVE_ACCOUNT||!await selectedAccount(env,profileId))
   return {ok:false,reason:"account_not_selected"};
  if(!Array.isArray(state.catalog)||state.catalog.length>120)return {ok:false,reason:"unavailable"};
- const isIndieField=field=>/реальн\\S*\\s+инди/i.test(String(field?.label||""));
+ const isIndieField=field=>/реальн\S*\s+инди/i.test(String(field?.label||""));
  const catalog=organizeCatalog(state.catalog).map(field=>({
   label:String(field.label||"").slice(0,110),
   group:String(field.group||"Оценки анкеты").slice(0,90),
