@@ -320,7 +320,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(url.protocol==="https:"&&(url.hostname==="dame-camelias.gptjjjgpt.workers.dev"&&url.pathname==="/api/anketa/photo/"+id||
      url.hostname==="cdn2.intimtur.com"))photo=url.href;
    }catch{}
-   if(!photo&&/^[a-z0-9-]+\\.intimcity\\.rip$/.test(saved.host||""))
+   if(!photo&&/^[a-z0-9-]+\.intimcity\.rip$/.test(saved.host||""))
     photo="https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(saved.host);
    const statuses={};
    for(const kind of ["rating","review"]){
@@ -328,15 +328,34 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     statuses[kind]=value?.status==="published"?"published":
       value?.status==="publishing"||value?.status==="needs_verification"?"checking":"unknown";
    }
+   // Archive-backed completed actions must never be displayed as publishable.
+   for(const kind of ["rating","review"]){
+    if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind))
+     statuses[kind]="published";
+   }
    let daily=null;
    try{
     const status=await dailyLimit(env,uid,id,"status");
     if(Number.isSafeInteger(status?.remaining)&&status.remaining>=0)
      daily={remaining:status.remaining};
    }catch{}
+   // A display hint, not a publication permission. The original Telegram flow
+   // remains the sole authority for reserving and publishing.
+   const capabilities={};
+   for(const kind of ["rating","review"]){
+    const state=statuses[kind];
+    const reason=state==="published"?"published":
+      state==="checking"?"checking":
+      balance?.available===0?"credits":
+      !Number.isSafeInteger(balance?.available)?"unknown":
+      daily?.remaining===0?"daily_limit":
+      !Number.isSafeInteger(daily?.remaining)?"unknown":
+      rawEnv.CABINET_PUBLICATIONS_ENABLED==="false"?"disabled":"check_in_bot";
+    capabilities[kind]={state:reason,account:"yan_first"};
+   }
    profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),
     age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
-    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
+    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,capabilities,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
   const allowed=new Set(profiles.map(p=>p.id));
   const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({

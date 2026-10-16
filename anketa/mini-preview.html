@@ -46,7 +46,7 @@ p,.muted,.mini{color:#b6ab99}
 .thumb{border:1px solid #b99451;background:#17130d}
 .photo-large{width:70%;max-width:350px;height:auto;max-height:280px;object-fit:contain;object-position:center;border:2px solid #d9b571;border-radius:14px;background:#100e0a;padding:4px;margin:18px auto 20px;box-shadow:0 0 0 1px #73552a,0 8px 22px #000a}
 @media(min-width:480px){.photo-large{max-width:350px}}
-</style></head><body><div class="app">
+[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}</style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт мужчины, затем анкету. Ниже увидите доступные действия и причины ограничений.</p>
@@ -64,7 +64,7 @@ p,.muted,.mini{color:#b6ab99}
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
 <section id="tab-published" hidden><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Оригиналы подтверждений пока открываются в обычном Telegram-кабинете. Мы не показываем вымышленные скриншоты.</p></section>
 <section id="tab-cabinet" hidden><h1>Кабинет</h1><p>Управление доступом и балансом остаётся единым для Telegram и Mini App.</p><div class="hero"><div class="over">МОЙ БАЛАНС</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Сведения из существующей системы</div></div><button class="action" data-tab="profiles"><span>🌹 Мои анкеты</span><span class="next">›</span></button><button class="action" data-tab="published"><span>📸 История публикаций</span><span class="next">›</span></button><button class="ghost" id="refresh" type="button">🔄 Обновить данные</button><button class="ghost" id="close" type="button">✕ Вернуться в Telegram</button></section>
-<section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="Фото анкеты" hidden><h1 id="detailTitle"></h1><p id="detailMeta"></p>
+<section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="" hidden><div id="detailPhotoFallback" class="photo-fallback" hidden>🌹 Фото временно недоступно</div><h1 id="detailTitle"></h1><p id="detailMeta"></p>
 <div class="section-heading"><h2>👨‍💻 Аккаунт мужчины</h2></div>
 <div class="card"><div class="muted" style="margin-bottom:10px;font-size:12px">Выбран для просмотра</div><strong id="detailAccount">Ян Первый</strong>
 <div style="display:flex;gap:9px;margin-top:12px">
@@ -78,7 +78,7 @@ p,.muted,.mini{color:#b6ab99}
 <div class="section-heading"><h2>③ Действия с анкетой</h2></div>
 <button class="action" data-sub="rating"><span>⭐ Оставить оценки<small id="ratingStatus"></small></span><span class="next">›</span></button>
 <button class="action" data-sub="review"><span>✍️ Написать отзыв<small id="reviewStatus"></small></span><span class="next">›</span></button>
-<button class="action" data-sub="proof"><span>📸 Уже опубликовано<small>Архив подтверждений по анкете</small></span><span class="next">›</span></button>
+<div id="actionSummary" class="proof-note">Если оценка или отзыв уже опубликованы, переходите в историю для просмотра результата.</div>
 <button class="action" data-tab="published"><span>📸 Посмотреть результат и архив<small>Ранее выполненные действия</small></span><span class="next">›</span></button><div class="proof-note">Тестовый режим: управление публикациями остаётся в рабочем кабинете Telegram.</div></section>
 <section id="subview" hidden><div class="detailbar"><button id="subBack">← К анкете</button><span class="muted" id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
 </div><nav class="nav">
@@ -90,7 +90,7 @@ p,.muted,.mini{color:#b6ab99}
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const $=id=>document.getElementById(id);let profiles=[],history=[],selected=null,lastTab="profiles",selectedAccount="yan_first";
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
-const safePhoto=(img,url)=>{img.hidden=!url;if(url){img.src=url;img.onerror=()=>{img.hidden=true;};}};
+const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
 const accountName=account=>account==="yan_second"?"Ян Второй":"Ян Первый";
 function selectAccount(account){
  if(!["yan_first","yan_second"].includes(account))return;
@@ -135,12 +135,24 @@ function refreshManButtons(){
  $("manFirst").classList.toggle("active",selectedAccount==="yan_first");
  $("manSecond").classList.toggle("active",selectedAccount==="yan_second");
 }
-$("manFirst").onclick=()=>{selectAccount("yan_first");refreshManButtons();};
-$("manSecond").onclick=()=>{selectAccount("yan_second");refreshManButtons();};
+$("manFirst").onclick=()=>{selectAccount("yan_first");refreshManButtons();if(selected)openDetail(selected);};
+$("manSecond").onclick=()=>{selectAccount("yan_second");refreshManButtons();if(selected)openDetail(selected);};
 function openDetail(p){selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
- $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);scrollTo(0,0);}
+ $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
+ document.getElementById("actionSummary").replaceChildren();
+ const actions=[["rating","rating"],["review","review"]];
+ for(const [section,kind] of actions){
+  const button=document.querySelector('[data-sub="'+section+'"]');
+  const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
+  const messages={published:"✅ Уже опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить в Telegram"};
+  button.hidden=state!=="check_in_bot";
+  document.getElementById(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
+  const status=document.createElement("div");status.className="proof-note";status.textContent=(kind==="rating"?"⭐ Оценки: ":"✍️ Отзывы: ")+(messages[state]||messages.unknown);
+  document.getElementById("actionSummary").append(status);
+ }
+ scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
 document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{if(!selected)return;const kind=b.dataset.sub,p=$("subContent");p.replaceChildren();const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Опубликовано",accounts:"👥 Аккаунты мужчины"};$("subTitle").textContent=titles[kind];$("subId").textContent="Анкета №"+selected.id;let lines=[];
 if(kind==="rating"||kind==="review")lines=[["Статус",label(selected.statuses?.[kind])],["Подтверждено",String(selected.counts?.[kind]||0)],["Действие","Публикации пока только в Telegram"]];
