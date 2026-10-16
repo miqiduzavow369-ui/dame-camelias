@@ -333,6 +333,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind))
      statuses[kind]="published";
    }
+   // Read-only capability summary. Never treat missing evidence or guard failures as permission.
+   const capabilities={};
+   for(const kind of ["rating","review"]){
+    const status=statuses[kind];
+    let reason=status==="published"?"published":status==="checking"?"checking":null;
+    if(!reason&&uid!==OWNER_ID&&kind==="rating")reason=null;
+    if(!reason&&!balance?.available)reason=balance?.available===0?"credits":"unknown";
+    if(!reason&&uid!==OWNER_ID&&rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")reason="disabled";
+    capabilities[kind]={state:reason||"potential",account:"yan_first"};
+   }
    let daily=null;
    try{
     const status=await dailyLimit(env,uid,id,"status");
@@ -341,7 +351,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }catch{}
    profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),
     age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
-    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
+    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,capabilities,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
   const allowed=new Set(profiles.map(p=>p.id));
   const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({
