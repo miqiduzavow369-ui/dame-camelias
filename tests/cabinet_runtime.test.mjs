@@ -688,7 +688,7 @@ test("review payload and submission boundary are single use and cannot be borrow
  assert.equal((await stage("review_preflight_failed")).status,409);
 });
 
-test("review moderation edits in group, dispatches once only after owner approval and reports after client proof",async()=>{
+test("review moderation edits in group, dispatches automatically after correction and attaches verified proof",async()=>{
  const s=setup();await s.create(a);s.env.DC_ACTIONS_TOKEN="test-actions";
  s.env.ORDER_REMINDERS.get("cabinet-events:v1:"+a);const storage=s.objects.get("cabinet-events:v1:"+a).storage;
  await storage.put("client_session",{version:1});
@@ -715,7 +715,7 @@ test("review moderation edits in group, dispatches once only after owner approva
   await handleModeration(groupAction("edit"),s.env);
   const corrected="Исправленный администратором реальный текст отзыва.";
   await handleModeration({message:{message_id:999,from:{id:Number(MODERATOR_ID)},chat:{id:Number(MODERATION_CHAT),type:"supergroup"},reply_to_message:{message_id:record().editPromptId},text:corrected}},s.env);
-  assert.equal(record().text,corrected);assert.equal(dispatches.length,0);
+  assert.equal(record().text,corrected);assert.equal(dispatches.length,1);
   await handleModeration(groupAction("approve",1),s.env);assert.equal(dispatches.length,0);
   const approvedButton=groupAction("approve");await handleModeration(approvedButton,s.env);await handleModeration(approvedButton,s.env);
   assert.equal(dispatches.length,1);assert.equal(dispatches[0].mode,"review_publish");assert.equal((await credits(s.env,a,"status")).spent,0);assert.equal((await credits(s.env,a,"status")).reserved,1);
@@ -728,8 +728,8 @@ test("review moderation edits in group, dispatches once only after owner approva
   assert.equal((await credits(s.env,a,"status")).spent,1);assert.equal((await credits(s.env,a,"status")).reserved,0);
   const moderation=s.objects.get("review-moderation:v1:"+a+":"+ticket);await moderation.obj.alarm();await moderation.obj.alarm();
   const photo=sent.findIndex(x=>x.method==="sendPhoto"&&String(x.payload.chat_id)===a);
-  const notices=sent.map((x,i)=>({x,i})).filter(({x})=>x.method==="sendMessage"&&String(x.payload.chat_id)===MODERATION_CHAT&&x.payload.text?.includes("Подтверждение доставлено"));
-  assert.equal(notices.length,1);assert.ok(notices[0].i>photo);assert.ok(notices[0].x.payload.text.includes("https://t.me/c/3900552612/"+record().messageId));
+  const notices=sent.map((x,i)=>({x,i})).filter(({x})=>x.method==="sendPhoto"&&String(x.payload.chat_id)===MODERATION_CHAT&&x.payload.caption==="✅ ОПУБЛИКОВАНО");
+  assert.equal(notices.length,1);assert.ok(notices[0].i>photo);assert.equal(notices[0].x.payload.reply_parameters.message_id,record().messageId);
   assert.equal((await deliver()).status,409);assert.equal(dispatches.length,1);
  }finally{globalThis.fetch=original;}
 });
