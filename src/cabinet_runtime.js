@@ -313,6 +313,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     return {handled:selected};
    }
    if(!client?.active)return {handled:/^(owner_anketa|trial_cabinet):/.test(action)||update.message?.text==="/anketa"};
+   // Even an already provisioned client cannot enter until signing.
+   // Fail closed when agreement status is temporarily unavailable.
+   if((await agreementStatus(env,uid)).status!=="accepted"){
+    const requested=/^(owner_anketa|trial_cabinet):/.test(action)||update.message?.text==="/anketa";
+    if(requested){
+     if(update.callback_query)await send(env,"answerCallbackQuery",{callback_query_id:update.callback_query.id,text:"Сначала подпишите соглашение."}).catch(()=>{});
+     await send(env,"sendMessage",{chat_id:uid,text:"🌹 DAME CAMELIAS\n\n📜 Для открытия раздела «Мои анкеты» сначала подпишите соглашение.",reply_markup:{inline_keyboard:[[{text:"📜 Соглашение",callback_data:"agreement:start"}],[{text:"🏠 В начало",callback_data:"home"}]]}});
+    }
+    return {handled:requested};
+   }
    const loginSay=async text=>{
     const old=await storage.get("login_navigation");const sent=await send(env,"sendMessage",{chat_id:uid,text});
     if(Number.isSafeInteger(sent?.message_id)){
