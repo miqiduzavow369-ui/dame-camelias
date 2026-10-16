@@ -23,7 +23,7 @@ test("mini-preview endpoint remains Telegram-authorized and only returns sanitiz
  assert.match(code,/workflow:result\.workflow/);
 });
 test("no Mini App publication button is created from an unverified status",()=>{
- assert.match(html,/Публикация здесь не запускается/);
+ assert.match(html,/Публикация пока выполняется только через рабочий Telegram-кабинет/);
  assert.match(html,/legacyWorkflow/);
  assert.match(html,/prepublish_ready/);
 });
