@@ -15,12 +15,12 @@ h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size
 .actions{display:grid;gap:10px;margin:16px 0}.action{display:flex;align-items:center;justify-content:space-between;padding:16px 15px;border:1px solid #93698e;border-radius:15px;background:linear-gradient(105deg,#241036,#3b1536);color:#fff;text-align:left;font-size:15px;font-weight:650;min-height:58px;width:100%;cursor:pointer}.action span:last-child{color:#e7ba6d}.section-note{font-size:13px;color:#ddc8da;padding:12px;background:#24142f;border-radius:12px}.preview-tag{font-size:11px;letter-spacing:1px;text-align:center;color:#ecc889;margin:10px 0 2px}.view-title{font-size:20px;margin:10px 0}.muted{color:#c3a9bd}.mini-link{display:inline-block;color:#e7ba6d;text-decoration:underline;margin-top:8px}
 </style></head><body><main class="wrap">
 <div class="head"><div class="logo gold">DAME CAMELIAS</div><div class="subtitle">🌹 МОИ АНКЕТЫ · ТЕСТОВЫЙ ПРОСМОТР</div></div>
-<h1>Ваши анкеты</h1><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
+<h1>Ваши анкеты</h1><div class="state" id="balanceSummary"><b>💎 Баланс публикаций</b><span class="pill">⏳ Загружаем</span></div><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
 <div class="list" id="list"><p>⏳ Загружаем ваши анкеты…</p></div>
 <section class="panel" id="detail" hidden>
 <h2 id="detailTitle" class="gold"></h2><img id="detailImage" class="photo-large" alt="Фото выбранной анкеты" hidden>
 <p id="detailMeta"></p><div class="detail-label">👨‍💻 РАБОЧИЙ АККАУНТ</div><div class="state"><b>Ян Первый</b><span class="pill">Активный аккаунт</span></div>
-<div class="detail-label">ПУБЛИКАЦИИ</div><div class="state"><b>⭐ Оценки</b><span class="pill" id="ratingStatus"></span></div>
+<div class="detail-label">ИСТОРИЯ ПУБЛИКАЦИЙ</div><div class="state"><b>📊 Подтверждено в архиве</b><span class="pill" id="historyCount"></span></div><div class="state"><b>⭐ Оценок</b><span class="pill" id="ratingCount"></span></div><div class="state"><b>✍️ Отзывов</b><span class="pill" id="reviewCount"></span></div><div class="detail-label">ТЕКУЩИЕ СТАТУСЫ</div><div class="state"><b>⭐ Оценки</b><span class="pill" id="ratingStatus"></span></div>
 <div class="state"><b>✍️ Отзывы</b><span class="pill" id="reviewStatus"></span></div>
 <div class="preview-tag">✦ ПРОБНЫЙ ИНТЕРФЕЙС · БЕЗ ПУБЛИКАЦИИ ✦</div>
 <div class="actions">
@@ -58,11 +58,12 @@ function openSection(section){
  content.replaceChildren();
  if(section==="rating"||section==="review"){
   appendLine(content,"Текущий статус",stateLabel(profile.statuses?.[section]));
+  appendLine(content,"Подтверждено в архиве",String(profile.counts?.[section]||0));
   appendLine(content,"Рабочий аккаунт","Ян Первый");
   const note=document.createElement("p");note.className="section-note";note.textContent="Оформление и запуск публикации будут доступны после отдельного согласования. Сейчас это просмотр интерфейса.";
   content.append(note);
  }else if(section==="proof"){
-  const note=document.createElement("p");note.className="section-note";note.textContent="Здесь будут карточки подтверждений со скриншотами, датами и статусами. Пока архив не подключён: документы и изображения не подменяются демонстрационными.";
+  const note=document.createElement("p");note.className="section-note";note.textContent="В архиве подтверждено публикаций: "+(profile.counts?.total||0)+". Просмотр оригинальных скриншотов пока доступен только в действующем кабинете Telegram.";
   content.append(note);
  }else if(section==="accounts"){
   appendLine(content,"👨‍💻 Ян Первый","Демо");
@@ -87,6 +88,9 @@ function item(profile){
  mid.append(title,sub);const arr=document.createElement("span");arr.className="arr";arr.textContent="›";button.append(picture,mid,arr);
  button.onclick=()=>{
  selectedProfile=profile;subview.hidden=true;
+ document.getElementById("historyCount").textContent=String(profile.counts?.total||0);
+ document.getElementById("ratingCount").textContent=String(profile.counts?.rating||0);
+ document.getElementById("reviewCount").textContent=String(profile.counts?.review||0);
  document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;
  document.getElementById("detailMeta").textContent=[profile.name,profile.age?profile.age+" лет":"",profile.metro?"📍 м. "+profile.metro:""].filter(Boolean).join(" · ")||"Сохранённая анкета";
  const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;
@@ -103,6 +107,8 @@ function item(profile){
   const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});
   if(!response.ok)throw Error("Доступ не подтверждён. Войдите в обычный кабинет и повторите попытку.");
   const data=await response.json();list.replaceChildren();
+  const balance=document.getElementById("balanceSummary").querySelector(".pill");
+  const b=data.balance;balance.textContent=b&&Number.isSafeInteger(b.available)?"Доступно: "+b.available+(b.reserved?" · в резерве "+b.reserved:""):"Временная недоступность";
   if(!data.profiles?.length){const empty=document.createElement("p");empty.textContent="Пока нет сохранённых анкет.";list.append(empty);}
   else data.profiles.forEach(profile=>list.append(item(profile)));
  }catch(e){list.replaceChildren();const error=document.createElement("p");error.textContent="🌷 "+e.message;list.append(error);}
