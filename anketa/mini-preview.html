@@ -89,9 +89,7 @@ p,.muted,.mini{color:#b6ab99}
 <div class="section-heading"><h2>Действия для анкеты</h2></div>
 <div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Проверить возможность в Telegram ›</button></div>
 <div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Проверить возможность в Telegram ›</button></div>
-<div id="actionSummary" class="proof-note"></div>
-<button class="action" data-tab="published">📸 Посмотреть результаты и подтверждения ›</button>
-<div class="proof-note">Тестовый просмотр: публикации и оригиналы подтверждений находятся в рабочем Telegram-кабинете.</div>
+
 <div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
 </section>
 <section id="subview" hidden><div class="detailbar"><button id="subBack">← К анкете</button><span class="muted" id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
@@ -166,19 +164,18 @@ function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelecto
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
- document.getElementById("actionSummary").replaceChildren();
- const actions=[["rating","rating"],["review","review"]];
- for(const [section,kind] of actions){
-  const button=document.querySelector('[data-sub="'+section+'"]');
+ const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Возможность уточняется в Telegram"};
+ for(const kind of ["rating","review"]){
+  const button=document.querySelector('[data-sub="'+kind+'"]');
   const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
-  const messages={published:"✅ Уже опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить в Telegram"};
-  button.hidden=state!=="check_in_bot";
-  document.getElementById(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
-
+  $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
+  button.hidden=!["published","check_in_bot"].includes(state);
+  button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Проверить оценку в Telegram ›":"✍️ Проверить отзыв в Telegram ›";
+  button.dataset.mode=state==="published"?"proof":"check";
  }
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
-document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{if(!selected)return;const kind=b.dataset.sub,p=$("subContent");p.replaceChildren();const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Опубликовано",accounts:"👥 Аккаунты мужчины"};$("subTitle").textContent=titles[kind];$("subId").textContent="Анкета №"+selected.id;let lines=[];
+document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{if(b.dataset.mode==="proof"){showTab("published");return;}if(!selected)return;const kind=b.dataset.sub,p=$("subContent");p.replaceChildren();const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Опубликовано",accounts:"👥 Аккаунты мужчины"};$("subTitle").textContent=titles[kind];$("subId").textContent="Анкета №"+selected.id;let lines=[];
 if(kind==="rating"||kind==="review")lines=[["Статус",label(selected.statuses?.[kind])],["Подтверждено",String(selected.counts?.[kind]||0)],["Действие","Публикации пока только в Telegram"]];
 else if(kind==="proof")lines=[["Оценки",String(selected.counts?.rating||0)],["Отзывы",String(selected.counts?.review||0)],["Скриншоты","Открываются в Telegram"]];
 else lines=[["Ян Первый","Основной аккаунт мужчины"],["Ян Второй","Статус проверяется в Telegram"],["Выбор","Не изменяет аккаунт мужчины"]];
