@@ -310,7 +310,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }catch{}
    if(!photo&&/^[a-z0-9-]+\\.intimcity\\.rip$/.test(saved.host||""))
     photo="https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(saved.host);
-   profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),age:Number.isInteger(saved.profile.age)?saved.profile.age:null,photo});
+   const statuses={};
+   for(const kind of ["rating","review"]){
+    const value=await env.VISITORS_KV.get("owner_anketa_publication_v1:"+kind+":"+id,"json").catch(()=>null);
+    statuses[kind]=value?.status==="published"?"published":
+      value?.status==="publishing"||value?.status==="needs_verification"?"checking":"unknown";
+   }
+   profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),
+    age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
+    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses});
   }
   return {ok:true,profiles};
  }
