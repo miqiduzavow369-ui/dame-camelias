@@ -264,7 +264,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
    try{
     if(!tg?.initData)throw Error("Откройте приложение из Telegram.");
     const res=await fetch("/api/anketa/mini-rating-form",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id}),cache:"no-store"});
-    if(!res.ok)throw Error("Не удалось подтвердить доступ к форме.");
+    if(!res.ok)throw Error(res.status===403?"Сессия Telegram не подтверждена. Закройте приложение полностью и откройте заново.":res.status===404?"Обновление сервера ещё не установлено. Повторите позже.":"Ошибка сервера при открытии формы (код "+res.status+").");
     const data=await res.json();
     if(!data.ok)throw Error(data.reason==="not_ready"?"Сначала откройте оценки в рабочем Telegram-кабинете.":data.reason==="already_published_or_pending"?"Оценки уже опубликованы или находятся на проверке.":"Форма пока недоступна.");
     panel.replaceChildren();
