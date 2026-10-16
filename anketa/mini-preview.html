@@ -12,6 +12,7 @@ h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size
 .blank{display:grid;place-items:center;font-size:32px}.name{font-size:17px;font-weight:750}.meta{font-size:12px;color:#bdaab8;margin-top:6px}.arr{color:#dfb772;margin-left:auto;font-size:27px;padding-right:8px}
 .panel{border:1px solid #bd8b5f;border-radius:18px;background:#170e29;margin-top:18px;padding:18px}.panel[hidden]{display:none}.panel h2{margin:0 0 14px}.panel img{display:block;max-height:330px;max-width:100%;border-radius:14px;margin:auto auto 15px;object-fit:contain}
 .state{padding:13px;border:1px solid #6b4865;border-radius:13px;margin:9px 0;background:#261434;display:flex;justify-content:space-between;gap:12px;align-items:center}.state small{color:#c2b0be;font-size:12px}.pill{font-size:12px;color:#e7ba6d;text-align:right}.photo-large{width:100%;max-height:390px;object-fit:cover;border-radius:15px;border:1px solid #a97c40;margin:0 0 18px}.detail-label{color:#d3c6d7;font-size:13px;margin:12px 0}.btn{display:block;background:linear-gradient(100deg,#32114c,#561249);color:#fff;border:1px solid #a25d8f;border-radius:14px;width:100%;padding:16px;font-size:15px;font-weight:650;margin-top:13px;text-align:center}.minor{opacity:.75}
+.actions{display:grid;gap:10px;margin:16px 0}.action{display:flex;align-items:center;justify-content:space-between;padding:16px 15px;border:1px solid #93698e;border-radius:15px;background:linear-gradient(105deg,#241036,#3b1536);color:#fff;text-align:left;font-size:15px;font-weight:650;min-height:58px;width:100%;cursor:pointer}.action span:last-child{color:#e7ba6d}.section-note{font-size:13px;color:#ddc8da;padding:12px;background:#24142f;border-radius:12px}.preview-tag{font-size:11px;letter-spacing:1px;text-align:center;color:#ecc889;margin:10px 0 2px}.view-title{font-size:20px;margin:10px 0}.muted{color:#c3a9bd}.mini-link{display:inline-block;color:#e7ba6d;text-decoration:underline;margin-top:8px}
 </style></head><body><main class="wrap">
 <div class="head"><div class="logo gold">DAME CAMELIAS</div><div class="subtitle">🌹 МОИ АНКЕТЫ · ТЕСТОВЫЙ ПРОСМОТР</div></div>
 <h1>Ваши анкеты</h1><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
@@ -21,14 +22,60 @@ h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size
 <p id="detailMeta"></p><div class="detail-label">👨‍💻 РАБОЧИЙ АККАУНТ</div><div class="state"><b>Ян Первый</b><span class="pill">Активный аккаунт</span></div>
 <div class="detail-label">ПУБЛИКАЦИИ</div><div class="state"><b>⭐ Оценки</b><span class="pill" id="ratingStatus"></span></div>
 <div class="state"><b>✍️ Отзывы</b><span class="pill" id="reviewStatus"></span></div>
-<p style="margin-top:13px">📸 Подтверждения и действия пока доступны в обычном кабинете Telegram. Этот экран — только просмотр.</p>
+<div class="preview-tag">✦ ПРОБНЫЙ ИНТЕРФЕЙС · БЕЗ ПУБЛИКАЦИИ ✦</div>
+<div class="actions">
+<button class="action" type="button" data-section="rating"><span>⭐ Оценки</span><span>›</span></button>
+<button class="action" type="button" data-section="review"><span>✍️ Отзывы</span><span>›</span></button>
+<button class="action" type="button" data-section="proof"><span>📸 Подтверждения</span><span>›</span></button>
+<button class="action" type="button" data-section="accounts"><span>👥 Рабочие аккаунты</span><span>›</span></button>
+</div>
+<p class="section-note">Все действия здесь демонстрационные. Реальные публикации и подтверждения остаются в действующем Telegram-кабинете.</p>
 <button class="btn" id="back" type="button">⬅️ К моим анкетам</button></section>
+<section class="panel" id="subview" hidden>
+<div class="preview-tag">🌹 DAME CAMELIAS · ТЕСТОВЫЙ РАЗДЕЛ</div>
+<h2 class="view-title gold" id="subTitle"></h2>
+<p id="subProfile" class="muted"></p>
+<div id="subContent"></div>
+<button type="button" class="btn" id="subBack">⬅️ К карточке анкеты</button>
+</section>
 <button class="btn minor" id="close" type="button">✕ Вернуться в Telegram</button></main>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
-const list=document.getElementById("list"),panel=document.getElementById("detail");
+const list=document.getElementById("list"),panel=document.getElementById("detail"),subview=document.getElementById("subview");
+let selectedProfile=null;
+const stateLabel=x=>x==="published"?"✅ Опубликовано":x==="checking"?"⏳ Требует проверки":"🌷 Нет подтверждения";
+const appendLine=(parent,heading,detail)=>{
+ const block=document.createElement("div");block.className="state";
+ const left=document.createElement("b");left.textContent=heading;
+ const right=document.createElement("span");right.className="pill";right.textContent=detail;
+ block.append(left,right);parent.append(block);
+};
+function openSection(section){
+ if(!selectedProfile)return;
+ const profile=selectedProfile,title=document.getElementById("subTitle"),content=document.getElementById("subContent");
+ const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Подтверждения",accounts:"👥 Рабочие аккаунты"};
+ title.textContent=titles[section]||"Мои анкеты";document.getElementById("subProfile").textContent="🌹 Анкета №"+profile.id;
+ content.replaceChildren();
+ if(section==="rating"||section==="review"){
+  appendLine(content,"Текущий статус",stateLabel(profile.statuses?.[section]));
+  appendLine(content,"Рабочий аккаунт","Ян Первый");
+  const note=document.createElement("p");note.className="section-note";note.textContent="Оформление и запуск публикации будут доступны после отдельного согласования. Сейчас это просмотр интерфейса.";
+  content.append(note);
+ }else if(section==="proof"){
+  const note=document.createElement("p");note.className="section-note";note.textContent="Здесь будут карточки подтверждений со скриншотами, датами и статусами. Пока архив не подключён: документы и изображения не подменяются демонстрационными.";
+  content.append(note);
+ }else if(section==="accounts"){
+  appendLine(content,"👨‍💻 Ян Первый","Подключён");
+  appendLine(content,"👨‍💻 Ян Второй","Не подключён");
+  const note=document.createElement("p");note.className="section-note";note.textContent="Переключение аккаунта здесь не меняет сохранённые данные или текущий рабочий аккаунт.";
+  content.append(note);
+ }
+ panel.hidden=true;list.hidden=true;subview.hidden=false;subview.scrollIntoView({behavior:"smooth"});
+}
+document.querySelectorAll("[data-section]").forEach(button=>button.addEventListener("click",()=>openSection(button.dataset.section)));
+document.getElementById("subBack").onclick=()=>{subview.hidden=true;panel.hidden=false;panel.scrollIntoView({behavior:"smooth"});};
 document.getElementById("close").onclick=()=>tg?.close();
-document.getElementById("back").onclick=()=>{panel.hidden=true;list.hidden=false;};
+document.getElementById("back").onclick=()=>{panel.hidden=true;subview.hidden=true;list.hidden=false;};
 function item(profile){
  const button=document.createElement("button");button.type="button";button.className="profile";
  const picture=profile.photo?document.createElement("img"):document.createElement("span");
@@ -39,6 +86,7 @@ function item(profile){
  sub.className="meta";sub.textContent=[profile.name,profile.age?profile.age+" лет":""].filter(Boolean).join(" · ")||"Сохранённая анкета";
  mid.append(title,sub);const arr=document.createElement("span");arr.className="arr";arr.textContent="›";button.append(picture,mid,arr);
  button.onclick=()=>{
+ selectedProfile=profile;subview.hidden=true;
  document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;
  document.getElementById("detailMeta").textContent=[profile.name,profile.age?profile.age+" лет":"",profile.metro?"📍 м. "+profile.metro:""].filter(Boolean).join(" · ")||"Сохранённая анкета";
  const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;
