@@ -811,7 +811,7 @@ test("experimental profile preview is client scoped, read-only and requires sign
  assert.equal((await check(b)).status,403,"unsigned client is denied");
  await s.login(a);const permitted=await check(a);
  assert.equal(permitted.ok,true);assert.deepEqual(permitted.profiles.map(x=>x.id),["771053"]);
- assert.equal(permitted.profiles[0].name,"Anna");assert.equal(permitted.profiles[0].statuses.rating,"unknown");assert.equal(permitted.profiles[0].statuses.review,"unknown");assert.ok(!JSON.stringify(permitted).includes("999999"));
+ assert.equal(permitted.profiles[0].name,"Anna");assert.equal(permitted.profiles[0].statuses.rating,"unknown");assert.equal(permitted.profiles[0].statuses.review,"unknown");assert.deepEqual(permitted.profiles[0].counts,{rating:0,review:0,total:0});assert.ok(permitted.balance);assert.ok(!JSON.stringify(permitted).includes("999999"));
  assert.equal((await check(b)).status,403);
  assert.equal((await check(owner)).ok,true);
 });
