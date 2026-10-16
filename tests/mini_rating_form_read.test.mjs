@@ -16,7 +16,7 @@ test("new endpoint requires Telegram and cabinet authorization",()=>{
 });
 test("form loads existing selected draft, never publishes",()=>{
  const begin=engine.indexOf("async function miniRatingFormLoad");
- const end=engine.indexOf("async function miniDeleteProfile",begin);
+ const end=engine.indexOf("async function miniRatingDraftSave",begin);
  const code=engine.slice(begin,end);
  assert.match(code,/publicationStatus/);
  assert.match(code,/selectedAccount/);
