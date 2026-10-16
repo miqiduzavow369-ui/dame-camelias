@@ -1298,6 +1298,18 @@ async function handleAnketaLookupResult(request,env,send) {
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
     return Response.json({ok:true,found:true});
   }
+  // Mini App callbacks use the same validation and persistent state as Telegram,
+  // but must never send lookup results into the Telegram chat.
+  if(current?.step==="loading"&&current.source==="mini_app"&&current.id===id&&current.nonce===nonce&&data.mode==="profile"){
+    const found=data.status==="found"?validProfile(data.profile,id,current.host):null;
+    if(!found){
+      await statePut(env,{step:"mini_lookup_failed",id,host:current.host,reason:data.status==="not_found"?"not_found":"unavailable"});
+      return Response.json({ok:true,found:false});
+    }
+    const decision=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    await statePut(env,{step:"confirm",source:"mini_app",profile:found,host:current.host,nonce:decision});
+    return Response.json({ok:true,found:true});
+  }
   const found=data.status==="found"?validProfile(data.profile,id,current.host):null;
   if(!found) {
     await statePut(env,{step:"number"});
@@ -2291,7 +2303,7 @@ async function miniAddProfile(input) {
   if(pending&&["publishing","review_dispatch","review_recheck","proof_loading"].includes(pending.step))
    return {ok:false,reason:"busy"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  if(!await statePut(input.env,{step:"loading",id:link.id,host:link.host,nonce}))return {ok:false,reason:"unavailable"};
+  if(!await statePut(input.env,{step:"loading",source:"mini_app",id:link.id,host:link.host,nonce}))return {ok:false,reason:"unavailable"};
   const started=await dispatchLookup(input.env,link.id,nonce,"profile",link.host).catch(()=>({ok:false}));
   if(!started.ok){await statePut(input.env,{step:"number"});return {ok:false,reason:"lookup_failed"};}
   return {ok:true,stage:"loading",id:link.id};
@@ -2300,13 +2312,14 @@ async function miniAddProfile(input) {
   const state=await stateGet(input.env);
   if(state?.step==="confirm"&&state.profile&&state.nonce)
    return {ok:true,stage:"confirm",profile:state.profile,nonce:state.nonce};
-  if(state?.step==="loading")return {ok:true,stage:"loading",id:state.id};
+  if(state?.step==="loading"&&state.source==="mini_app")return {ok:true,stage:"loading",id:state.id};
+  if(state?.step==="mini_lookup_failed")return {ok:true,stage:"failed",reason:state.reason};
   if(state?.step==="chosen"&&state.profile)return {ok:true,stage:"saved",profile:state.profile};
   return {ok:true,stage:"idle"};
  }
  if(action==="confirm"){
   const current=await stateGet(input.env);
-  if(current?.step!=="confirm"||current.nonce!==input.nonce||!current.profile)
+  if(current?.step!=="confirm"||current.source!=="mini_app"||current.nonce!==input.nonce||!current.profile)
    return {ok:false,reason:"stale"};
   const prior=await savedGet(input.env,current.profile.id);
   if(!await savedPut(input.env,{profile:current.profile,host:current.host,catalog:prior?.host===current.host?prior.catalog||[]:[]}))
