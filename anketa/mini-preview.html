@@ -11,12 +11,18 @@ h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size
 .profile:active{transform:scale(.992)}.profile img,.blank{height:68px;width:68px;flex:none;object-fit:cover;border-radius:12px;background:#311634}
 .blank{display:grid;place-items:center;font-size:32px}.name{font-size:17px;font-weight:750}.meta{font-size:12px;color:#bdaab8;margin-top:6px}.arr{color:#dfb772;margin-left:auto;font-size:27px;padding-right:8px}
 .panel{border:1px solid #bd8b5f;border-radius:18px;background:#170e29;margin-top:18px;padding:18px}.panel[hidden]{display:none}.panel h2{margin:0 0 14px}.panel img{display:block;max-height:330px;max-width:100%;border-radius:14px;margin:auto auto 15px;object-fit:contain}
-.btn{display:block;background:linear-gradient(100deg,#32114c,#561249);color:#fff;border:1px solid #a25d8f;border-radius:14px;width:100%;padding:16px;font-size:15px;font-weight:650;margin-top:13px;text-align:center}.minor{opacity:.75}
+.state{padding:13px;border:1px solid #6b4865;border-radius:13px;margin:9px 0;background:#261434;display:flex;justify-content:space-between;gap:12px;align-items:center}.state small{color:#c2b0be;font-size:12px}.pill{font-size:12px;color:#e7ba6d;text-align:right}.photo-large{width:100%;max-height:390px;object-fit:cover;border-radius:15px;border:1px solid #a97c40;margin:0 0 18px}.detail-label{color:#d3c6d7;font-size:13px;margin:12px 0}.btn{display:block;background:linear-gradient(100deg,#32114c,#561249);color:#fff;border:1px solid #a25d8f;border-radius:14px;width:100%;padding:16px;font-size:15px;font-weight:650;margin-top:13px;text-align:center}.minor{opacity:.75}
 </style></head><body><main class="wrap">
 <div class="head"><div class="logo gold">DAME CAMELIAS</div><div class="subtitle">🌹 МОИ АНКЕТЫ · ТЕСТОВЫЙ ПРОСМОТР</div></div>
 <h1>Ваши анкеты</h1><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
 <div class="list" id="list"><p>⏳ Загружаем ваши анкеты…</p></div>
-<section class="panel" id="detail" hidden><h2 id="detailTitle"></h2><img id="detailImage" alt="" hidden><p id="detailMeta"></p><button class="btn" id="back" type="button">⬅️ К списку анкет</button></section>
+<section class="panel" id="detail" hidden>
+<h2 id="detailTitle" class="gold"></h2><img id="detailImage" class="photo-large" alt="Фото выбранной анкеты" hidden>
+<p id="detailMeta"></p><div class="detail-label">👨‍💻 РАБОЧИЙ АККАУНТ</div><div class="state"><b>Ян Первый</b><span class="pill">Активный аккаунт</span></div>
+<div class="detail-label">ПУБЛИКАЦИИ</div><div class="state"><b>⭐ Оценки</b><span class="pill" id="ratingStatus"></span></div>
+<div class="state"><b>✍️ Отзывы</b><span class="pill" id="reviewStatus"></span></div>
+<p style="margin-top:13px">📸 Подтверждения и действия пока доступны в обычном кабинете Telegram. Этот экран — только просмотр.</p>
+<button class="btn" id="back" type="button">⬅️ К моим анкетам</button></section>
 <button class="btn minor" id="close" type="button">✕ Вернуться в Telegram</button></main>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
@@ -32,7 +38,15 @@ function item(profile){
  title.className="name";title.textContent="🌹 АНКЕТА №"+profile.id;
  sub.className="meta";sub.textContent=[profile.name,profile.age?profile.age+" лет":""].filter(Boolean).join(" · ")||"Сохранённая анкета";
  mid.append(title,sub);const arr=document.createElement("span");arr.className="arr";arr.textContent="›";button.append(picture,mid,arr);
- button.onclick=()=>{document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;document.getElementById("detailMeta").textContent=sub.textContent;const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;panel.hidden=false;list.hidden=true;panel.scrollIntoView({behavior:"smooth"});};
+ button.onclick=()=>{
+ document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;
+ document.getElementById("detailMeta").textContent=[profile.name,profile.age?profile.age+" лет":"",profile.metro?"📍 м. "+profile.metro:""].filter(Boolean).join(" · ")||"Сохранённая анкета";
+ const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;
+ const label=x=>x==="published"?"✅ Опубликовано":x==="checking"?"⏳ Требует проверки":"🌷 Нет подтверждения";
+ document.getElementById("ratingStatus").textContent=label(profile.statuses?.rating);
+ document.getElementById("reviewStatus").textContent=label(profile.statuses?.review);
+ panel.hidden=false;list.hidden=true;panel.scrollIntoView({behavior:"smooth"});
+};
  return button;
 }
 (async()=>{
