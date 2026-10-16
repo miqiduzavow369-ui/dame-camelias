@@ -46,13 +46,13 @@ p,.muted,.mini{color:#b6ab99}
 .thumb{border:1px solid #b99451;background:#17130d}
 .photo-large{display:block;width:auto;max-width:min(70%,350px);height:auto;max-height:none;object-fit:unset;border:2px solid #d9b571;border-radius:12px;background:#100e0a;padding:0;margin:18px auto 20px;box-shadow:0 8px 22px #0008}
 
-[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}.men-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.man-tile{border:1px solid #776033;background:#16130e;color:#f5e8cb;border-radius:14px;padding:9px;text-align:left;min-width:0}.man-tile img{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #9d7f45;border-radius:9px;background:#0a0907}.man-tile strong{display:block;margin-top:7px;font-size:13px}.man-tile small{display:block;color:#c7b18b;margin-top:5px;font-size:11px}.man-search{background:#15130f;border:1px solid #796238;color:#f4e9d4;padding:13px;border-radius:12px;width:100%;margin:10px 0}.selected-man{outline:2px solid #e3c184}.man-tile:disabled{opacity:.72}.man-work-head{display:flex;gap:13px;align-items:center}.man-work-head>img{width:95px;max-height:130px;object-fit:contain;border:1px solid #b89555;border-radius:11px}.man-work-head h1{font-size:18px}.man-work-head .ghost{padding:8px 9px;font-size:12px;margin-top:5px}.man-full{display:block;max-width:100%;max-height:70vh;object-fit:contain;margin:15px auto 5px;border:1px solid #b89555;border-radius:12px}</style></head><body><div class="app">
+[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}.men-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.man-tile{border:1px solid #776033;background:#16130e;color:#f5e8cb;border-radius:14px;padding:9px;text-align:left;min-width:0}.man-tile img{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #9d7f45;border-radius:9px;background:#0a0907}.man-tile strong{display:block;margin-top:7px;font-size:13px}.man-tile small{display:block;color:#c7b18b;margin-top:5px;font-size:11px}.man-search{background:#15130f;border:1px solid #796238;color:#f4e9d4;padding:13px;border-radius:12px;width:100%;margin:10px 0}.selected-man{outline:2px solid #e3c184}.man-tile:disabled{opacity:.72}.man-work-head{display:flex;gap:13px;align-items:center}.man-work-head>img{width:95px;max-height:130px;object-fit:contain;border:1px solid #b89555;border-radius:11px}.man-work-head h1{font-size:18px}.man-work-head .ghost{padding:8px 9px;font-size:12px;margin-top:5px}.man-full{display:block;max-width:100%;max-height:70vh;object-fit:contain;margin:15px auto 5px;border:1px solid #b89555;border-radius:12px}.profile-steps{display:flex;gap:5px;margin:14px 0}.profile-steps span{flex:1;padding:10px 4px;border:1px solid #675333;border-radius:9px;text-align:center;font-size:10px;color:#998c76;background:#14110d}.profile-steps .current{border-color:#d2ad6c;color:#f1d39d;background:#241c11}</style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
 <div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
-<div id="profiles"></div>
+<div id="profiles"></div><button class="action" type="button" id="beginAddProfile"><span>➕ Добавить анкету<small>Проверка ссылки и подтверждение данных</small></span><span class="next">›</span></button>
 <div id="menWorkspace" class="card" hidden>
 <h2>👨‍💻 Мужчины для выбранной анкеты</h2>
 <p id="menProfileLabel" class="muted"></p>
@@ -61,6 +61,18 @@ p,.muted,.mini{color:#b6ab99}
 <div id="menCatalog" hidden><input id="manSearch" class="man-search" type="search" placeholder="Поиск мужчины по имени"><div id="menFullList" class="men-grid"></div></div>
 </div>
 <button class="ghost" id="openLegacy" type="button">⬅️ Вернуться в Telegram</button>
+</section>
+<section id="tab-add" hidden>
+<button id="addProfileCancel" type="button" class="back-top">← К моим анкетам</button>
+<div class="muted" style="font-size:12px">🌹 DAME CAMELIAS · МОИ АНКЕТЫ</div><h1>Добавить анкету <span class="gold">✦</span></h1>
+<p>Тот же порядок, что в Telegram: ссылка → проверка данных → подтверждение → сохранение.</p>
+<div class="profile-steps"><span class="current">01 · Ссылка</span><span>02 · Проверка</span><span>03 · Подтверждение</span></div>
+<div class="card"><h2>🔗 Ссылка на вашу анкету</h2><p>Вставьте полную ссылку с действующего домена Intimcity.</p>
+<label class="muted" for="addProfileUrl">Адрес анкеты</label>
+<input id="addProfileUrl" class="man-search" type="url" autocomplete="url" spellcheck="false" placeholder="https://сайт.intimcity.rip/indi/anketa123456.htm">
+<div id="addProfileNotice" class="proof-note" aria-live="polite">После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.</div>
+<button id="addProfileContinue" type="button" class="primary">🔎 Проверить формат ссылки</button>
+</div><p class="muted">Никакие данные не сохраняются без проверки и вашего подтверждения.</p>
 </section>
 <section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Это не меняет аккаунт, назначенный для реальной работы в Telegram.</p>
 <div class="card"><h2>👨‍💻 Выбор аккаунта мужчины</h2>
@@ -115,6 +127,10 @@ for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
+$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.";};
+$("addProfileCancel").onclick=()=>showTab("profiles");
+$("addProfileContinue").onclick=()=>{const value=$("addProfileUrl").value.trim();let valid=false;try{const u=new URL(value);valid=u.protocol==="https:"&&u.hostname.endsWith(".intimcity.rip")&&u.hostname.length>".intimcity.rip".length&&u.pathname.startsWith("/indi/anketa")&&u.pathname.endsWith(".htm")&&/^[0-9]{1,9}$/.test(u.pathname.slice(12,-4));}catch{}
+$("addProfileNotice").textContent=valid?"✅ Формат ссылки проверен. Поиск анкеты и её подтверждение пока доступны только через существующий Telegram-кабинет. Анкета ещё не сохранена.":"⚠️ Ссылка не соответствует ожидаемому формату. Скопируйте её полностью из адресной строки своей анкеты.";};
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
