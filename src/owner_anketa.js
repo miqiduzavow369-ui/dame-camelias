@@ -947,6 +947,10 @@ async function handleAnketaLookupResult(request,env,send) {
     if(!await resumeVerifiedDomain(env,send,current))return new Response("Recovery context unavailable",{status:409});
     return Response.json({ok:true,domainUpdated:true});
   }
+  if(data.status==="error"&&current?.step==="loading"&&current.source==="mini_app"&&current.id===id&&current.nonce===nonce&&data.mode==="profile"){
+    await statePut(env,{step:"mini_lookup_failed",id,host:current.host,reason:"unavailable"});
+    return Response.json({ok:true,found:false});
+  }
   if(data.status==="error"&&current?.id===id&&current.nonce===nonce&&recoverable(data.mode,current.step)){
     await requestDomainRecovery(env,send,current,data.mode);return Response.json({ok:true,domainRecoveryRequested:true});
   }
