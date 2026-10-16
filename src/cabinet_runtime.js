@@ -331,7 +331,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
     metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
-  return {ok:true,profiles,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  const allowed=new Set(profiles.map(p=>p.id));
+  const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({
+   id:String(item.profileId),kind:item.kind,account:item.account,
+   date:item.date,hasProof:!!item.fileId
+  }));
+  return {ok:true,profiles,history,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
