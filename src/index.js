@@ -682,7 +682,7 @@ export default {
       if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
-      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_add",action:body.action,url:body.url,nonce:body.nonce});
       return Response.json(result,{status:result?.status===403?403:result?.status===400?400:200,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
