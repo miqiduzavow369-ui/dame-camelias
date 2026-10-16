@@ -18,3 +18,7 @@ test('Profile is only confirmed by authenticated server response',()=>{
  assert.match(html,/Никакие данные не сохраняются без проверки/);
  assert.match(html,/result\.stage==="confirm"/);
 });
+
+test('Profile link field avoids iOS focus zoom',()=>{
+ assert.match(html,/#addProfileUrl\{font-size:16px!important/);
+});
