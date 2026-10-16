@@ -288,6 +288,32 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(event.action==="approve"&&(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false"||uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false")))return {ok:false,note:"Доступ или публикации отключены."};
   env.__cabinetAuthorized=uid;return engine.moderateReview(env,send,event);
  }
+ if(event.kind==="mini_preview"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  const ids=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+  const profiles=[];
+  for(const id of [...new Set(Array.isArray(ids)?ids:[])].slice(0,80)){
+   if(!/^\d{1,9}$/.test(String(id)))continue;
+   const saved=await env.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+id,"json");
+   if(!saved||String(saved.profile?.id)!==String(id))continue;
+   let photo="";
+   const candidate=String(saved.profile.photoUrl||"");
+   try{
+    const url=new URL(candidate);
+    if(url.protocol==="https:"&&(url.hostname==="dame-camelias.gptjjjgpt.workers.dev"&&url.pathname==="/api/anketa/photo/"+id||
+     url.hostname==="cdn2.intimtur.com"))photo=url.href;
+   }catch{}
+   if(!photo&&/^[a-z0-9-]+\\.intimcity\\.rip$/.test(saved.host||""))
+    photo="https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(saved.host);
+   profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),age:Number.isInteger(saved.profile.age)?saved.profile.age:null,photo});
+  }
+  return {ok:true,profiles};
+ }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
   let action=String(update.callback_query?.data||"");

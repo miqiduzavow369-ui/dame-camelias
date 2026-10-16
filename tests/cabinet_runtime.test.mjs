@@ -799,3 +799,19 @@ test("rollout switches block new client work and new submissions while preservin
  s.env.CABINET_CLIENTS_ENABLED="true";s.env.CABINET_PUBLICATIONS_ENABLED="false";
  await s.run(a,"owner_anketa:publish_confirm:aaaaaaaaaaaa");assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/приостановлены/);
 });
+
+test("experimental profile preview is client scoped, read-only and requires signed session",async()=>{
+ const s=setup();await s.create(a);await s.create(b,"777777",3,false);
+ s.kv.set("owner_anketa_library:"+a,JSON.stringify(["771053"]));
+ s.kv.set("owner_anketa_saved:"+a+":771053",JSON.stringify({profile:{id:"771053",name:"Anna",age:26,photoUrl:"https://cdn2.intimtur.com/thumb.jpg"},host:"b.intimcity.rip"}));
+ s.kv.set("owner_anketa_library:"+b,JSON.stringify(["999999"]));
+ s.kv.set("owner_anketa_saved:"+b+":999999",JSON.stringify({profile:{id:"999999",name:"Private"},host:"b.intimcity.rip"}));
+ const check=uid=>cabinetEvent(s.store(uid),s.env,{userId:uid,event:{kind:"mini_preview"}},s.send);
+ assert.equal((await check(a)).status,403,"signed client without PIN session is denied");
+ assert.equal((await check(b)).status,403,"unsigned client is denied");
+ await s.login(a);const permitted=await check(a);
+ assert.equal(permitted.ok,true);assert.deepEqual(permitted.profiles.map(x=>x.id),["771053"]);
+ assert.equal(permitted.profiles[0].name,"Anna");assert.ok(!JSON.stringify(permitted).includes("999999"));
+ assert.equal((await check(b)).status,403);
+ assert.equal((await check(owner)).ok,true);
+});
