@@ -126,8 +126,8 @@ function selectAccount(account){
  selectedAccount=account;
  $("firstSelected").textContent=account==="yan_first"?"✓":"○";
  $("secondSelected").textContent=account==="yan_second"?"✓":"○";
- $("workFirst").textContent=account==="yan_first"?"✓":"○";
- $("workSecond").textContent=account==="yan_second"?"✓":"○";
+ $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
+ $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
  $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+". Рабочий аккаунт в Telegram не меняется.";
  renderHistory();
 }
@@ -160,10 +160,7 @@ $("publishedRatings").textContent=rating;$("publishedReviews").textContent=revie
 if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";if(profiles.length===1){workProfile=profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
 }
 let availableBalance=null;
-function refreshManButtons(){
- $("detailAccount").textContent=accountName(selectedAccount);
-
-}
+function refreshManButtons(){const man=availableMen.find(m=>m.id===selectedAccount);$("detailAccount").textContent=man?.name||accountName(selectedAccount);const src=man?.image||"";for(const key of ["detailManImage","fullManImage"]){const im=$(key);im.hidden=!src;if(src)im.src=src;}$("fullManCard").hidden=true;$("aboutMan").textContent="👤 О мужчине ▾";}
 $("aboutMan").onclick=()=>{const el=$("fullManCard");el.hidden=!el.hidden;$("aboutMan").textContent=el.hidden?"👤 О мужчине ▾":"👤 Свернуть карточку ▴";};
 function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=["🌹 Анкета №"+p.id,p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
@@ -177,8 +174,7 @@ function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelecto
   const messages={published:"✅ Уже опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить в Telegram"};
   button.hidden=state!=="check_in_bot";
   document.getElementById(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
-  const status=document.createElement("div");status.className="proof-note";status.textContent=(kind==="rating"?"⭐ Оценки: ":"✍️ Отзывы: ")+(messages[state]||messages.unknown);
-  document.getElementById("actionSummary").append(status);
+
  }
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
