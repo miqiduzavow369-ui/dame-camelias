@@ -381,7 +381,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
   }));
-  return {ok:true,profiles,history,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  // Surface only the stage of the *existing* legacy operation, never its
+  // text, nonce, draft, reservation identifiers or moderation payload.
+  let workflow=null;
+  try{
+   const active=await env.VISITORS_KV.get("owner_anketa_state:"+uid,"json");
+   const stage=String(active?.step||"");
+   const pid=String(active?.profile?.id||active?.id||"");
+   const permitted=new Set(["ratings_loading","ratings","ratings_agreed","audit_loading","dryfill_loading","prepublish_ready","publishing","proof_loading","review_input","review_preview","review_moderation","review_dispatch","review_recheck","review_result","publication_result"]);
+   if(permitted.has(stage)&&allowed.has(pid)){
+    workflow={profileId:pid,stage,account:active?.account==="yan_first"?"yan_first":null};
+   }
+  }catch{}
+  return {ok:true,profiles,history,workflow,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
