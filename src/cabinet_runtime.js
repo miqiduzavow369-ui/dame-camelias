@@ -320,13 +320,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(url.protocol==="https:"&&(url.hostname==="dame-camelias.gptjjjgpt.workers.dev"&&url.pathname==="/api/anketa/photo/"+id||
      url.hostname==="cdn2.intimtur.com"))photo=url.href;
    }catch{}
-   if(!photo&&/^[a-z0-9-]+\\.intimcity\\.rip$/.test(saved.host||""))
+   if(!photo&&/^[a-z0-9-]+\.intimcity\.rip$/.test(saved.host||""))
     photo="https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/photo/"+id+"?site="+encodeURIComponent(saved.host);
    const statuses={};
    for(const kind of ["rating","review"]){
     const value=await env.VISITORS_KV.get("owner_anketa_publication_v1:"+kind+":"+id,"json").catch(()=>null);
     statuses[kind]=value?.status==="published"?"published":
       value?.status==="publishing"||value?.status==="needs_verification"?"checking":"unknown";
+   }
+   // Archive-backed completed actions must never be displayed as publishable.
+   for(const kind of ["rating","review"]){
+    if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind))
+     statuses[kind]="published";
    }
    let daily=null;
    try{
