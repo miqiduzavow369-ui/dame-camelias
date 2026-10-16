@@ -2286,6 +2286,25 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
+async function miniRatingFormLoad(env,profileId){
+ if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
+ const state=await stateGet(env);
+ if(!state||!["ratings","ratings_agreed"].includes(state.step)||String(state.profile?.id)!==String(profileId))
+  return {ok:false,reason:"not_ready"};
+ if(!await savedGet(env,profileId))return {ok:false,reason:"not_saved"};
+ if(await publicationStatus(env,profileId,"rating"))return {ok:false,reason:"already_published_or_pending"};
+ if(state.account!==ACTIVE_ACCOUNT||!await selectedAccount(env,profileId))
+  return {ok:false,reason:"account_not_selected"};
+ if(!Array.isArray(state.catalog)||state.catalog.length>120)return {ok:false,reason:"unavailable"};
+ const catalog=organizeCatalog(state.catalog).map(field=>({
+  label:String(field.label||"").slice(0,110),
+  group:String(field.group||"Оценки анкеты").slice(0,90),
+  subgroup:String(field.subgroup||"").slice(0,90),
+  options:field.options.filter(value=>typeof value==="string"&&!/^\\s*(?:не знаю|отказано|[1-4])\\s*$/i.test(value)).map(value=>value.slice(0,100))
+ }));
+ return {ok:true,profile:{id:state.profile.id,name:state.profile.name},catalog,
+  selected:state.selected||{},metElsewhere:state.metElsewhere===true};
+}
 async function miniDeleteProfile(env,id){
  if(!ID_PATTERN.test(String(id)))return {ok:false,reason:"invalid"};
  if(!await savedGet(env,id))return {ok:false,reason:"not_found"};
@@ -2333,7 +2352,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
