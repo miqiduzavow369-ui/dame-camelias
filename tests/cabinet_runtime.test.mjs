@@ -716,7 +716,7 @@ test("review moderation edits in group, dispatches automatically after correctio
   const corrected="Исправленный администратором реальный текст отзыва.";
   await handleModeration({message:{message_id:999,from:{id:Number(MODERATOR_ID)},chat:{id:Number(MODERATION_CHAT),type:"supergroup"},reply_to_message:{message_id:record().editPromptId},text:corrected}},s.env);
   assert.equal(record().text,corrected);assert.equal(dispatches.length,1);
-  await handleModeration(groupAction("approve",1),s.env);assert.equal(dispatches.length,0);
+  await handleModeration(groupAction("approve",1),s.env);assert.equal(dispatches.length,1);
   const approvedButton=groupAction("approve");await handleModeration(approvedButton,s.env);await handleModeration(approvedButton,s.env);
   assert.equal(dispatches.length,1);assert.equal(dispatches[0].mode,"review_publish");assert.equal((await credits(s.env,a,"status")).spent,0);assert.equal((await credits(s.env,a,"status")).reserved,1);
   assert.equal(sent.filter(x=>String(x.payload.chat_id)===a&&x.payload.text?.includes("ПУБЛИКУЕМ ОТЗЫВ")).length,clientWaiting);
