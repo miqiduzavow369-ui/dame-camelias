@@ -295,6 +295,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const session=await storage.get("client_session");
    if(!session||session.version!==client.authVersion)return {ok:false,status:403};
   }
+  // The read-only summary uses the existing publication archive and credit ledger.
+  // No additional mutable publication state is introduced for the Mini App.
+  let balance=null,archive={items:[]};
+  try{balance=await credits(env,uid,"status");}catch{}
+  try{archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);}catch{}
+  const proofCounts=new Map();
+  for(const item of archive.items||[]){
+   const key=String(item.profileId),value=proofCounts.get(key)||{rating:0,review:0,total:0};
+   if(item.kind==="rating"||item.kind==="review")value[item.kind]++;
+   value.total++;proofCounts.set(key,value);
+  }
   const ids=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
   const profiles=[];
   for(const id of [...new Set(Array.isArray(ids)?ids:[])].slice(0,80)){
@@ -318,9 +329,14 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
    profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),
     age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
-    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses});
+    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
-  return {ok:true,profiles};
+  const allowed=new Set(profiles.map(p=>p.id));
+  const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({
+   id:String(item.profileId),kind:item.kind,account:item.account,
+   date:item.date,hasProof:!!item.fileId
+  }));
+  return {ok:true,profiles,history,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
