@@ -135,17 +135,22 @@ function refreshManButtons(){
  $("manFirst").classList.toggle("active",selectedAccount==="yan_first");
  $("manSecond").classList.toggle("active",selectedAccount==="yan_second");
 }
-$("manFirst").onclick=()=>{selectAccount("yan_first");refreshManButtons();};
-$("manSecond").onclick=()=>{selectAccount("yan_second");refreshManButtons();};
+$("manFirst").onclick=()=>{selectAccount("yan_first");refreshManButtons();if(selected)openDetail(selected);};
+$("manSecond").onclick=()=>{selectAccount("yan_second");refreshManButtons();if(selected)openDetail(selected);};
 function openDetail(p){selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
+ document.getElementById("actionSummary").replaceChildren();
  const actions=[["rating","rating"],["review","review"]];
  for(const [section,kind] of actions){
   const button=document.querySelector('[data-sub="'+section+'"]');
-  const done=p.statuses?.[kind]==="published"||p.statuses?.[kind]==="checking";
-  button.hidden=done;
+  const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
+  const messages={published:"✅ Уже опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить в Telegram"};
+  button.hidden=state!=="check_in_bot";
+  document.getElementById(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
+  const status=document.createElement("div");status.className="proof-note";status.textContent=(kind==="rating"?"⭐ Оценки: ":"✍️ Отзывы: ")+(messages[state]||messages.unknown);
+  document.getElementById("actionSummary").append(status);
  }
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
