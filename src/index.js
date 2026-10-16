@@ -1,7 +1,7 @@
 import {handleAgreement,agreementStatus} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
 import { reminderCall } from "./reminders.js";
-import {handleCabinet,cabinetEndpoint} from "./cabinet_runtime.js";
+import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
 import {validWebApp} from "./telegram_auth.js";
 import { serveProfileThumbnail } from "./owner_anketa.js";
@@ -113,8 +113,8 @@ function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
-    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],adminRow);
-    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]);
+    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview"}}],adminRow);
+    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview"}}]);
     else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
     rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
     return {inline_keyboard:rows};
@@ -659,6 +659,22 @@ export default {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/order/index.html");
       if (!result.ok) return new Response("Form unavailable", { status: 502 });
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+    }
+    if(request.method==="GET"&&url.pathname==="/anketa/mini-preview"){
+      const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html");
+      if(!result.ok)return new Response("Preview unavailable",{status:502});
+      return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
+    }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-preview"){
+      if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      let uid;
+      try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
+      if(!result?.ok)return new Response("Forbidden",{status:403});
+      return Response.json({profiles:result.profiles},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if (request.method === "GET" && url.pathname === "/anketa/ratings") {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/ratings.html");
