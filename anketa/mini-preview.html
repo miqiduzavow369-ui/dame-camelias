@@ -52,7 +52,7 @@ p,.muted,.mini{color:#b6ab99}
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
 <div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
-<div id="profiles"></div>
+<div id="profiles"></div><button class="action" type="button" id="beginAddProfile">➕ Добавить анкету <span class="next">›</span></button><div id="addProfilePanel" class="card" hidden><h2>🌹 Добавить свою анкету</h2><p>Вставьте полную ссылку на анкету с актуальным доменом Intimcity — как в обычном кабинете.</p><input id="addProfileUrl" class="man-search" type="url" autocomplete="url" placeholder="https://...intimcity.rip/indi/anketa123456.htm"><div id="addProfileNotice" class="muted"></div><button id="addProfileContinue" type="button" class="primary">🔗 Проверить ссылку</button><button id="addProfileCancel" type="button" class="ghost">← К моим анкетам</button></div>
 <div id="menWorkspace" class="card" hidden>
 <h2>👨‍💻 Мужчины для выбранной анкеты</h2>
 <p id="menProfileLabel" class="muted"></p>
@@ -115,6 +115,10 @@ for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
+$("beginAddProfile").onclick=()=>{$("addProfilePanel").hidden=false;$("addProfilePanel").scrollIntoView({behavior:"smooth"});};
+$("addProfileCancel").onclick=()=>{$("addProfilePanel").hidden=true;$("addProfileNotice").textContent="";};
+$("addProfileContinue").onclick=()=>{const value=$("addProfileUrl").value.trim();let valid=false;try{const u=new URL(value);valid=u.protocol==="https:"&&/^[a-z0-9-]+\\.intimcity\\.rip$/i.test(u.hostname)&&/^\\/indi\\/anketa\\d{1,9}\\.htm$/i.test(u.pathname);}catch{}
+$("addProfileNotice").textContent=valid?"✅ Формат ссылки верный. Для проверки данных и сохранения нужен существующий серверный процесс Telegram. Никакая анкета пока не добавлена.":"🌷 Пришлите полную ссылку на анкету с актуальным доменом Intimcity.";};
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
