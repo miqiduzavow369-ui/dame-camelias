@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>DAME CAMELIAS · Мои анкеты</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#140628;color:#fff}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(circle at 90% 25%,#4a0b42,transparent 56%),linear-gradient(155deg,#10062c,#260624 65%,#0d092e);padding:28px 16px 54px}
+.wrap{max-width:520px;margin:0 auto}.gold{color:#e7ba6d}.head{border:1px solid #a97c40;border-radius:22px;padding:20px 16px;text-align:center;background:linear-gradient(150deg,#190e12,#130b12);box-shadow:inset 0 0 0 3px #2a1a18,0 8px 22px #0e061355}
+.logo{font-size:25px;font-weight:750;letter-spacing:2px}.subtitle{font-size:13px;color:#d7bf99;margin-top:8px;letter-spacing:1px}
+h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size:14px;margin:0 4px 18px}
+.list{display:grid;gap:10px}.profile{width:100%;display:flex;align-items:center;gap:14px;text-align:left;border:1px solid #b88563;border-radius:17px;padding:9px;background:linear-gradient(95deg,#170b34,#300a33);color:#fff;min-height:86px;cursor:pointer}
+.profile:active{transform:scale(.992)}.profile img,.blank{height:68px;width:68px;flex:none;object-fit:cover;border-radius:12px;background:#311634}
+.blank{display:grid;place-items:center;font-size:32px}.name{font-size:17px;font-weight:750}.meta{font-size:12px;color:#bdaab8;margin-top:6px}.arr{color:#dfb772;margin-left:auto;font-size:27px;padding-right:8px}
+.panel{border:1px solid #bd8b5f;border-radius:18px;background:#170e29;margin-top:18px;padding:18px}.panel[hidden]{display:none}.panel h2{margin:0 0 14px}.panel img{display:block;max-height:330px;max-width:100%;border-radius:14px;margin:auto auto 15px;object-fit:contain}
+.btn{display:block;background:linear-gradient(100deg,#32114c,#561249);color:#fff;border:1px solid #a25d8f;border-radius:14px;width:100%;padding:16px;font-size:15px;font-weight:650;margin-top:13px;text-align:center}.minor{opacity:.75}
+</style></head><body><main class="wrap">
+<div class="head"><div class="logo gold">DAME CAMELIAS</div><div class="subtitle">🌹 МОИ АНКЕТЫ · ТЕСТОВЫЙ ПРОСМОТР</div></div>
+<h1>Ваши анкеты</h1><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
+<div class="list" id="list"><p>⏳ Загружаем ваши анкеты…</p></div>
+<section class="panel" id="detail" hidden><h2 id="detailTitle"></h2><img id="detailImage" alt="" hidden><p id="detailMeta"></p><button class="btn" id="back" type="button">⬅️ К списку анкет</button></section>
+<button class="btn minor" id="close" type="button">✕ Вернуться в Telegram</button></main>
+<script>
+const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
+const list=document.getElementById("list"),panel=document.getElementById("detail");
+document.getElementById("close").onclick=()=>tg?.close();
+document.getElementById("back").onclick=()=>{panel.hidden=true;list.hidden=false;};
+function item(profile){
+ const button=document.createElement("button");button.type="button";button.className="profile";
+ const picture=profile.photo?document.createElement("img"):document.createElement("span");
+ if(profile.photo){picture.src=profile.photo;picture.alt="Фото анкеты "+profile.id;picture.loading="lazy";picture.onerror=()=>{picture.removeAttribute("src");picture.className="blank";picture.alt="Фото недоступно";};}
+ else{picture.className="blank";picture.textContent="🌹";}
+ const mid=document.createElement("div"),title=document.createElement("div"),sub=document.createElement("div");
+ title.className="name";title.textContent="🌹 АНКЕТА №"+profile.id;
+ sub.className="meta";sub.textContent=[profile.name,profile.age?profile.age+" лет":""].filter(Boolean).join(" · ")||"Сохранённая анкета";
+ mid.append(title,sub);const arr=document.createElement("span");arr.className="arr";arr.textContent="›";button.append(picture,mid,arr);
+ button.onclick=()=>{document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;document.getElementById("detailMeta").textContent=sub.textContent;const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;panel.hidden=false;list.hidden=true;panel.scrollIntoView({behavior:"smooth"});};
+ return button;
+}
+(async()=>{
+ try{
+  if(!tg?.initData)throw Error("Откройте тестовую версию кнопкой из Telegram.");
+  const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});
+  if(!response.ok)throw Error("Доступ не подтверждён. Войдите в обычный кабинет и повторите попытку.");
+  const data=await response.json();list.replaceChildren();
+  if(!data.profiles?.length){const empty=document.createElement("p");empty.textContent="Пока нет сохранённых анкет.";list.append(empty);}
+  else data.profiles.forEach(profile=>list.append(item(profile)));
+ }catch(e){list.replaceChildren();const error=document.createElement("p");error.textContent="🌷 "+e.message;list.append(error);}
+})();
+</script></body></html>
