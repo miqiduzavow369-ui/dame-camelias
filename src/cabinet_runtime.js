@@ -5,6 +5,7 @@ import {createCabinet} from "./owner_anketa.js";
 import {registry,OWNER_ID,TRIAL_ID,validId,pinRecord} from "./client_registry.js";
 import {credits,adjustCredits} from "./publication_credits.js";
 import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publication_archive.js";
+import {dailyLimit} from "./daily_publication_limit.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -327,9 +328,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     statuses[kind]=value?.status==="published"?"published":
       value?.status==="publishing"||value?.status==="needs_verification"?"checking":"unknown";
    }
+   let daily=null;
+   try{
+    const status=await dailyLimit(env,uid,id,"status");
+    if(Number.isSafeInteger(status?.remaining)&&status.remaining>=0)
+     daily={remaining:status.remaining};
+   }catch{}
    profiles.push({id:String(id),name:String(saved.profile.name||"").slice(0,80),
     age:Number.isInteger(saved.profile.age)?saved.profile.age:null,
-    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
+    metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
   const allowed=new Set(profiles.map(p=>p.id));
   const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({
