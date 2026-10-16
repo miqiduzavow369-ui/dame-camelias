@@ -2,115 +2,72 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>DAME CAMELIAS · Мои анкеты</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#140628;color:#fff}
-*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(circle at 90% 25%,#4a0b42,transparent 56%),linear-gradient(155deg,#10062c,#260624 65%,#0d092e);padding:28px 16px 54px}
-.wrap{max-width:520px;margin:0 auto}.gold{color:#e7ba6d}.head{border:1px solid #a97c40;border-radius:22px;padding:20px 16px;text-align:center;background:linear-gradient(150deg,#190e12,#130b12);box-shadow:inset 0 0 0 3px #2a1a18,0 8px 22px #0e061355}
-.logo{font-size:25px;font-weight:750;letter-spacing:2px}.subtitle{font-size:13px;color:#d7bf99;margin-top:8px;letter-spacing:1px}
-h1{font-size:23px;margin:28px 4px 8px}p{color:#d9c7dc;line-height:1.45;font-size:14px;margin:0 4px 18px}
-.list{display:grid;gap:10px}.profile{width:100%;display:flex;align-items:center;gap:14px;text-align:left;border:1px solid #b88563;border-radius:17px;padding:9px;background:linear-gradient(95deg,#170b34,#300a33);color:#fff;min-height:86px;cursor:pointer}
-.profile:active{transform:scale(.992)}.profile img,.blank{height:68px;width:68px;flex:none;object-fit:cover;border-radius:12px;background:#311634}
-.blank{display:grid;place-items:center;font-size:32px}.name{font-size:17px;font-weight:750}.meta{font-size:12px;color:#bdaab8;margin-top:6px}.arr{color:#dfb772;margin-left:auto;font-size:27px;padding-right:8px}
-.panel{border:1px solid #bd8b5f;border-radius:18px;background:#170e29;margin-top:18px;padding:18px}.panel[hidden]{display:none}.panel h2{margin:0 0 14px}.panel img{display:block;max-height:330px;max-width:100%;border-radius:14px;margin:auto auto 15px;object-fit:contain}
-.state{padding:13px;border:1px solid #6b4865;border-radius:13px;margin:9px 0;background:#261434;display:flex;justify-content:space-between;gap:12px;align-items:center}.state small{color:#c2b0be;font-size:12px}.pill{font-size:12px;color:#e7ba6d;text-align:right}.photo-large{width:100%;max-height:390px;object-fit:cover;border-radius:15px;border:1px solid #a97c40;margin:0 0 18px}.detail-label{color:#d3c6d7;font-size:13px;margin:12px 0}.btn{display:block;background:linear-gradient(100deg,#32114c,#561249);color:#fff;border:1px solid #a25d8f;border-radius:14px;width:100%;padding:16px;font-size:15px;font-weight:650;margin-top:13px;text-align:center}.minor{opacity:.75}
-.actions{display:grid;gap:10px;margin:16px 0}.action{display:flex;align-items:center;justify-content:space-between;padding:16px 15px;border:1px solid #93698e;border-radius:15px;background:linear-gradient(105deg,#241036,#3b1536);color:#fff;text-align:left;font-size:15px;font-weight:650;min-height:58px;width:100%;cursor:pointer}.action span:last-child{color:#e7ba6d}.section-note{font-size:13px;color:#ddc8da;padding:12px;background:#24142f;border-radius:12px}.preview-tag{font-size:11px;letter-spacing:1px;text-align:center;color:#ecc889;margin:10px 0 2px}.view-title{font-size:20px;margin:10px 0}.muted{color:#c3a9bd}.mini-link{display:inline-block;color:#e7ba6d;text-decoration:underline;margin-top:8px}
-</style></head><body><main class="wrap">
-<div class="head"><div class="logo gold">DAME CAMELIAS</div><div class="subtitle">🌹 МОИ АНКЕТЫ · ТЕСТОВЫЙ ПРОСМОТР</div></div>
-<h1>Ваши анкеты</h1><div class="state" id="balanceSummary"><b>💎 Баланс публикаций</b><span class="pill">⏳ Загружаем</span></div><p>Выберите карточку, чтобы рассмотреть фотографию. Публикации и сохранённые анкеты здесь не изменяются.</p>
-<div class="list" id="list"><p>⏳ Загружаем ваши анкеты…</p></div>
-<section class="panel" id="detail" hidden>
-<h2 id="detailTitle" class="gold"></h2><img id="detailImage" class="photo-large" alt="Фото выбранной анкеты" hidden>
-<p id="detailMeta"></p><div class="detail-label">👨‍💻 РАБОЧИЙ АККАУНТ</div><div class="state"><b>Ян Первый</b><span class="pill">Активный аккаунт</span></div>
-<div class="detail-label">ИСТОРИЯ ПУБЛИКАЦИЙ</div><div class="state"><b>📊 Подтверждено в архиве</b><span class="pill" id="historyCount"></span></div><div class="state"><b>⭐ Оценок</b><span class="pill" id="ratingCount"></span></div><div class="state"><b>✍️ Отзывов</b><span class="pill" id="reviewCount"></span></div><div class="detail-label">ТЕКУЩИЕ СТАТУСЫ</div><div class="state"><b>⭐ Оценки</b><span class="pill" id="ratingStatus"></span></div>
-<div class="state"><b>✍️ Отзывы</b><span class="pill" id="reviewStatus"></span></div>
-<div class="preview-tag">✦ ПРОБНЫЙ ИНТЕРФЕЙС · БЕЗ ПУБЛИКАЦИИ ✦</div>
-<div class="actions">
-<button class="action" type="button" data-section="rating"><span>⭐ Оценки</span><span>›</span></button>
-<button class="action" type="button" data-section="review"><span>✍️ Отзывы</span><span>›</span></button>
-<button class="action" type="button" data-section="proof"><span>📸 Подтверждения</span><span>›</span></button>
-<button class="action" type="button" data-section="accounts"><span>👥 Рабочие аккаунты</span><span>›</span></button>
-</div>
-<p class="section-note">Все действия здесь демонстрационные. Реальные публикации и подтверждения остаются в действующем Telegram-кабинете.</p>
-<button class="btn" id="back" type="button">⬅️ К моим анкетам</button></section>
-<section class="panel" id="subview" hidden>
-<div class="preview-tag">🌹 DAME CAMELIAS · ТЕСТОВЫЙ РАЗДЕЛ</div>
-<h2 class="view-title gold" id="subTitle"></h2>
-<p id="subProfile" class="muted"></p>
-<div id="subContent"></div>
-<button type="button" class="btn" id="subBack">⬅️ К карточке анкеты</button>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f9edf4;background:#110817}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(circle at 90% -10%,#62264b55,transparent 55%),#110817;padding:0 0 105px}.app{max-width:540px;margin:auto;padding:20px 17px}
+header{display:flex;justify-content:space-between;align-items:center;padding:13px 2px 22px}.logo{font-size:17px;font-weight:850;letter-spacing:2px;color:#e9c687}.tag{color:#e7b8cb;font-size:11px;border:1px solid #684251;border-radius:100px;padding:6px 10px}
+h1{font-size:27px;letter-spacing:-.6px;margin:8px 0 6px}h2{font-size:19px;margin:0 0 13px}p{color:#bda8b8;font-size:13px;line-height:1.55}.muted{color:#aa95a5}.gold{color:#e9c687}
+.hero{background:linear-gradient(125deg,#462033,#211024 65%,#211329);border:1px solid #72516a;border-radius:24px;padding:20px;margin:16px 0 22px;box-shadow:0 12px 36px #03010850}
+.hero .over{font-size:11px;letter-spacing:1.6px;color:#d6acbf}.number{font-size:39px;font-weight:800;color:#f2d89f;margin:5px 0}.hero-bottom{font-size:12px;color:#d5b9c7}.pill{border-radius:100px;border:1px solid #805b70;background:#42233b;padding:6px 10px;color:#eed1de;font-size:11px}
+.segment{display:flex;gap:8px;margin:14px 0}.seg{background:#251728;color:#d0b8c8;border:1px solid #5b4555;border-radius:100px;padding:9px 14px;font-size:12px;cursor:pointer}.seg.active{background:#76516b;color:white;border-color:#b1839b}
+.card{border:1px solid #614556;border-radius:20px;background:linear-gradient(135deg,#291729,#1a1120);padding:13px;margin:10px 0}.profile{width:100%;color:inherit;text-align:left;display:flex;align-items:center;gap:13px;cursor:pointer}.thumb{width:68px;height:77px;flex:none;border-radius:13px;object-fit:cover;background:#382238;display:grid;place-items:center;font-size:26px}.profileText{min-width:0;flex:1}.profileText b{font-size:16px}.profileText .line{font-size:12px;color:#c3a9b9;margin:6px 0}.arrow{color:#cda46e;font-size:24px}.mini{font-size:12px;color:#c6abc0}
+.stats{display:flex;gap:8px;margin-top:14px}.stat{flex:1;background:#352035;border-radius:12px;padding:9px;font-size:12px}.stat strong{color:#edcb90;font-size:17px;display:block}
+button{font:inherit}.action{display:flex;justify-content:space-between;align-items:center;background:#2e1b32;border:1px solid #76536d;color:#f6eaf0;padding:16px;border-radius:15px;width:100%;text-align:left;margin:9px 0;cursor:pointer}.action:active,.profile:active{opacity:.78}.action small{display:block;color:#bca8b9;font-size:11px;margin-top:4px}.action .next{color:#e5c28c;font-size:20px}
+.primary{background:linear-gradient(90deg,#77415e,#a35c7b);border:1px solid #d59caa;color:white;border-radius:15px;padding:15px;width:100%;font-weight:700;margin-top:13px}
+.ghost{background:transparent;border:1px solid #6f5165;color:#e7cbdb;border-radius:15px;padding:13px;width:100%;margin:12px 0}
+.panel[hidden],section[hidden]{display:none!important}.photo-large{display:block;width:100%;max-height:380px;object-fit:cover;border-radius:19px;margin:14px 0;border:1px solid #875b76}
+.empty{padding:24px 15px;border:1px dashed #654659;border-radius:18px;text-align:center;color:#d8b9cd;font-size:13px}.section-heading{display:flex;justify-content:space-between;align-items:center;margin:18px 0 9px}.section-heading small{color:#cdafbc}.detailbar{display:flex;gap:9px;align-items:center}.detailbar button{background:#332035;border:1px solid #66465f;color:white;padding:8px 12px;border-radius:10px}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#180d1cf5;backdrop-filter:blur(14px);border-top:1px solid #55374e;padding:10px 8px max(12px,env(safe-area-inset-bottom));display:flex;justify-content:space-around;z-index:5}.nav button{background:none;border:0;color:#b69fac;min-width:68px;font-size:11px;cursor:pointer;padding:5px}.nav button .ico{font-size:23px;display:block;margin-bottom:5px}.nav button.active{color:#f1ce90}.proof-note{padding:14px;background:#2d1d30;border:1px solid #634459;border-radius:15px;font-size:12px;color:#d5bccc}
+</style></head><body><div class="app">
+<header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
+<section id="tab-profiles">
+<div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Мои анкеты <span class="gold">✦</span></h1><p>Всё важное — на одном экране. Выберите анкету для работы.</p>
+<div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
+<div class="section-heading"><h2>Сохранённые анкеты</h2><small id="totalProfiles"></small></div>
+<div id="profiles"></div>
+<button class="ghost" id="openLegacy" type="button">↗ Открыть рабочий кабинет в Telegram</button>
 </section>
-<button class="btn minor" id="close" type="button">✕ Вернуться в Telegram</button></main>
+<section id="tab-accounts" hidden><h1>Рабочие аккаунты</h1><p>Выбор аккаунта для просмотра. Рабочее назначение и доступность остаются под управлением основного бота.</p>
+<div class="card"><h2>👨‍💻 Ян Первый</h2><div class="pill">Основной аккаунт</div><p>Выбери анкету, чтобы увидеть связанные публикации. Переключение здесь не запускает работу.</p><button class="primary" data-tab="profiles">🌹 Перейти к анкетам</button></div>
+<div class="card"><h2>👨‍💻 Ян Второй</h2><span class="pill">Требует подключения</span><p>Возможности аккаунта определяются действующим кабинетом. Тест не изменяет его состояние.</p></div></section>
+<section id="tab-published" hidden><h1>Опубликовано <span class="gold">✦</span></h1><p>Сводка по сохранённым анкетам на основании существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Оригиналы подтверждений пока открываются в обычном Telegram-кабинете. Мы не показываем вымышленные скриншоты.</p></section>
+<section id="tab-cabinet" hidden><h1>Кабинет</h1><p>Управление доступом и балансом остаётся единым для Telegram и Mini App.</p><div class="hero"><div class="over">МОЙ БАЛАНС</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Сведения из существующей системы</div></div><button class="action" data-tab="profiles"><span>🌹 Мои анкеты</span><span class="next">›</span></button><button class="action" data-tab="published"><span>📸 История публикаций</span><span class="next">›</span></button><button class="ghost" id="refresh" type="button">🔄 Обновить данные</button><button class="ghost" id="close" type="button">✕ Вернуться в Telegram</button></section>
+<section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="Фото анкеты" hidden><h1 id="detailTitle"></h1><p id="detailMeta"></p>
+<div class="section-heading"><h2>Публикации</h2></div><div class="stats"><div class="stat"><strong id="ratingCount">0</strong>⭐ Оценок</div><div class="stat"><strong id="reviewCount">0</strong>✍️ Отзывов</div><div class="stat"><strong id="totalCount">0</strong>📸 Всего</div></div>
+<div class="section-heading"><h2>Действия</h2></div>
+<button class="action" data-sub="rating"><span>⭐ Оценки<small id="ratingStatus"></small></span><span class="next">›</span></button>
+<button class="action" data-sub="review"><span>✍️ Отзывы<small id="reviewStatus"></small></span><span class="next">›</span></button>
+<button class="action" data-sub="proof"><span>📸 Уже опубликовано<small>Архив подтверждений по анкете</small></span><span class="next">›</span></button>
+<button class="action" data-sub="accounts"><span>👥 Выбор рабочего аккаунта<small>Ян Первый / Ян Второй</small></span><span class="next">›</span></button><div class="proof-note">Тестовый режим: управление публикациями остаётся в рабочем кабинете Telegram.</div></section>
+<section id="subview" hidden><div class="detailbar"><button id="subBack">← К анкете</button><span class="muted" id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
+</div><nav class="nav">
+<button data-tab="profiles" class="active"><span class="ico">🌹</span>Анкеты</button>
+<button data-tab="accounts"><span class="ico">👥</span>Аккаунты</button>
+<button data-tab="published"><span class="ico">📸</span>Опубликовано</button>
+<button data-tab="cabinet"><span class="ico">💎</span>Кабинет</button>
+</nav>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
-const list=document.getElementById("list"),panel=document.getElementById("detail"),subview=document.getElementById("subview");
-let selectedProfile=null;
-const stateLabel=x=>x==="published"?"✅ Опубликовано":x==="checking"?"⏳ Требует проверки":"🌷 Нет подтверждения";
-const appendLine=(parent,heading,detail)=>{
- const block=document.createElement("div");block.className="state";
- const left=document.createElement("b");left.textContent=heading;
- const right=document.createElement("span");right.className="pill";right.textContent=detail;
- block.append(left,right);parent.append(block);
-};
-function openSection(section){
- if(!selectedProfile)return;
- const profile=selectedProfile,title=document.getElementById("subTitle"),content=document.getElementById("subContent");
- const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Подтверждения",accounts:"👥 Рабочие аккаунты"};
- title.textContent=titles[section]||"Мои анкеты";document.getElementById("subProfile").textContent="🌹 Анкета №"+profile.id;
- content.replaceChildren();
- if(section==="rating"||section==="review"){
-  appendLine(content,"Текущий статус",stateLabel(profile.statuses?.[section]));
-  appendLine(content,"Подтверждено в архиве",String(profile.counts?.[section]||0));
-  appendLine(content,"Рабочий аккаунт","Ян Первый");
-  const note=document.createElement("p");note.className="section-note";note.textContent="Оформление и запуск публикации будут доступны после отдельного согласования. Сейчас это просмотр интерфейса.";
-  content.append(note);
- }else if(section==="proof"){
-  const note=document.createElement("p");note.className="section-note";note.textContent="В архиве подтверждено публикаций: "+(profile.counts?.total||0)+". Просмотр оригинальных скриншотов пока доступен только в действующем кабинете Telegram.";
-  content.append(note);
- }else if(section==="accounts"){
-  appendLine(content,"👨‍💻 Ян Первый","Демо");
-  appendLine(content,"👨‍💻 Ян Второй","Демо");
-  const note=document.createElement("p");note.className="section-note";note.textContent="Переключение аккаунта здесь не меняет сохранённые данные или текущий рабочий аккаунт.";
-  content.append(note);
- }
- panel.hidden=true;list.hidden=true;subview.hidden=false;subview.scrollIntoView({behavior:"smooth"});
+const $=id=>document.getElementById(id);let profiles=[],selected=null,lastTab="profiles";
+const label=s=>s==="published"?"✅ Опубликовано":s==="checking"?"⏳ На проверке":"Статус не подтверждён";
+const safePhoto=(img,url)=>{img.hidden=!url;if(url){img.src=url;img.onerror=()=>{img.hidden=true;};}};
+function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));window.scrollTo({top:0,behavior:"smooth"});}
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+const card=(p,clickable=true)=>{const el=document.createElement(clickable?"button":"div");el.className="card profile";if(clickable)el.type="button";
+const pic=p.photo?document.createElement("img"):document.createElement("div");pic.className="thumb";if(p.photo){pic.src=p.photo;pic.alt="Фото "+p.id;pic.onerror=()=>{pic.replaceWith(Object.assign(document.createElement("div"),{className:"thumb",textContent:"🌹"}));};}else pic.textContent="🌹";
+const mid=document.createElement("div");mid.className="profileText";const title=document.createElement("b");title.textContent="Анкета №"+p.id;const meta=document.createElement("div");meta.className="line";meta.textContent=[p.name,p.age?p.age+" лет":"",p.metro].filter(Boolean).join(" · ")||"Сохранённая анкета";const stats=document.createElement("div");stats.className="mini";stats.textContent="⭐ "+(p.counts?.rating||0)+"   ✍️ "+(p.counts?.review||0)+"   📸 "+(p.counts?.total||0);mid.append(title,meta,stats);el.append(pic,mid);if(clickable){const arrow=document.createElement("span");arrow.className="arrow";arrow.textContent="›";el.append(arrow);el.onclick=()=>openDetail(p);}return el;};
+function render(data){profiles=data.profiles||[];const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
+for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
+$("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
+if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";if(!published.children.length)published.textContent="Для сохранённых анкет подтверждений пока нет.";
 }
-document.querySelectorAll("[data-section]").forEach(button=>button.addEventListener("click",()=>openSection(button.dataset.section)));
-document.getElementById("subBack").onclick=()=>{subview.hidden=true;panel.hidden=false;panel.scrollIntoView({behavior:"smooth"});};
-document.getElementById("close").onclick=()=>tg?.close();
-document.getElementById("back").onclick=()=>{panel.hidden=true;subview.hidden=true;list.hidden=false;};
-function item(profile){
- const button=document.createElement("button");button.type="button";button.className="profile";
- const picture=profile.photo?document.createElement("img"):document.createElement("span");
- if(profile.photo){picture.src=profile.photo;picture.alt="Фото анкеты "+profile.id;picture.loading="lazy";picture.onerror=()=>{picture.removeAttribute("src");picture.className="blank";picture.alt="Фото недоступно";};}
- else{picture.className="blank";picture.textContent="🌹";}
- const mid=document.createElement("div"),title=document.createElement("div"),sub=document.createElement("div");
- title.className="name";title.textContent="🌹 АНКЕТА №"+profile.id;
- sub.className="meta";sub.textContent=[profile.name,profile.age?profile.age+" лет":""].filter(Boolean).join(" · ")||"Сохранённая анкета";
- mid.append(title,sub);const arr=document.createElement("span");arr.className="arr";arr.textContent="›";button.append(picture,mid,arr);
- button.onclick=()=>{
- selectedProfile=profile;subview.hidden=true;
- document.getElementById("historyCount").textContent=String(profile.counts?.total||0);
- document.getElementById("ratingCount").textContent=String(profile.counts?.rating||0);
- document.getElementById("reviewCount").textContent=String(profile.counts?.review||0);
- document.getElementById("detailTitle").textContent="🌹 АНКЕТА №"+profile.id;
- document.getElementById("detailMeta").textContent=[profile.name,profile.age?profile.age+" лет":"",profile.metro?"📍 м. "+profile.metro:""].filter(Boolean).join(" · ")||"Сохранённая анкета";
- const img=document.getElementById("detailImage");img.hidden=!profile.photo;if(profile.photo)img.src=profile.photo;
- const label=x=>x==="published"?"✅ Опубликовано":x==="checking"?"⏳ Требует проверки":"🌷 Нет подтверждения";
- document.getElementById("ratingStatus").textContent=label(profile.statuses?.rating);
- document.getElementById("reviewStatus").textContent=label(profile.statuses?.review);
- panel.hidden=false;list.hidden=true;panel.scrollIntoView({behavior:"smooth"});
-};
- return button;
-}
-(async()=>{
- try{
-  if(!tg?.initData)throw Error("Откройте тестовую версию кнопкой из Telegram.");
-  const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});
-  if(!response.ok)throw Error("Доступ не подтверждён. Войдите в обычный кабинет и повторите попытку.");
-  const data=await response.json();list.replaceChildren();
-  const balance=document.getElementById("balanceSummary").querySelector(".pill");
-  const b=data.balance;balance.textContent=b&&Number.isSafeInteger(b.available)?"Доступно: "+b.available+(b.reserved?" · в резерве "+b.reserved:""):"Временная недоступность";
-  if(!data.profiles?.length){const empty=document.createElement("p");empty.textContent="Пока нет сохранённых анкет.";list.append(empty);}
-  else data.profiles.forEach(profile=>list.append(item(profile)));
- }catch(e){list.replaceChildren();const error=document.createElement("p");error.textContent="🌷 "+e.message;list.append(error);}
-})();
+function openDetail(p){selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);$("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);scrollTo(0,0);}
+$("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
+document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{if(!selected)return;const kind=b.dataset.sub,p=$("subContent");p.replaceChildren();const titles={rating:"⭐ Оценки",review:"✍️ Отзывы",proof:"📸 Опубликовано",accounts:"👥 Рабочие аккаунты"};$("subTitle").textContent=titles[kind];$("subId").textContent="Анкета №"+selected.id;let lines=[];
+if(kind==="rating"||kind==="review")lines=[["Статус",label(selected.statuses?.[kind])],["Подтверждено",String(selected.counts?.[kind]||0)],["Действие","Публикации пока только в Telegram"]];
+else if(kind==="proof")lines=[["Оценки",String(selected.counts?.rating||0)],["Отзывы",String(selected.counts?.review||0)],["Скриншоты","Открываются в Telegram"]];
+else lines=[["Ян Первый","Основной аккаунт"],["Ян Второй","Статус проверяется в Telegram"],["Выбор","Не изменяет рабочий аккаунт"]];
+for(const [key,val]of lines){const row=document.createElement("div");row.className="action";const k=document.createElement("span"),v=document.createElement("span");k.textContent=key;v.textContent=val;v.className="mini";row.append(k,v);p.append(row);}const note=document.createElement("div");note.className="proof-note";note.textContent="Это интерфейс для оценки удобства. Реальные действия не запускаются.";p.append(note);$("detail").hidden=true;$("subview").hidden=false;scrollTo(0,0);});
+$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
+async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Для просмотра войдите в обычный кабинет Telegram.");render(await response.json());}catch(e){$("profiles").textContent="🌷 "+e.message;}}
+$("refresh").onclick=load;load();
 </script></body></html>
