@@ -177,6 +177,21 @@ async function replaceTrackedHome(env,uid,newMessageId){
  await env.VISITORS_KV.put(key,JSON.stringify({id:newMessageId}),{expirationTtl:172800});
  if(Number.isSafeInteger(old?.id)&&old.id!==newMessageId)await telegram(env,"deleteMessage",{chat_id:uid,message_id:old.id}).catch(()=>{});
 }
+const welcomeNavKey=uid=>"welcome_message:v1:"+uid;
+async function trackWelcome(env,uid,messageId){
+ if(!Number.isSafeInteger(messageId)||!env.VISITORS_KV)return;
+ const key=welcomeNavKey(uid),old=await env.VISITORS_KV.get(key,"json").catch(()=>null);
+ await env.VISITORS_KV.put(key,JSON.stringify({id:messageId}),{expirationTtl:172800}).catch(()=>{});
+ if(Number.isSafeInteger(old?.id)&&old.id!==messageId)
+  await telegram(env,"deleteMessage",{chat_id:uid,message_id:old.id}).catch(()=>{});
+}
+async function clearWelcome(env,uid,sourceId){
+ if(!env.VISITORS_KV)return;
+ const key=welcomeNavKey(uid),old=await env.VISITORS_KV.get(key,"json").catch(()=>null);
+ await env.VISITORS_KV.delete(key).catch(()=>{});
+ for(const id of new Set([old?.id,sourceId]))
+  if(Number.isSafeInteger(id))await telegram(env,"deleteMessage",{chat_id:uid,message_id:id}).catch(()=>{});
+}
 async function clearTrackedHome(env,uid,sourceId){
  if(!env.VISITORS_KV)return;
  const key=homeNavKey(uid),old=await env.VISITORS_KV.get(key,"json").catch(()=>null);
@@ -207,6 +222,7 @@ async function sendPage(env, chatId, key) {
           const { photo, ...fields } = data;
           const sent=await sendPhotoFile(env, fields, photo);
           if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      if(key==="welcome")await trackWelcome(env,chatId,sent?.message_id);
           return sent;
         } catch (uploadError) {
           console.error("Home photo direct upload failed:", uploadError);
@@ -214,6 +230,7 @@ async function sendPage(env, chatId, key) {
       }
       const sent=await telegram(env, method, data);
       if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      if(key==="welcome")await trackWelcome(env,chatId,sent?.message_id);
       return sent;
     } catch (err) {
       console.error("Primary media unavailable:", key, err);
@@ -227,6 +244,7 @@ async function sendPage(env, chatId, key) {
       legacyData[legacy.type] = legacy.url;
       const sent=await telegram(env, method, legacyData);
       if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      if(key==="welcome")await trackWelcome(env,chatId,sent?.message_id);
       return sent;
     } catch (err) {
       console.error("Legacy media fallback unavailable:", key, err);
@@ -239,6 +257,7 @@ async function sendPage(env, chatId, key) {
         ...payload, photo: fallback, caption: PAGES[key]
       });
       if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      if(key==="welcome")await trackWelcome(env,chatId,sent?.message_id);
       return sent;
     } catch (err) {
       console.error("Fallback image unavailable:", key, err);
@@ -441,6 +460,11 @@ async function handle(update, env) {
         return;
       }
       await quickReply(env,{message:{chat:cb.message.chat,from:cb.from,text:selected,reply_to_message:cb.message}});
+      return;
+    }
+    if(cb.data==="home"&&cb.message.reply_markup?.inline_keyboard?.flat()?.some(b=>b.text==="✨ НАЧАТЬ"&&b.callback_data==="home")){
+      await sendPage(env,cb.message.chat.id,"home");
+      await clearWelcome(env,cb.message.chat.id,cb.message.message_id);
       return;
     }
     const key = cb.data==="home:refresh"?"home":Object.hasOwn(PAGES, cb.data) ? cb.data : "home";
