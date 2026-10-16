@@ -20,9 +20,9 @@ button{font:inherit}.action{display:flex;justify-content:space-between;align-ite
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
-<div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Мои анкеты <span class="gold">✦</span></h1><p>Всё важное — на одном экране. Выберите анкету для работы.</p>
+<div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт мужчины, затем анкету. Ниже увидите доступные действия и причины ограничений.</p>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
-<div class="section-heading"><h2>Сохранённые анкеты</h2><small id="totalProfiles"></small></div>
+<div class="card"><h2>① 👨‍💻 Аккаунт мужчины</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Для просмотра доступности и результатов выбранного мужчины</div><button class="action" type="button" data-account="yan_first"><span>Ян Первый</span><span class="next" id="workFirst">✓</span></button><button class="action" type="button" data-account="yan_second"><span>Ян Второй</span><span class="next" id="workSecond">○</span></button></div><div class="section-heading"><h2>② Выберите анкету</h2><small id="totalProfiles"></small></div>
 <div id="profiles"></div>
 <button class="ghost" id="openLegacy" type="button">↗ Открыть рабочий кабинет в Telegram</button>
 </section>
@@ -33,7 +33,7 @@ button{font:inherit}.action{display:flex;justify-content:space-between;align-ite
 </div><div class="proof-note" id="selectedAccountNote">Аккаунт выбран только для фильтрации истории в тестовой версии.</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><h1>Опубликовано <span class="gold">✦</span></h1><p>Сводка по сохранённым анкетам на основании существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Оригиналы подтверждений пока открываются в обычном Telegram-кабинете. Мы не показываем вымышленные скриншоты.</p></section>
+<section id="tab-published" hidden><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Оригиналы подтверждений пока открываются в обычном Telegram-кабинете. Мы не показываем вымышленные скриншоты.</p></section>
 <section id="tab-cabinet" hidden><h1>Кабинет</h1><p>Управление доступом и балансом остаётся единым для Telegram и Mini App.</p><div class="hero"><div class="over">МОЙ БАЛАНС</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Сведения из существующей системы</div></div><button class="action" data-tab="profiles"><span>🌹 Мои анкеты</span><span class="next">›</span></button><button class="action" data-tab="published"><span>📸 История публикаций</span><span class="next">›</span></button><button class="ghost" id="refresh" type="button">🔄 Обновить данные</button><button class="ghost" id="close" type="button">✕ Вернуться в Telegram</button></section>
 <section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="Фото анкеты" hidden><h1 id="detailTitle"></h1><p id="detailMeta"></p>
 <div class="section-heading"><h2>👨‍💻 Аккаунт мужчины</h2></div>
@@ -46,22 +46,21 @@ button{font:inherit}.action{display:flex;justify-content:space-between;align-ite
 <div class="stats"><div class="stat"><strong id="cardBank">—</strong>Общий банк</div><div class="stat"><strong id="cardDaily">—</strong>Дневной лимит анкеты</div></div>
 <p class="muted">Банк принадлежит вашему кабинету, дневной лимит общий для анкеты — не отдельный для каждого мужчины.</p>
 <div class="section-heading"><h2>Ранее опубликовано</h2></div><div class="stats"><div class="stat"><strong id="ratingCount">0</strong>⭐ Оценок</div><div class="stat"><strong id="reviewCount">0</strong>✍️ Отзывов</div><div class="stat"><strong id="totalCount">0</strong>📸 Всего</div></div>
-<div class="section-heading"><h2>Действия</h2></div>
+<div class="section-heading"><h2>③ Действия с анкетой</h2></div>
 <button class="action" data-sub="rating"><span>⭐ Оставить оценки<small id="ratingStatus"></small></span><span class="next">›</span></button>
 <button class="action" data-sub="review"><span>✍️ Написать отзыв<small id="reviewStatus"></small></span><span class="next">›</span></button>
 <button class="action" data-sub="proof"><span>📸 Уже опубликовано<small>Архив подтверждений по анкете</small></span><span class="next">›</span></button>
-<button class="action" data-sub="accounts"><span>👥 Выбор аккаунта мужчины<small>Ян Первый / Ян Второй</small></span><span class="next">›</span></button><div class="proof-note">Тестовый режим: управление публикациями остаётся в рабочем кабинете Telegram.</div></section>
+<button class="action" data-tab="published"><span>📸 Посмотреть результат и архив<small>Ранее выполненные действия</small></span><span class="next">›</span></button><div class="proof-note">Тестовый режим: управление публикациями остаётся в рабочем кабинете Telegram.</div></section>
 <section id="subview" hidden><div class="detailbar"><button id="subBack">← К анкете</button><span class="muted" id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
 </div><nav class="nav">
-<button data-tab="profiles" class="active"><span class="ico">🌹</span>Анкеты</button>
-<button data-tab="accounts"><span class="ico">👥</span>Аккаунты</button>
-<button data-tab="published"><span class="ico">📸</span>Опубликовано</button>
+<button data-tab="profiles" class="active"><span class="ico">💼</span>Работа</button>
+<button data-tab="published"><span class="ico">📸</span>История</button>
 <button data-tab="cabinet"><span class="ico">💎</span>Кабинет</button>
 </nav>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const $=id=>document.getElementById(id);let profiles=[],history=[],selected=null,lastTab="profiles",selectedAccount="yan_first";
-const label=s=>s==="published"?"✅ Опубликовано":s==="checking"?"⏳ На проверке":"Статус не подтверждён";
+const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
 const safePhoto=(img,url)=>{img.hidden=!url;if(url){img.src=url;img.onerror=()=>{img.hidden=true;};}};
 const accountName=account=>account==="yan_second"?"Ян Второй":"Ян Первый";
 function selectAccount(account){
@@ -69,6 +68,8 @@ function selectAccount(account){
  selectedAccount=account;
  $("firstSelected").textContent=account==="yan_first"?"✓":"○";
  $("secondSelected").textContent=account==="yan_second"?"✓":"○";
+ $("workFirst").textContent=account==="yan_first"?"✓":"○";
+ $("workSecond").textContent=account==="yan_second"?"✓":"○";
  $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+". Рабочий аккаунт в Telegram не меняется.";
  renderHistory();
 }
