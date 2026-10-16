@@ -26,7 +26,7 @@ function setup(){
  const send=async(e,method,payload)=>{sent.push({method,payload});return {message_id:sent.length};};
  const update=(uid,data)=>typeof data==="string"&&data.startsWith("owner_anketa:")||typeof data==="string"&&data.startsWith("clients:")?{callback_query:{id:"test",from:{id:uid},message:{message_id:44,chat:{id:uid,type:"private"}},data}}:{message:{message_id:77,from:{id:uid},chat:{id:uid,type:"private"},text:data}};
  const run=(uid,data)=>cabinetEvent(store(uid),env,{userId:uid,event:{kind:"update",update:update(uid,data)}},send);
- const create=async(uid,pin="777777",grant=3)=>registry(env,{action:"create",actorId:owner,userId:uid,credential:await pinRecord(pin),grant,operation:uid.padStart(16,"a")});
+ const create=async(uid,pin="777777",grant=3,signed=true)=>{const result=await registry(env,{action:"create",actorId:owner,userId:uid,credential:await pinRecord(pin),grant,operation:uid.padStart(16,"a")});if(signed){const obj=env.ORDER_REMINDERS.get("agreement:v1:"+uid);const storage=objects.get("agreement:v1:"+uid)?.storage;if(storage&&!await storage.get("accepted"))await storage.put("accepted",{userId:uid,acceptedAt:Date.now(),version:AGREEMENT_VERSION,sections:structuredClone(AGREEMENT_SECTIONS)});}return result;};
  const login=async(uid,pin="777777")=>{await run(uid,"owner_anketa:open");await run(uid,pin);};
  return {env,kv,objects,store,sent,run,create,login,update,send};
 }
