@@ -1055,7 +1055,7 @@ async function handleAnketaLookupResult(request,env,send) {
       await statePut(env,{...current,host:current.recoveryHost||current.host,step:"review_result",text:null,completedAt:Date.now()});
       await clearProgress(env,send);
       if(current.moderationTicket){
-       try{await moderationRPC(env,OWNER_ID,current.moderationTicket,{action:"published",proofDelivered:true,profileId:id});}
+       try{await moderationRPC(env,OWNER_ID,current.moderationTicket,{action:"published",proofDelivered:true,profileId:id,proofFileId:fileId});}
        catch{if(env.__enqueueModerationNotice)await env.__enqueueModerationNotice(current.moderationTicket,id);}
       }
       return Response.json({ok:true,reviewPublished:true});
