@@ -2270,6 +2270,15 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
+async function miniDeleteProfile(env,id){
+ if(!ID_PATTERN.test(String(id)))return {ok:false,reason:"invalid"};
+ if(!await savedGet(env,id))return {ok:false,reason:"not_found"};
+ await savedDelete(env,id);
+ const active=await stateGet(env);
+ if(String(active?.profile?.id||active?.id)===String(id)&&!["publishing","review_dispatch","review_recheck","proof_loading"].includes(active.step))
+  await env.VISITORS_KV.delete(PREFIX+OWNER_ID);
+ return {ok:true};
+}
 async function miniAddProfile(input) {
  const action=String(input?.action||"");
  if(action==="start"){
@@ -2307,7 +2316,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniAddProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
