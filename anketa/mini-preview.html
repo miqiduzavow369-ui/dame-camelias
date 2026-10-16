@@ -76,10 +76,8 @@ p,.muted,.mini{color:#b6ab99}
 <section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="" hidden><div id="detailPhotoFallback" class="photo-fallback" hidden>🌹 Фото временно недоступно</div><h1 id="detailTitle"></h1><p id="detailMeta"></p>
 <div class="section-heading"><h2>👨‍💻 Аккаунт клиента</h2></div>
 <div class="card"><div class="muted" style="margin-bottom:10px;font-size:12px">Выбранный аккаунт клиента</div><strong id="detailAccount">Ян Первый</strong>
-<div style="display:flex;gap:9px;margin-top:12px">
-<button class="seg" id="manFirst" type="button">Ян Первый</button>
-<button class="seg" id="manSecond" type="button">Ян Второй</button></div>
-<p class="muted">Выбор влияет на просмотр истории. Реальные действия пока выполняются в Telegram.</p></div>
+<p class="muted">Изменить аккаунт можно на главном экране «Работа».</p><button type="button" class="ghost" id="changeMan">← К выбору аккаунта</button>
+</div>
 <div class="section-heading"><h2>💎 Доступность публикаций</h2></div>
 <div class="stats"><div class="stat"><strong id="cardBank">—</strong>Общий банк</div><div class="stat"><strong id="cardDaily">—</strong>Дневной лимит анкеты</div></div>
 <p class="muted">Банк принадлежит вашему кабинету, дневной лимит общий для анкеты — не отдельный для каждого мужчины.</p>
@@ -142,11 +140,9 @@ if(!profiles.length)list.textContent="Пока нет сохранённых а�
 let availableBalance=null;
 function refreshManButtons(){
  $("detailAccount").textContent=accountName(selectedAccount);
- $("manFirst").classList.toggle("active",selectedAccount==="yan_first");
- $("manSecond").classList.toggle("active",selectedAccount==="yan_second");
+
 }
-$("manFirst").onclick=()=>{selectAccount("yan_first");refreshManButtons();if(selected)openDetail(selected);};
-$("manSecond").onclick=()=>{selectAccount("yan_second");refreshManButtons();if(selected)openDetail(selected);};
+$("changeMan").onclick=()=>showTab("profiles");
 function openDetail(p){selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
