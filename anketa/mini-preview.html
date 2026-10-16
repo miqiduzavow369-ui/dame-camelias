@@ -117,7 +117,7 @@ $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета �
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
 $("beginAddProfile").onclick=()=>{$("addProfilePanel").hidden=false;$("addProfilePanel").scrollIntoView({behavior:"smooth"});};
 $("addProfileCancel").onclick=()=>{$("addProfilePanel").hidden=true;$("addProfileNotice").textContent="";};
-$("addProfileContinue").onclick=()=>{const value=$("addProfileUrl").value.trim();let valid=false;try{const u=new URL(value);valid=u.protocol==="https:"&&/^[a-z0-9-]+\\.intimcity\\.rip$/i.test(u.hostname)&&/^\\/indi\\/anketa\\d{1,9}\\.htm$/i.test(u.pathname);}catch{}
+$("addProfileContinue").onclick=()=>{const value=$("addProfileUrl").value.trim();let valid=false;try{const u=new URL(value);valid=u.protocol==="https:"&&u.hostname.endsWith(".intimcity.rip")&&u.hostname.length>".intimcity.rip".length&&u.pathname.startsWith("/indi/anketa")&&u.pathname.endsWith(".htm")&&/^[0-9]{1,9}$/.test(u.pathname.slice(12,-4));}catch{}
 $("addProfileNotice").textContent=valid?"✅ Формат ссылки верный. Для проверки данных и сохранения нужен существующий серверный процесс Telegram. Никакая анкета пока не добавлена.":"🌷 Пришлите полную ссылку на анкету с актуальным доменом Intimcity.";};
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
