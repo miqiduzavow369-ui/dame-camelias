@@ -391,6 +391,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const permitted=new Set(["ratings_loading","ratings","ratings_agreed","audit_loading","dryfill_loading","prepublish_ready","publishing","proof_loading","review_input","review_preview","review_moderation","review_dispatch","review_recheck","review_result","publication_result"]);
    if(permitted.has(stage)&&allowed.has(pid)){
     workflow={profileId:pid,stage,account:active?.account==="yan_first"?"yan_first":null};
+    // Read-only summary from the original rating draft. Never expose a save
+    // token or claim a publication has occurred.
+    if(["ratings","ratings_agreed","audit_loading","dryfill_loading","prepublish_ready"].includes(stage)&&Array.isArray(active.catalog)&&active.catalog.length<=120){
+     const selections=Object.entries(active.selected||{}).filter(([key,value])=>
+       /^(0|[1-9]\d{0,2})$/.test(key)&&typeof value==="string"&&Number(key)<active.catalog.length).slice(0,120);
+     workflow.ratingDraft=selections.map(([key,value])=>({
+       label:String(active.catalog[Number(key)]?.label||"").slice(0,90),
+       value:value.slice(0,50)
+     }));
+     workflow.hasDraft=active.draftReady===true;
+    }
    }
   }catch{}
   return {ok:true,profiles,history,workflow,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
