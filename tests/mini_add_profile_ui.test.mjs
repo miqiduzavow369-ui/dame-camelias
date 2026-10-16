@@ -10,8 +10,11 @@ test('Add profile has separate panel, clear steps and return navigation',()=>{
  for(const key of ['id="tab-add"','id="beginAddProfile"','id="addProfileCancel"','id="addProfileUrl"','id="addProfileContinue"','profile-steps'])
   assert.ok(html.includes(key),key);
 });
-test('Link format check is not mistaken for server confirmation',()=>{
- assert.match(html,/Анкета ещё не сохранена/);
+test('Profile is only confirmed by authenticated server response',()=>{
+ assert.match(html,/miniAdd\("start"/);
+ assert.match(html,/miniAdd\("status"/);
+ assert.match(html,/miniAdd\("confirm"/);
+ assert.match(html,/Анкета сохранена/);
  assert.match(html,/Никакие данные не сохраняются без проверки/);
- assert.doesNotMatch(html,/addProfileContinue"\)\.onclick[\s\S]{0,900}fetch\(/);
+ assert.match(html,/result\.stage==="confirm"/);
 });
