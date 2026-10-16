@@ -270,7 +270,7 @@ test("welcome and home show ADMINISTRATOR only in the owner's private chat",asyn
    await Promise.all(jobs);
    const buttons=messages.slice(start).flatMap(x=>x.reply_markup?.inline_keyboard?.flat()||[]);
    assert.equal(buttons.some(x=>x.text==="👑 АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
-   if(page==="home")assert.ok(buttons.some(x=>x.text==="📜 Соглашение"&&x.callback_data==="agreement:start"));
+   if(page==="home"){assert.equal(buttons.some(x=>x.text==="📜 Соглашение"&&x.callback_data==="agreement:start"),uid!==owner);assert.ok(buttons.some(x=>x.text==="🔄 Обновить"&&x.callback_data==="home:refresh"));}
   }
  }finally{globalThis.fetch=original;}
 });
