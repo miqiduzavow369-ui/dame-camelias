@@ -298,7 +298,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const ids=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
   const profiles=[];
   for(const id of [...new Set(Array.isArray(ids)?ids:[])].slice(0,80)){
-   if(!/^\\d{1,9}$/.test(String(id)))continue;
+   if(!/^\d{1,9}$/.test(String(id)))continue;
    const saved=await env.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+id,"json");
    if(!saved||String(saved.profile?.id)!==String(id))continue;
    let photo="";
