@@ -71,7 +71,7 @@ p,.muted,.mini{color:#b6ab99}
 <label class="muted" for="addProfileUrl">Адрес анкеты</label>
 <input id="addProfileUrl" class="man-search" type="url" autocomplete="url" spellcheck="false" placeholder="https://сайт.intimcity.rip/indi/anketa123456.htm">
 <div id="addProfileNotice" class="proof-note" aria-live="polite">После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.</div>
-<button id="addProfileContinue" type="button" class="primary">🔎 Проверить формат ссылки</button>
+<button id="addProfileContinue" type="button" class="primary">🔎 Найти анкету</button><div id="addProfileFound" class="card" hidden><h2>🌹 Анкета найдена</h2><img id="addFoundImage" class="photo-large" alt="Фото анкеты" hidden><p id="addFoundDetails"></p><button id="addProfileConfirm" class="primary" type="button">✅ Это моя анкета</button></div><button id="addProfileCheck" class="ghost" type="button" hidden>🔄 Проверить результат поиска</button>
 </div><p class="muted">Никакие данные не сохраняются без проверки и вашего подтверждения.</p>
 </section>
 <section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Это не меняет аккаунт, назначенный для реальной работы в Telegram.</p>
@@ -129,8 +129,31 @@ $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета �
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
 $("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.";};
 $("addProfileCancel").onclick=()=>showTab("profiles");
-$("addProfileContinue").onclick=()=>{const value=$("addProfileUrl").value.trim();let valid=false;try{const u=new URL(value);valid=u.protocol==="https:"&&u.hostname.endsWith(".intimcity.rip")&&u.hostname.length>".intimcity.rip".length&&u.pathname.startsWith("/indi/anketa")&&u.pathname.endsWith(".htm")&&/^[0-9]{1,9}$/.test(u.pathname.slice(12,-4));}catch{}
-$("addProfileNotice").textContent=valid?"✅ Формат ссылки проверен. Поиск анкеты и её подтверждение пока доступны только через существующий Telegram-кабинет. Анкета ещё не сохранена.":"⚠️ Ссылка не соответствует ожидаемому формату. Скопируйте её полностью из адресной строки своей анкеты.";};
+let addNonce="";
+async function miniAdd(action,extra={}){
+ if(!tg?.initData)throw Error("Откройте приложение из Telegram.");
+ const response=await fetch("/api/anketa/mini-add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,action,...extra}),cache:"no-store"});
+ if(!response.ok)throw Error("Не удалось проверить доступ к кабинету.");
+ return response.json();
+}
+function addFound(result){
+ $("addProfileFound").hidden=result.stage!=="confirm";$("addProfileCheck").hidden=result.stage!=="loading";
+ if(result.stage==="confirm"){
+  addNonce=result.nonce;const p=result.profile;$("addFoundDetails").textContent=[p.name,p.age+" лет",p.metro?"м. "+p.metro:"","Анкета №"+p.id].filter(Boolean).join(" · ");
+  const img=$("addFoundImage");img.hidden=!p.photoUrl;if(p.photoUrl)img.src=p.photoUrl;
+  $("addProfileNotice").textContent="Проверьте фотографию и данные, затем подтвердите свою анкету.";
+ }else if(result.stage==="loading")$("addProfileNotice").textContent="⏳ Проверяем вашу анкету. Это может занять некоторое время.";
+ else if(result.stage==="saved"){$("addProfileNotice").textContent="✅ Анкета сохранена.";load().then(()=>showTab("profiles"));}
+ else $("addProfileNotice").textContent="Проверка пока не завершена. Если поиск не удался, повторите ввод ссылки.";
+}
+$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileFound").hidden=true;$("addProfileCheck").hidden=true;$("addProfileNotice").textContent="Вставьте полную ссылку, чтобы найти анкету.";};
+$("addProfileCancel").onclick=()=>showTab("profiles");
+$("addProfileContinue").onclick=async()=>{const value=$("addProfileUrl").value.trim();$("addProfileContinue").disabled=true;
+ try{const r=await miniAdd("start",{url:value});if(!r.ok)throw Error(r.reason==="invalid_link"?"Некорректная ссылка. Проверьте адрес анкеты.":"Не удалось начать проверку. Попробуйте позднее.");addFound(r);}
+ catch(e){$("addProfileNotice").textContent="⚠️ "+e.message;}finally{$("addProfileContinue").disabled=false;}
+};
+$("addProfileCheck").onclick=async()=>{try{const r=await miniAdd("status");if(!r.ok)throw Error("Проверка недоступна.");addFound(r);}catch(e){$("addProfileNotice").textContent="⚠️ "+e.message;}};
+$("addProfileConfirm").onclick=async()=>{$("addProfileConfirm").disabled=true;try{const r=await miniAdd("confirm",{nonce:addNonce});if(!r.ok)throw Error("Подтверждение устарело. Проверьте анкету повторно.");addFound(r);}catch(e){$("addProfileNotice").textContent="⚠️ "+e.message;}finally{$("addProfileConfirm").disabled=false;}};
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};

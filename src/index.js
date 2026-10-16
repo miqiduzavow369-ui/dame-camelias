@@ -676,6 +676,16 @@ export default {
       if(!result?.ok)return new Response("Forbidden",{status:403});
       return Response.json({profiles:result.profiles,balance:result.balance,history:result.history},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-add"){
+      if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      let uid;
+      try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      const result=await cabinetRPC(env,uid,{kind:"mini_add",action:body.action,url:body.url,nonce:body.nonce});
+      return Response.json(result,{status:result?.status===403?403:result?.status===400?400:200,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+    }
     if (request.method === "GET" && url.pathname === "/anketa/ratings") {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/ratings.html");
       if (!result.ok) return new Response("Form unavailable",{status:502});

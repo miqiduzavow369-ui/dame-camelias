@@ -2270,7 +2270,44 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
-return {moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+async function miniAddProfile(input) {
+ const action=String(input?.action||"");
+ if(action==="start"){
+  const link=parseProfileLink(input.url);
+  if(!link)return {ok:false,reason:"invalid_link"};
+  const existing=await savedGet(input.env,link.id);
+  if(existing?.confirmed&&existing.profile?.url===`https://${link.host}/indi/anketa${link.id}.htm`)
+   return {ok:true,stage:"saved",profile:existing.profile};
+  const pending=await stateGet(input.env);
+  if(pending&&["publishing","review_dispatch","review_recheck","proof_loading"].includes(pending.step))
+   return {ok:false,reason:"busy"};
+  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  if(!await statePut(input.env,{step:"loading",id:link.id,host:link.host,nonce}))return {ok:false,reason:"unavailable"};
+  const started=await dispatchLookup(input.env,link.id,nonce,"profile",link.host).catch(()=>({ok:false}));
+  if(!started.ok){await statePut(input.env,{step:"number"});return {ok:false,reason:"lookup_failed"};}
+  return {ok:true,stage:"loading",id:link.id};
+ }
+ if(action==="status"){
+  const state=await stateGet(input.env);
+  if(state?.step==="confirm"&&state.profile&&state.nonce)
+   return {ok:true,stage:"confirm",profile:state.profile,nonce:state.nonce};
+  if(state?.step==="loading")return {ok:true,stage:"loading",id:state.id};
+  if(state?.step==="chosen"&&state.profile)return {ok:true,stage:"saved",profile:state.profile};
+  return {ok:true,stage:"idle"};
+ }
+ if(action==="confirm"){
+  const current=await stateGet(input.env);
+  if(current?.step!=="confirm"||current.nonce!==input.nonce||!current.profile)
+   return {ok:false,reason:"stale"};
+  const prior=await savedGet(input.env,current.profile.id);
+  if(!await savedPut(input.env,{profile:current.profile,host:current.host,catalog:prior?.host===current.host?prior.catalog||[]:[]}))
+   return {ok:false,reason:"unavailable"};
+  await statePut(input.env,{step:"chosen",profile:current.profile,host:current.host,nonce:current.nonce});
+  return {ok:true,stage:"saved",profile:current.profile};
+ }
+ return {ok:false,reason:"invalid_action"};
+}
+return {miniAddProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
