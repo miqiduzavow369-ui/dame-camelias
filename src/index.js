@@ -674,7 +674,7 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
       if(!result?.ok)return new Response("Forbidden",{status:403});
-      return Response.json({profiles:result.profiles,balance:result.balance},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      return Response.json({profiles:result.profiles,balance:result.balance,history:result.history},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if (request.method === "GET" && url.pathname === "/anketa/ratings") {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/ratings.html");
