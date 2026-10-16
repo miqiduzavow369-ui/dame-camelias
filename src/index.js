@@ -1,4 +1,4 @@
-import {handleAgreement} from "./agreement.js";
+import {handleAgreement,agreementStatus} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint} from "./cabinet_runtime.js";
@@ -10,8 +10,7 @@ const MANAGER_URL = "https://t.me/DameCamelias";
 const MAIN = [
   [{ text: "✨ Как работаем", callback_data: "how" }, { text: "💖 Зачем это?", callback_data: "reviews" }],
   [{ text: "❓ Вопросы", callback_data: "faq" }, { text: "💎 Цены", callback_data: "services" }],
-  [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }],
-  [{text:"📜 Соглашение",callback_data:"agreement:start"}]
+  [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }]
 ]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
 const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
@@ -112,7 +111,14 @@ function keyboard(key, env) {
   const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
   const adminRow=[{text:"👑 АДМИНИСТРАТОР",callback_data:"clients:menu"}];
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
-  if (key === "home") return {inline_keyboard:owner ? [...MAIN,[{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],adminRow] : env.__clientMenu ? [...MAIN,[{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]] : MAIN};
+  if (key === "home") {
+    const rows=[...MAIN];
+    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],adminRow);
+    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}]);
+    else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
+    rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
+    return {inline_keyboard:rows};
+  }
   if (key === "how") return {inline_keyboard:[
     [{text:"💎 Посмотреть услуги",callback_data:"services"}],
     [{text:"📝 Оставить заявку",callback_data:"order"}],
@@ -163,10 +169,26 @@ function keyboard(key, env) {
   return {inline_keyboard:back};
 }
 // Send a new page then remove the previous one: works for both photo and text messages.
+const homeNavKey=uid=>"main_menu_message:v1:"+uid;
+async function replaceTrackedHome(env,uid,newMessageId){
+ if(!Number.isSafeInteger(newMessageId)||!env.VISITORS_KV)return;
+ const key=homeNavKey(uid);
+ const old=await env.VISITORS_KV.get(key,"json").catch(()=>null);
+ await env.VISITORS_KV.put(key,JSON.stringify({id:newMessageId}),{expirationTtl:172800});
+ if(Number.isSafeInteger(old?.id)&&old.id!==newMessageId)await telegram(env,"deleteMessage",{chat_id:uid,message_id:old.id}).catch(()=>{});
+}
+async function clearTrackedHome(env,uid,sourceId){
+ if(!env.VISITORS_KV)return;
+ const key=homeNavKey(uid),old=await env.VISITORS_KV.get(key,"json").catch(()=>null);
+ if(Number.isSafeInteger(old?.id)&&old.id===sourceId)await env.VISITORS_KV.delete(key).catch(()=>{});
+}
 async function sendPage(env, chatId, key) {
   if(key==="home"&&String(chatId)!=="5866034656"){
-    const {client}=await registry(env,{action:"get",userId:String(chatId)});
-    env={...env,__clientMenu:client?.active===true&&env.CABINET_CLIENTS_ENABLED!=="false"};
+    const [lookup,agreement]=await Promise.all([
+      registry(env,{action:"get",userId:String(chatId)}).catch(()=>({})),
+      agreementStatus(env,String(chatId))
+    ]);
+    env={...env,__clientMenu:lookup.client?.active===true&&env.CABINET_CLIENTS_ENABLED!=="false",__agreementAccepted:agreement.status==="accepted"};
   }
   const payload = {
     chat_id: chatId,
@@ -183,12 +205,16 @@ async function sendPage(env, chatId, key) {
       if (key === "home") {
         try {
           const { photo, ...fields } = data;
-          return await sendPhotoFile(env, fields, photo);
+          const sent=await sendPhotoFile(env, fields, photo);
+          if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+          return sent;
         } catch (uploadError) {
           console.error("Home photo direct upload failed:", uploadError);
         }
       }
-      return await telegram(env, method, data);
+      const sent=await telegram(env, method, data);
+      if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      return sent;
     } catch (err) {
       console.error("Primary media unavailable:", key, err);
     }
@@ -199,7 +225,9 @@ async function sendPage(env, chatId, key) {
       const method = legacy.type === "animation" ? "sendAnimation" : "sendPhoto";
       const legacyData = { ...payload, caption: PAGES[key] };
       legacyData[legacy.type] = legacy.url;
-      return await telegram(env, method, legacyData);
+      const sent=await telegram(env, method, legacyData);
+      if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      return sent;
     } catch (err) {
       console.error("Legacy media fallback unavailable:", key, err);
     }
@@ -207,14 +235,18 @@ async function sendPage(env, chatId, key) {
   const fallback = FALLBACK_PHOTOS[key];
   if (fallback && PAGES[key].length <= 1024) {
     try {
-      return await telegram(env, "sendPhoto", {
+      const sent=await telegram(env, "sendPhoto", {
         ...payload, photo: fallback, caption: PAGES[key]
       });
+      if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+      return sent;
     } catch (err) {
       console.error("Fallback image unavailable:", key, err);
     }
   }
-  return telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
+  const sent=await telegram(env, "sendMessage", { ...payload, text: PAGES[key] });
+  if(key==="home")await replaceTrackedHome(env,chatId,sent?.message_id);
+  return sent;
 }
 
 const QUICK_STEPS=["profiles_count","url","platform","kind","count","review_text","ratings","description","dates","role","name","notes","confirm"];
@@ -372,7 +404,14 @@ async function handle(update, env) {
   }
   const cabinetHandled=await handleCabinet(update,env);
   if(cabinetHandled){
-    if(cabinetHandled==="home")await sendPage(env,update.callback_query.message.chat.id,"home");
+    const source=update.callback_query?.message;
+    if(cabinetHandled==="home"){
+      await sendPage(env,source.chat.id,"home");
+      await telegram(env,"deleteMessage",{chat_id:source.chat.id,message_id:source.message_id}).catch(()=>{});
+    }else if(source&&/^(owner_anketa:open|trial_cabinet:open)$/.test(update.callback_query.data)){
+      await clearTrackedHome(env,source.chat.id,source.message_id);
+      await telegram(env,"deleteMessage",{chat_id:source.chat.id,message_id:source.message_id}).catch(()=>{});
+    }
     return;
   }
   const person = update.callback_query?.from || update.message?.from;
@@ -404,8 +443,9 @@ async function handle(update, env) {
       await quickReply(env,{message:{chat:cb.message.chat,from:cb.from,text:selected,reply_to_message:cb.message}});
       return;
     }
-    const key = Object.hasOwn(PAGES, cb.data) ? cb.data : "home";
+    const key = cb.data==="home:refresh"?"home":Object.hasOwn(PAGES, cb.data) ? cb.data : "home";
     await sendPage(env, cb.message.chat.id, key);
+    if(key==="home")await clearTrackedHome(env,cb.message.chat.id,cb.message.message_id);
     try {
       await telegram(env, "deleteMessage", {
         chat_id: cb.message.chat.id,
