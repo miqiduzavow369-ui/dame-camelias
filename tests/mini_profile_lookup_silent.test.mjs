@@ -7,7 +7,8 @@ test("Mini App lookup source is marked before dispatch",()=>{
 });
 test("Mini App lookup success and failure return before legacy chat messages",()=>{
  const block=source.indexOf('if(current?.step==="loading"&&current.source==="mini_app"&&current.id===id');
- const legacy=source.indexOf('const found=data.status==="found"?validProfile(data.profile,id,current.host):null;',block+40);
+ const firstFound=source.indexOf('const found=data.status==="found"?validProfile(data.profile,id,current.host):null;',block);
+ const legacy=source.indexOf('const found=data.status==="found"?validProfile(data.profile,id,current.host):null;',firstFound+20);
  assert.ok(block>0&&legacy>block);
  const mini=source.slice(block,legacy);
  assert.match(mini,/step:"confirm",source:"mini_app"/);
