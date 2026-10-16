@@ -299,6 +299,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(!["start","status","confirm"].includes(event.action))return {ok:false,status:400};
   return engine.miniAddProfile({env,action:event.action,url:event.url,nonce:event.nonce});
  }
+ if(event.kind==="mini_delete"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  return engine.miniDeleteProfile(env,String(event.profileId||""));
+ }
  if(event.kind==="mini_preview"){
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
