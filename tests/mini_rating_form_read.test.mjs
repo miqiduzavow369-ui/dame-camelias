@@ -23,5 +23,5 @@ test("form loads existing selected draft, never publishes",()=>{
  assert.match(code,/organizeCatalog\(state.catalog\)/);
  assert.match(code,/selected:state.selected/);
  assert.doesNotMatch(code,/statePut|dispatchLookup|savedPut|say\(env/);
- assert.match(html,/Пока только просмотр — изменения не сохраняются/);
+ assert.match(html,/Выберите оценки и сохраните черновик. Публикация на сайте выполняется отдельно./);
 });
