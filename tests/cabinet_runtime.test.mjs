@@ -119,8 +119,8 @@ test("agreement signed before account creation appears before grant, in admin ca
  const {adjustCredits}=await import("../src/publication_credits.js");await adjustCredits(s.env,a,0,3,"ffffffffffffffff",owner);await s.run(a,"owner_anketa:open");
  assert.ok(s.sent.filter(x=>x.payload.reply_markup&&x.payload.chat_id===a).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="agreement:signed"));
  assert.deepEqual(await s.objects.get("agreement:v1:"+a).storage.get("accepted"),signed);
- await s.create(b);s.env.ORDER_REMINDERS.get("agreement:v1:"+b);await s.objects.get("agreement:v1:"+b).storage.put("declinedAt",Date.now());
- await s.login(b);assert.ok(s.sent.filter(x=>x.payload.chat_id===b&&x.payload.reply_markup).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="owner_anketa:new"));
+ await s.create(b,"777777",3,false);s.env.ORDER_REMINDERS.get("agreement:v1:"+b);await s.objects.get("agreement:v1:"+b).storage.put("declinedAt",Date.now());
+ await s.login(b);assert.ok(!s.sent.filter(x=>x.payload.chat_id===b&&x.payload.reply_markup).at(-1).payload.reply_markup.inline_keyboard.flat().some(x=>x.callback_data==="owner_anketa:new"));
  await s.run(owner,"clients:view:"+b);assert.match(s.sent.filter(x=>x.payload.text).at(-1).payload.text,/❌ Отказалась от соглашения/);
  assert.equal((await credits(s.env,b,"status")).available,3);
 });
@@ -145,7 +145,7 @@ test("public agreement webhook completes before registration and returns to main
   assert.equal((await s.objects.get("agreement:v1:"+a).storage.get("accepted")).userId,a);
   assert.equal((await registry(s.env,{action:"get",userId:a})).client,null);
   assert.ok(!s.objects.has("publication-credits:"+a));
-  const home=sent.filter(x=>x.p.reply_markup?.inline_keyboard?.flat().some(b=>b.callback_data==="agreement:start")).at(-1);assert.ok(home);
+  const home=sent.filter(x=>x.p.reply_markup?.inline_keyboard?.flat().some(b=>b.callback_data==="home:refresh")).at(-1);assert.ok(home);assert.ok(!home.p.reply_markup.inline_keyboard.flat().some(b=>b.callback_data==="agreement:start"));
   assert.equal(await s.objects.get("agreement:v1:"+a).storage.get("navigation"),undefined);
  }finally{globalThis.fetch=original;}
 });
@@ -370,6 +370,7 @@ test("cabinet displays unspent balance separately from reservations until proof 
 
 test("trial migration preserves original profile, authorization, spent credits and legacy KV",async()=>{
  const s=setup(),uid="5627932577";
+ s.env.ORDER_REMINDERS.get("agreement:v1:"+uid);await s.objects.get("agreement:v1:"+uid).storage.put("accepted",{userId:uid,acceptedAt:Date.now(),version:AGREEMENT_VERSION,sections:AGREEMENT_SECTIONS});
  s.kv.set("trial_cabinet_v1:"+uid+":session",JSON.stringify({verified:true}));
  s.kv.set("trial_cabinet_v1:"+uid+":profiles",JSON.stringify([{id:"698842",url:"https://b.intimcity.rip/indi/anketa698842.htm"}]));
  await credits(s.env,uid,"reserve","review","123456","aaaaaaaaaaaa");await credits(s.env,uid,"complete","review","123456","aaaaaaaaaaaa");
