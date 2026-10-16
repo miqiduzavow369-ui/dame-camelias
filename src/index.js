@@ -671,7 +671,7 @@ export default {
       if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
-      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
       if(!result?.ok)return new Response("Forbidden",{status:403});
       return Response.json({profiles:result.profiles},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
