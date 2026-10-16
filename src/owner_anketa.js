@@ -2305,6 +2305,30 @@ async function miniRatingFormLoad(env,profileId){
  return {ok:true,profile:{id:state.profile.id,name:state.profile.name},catalog,
   selected:state.selected||{},metElsewhere:state.metElsewhere===true};
 }
+async function miniRatingDraftSave(env,profileId,selected,metElsewhere){
+ const gate=await miniRatingFormLoad(env,profileId);
+ if(!gate.ok)return gate;
+ const state=await stateGet(env);
+ if(state.step!=="ratings")return {ok:false,reason:"not_ready"};
+ if(!selected||typeof selected!=="object"||Array.isArray(selected)||typeof metElsewhere!=="boolean")return {ok:false,reason:"invalid_choice"};
+ const safe={};
+ for(const [index,value] of Object.entries(selected)){
+  if(!/^(0|[1-9]\\d{0,2})$/.test(index)||typeof value!=="string")return {ok:false,reason:"invalid_choice"};
+  const field=state.catalog[Number(index)];
+  if(!field||!Array.isArray(field.options)||!field.options.includes(value)||/^\\s*(?:не знаю|отказано|[1-4])\\s*$/i.test(value))return {ok:false,reason:"invalid_choice"};
+  if(/^(?:isFair|Фото соответствует)$/i.test(String(field.label||"").trim())&&value!=="Фото соответствует")return {ok:false,reason:"invalid_choice"};
+  safe[index]=value;
+ }
+ for(let i=0;i<state.catalog.length;i++){
+  const field=state.catalog[i];
+  if(/^(?:isFair|Фото соответствует)$/i.test(String(field.label||"").trim())){
+   if(!field.options.includes("Фото соответствует"))return {ok:false,reason:"unavailable"};
+   safe[i]="Фото соответствует";
+  }
+ }
+ await statePut(env,{...state,step:"ratings",selected:safe,metElsewhere,draftReady:true,agreedAt:null});
+ return {ok:true,selected:safe,metElsewhere};
+}
 async function miniDeleteProfile(env,id){
  if(!ID_PATTERN.test(String(id)))return {ok:false,reason:"invalid"};
  if(!await savedGet(env,id))return {ok:false,reason:"not_found"};
@@ -2352,7 +2376,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);

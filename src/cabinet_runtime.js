@@ -317,6 +317,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }
   return engine.miniRatingFormLoad(env,String(event.profileId||""));
  }
+ if(event.kind==="mini_rating_save"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  return engine.miniRatingDraftSave(env,String(event.profileId||""),event.selected,event.metElsewhere);
+ }
  if(event.kind==="mini_preview"){
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||

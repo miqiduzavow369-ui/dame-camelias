@@ -16,12 +16,12 @@ test("new endpoint requires Telegram and cabinet authorization",()=>{
 });
 test("form loads existing selected draft, never publishes",()=>{
  const begin=engine.indexOf("async function miniRatingFormLoad");
- const end=engine.indexOf("async function miniDeleteProfile",begin);
+ const end=engine.indexOf("async function miniRatingDraftSave",begin);
  const code=engine.slice(begin,end);
  assert.match(code,/publicationStatus/);
  assert.match(code,/selectedAccount/);
  assert.match(code,/organizeCatalog\(state.catalog\)/);
  assert.match(code,/selected:state.selected/);
  assert.doesNotMatch(code,/statePut|dispatchLookup|savedPut|say\(env/);
- assert.match(html,/Пока только просмотр — изменения не сохраняются/);
+ assert.match(html,/Выберите оценки и сохраните черновик. Публикация на сайте выполняется отдельно./);
 });
