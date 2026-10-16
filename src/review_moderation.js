@@ -59,7 +59,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  if(!record)return {ok:false};
  if(event.action==="published"){
   if(event.proofDelivered!==true||event.profileId!==record.profileId||!["approving","approved","published"].includes(record.status))return {ok:false};
-  record.status="published";record.publishedAt=record.publishedAt||Date.now();await storage.put("moderation",record);
+  record.proofFileId=typeof event.proofFileId==="string"&&event.proofFileId.length<300?event.proofFileId:null;record.status="published";record.publishedAt=record.publishedAt||Date.now();await storage.put("moderation",record);
   await storage.setAlarm(Date.now()+1000);return {ok:true};
  }
  if(event.actorId!==MODERATOR_ID||String(event.chatId)!==MODERATION_CHAT)return {ok:false,forbidden:true};
@@ -67,24 +67,31 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  if(editingReply){
   if(record.status!=="editing"||![record.messageId,record.editPromptId].includes(event.replyTo)||typeof event.text!=="string"||event.text.trim().length<10||event.text.trim().length>3000)return {ok:false,note:"Ответьте на запрос корректировки текстом от 10 до 3000 символов."};
   record.revisions.push({text:record.text,at:Date.now(),actorId:MODERATOR_ID});record.text=event.text.trim();record.status="pending";record.version++;record.note=null;
+  const editPromptId=record.editPromptId;record.editPromptId=null;
   await storage.put("moderation",record);await refresh(env,send,record);
   if(Number.isSafeInteger(event.messageId))await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:event.messageId}).catch(()=>{});
-  if(record.editPromptId)await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:record.editPromptId}).catch(()=>{});
-  return {ok:true};
+  if(editPromptId)await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:editPromptId}).catch(()=>{});
+  return launchApproval(storage,env,record,send,cabinet);
+
  }
  if(event.messageId!==record.messageId||event.version!==record.version||!["pending","editing"].includes(record.status))return {ok:false,note:"Эта кнопка уже обработана. Используйте актуальную заявку."};
  if(event.action==="edit"&&record.status==="pending"){
   record.status="editing";record.version++;await storage.put("moderation",record);await refresh(env,send,record);
-  const prompt=await send(env,"sendMessage",{chat_id:MODERATION_CHAT,text:"🌹 <b>DAME CAMELIAS</b>\n\n✏️ <b>КОРРЕКТИРОВКА ОТЗЫВА</b>\n\n<a href=\"tg://user?id="+MODERATOR_ID+"\">Администратор</a>, ответьте на это сообщение полным исправленным текстом (10–3000 символов).\n\n💕 После сохранения потребуется нажать «Опубликовать» в заявке.",parse_mode:"HTML",reply_parameters:{message_id:record.messageId},reply_markup:{force_reply:true,selective:true}});
+  const prompt=await send(env,"sendMessage",{chat_id:MODERATION_CHAT,text:record.text,reply_parameters:{message_id:record.messageId},reply_markup:{force_reply:true,selective:true}});
   record.editPromptId=prompt.message_id;await storage.put("moderation",record);await registerMessage(storage,env,record,prompt.message_id,register);return {ok:true};
  }
  if(event.action==="cancel"){
   // Decision is durable before notifying the cabinet; never changes into approval.
-  record.status="cancelled";record.version++;record.cancelPending=true;await storage.put("moderation",record);await refresh(env,send,record);
+  const editPromptId=record.editPromptId;record.editPromptId=null;record.status="cancelled";record.version++;record.cancelPending=true;await storage.put("moderation",record);await refresh(env,send,record);
+  if(editPromptId)await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:editPromptId}).catch(()=>{});
   try{const result=await cabinet(env,uid,{kind:"review_moderation",actorId:MODERATOR_ID,action:"cancel",ticket});if(result.ok){record.cancelPending=false;await storage.put("moderation",record);}}catch{}
   if(record.cancelPending)await storage.setAlarm(Date.now()+1000);return {ok:true};
  }
  if(event.action!=="approve"||record.status!=="pending")return {ok:false};
+ return launchApproval(storage,env,record,send,cabinet);
+}
+async function launchApproval(storage,env,record,send,cabinet){
+ const uid=record.userId,ticket=record.ticket;
  if(env.CABINET_PUBLICATIONS_ENABLED==="false"||uid!==MODERATOR_ID&&env.CABINET_CLIENTS_ENABLED==="false")return {ok:false,note:"Публикации сейчас отключены."};
  record.status="approving";record.version++;await storage.put("moderation",record);await refresh(env,send,record);
  let result;
@@ -104,7 +111,7 @@ export async function moderationAlarm(storage,env,send=moderationTelegram){
  // Mark an attempt first: an ambiguous timeout must not create duplicate reports.
  if(record.notificationAttempted)return true;
  record.notificationAttempted=Date.now();await storage.put("moderation",record);
- try{await refresh(env,send,record);await send(env,"sendMessage",{chat_id:MODERATION_CHAT,text:"🌹 <b>DAME CAMELIAS</b>\n\n✅ <b>ОТЗЫВ ОПУБЛИКОВАН</b>\n\n🌹 Анкета №"+record.profileId+"\n🆔 Клиентка: "+record.userId+"\n📸 Подтверждение доставлено клиентке.\n\n<a href=\""+link+"\">📋 Открыть исходную заявку</a>",parse_mode:"HTML"});record.notificationSent=Date.now();await storage.put("moderation",record);}catch{ /* Retain the durable uncertain attempt; never repeat a publication. */ }
+ try{await refresh(env,send,record);if(!record.proofFileId)return true;await send(env,"sendPhoto",{chat_id:MODERATION_CHAT,photo:record.proofFileId,caption:"✅ ОПУБЛИКОВАНО",reply_parameters:{message_id:record.messageId}});record.notificationSent=Date.now();await storage.put("moderation",record);}catch{ /* Retain the durable uncertain attempt; never repeat a publication. */ }
  return true;
 }
 export async function handleModeration(update,env,send=moderationTelegram){
