@@ -46,13 +46,20 @@ p,.muted,.mini{color:#b6ab99}
 .thumb{border:1px solid #b99451;background:#17130d}
 .photo-large{display:block;width:auto;max-width:min(70%,350px);height:auto;max-height:none;object-fit:unset;border:2px solid #d9b571;border-radius:12px;background:#100e0a;padding:0;margin:18px auto 20px;box-shadow:0 8px 22px #0008}
 
-[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}</style></head><body><div class="app">
+[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}.men-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.man-tile{border:1px solid #776033;background:#16130e;color:#f5e8cb;border-radius:14px;padding:9px;text-align:left;min-width:0}.man-tile img{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #9d7f45;border-radius:9px;background:#0a0907}.man-tile strong{display:block;margin-top:7px;font-size:13px}.man-tile small{display:block;color:#c7b18b;margin-top:5px;font-size:11px}.man-search{background:#15130f;border:1px solid #796238;color:#f4e9d4;padding:13px;border-radius:12px;width:100%;margin:10px 0}.selected-man{outline:2px solid #e3c184}.man-tile:disabled{opacity:.72}</style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
-<div class="card"><h2>① 👨‍💻 Аккаунт мужчины</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Аккаунт клиента для работы с вашей анкетой</div><button class="action" type="button" data-account="yan_first"><span>Ян Первый</span><span class="next" id="workFirst">✓</span></button><button class="action" type="button" data-account="yan_second"><span>Ян Второй</span><span class="next" id="workSecond">○</span></button></div><div class="section-heading"><h2>② Выберите анкету</h2><small id="totalProfiles"></small></div>
+<div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
 <div id="profiles"></div>
+<div id="menWorkspace" class="card" hidden>
+<h2>👨‍💻 Мужчины для выбранной анкеты</h2>
+<p id="menProfileLabel" class="muted"></p>
+<div id="manShortlist" class="men-grid"></div>
+<button class="ghost" id="showAllMen" type="button">Все аккаунты мужчин ›</button>
+<div id="menCatalog" hidden><input id="manSearch" class="man-search" type="search" placeholder="Поиск мужчины по имени"><div id="menFullList" class="men-grid"></div></div>
+</div>
 <button class="ghost" id="openLegacy" type="button">⬅️ Вернуться в Telegram</button>
 </section>
 <section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Это не меняет аккаунт, назначенный для реальной работы в Telegram.</p>
@@ -96,6 +103,20 @@ p,.muted,.mini{color:#b6ab99}
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const $=id=>document.getElementById(id);let profiles=[],history=[],selected=null,lastTab="profiles",selectedAccount="yan_first";
+const availableMen=[{id:"yan_first",name:"Ян Первый",image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg",enabled:true},{id:"yan_second",name:"Ян Второй",image:null,enabled:false}];
+let workProfile=null,allMenOpen=false;
+function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
+if(man.image){const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;b.append(img);}
+else {const placeholder=document.createElement("div");placeholder.className="thumb";placeholder.textContent="👨‍💻";b.append(placeholder);}
+const name=document.createElement("strong");name.textContent=man.name;const status=document.createElement("small");
+status.textContent=man.enabled?((workProfile?.statuses?.rating==="published"?"⭐ Выполнено":"⭐ Проверить")+" · "+(workProfile?.statuses?.review==="published"?"✍️ Выполнено":"✍️ Проверить")):"🔒 Не подключён";b.append(name,status);
+b.onclick=()=>{if(!man.enabled){status.textContent="🔒 Этот аккаунт пока не подключён к работе";return;}selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
+function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
+for(const man of availableMen.slice(0,3))list.append(manTile(man));
+const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
+$("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
+$("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
+$("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
 const accountName=account=>account==="yan_second"?"Ян Второй":"Ян Первый";
@@ -115,7 +136,7 @@ document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>showTab(b.datas
 if(tg?.BackButton){tg.BackButton.onClick(()=>{if(!$("subview").hidden){$("subBack").click();return;}if(!$("detail").hidden){$("back").click();return;}if(lastTab!=="profiles"){showTab("profiles");return;}tg.close();});}
 const card=(p,clickable=true)=>{const el=document.createElement(clickable?"button":"div");el.className="card profile";if(clickable)el.type="button";
 const pic=p.photo?document.createElement("img"):document.createElement("div");pic.className="thumb";if(p.photo){pic.src=p.photo;pic.alt="Фото "+p.id;pic.onerror=()=>{pic.replaceWith(Object.assign(document.createElement("div"),{className:"thumb",textContent:"🌹"}));};}else pic.textContent="🌹";
-const mid=document.createElement("div");mid.className="profileText";const title=document.createElement("b");title.textContent="Анкета №"+p.id;const meta=document.createElement("div");meta.className="line";meta.textContent=[p.name,p.age?p.age+" лет":"",p.metro].filter(Boolean).join(" · ")||"Сохранённая анкета";const stats=document.createElement("div");stats.className="mini";stats.textContent="⭐ "+(p.counts?.rating||0)+"   ✍️ "+(p.counts?.review||0)+"   📸 "+(p.counts?.total||0);mid.append(title,meta,stats);el.append(pic,mid);if(clickable){const arrow=document.createElement("span");arrow.className="arrow";arrow.textContent="›";el.append(arrow);el.onclick=()=>openDetail(p);}return el;};
+const mid=document.createElement("div");mid.className="profileText";const title=document.createElement("b");title.textContent="Анкета №"+p.id;const meta=document.createElement("div");meta.className="line";meta.textContent=[p.name,p.age?p.age+" лет":"",p.metro].filter(Boolean).join(" · ")||"Сохранённая анкета";const stats=document.createElement("div");stats.className="mini";stats.textContent="⭐ "+(p.counts?.rating||0)+"   ✍️ "+(p.counts?.review||0)+"   📸 "+(p.counts?.total||0);mid.append(title,meta,stats);el.append(pic,mid);if(clickable){const arrow=document.createElement("span");arrow.className="arrow";arrow.textContent="›";el.append(arrow);el.onclick=()=>{workProfile=p;renderMen();$("menWorkspace").scrollIntoView({behavior:"smooth"});};}return el;};
 function renderHistory(){
  const published=$("publishedCards");published.replaceChildren();
  const matches=history.filter(entry=>entry.account===selectedAccount);
@@ -135,7 +156,7 @@ function renderHistory(){
 function render(data){profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
 for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
 $("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
-if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";renderHistory();
+if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";if(profiles.length===1){workProfile=profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
 }
 let availableBalance=null;
 function refreshManButtons(){
