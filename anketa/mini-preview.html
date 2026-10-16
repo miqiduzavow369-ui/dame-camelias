@@ -144,6 +144,7 @@ function addFound(result){
   $("addProfileNotice").textContent="Проверьте фотографию и данные, затем подтвердите свою анкету.";
  }else if(result.stage==="loading")$("addProfileNotice").textContent="⏳ Проверка анкеты может занять пару минут. Пожалуйста, подождите 1–2 минуты, затем нажмите «🔄 Проверить результат поиска».";
  else if(result.stage==="saved"){$("addProfileNotice").textContent="✅ Анкета сохранена.";load().then(()=>showTab("profiles"));}
+ else if(result.stage==="failed")$("addProfileNotice").textContent=result.reason==="not_found"?"🔎 Анкета не найдена. Проверьте ссылку и доступность анкеты на сайте.":"⚠️ Проверку анкеты не удалось завершить. Попробуйте повторить поиск позже.";
  else $("addProfileNotice").textContent="Проверка пока не завершена. Если поиск не удался, повторите ввод ссылки.";
 }
 $("beginAddProfile").onclick=()=>{showTab("add");$("addProfileFound").hidden=true;$("addProfileCheck").hidden=true;$("addProfileNotice").textContent="Вставьте полную ссылку, чтобы найти анкету.";};
