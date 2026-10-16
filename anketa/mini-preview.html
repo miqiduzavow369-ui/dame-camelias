@@ -46,7 +46,7 @@ p,.muted,.mini{color:#b6ab99}
 .thumb{border:1px solid #b99451;background:#17130d}
 .photo-large{display:block;width:auto;max-width:min(70%,350px);height:auto;max-height:none;object-fit:unset;border:2px solid #d9b571;border-radius:12px;background:#100e0a;padding:0;margin:18px auto 20px;box-shadow:0 8px 22px #0008}
 
-[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}.men-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.man-tile{border:1px solid #776033;background:#16130e;color:#f5e8cb;border-radius:14px;padding:9px;text-align:left;min-width:0}.man-tile img{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #9d7f45;border-radius:9px;background:#0a0907}.man-tile strong{display:block;margin-top:7px;font-size:13px}.man-tile small{display:block;color:#c7b18b;margin-top:5px;font-size:11px}.man-search{background:#15130f;border:1px solid #796238;color:#f4e9d4;padding:13px;border-radius:12px;width:100%;margin:10px 0}.selected-man{outline:2px solid #e3c184}.man-tile:disabled{opacity:.72}</style></head><body><div class="app">
+[hidden]{display:none!important}.photo-fallback{width:70%;min-height:120px;margin:18px auto 20px;border:2px solid #d9b571;border-radius:14px;display:grid;place-items:center;color:#cbb98e;background:#100e0a;font-size:13px}.action[hidden]{display:none!important}.back-top{border:1px solid #725a31;background:#18140d;color:#e8c486;border-radius:10px;padding:9px 12px;margin:2px 0 16px;font-size:13px}.men-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.man-tile{border:1px solid #776033;background:#16130e;color:#f5e8cb;border-radius:14px;padding:9px;text-align:left;min-width:0}.man-tile img{width:100%;aspect-ratio:4/3;object-fit:contain;border:1px solid #9d7f45;border-radius:9px;background:#0a0907}.man-tile strong{display:block;margin-top:7px;font-size:13px}.man-tile small{display:block;color:#c7b18b;margin-top:5px;font-size:11px}.man-search{background:#15130f;border:1px solid #796238;color:#f4e9d4;padding:13px;border-radius:12px;width:100%;margin:10px 0}.selected-man{outline:2px solid #e3c184}.man-tile:disabled{opacity:.72}.man-work-head{display:flex;gap:13px;align-items:center}.man-work-head>img{width:95px;max-height:130px;object-fit:contain;border:1px solid #b89555;border-radius:11px}.man-work-head h1{font-size:18px}.man-work-head .ghost{padding:8px 9px;font-size:12px;margin-top:5px}.man-full{display:block;max-width:100%;max-height:70vh;object-fit:contain;margin:15px auto 5px;border:1px solid #b89555;border-radius:12px}</style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ТЕСТОВЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
@@ -80,20 +80,20 @@ p,.muted,.mini{color:#b6ab99}
 <button class="ghost" id="refresh" type="button">🔄 Обновить баланс</button>
 <button class="ghost" id="close" type="button">⬅️ Вернуться в Telegram</button>
 </section>
-<section id="detail" hidden><div class="detailbar"><button id="back">← Назад</button><span class="muted">КАРТОЧКА АНКЕТЫ</span></div><img id="detailImage" class="photo-large" alt="" hidden><div id="detailPhotoFallback" class="photo-fallback" hidden>🌹 Фото временно недоступно</div><h1 id="detailTitle"></h1><p id="detailMeta"></p>
-<div class="section-heading"><h2>👨‍💻 Аккаунт клиента</h2></div>
-<div class="card"><div class="muted" style="margin-bottom:10px;font-size:12px">Выбранный аккаунт клиента</div><strong id="detailAccount">Ян Первый</strong>
-<p class="muted">Изменить аккаунт можно на главном экране «Работа».</p><button type="button" class="ghost" id="changeMan">← К выбору аккаунта</button>
+<section id="detail" hidden>
+<div class="detailbar"><button id="back">← К мужчинам</button><span class="muted">РАБОТА С АНКЕТОЙ</span></div>
+<div class="card"><div class="man-work-head"><img id="detailManImage" alt="Карточка мужчины"><div><h1 id="detailAccount">Ян Первый</h1><p id="detailMeta"></p><button class="ghost" type="button" id="aboutMan">👤 О мужчине ▾</button></div></div>
+<div id="fullManCard" hidden><img id="fullManImage" class="man-full" alt="Полная карточка мужчины"></div>
 </div>
-<div class="section-heading"><h2>💎 Доступность публикаций</h2></div>
-<div class="stats"><div class="stat"><strong id="cardBank">—</strong>Общий банк</div><div class="stat"><strong id="cardDaily">—</strong>Дневной лимит анкеты</div></div>
-<p class="muted">Банк принадлежит вашему кабинету, дневной лимит общий для анкеты — не отдельный для каждого мужчины.</p>
-<div class="section-heading"><h2>Ранее опубликовано</h2></div><div class="stats"><div class="stat"><strong id="ratingCount">0</strong>⭐ Оценок</div><div class="stat"><strong id="reviewCount">0</strong>✍️ Отзывов</div><div class="stat"><strong id="totalCount">0</strong>📸 Всего</div></div>
-<div class="section-heading"><h2>③ Доступные действия с анкетой</h2></div>
-<button class="action" data-sub="rating"><span>⭐ Оставить оценки<small id="ratingStatus"></small></span><span class="next">›</span></button>
-<button class="action" data-sub="review"><span>✍️ Написать отзыв<small id="reviewStatus"></small></span><span class="next">›</span></button>
-<div id="actionSummary" class="proof-note">Если оценка или отзыв уже опубликованы, переходите в историю для просмотра результата.</div>
-<button class="action" data-tab="published"><span>📸 Перейти к результатам<small>Все подтверждённые действия</small></span><span class="next">›</span></button><div class="proof-note">Тестовый режим: управление публикациями остаётся в рабочем кабинете Telegram.</div></section>
+<div class="stats"><div class="stat"><strong id="cardBank">—</strong>💎 Кредиты</div><div class="stat"><strong id="cardDaily">—</strong>📅 Сегодня по анкете</div></div>
+<div class="section-heading"><h2>Действия для анкеты</h2></div>
+<div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Проверить возможность в Telegram ›</button></div>
+<div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Проверить возможность в Telegram ›</button></div>
+<div id="actionSummary" class="proof-note"></div>
+<button class="action" data-tab="published">📸 Посмотреть результаты и подтверждения ›</button>
+<div class="proof-note">Тестовый просмотр: публикации и оригиналы подтверждений находятся в рабочем Telegram-кабинете.</div>
+<div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
+</section>
 <section id="subview" hidden><div class="detailbar"><button id="subBack">← К анкете</button><span class="muted" id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
 </div><nav class="nav">
 <button data-tab="profiles" class="active"><span class="ico">💼</span>Работа</button>
@@ -105,12 +105,13 @@ const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
 const $=id=>document.getElementById(id);let profiles=[],history=[],selected=null,lastTab="profiles",selectedAccount="yan_first";
 const availableMen=[{id:"yan_first",name:"Ян Первый",image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg",enabled:true},{id:"yan_second",name:"Ян Второй",image:null,enabled:false}];
 let workProfile=null,allMenOpen=false;
+function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:"🔎 Проверить в Telegram",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;b.append(img);}
-else {const placeholder=document.createElement("div");placeholder.className="thumb";placeholder.textContent="👨‍💻";b.append(placeholder);}
-const name=document.createElement("strong");name.textContent=man.name;const status=document.createElement("small");
-status.textContent=man.enabled?((workProfile?.statuses?.rating==="published"?"⭐ Выполнено":"⭐ Проверить")+" · "+(workProfile?.statuses?.review==="published"?"✍️ Выполнено":"✍️ Проверить")):"🔒 Не подключён";b.append(name,status);
-b.onclick=()=>{if(!man.enabled){status.textContent="🔒 Этот аккаунт пока не подключён к работе";return;}selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
+else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
+const name=document.createElement("strong");name.textContent=man.name;b.append(name);
+for(const [kind,label] of [["rating","⭐ Оценка"],["review","✍️ Отзыв"]]){const line=document.createElement("small");line.textContent=label+" — "+manStatus(man,kind);b.append(line);}
+b.onclick=()=>{if(!man.enabled){const n=document.createElement("small");n.textContent="Аккаунт пока не подключён";b.append(n);return;}selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
 function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
 for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
@@ -163,8 +164,8 @@ function refreshManButtons(){
  $("detailAccount").textContent=accountName(selectedAccount);
 
 }
-$("changeMan").onclick=()=>showTab("profiles");
-function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
+$("aboutMan").onclick=()=>{const el=$("fullManCard");el.hidden=!el.hidden;$("aboutMan").textContent=el.hidden?"👤 О мужчине ▾":"👤 Свернуть карточку ▴";};
+function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=["🌹 Анкета №"+p.id,p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
