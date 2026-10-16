@@ -110,7 +110,7 @@ function selectAccount(account){
  renderHistory();
 }
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
-function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));window.scrollTo({top:0,behavior:"smooth"});}
+function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));tg?.BackButton?.[name==="profiles"?"hide":"show"]?.();window.scrollTo({top:0,behavior:"smooth"});}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 if(tg?.BackButton){tg.BackButton.onClick(()=>{if(!$("subview").hidden){$("subBack").click();return;}if(!$("detail").hidden){$("back").click();return;}if(lastTab!=="profiles"){showTab("profiles");return;}tg.close();});}
 const card=(p,clickable=true)=>{const el=document.createElement(clickable?"button":"div");el.className="card profile";if(clickable)el.type="button";
@@ -143,7 +143,7 @@ function refreshManButtons(){
 
 }
 $("changeMan").onclick=()=>showTab("profiles");
-function openDetail(p){selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
+function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=[p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
@@ -164,7 +164,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{if(!selected)r
 if(kind==="rating"||kind==="review")lines=[["Статус",label(selected.statuses?.[kind])],["Подтверждено",String(selected.counts?.[kind]||0)],["Действие","Публикации пока только в Telegram"]];
 else if(kind==="proof")lines=[["Оценки",String(selected.counts?.rating||0)],["Отзывы",String(selected.counts?.review||0)],["Скриншоты","Открываются в Telegram"]];
 else lines=[["Ян Первый","Основной аккаунт мужчины"],["Ян Второй","Статус проверяется в Telegram"],["Выбор","Не изменяет аккаунт мужчины"]];
-for(const [key,val]of lines){const row=document.createElement("div");row.className="action";const k=document.createElement("span"),v=document.createElement("span");k.textContent=key;v.textContent=val;v.className="mini";row.append(k,v);p.append(row);}const note=document.createElement("div");note.className="proof-note";note.textContent="Это интерфейс для оценки удобства. Реальные действия не запускаются.";p.append(note);$("detail").hidden=true;$("subview").hidden=false;scrollTo(0,0);});
+for(const [key,val]of lines){const row=document.createElement("div");row.className="action";const k=document.createElement("span"),v=document.createElement("span");k.textContent=key;v.textContent=val;v.className="mini";row.append(k,v);p.append(row);}const note=document.createElement("div");note.className="proof-note";note.textContent="Это интерфейс для оценки удобства. Реальные действия не запускаются.";p.append(note);$("detail").hidden=true;$("subview").hidden=false;tg?.BackButton?.show?.();scrollTo(0,0);});
 $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
 async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Для просмотра войдите в обычный кабинет Telegram.");render(await response.json());}catch(e){$("profiles").textContent="🌷 "+e.message;}}
 $("refresh").onclick=load;load();
