@@ -227,10 +227,19 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
  color:#f4e5c9;text-shadow:0 1px 3px #000e;
 }
 :is(#tab-published,#detail,#subview,#tab-cabinet) :is(h1,h2,.card b,.finance-description b){text-shadow:0 1px 4px #000e}
+
+/* Work composition polish: keep existing actions and navigation untouched. */
+#tab-profiles .work-intro{max-width:74%;color:#e8d2ac;font-size:13px;line-height:1.4;margin:9px 0 15px;text-shadow:0 1px 6px #000c}
+#tab-profiles>.hero{width:63%;max-width:345px;margin-left:0;margin-right:auto;min-height:0;padding:15px 13px 16px;border-radius:21px}
+#tab-profiles>.hero .over{font-size:12px;letter-spacing:1.1px;line-height:1.4;color:#e9c98b}
+#tab-profiles>.hero .number{font-size:45px;line-height:1.08;margin:6px 0 2px}
+#tab-profiles>.hero .hero-bottom{font-size:11px;line-height:1.35}
+#tab-profiles>.hero .over:first-letter{font-size:21px}
+@media(max-width:380px){#tab-profiles>.hero{width:67%;padding:13px 10px}#tab-profiles>.hero .over{font-size:10px;letter-spacing:.6px}#tab-profiles>.hero .number{font-size:40px}#tab-profiles .work-intro{max-width:81%}}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
-<div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
+<div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p class="work-intro">Ваши анкеты и действия ниже.</p>
 <button class="agreement-open" id="signedAgreementOpen" type="button"><span class="agreement-symbol">📜</span><span>Подписанное соглашение</span><span>›</span></button>
 <div id="signedAgreementPanel" class="card" hidden><h2>📜 Подписанное соглашение</h2><div id="signedAgreementContent"></div><button class="ghost" id="signedAgreementClose" type="button">← Вернуться к работе</button></div>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
