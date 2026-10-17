@@ -4,6 +4,7 @@ import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
 import {validWebApp} from "./telegram_auth.js";
+import {handleAdminApi} from "./admin_app_api.js";
 import { serveProfileThumbnail } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
@@ -661,6 +662,7 @@ export default {
       if (!result.ok) return new Response("Form unavailable", { status: 502 });
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
     }
+    if(url.pathname==="/api/admin/app")return handleAdminApi(request,env);
     // Owner-only administrative Mini App staging preview.
     // GET contains no application UI; the HTML is returned only after Telegram initData
     // signature and owner identity are checked on the server.
