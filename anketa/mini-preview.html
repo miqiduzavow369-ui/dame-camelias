@@ -268,19 +268,19 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   panel.hidden=false;if(!holder.querySelector("img"))showOriginalProof(holder,entry,note);return;
  }
  const kind=b.dataset.sub,body=$("subContent");body.replaceChildren();
- $("subTitle").textContent=kind==="rating"?"⭐ Порядок публикации оценок":"✍️ Порядок публикации отзыва";
+ $("subTitle").textContent=kind==="rating"?"⭐ Заполнить оценки":"✍️ Написать отзыв";
  $("subId").textContent="Анкета №"+selected.id+" · "+accountName(selectedAccount);
- const introduction=document.createElement("p");introduction.className="muted";introduction.textContent="Работа проходит в той же последовательности, что и в Telegram-кабинете.";body.append(introduction);
+ const introduction=document.createElement("p");introduction.className="muted";introduction.textContent=kind==="rating"?"Выберите оценки, проверьте заполнение и сохраните. Ошиблись — вернитесь к выбору или начните заново.":"Введите и сохраните текст отзыва.";body.append(introduction);
  const stageNames={ratings_loading:"Загружаются услуги",ratings:"Заполнение оценок",ratings_agreed:"Выбор оценок проверяется",audit_loading:"Проверяются поля сайта",dryfill_loading:"Подготовка публикации",prepublish_ready:"Ожидается подтверждение",publishing:"Публикация выполняется",proof_loading:"Проверяется результат",review_input:"Ввод текста отзыва",review_preview:"Проверка черновика",review_moderation:"Отзыв на модерации",review_dispatch:"Отзыв отправляется",review_recheck:"Проверка размещения",review_result:"Результат отзыва",publication_result:"Результат публикации"};
  const stageIndex={rating:{ratings_loading:0,ratings:0,ratings_agreed:1,audit_loading:1,dryfill_loading:1,prepublish_ready:2,publishing:3,proof_loading:3,publication_result:4},review:{review_input:0,review_preview:1,review_moderation:1,review_dispatch:3,review_recheck:3,review_result:4}};
  const stage=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
  const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");body.append(status);
  const stageRows=[];
- legacySteps[kind].forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
+ (kind==="rating"?[]:legacySteps[kind]).forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
  function syncStage(){
   const active=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
   const i=stageIndex[kind]?.[active];
-  status.textContent=active&&stageNames[active]?"⏳ Состояние рабочего кабинета: "+stageNames[active]:"ℹ️ Активный этап не подтверждён. Новая публикация здесь не запускается.";
+  status.textContent=kind==="rating"?"🌹 Вы заполняете черновик. Публикация отдельно и только после подтверждения.":active&&stageNames[active]?"⏳ Состояние рабочего кабинета: "+stageNames[active]:"ℹ️ Активный этап не подтверждён.";
   stageRows.forEach((row,n)=>{row.classList.toggle("workflow-current",n===i);row.classList.toggle("workflow-done",Number.isInteger(i)&&n<i);});
  }
  syncStage();
@@ -323,7 +323,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const existing=Object.keys(data.selected||{}).length>0;
     if(existing){const oldNotice=document.createElement("p");oldNotice.className="muted";oldNotice.textContent="Есть сохранённый ранее черновик. Форма открыта чистой — при необходимости можете восстановить прежние ответы.";panel.append(oldNotice);
       const restore=document.createElement("button");restore.type="button";restore.className="ghost";restore.textContent="↩️ Восстановить старый черновик";panel.append(restore);
-      restore.onclick=()=>{for(const [i,control] of choiceControls.entries()){if(control.disabled)continue;const value=data.selected[i];control.value=value&&data.catalog[i].options.includes(value)?value:"";if(control.value)draft[i]=control.value;else delete draft[i];}checkbox.checked=false;updateProgress();};}
+      restore.onclick=()=>{for(const [i,control] of choiceControls.entries()){if(control.disabled)continue;const value=data.selected[i];control.value=value&&data.catalog[i].options.includes(value)?value:"";if(control.value)draft[i]=control.value;else delete draft[i];}checkbox.checked=data.metElsewhere===true;updateProgress();};}
 
     let lastGroup="";
     data.catalog.forEach((item,i)=>{
