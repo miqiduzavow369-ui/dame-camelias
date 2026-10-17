@@ -274,9 +274,9 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  const stageNames={ratings_loading:"Загружаются услуги",ratings:"Заполнение оценок",ratings_agreed:"Выбор оценок проверяется",audit_loading:"Проверяются поля сайта",dryfill_loading:"Подготовка публикации",prepublish_ready:"Ожидается подтверждение",publishing:"Публикация выполняется",proof_loading:"Проверяется результат",review_input:"Ввод текста отзыва",review_preview:"Проверка черновика",review_moderation:"Отзыв на модерации",review_dispatch:"Отзыв отправляется",review_recheck:"Проверка размещения",review_result:"Результат отзыва",publication_result:"Результат публикации"};
  const stageIndex={rating:{ratings_loading:0,ratings:0,ratings_agreed:1,audit_loading:1,dryfill_loading:1,prepublish_ready:2,publishing:3,proof_loading:3,publication_result:4},review:{review_input:0,review_preview:1,review_moderation:1,review_dispatch:3,review_recheck:3,review_result:4}};
  const stage=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
- const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");if(kind!=="rating")body.append(status);
+ const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");if(false)body.append(status);
  const stageRows=[];
- (kind==="rating"?[]:legacySteps[kind]).forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
+ [].forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
  function syncStage(){
   const active=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
   const i=stageIndex[kind]?.[active];
@@ -286,21 +286,42 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  syncStage();
  if(kind==="review"){
   const editor=document.createElement("div");editor.className="card";
-  const heading=document.createElement("h2");heading.textContent="✍️ Текст отзыва";
-  const field=document.createElement("textarea");field.rows=8;field.maxLength=3000;field.placeholder="Введите достоверный текст отзыва (10–3000 символов)";
-  field.style.cssText="width:100%;min-height:170px;resize:vertical;border-radius:14px;padding:14px;background:#1c1221;border:1px solid #805b70;color:#f9edf4;font:inherit";
-  const counter=document.createElement("p");field.oninput=()=>counter.textContent=field.value.length+" / 3000";
-  const save=document.createElement("button");save.className="primary";save.textContent="💾 Сохранить черновик";save.type="button";
-  const message=document.createElement("p");message.setAttribute("aria-live","polite");
-  const request=async(action,text)=>{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");
-   const response=await fetch("/api/anketa/mini-review-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action,text}),cache:"no-store"});
-   if(response.status===404)throw Error("Сервер новой версии пока не развёрнут.");
-   const result=await response.json().catch(()=>({}));
-   if(!response.ok||!result.ok)throw Error(response.status===403?"Сессия кабинета не подтверждена.":result.reason==="already_published_or_pending"?"Отзыв уже опубликован или проверяется.":"Операция пока недоступна.");
-   return result;};
-  save.onclick=async()=>{save.disabled=true;message.textContent="⏳ Сохраняю…";try{if(field.value.length<10)throw Error("Введите не менее 10 символов.");await request("save",field.value);message.textContent="✅ Черновик сохранён. На модерацию и публикацию не отправлялся.";}catch(e){message.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
-  editor.append(heading,field,counter,save,message);body.append(editor);field.oninput();
-  request("load").then(result=>{field.value=result.text||"";field.oninput();if(result.text)message.textContent="✅ Сохранённый черновик восстановлен.";}).catch(e=>message.textContent="⚠️ "+e.message);
+  const heading=document.createElement("h2");heading.textContent="✍️ Ваш отзыв";
+  const field=document.createElement("textarea");field.rows=7;field.maxLength=3000;field.placeholder="Расскажите о своём опыте";
+  field.style.cssText="width:100%;min-height:160px;resize:vertical;border-radius:14px;padding:14px;background:#1c1221;border:1px solid #805b70;color:#f9edf4;font:inherit";
+  const counter=document.createElement("p");counter.className="muted";field.oninput=()=>{counter.textContent=field.value.length+" / 3000";};
+  const preview=document.createElement("div");preview.className="draft-review";preview.hidden=true;
+  const heading2=document.createElement("h3");heading2.textContent="🌹 Проверьте отзыв";
+  const content=document.createElement("p");content.style.whiteSpace="pre-wrap";
+  const accuracy=document.createElement("label");accuracy.className="rating-elsewhere";
+  const consent=document.createElement("input");consent.type="checkbox";
+  const agreeText=document.createElement("span");agreeText.textContent="Подтверждаю, что отзыв достоверен и не вводит клиентов в заблуждение.";
+  accuracy.append(consent,agreeText);
+  const edit=document.createElement("button");edit.type="button";edit.className="ghost";edit.textContent="✏️ Изменить текст";
+  const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Отправить отзыв";
+  const checkText=document.createElement("button");checkText.type="button";checkText.className="primary";checkText.textContent="✅ Проверить текст";
+  const status=document.createElement("p");status.setAttribute("aria-live","polite");
+  const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
+  const request=async(action,text)=>{
+    const response=await fetch(action==="load"?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok)throw Error(response.status===403?"Сессия Telegram истекла. Откройте приложение заново.":({credits:"Недостаточно кредитов.",invalid_text:"Проверьте длину отзыва.",already_published_or_pending:"Отзыв уже отправлен.",busy:"Другая операция ещё выполняется."})[result.reason]||"Не удалось выполнить действие.");
+    return result;
+  };
+  const showStage=stage=>{
+    const pending=["waiting","unknown"].includes(stage);
+    heading.hidden=pending||stage==="published";field.hidden=heading.hidden;counter.hidden=heading.hidden;checkText.hidden=heading.hidden;
+    preview.hidden=true;check.hidden=!pending;
+    status.textContent=stage==="waiting"?"⏳ Отзыв отправлен. Ожидайте проверки и подтверждения публикации. Это может занять некоторое время.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв опубликован. Подтверждение доступно в истории.":"";
+    if(stage==="rejected"){heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;check.hidden=true;}
+  };
+  checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};
+  edit.onclick=()=>{preview.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;consent.checked=false;};
+  send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
+  check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
+  preview.append(heading2,content,accuracy,send,edit);
+  editor.append(heading,field,counter,checkText,preview,check,status);body.append(editor);field.oninput();
+  request("status").then(x=>{if(x.stage==="draft")return request("load").then(d=>{field.value=d.text||"";field.oninput();});showStage(x.stage);}).catch(e=>{status.textContent="⚠️ "+e.message;});
  }
  if(kind==="rating"){
   const loadForm=document.createElement("button");loadForm.type="button";loadForm.className="ghost";loadForm.textContent="⭐ Начать заполнение";
