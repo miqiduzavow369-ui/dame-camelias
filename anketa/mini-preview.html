@@ -261,6 +261,13 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 #tab-published .archive-entry>.ghost{padding:9px 12px;margin:10px 0 0;font-size:12px;border-radius:11px;min-height:40px;background:#1a140dbd;color:#f3d49f}
 #tab-published .archive-entry>.proof-image{margin-top:10px}
 #tab-published>.proof-note{padding:10px 12px;margin:12px 0;font-size:11px;line-height:1.4;background:#150f0bd9;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+/* Premium archive filters: only client-side filtering, no ledger changes. */
+#tab-published .archive-filters{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0 15px}
+#tab-published .archive-filters label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:#e0c491;min-width:0}
+#tab-published .archive-filters select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;border:1px solid #b68e50;border-radius:12px;padding:11px 26px 11px 10px;background:#17110ce8;color:#f8e9cd;font-size:12px;line-height:1.3;box-shadow:inset 0 1px #ffdb9630;outline-offset:2px}
+#tab-published .archive-filters label{position:relative}
+#tab-published .archive-filters label::after{content:"⌄";position:absolute;right:10px;bottom:10px;pointer-events:none;color:#edc889}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -298,7 +305,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 </div><div class="proof-note" id="selectedAccountNote">Выбранный мужчина</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
+<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div class="archive-filters"><label for="archiveMan">Мужчина<select id="archiveMan"><option value="all">Все мужчины</option></select></label><label for="archiveProfile">Анкета<select id="archiveProfile"><option value="all">Все анкеты</option></select></label></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
 <section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Кредиты, пополнение и учёт расходов — без дублирования вкладок «Работа» и «История».</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
@@ -419,7 +426,18 @@ async function showOriginalProof(container,entry,note){
 }
 function renderHistory(){
  const published=$("publishedCards");published.replaceChildren();
- const matches=history.filter(entry=>entry.account===selectedAccount);
+ const all=history.slice();
+ const manSelect=$("archiveMan"),profileSelect=$("archiveProfile");
+ const manBefore=manSelect.value,profileBefore=profileSelect.value;
+ const men=[...new Set(all.map(e=>String(e.account||"")).filter(Boolean))].sort((a,b)=>accountName(a).localeCompare(accountName(b),"ru"));
+ manSelect.replaceChildren(new Option("Все мужчины","all"),...men.map(man=>new Option(accountName(man),man)));
+ manSelect.value=men.includes(manBefore)?manBefore:"all";
+ const eligible=all.filter(e=>manSelect.value==="all"||e.account===manSelect.value);
+ const profiles=[...new Set(eligible.map(e=>String(e.id||"")).filter(Boolean))].sort((a,b)=>b.localeCompare(a,"ru",{numeric:true}));
+ profileSelect.replaceChildren(new Option("Все анкеты","all"),...profiles.map(id=>new Option("Анкета №"+id,id)));
+ profileSelect.value=profiles.includes(profileBefore)?profileBefore:"all";
+ const matches=eligible.filter(e=>profileSelect.value==="all"||String(e.id)===profileSelect.value);
+
  let ratings=0,reviews=0;
  for(const entry of matches){
   if(entry.kind==="rating")ratings++;if(entry.kind==="review")reviews++;
@@ -436,7 +454,7 @@ function renderHistory(){
   published.append(row);
  }
  $("publishedRatings").textContent=ratings;$("publishedReviews").textContent=reviews;$("publishedTotal").textContent=ratings+reviews;
- if(!matches.length)published.textContent="У выбранного аккаунта мужчины нет подтверждённых публикаций в архиве.";
+ if(!matches.length)published.textContent="По выбранным фильтрам публикаций нет.";
  $("firstTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_first").length;
  $("secondTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_second").length;
 }
@@ -510,6 +528,8 @@ function renderFinance(){
  if(!root.children.length)root.textContent="Операций этой категории пока нет.";
  if(f.complete===false){const p=document.createElement("p");p.className="muted";p.textContent="Показаны последние 500 операций.";root.append(p);}
 }
+$("archiveMan").addEventListener("change",()=>{ $("archiveProfile").value="all";renderHistory(); });
+$("archiveProfile").addEventListener("change",renderHistory);
 document.querySelectorAll("[data-finance]").forEach(button=>button.addEventListener("click",()=>{
  financeFilter=button.dataset.finance;
  document.querySelectorAll("[data-finance]").forEach(b=>b.classList.toggle("active",b===button));
