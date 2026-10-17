@@ -667,7 +667,7 @@ export default {
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-signed-agreement"){
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const access=await cabinetRPC(env,uid,{kind:"mini_preview"});
@@ -678,7 +678,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-preview"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
@@ -689,7 +689,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-add"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
@@ -699,7 +699,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-delete"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
@@ -710,7 +710,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-proof"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_proof",profileId:body?.profileId,publicationKind:body?.kind,account:body?.account});
@@ -725,7 +725,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-review-action"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["submit","status"].includes(body.action))return new Response("Invalid request",{status:400});
@@ -735,7 +735,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-review-draft"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||"")))return new Response("Invalid profile",{status:400});
@@ -746,7 +746,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-action"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["prepare","status","publish"].includes(body?.action))return new Response("Invalid request",{status:400});
@@ -756,7 +756,7 @@ export default {
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-open"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
-      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
