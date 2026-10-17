@@ -2388,7 +2388,7 @@ async function miniRatingAction(env,profileId,action){
  const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
  if(!Number.isSafeInteger(balance?.available)||balance.available<1)return {ok:false,reason:"credits"};
  const day=moscowDay(),token=state.nonce;
- let reservedDay=false,reservedCredit=false;
+ let reservedDay=false,reservedCredit=false,claimed=false;
  try{
   const slot=await dailyLimit(env,OWNER_ID,profileId,"reserve","rating",token,day);
   if(!slot?.ok)return {ok:false,reason:"daily_limit"};reservedDay=true;
@@ -2396,6 +2396,7 @@ async function miniRatingAction(env,profileId,action){
   if(!cr?.ok)return {ok:false,reason:"credits"};reservedCredit=true;
   const claim=await claimPublication(env,OWNER_ID,profileId,"rating",token);
   if(!claim?.ok)return {ok:false,reason:"already_published_or_pending"};
+  claimed=true;
   if(!await recordPublication(env,profileId,"rating","publishing","mini-app-confirmation",{userId:OWNER_ID,creditNonce:token,dailyDate:day}))
    return {ok:false,reason:"already_published_or_pending"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
@@ -2407,7 +2408,10 @@ async function miniRatingAction(env,profileId,action){
   return {ok:true,stage:"publishing"};
  }finally{
   // Never release a claim after an ambiguous external dispatch or publication start.
-  if(reservedDay&&!reservedCredit)await dailyLimit(env,OWNER_ID,profileId,"release","rating",token,day).catch(()=>{});
+  if(!claimed){
+   if(reservedCredit)await credits(env,OWNER_ID,"release","rating",profileId,token).catch(()=>{});
+   if(reservedDay)await dailyLimit(env,OWNER_ID,profileId,"release","rating",token,day).catch(()=>{});
+  }
  }
 }
 async function miniRatingDraftSave(env,profileId,selected,metElsewhere){
