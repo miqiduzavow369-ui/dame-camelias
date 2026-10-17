@@ -300,27 +300,29 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const edit=document.createElement("button");edit.type="button";edit.className="ghost";edit.textContent="✏️ Изменить текст";
   const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Отправить отзыв";
   const checkText=document.createElement("button");checkText.type="button";checkText.className="primary";checkText.textContent="✅ Проверить текст";
+  const saveDraft=document.createElement("button");saveDraft.type="button";saveDraft.className="ghost";saveDraft.textContent="💾 Сохранить черновик";
   const status=document.createElement("p");status.setAttribute("aria-live","polite");
   const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
   const request=async(action,text)=>{
-    const response=await fetch(action==="load"?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
+    const response=await fetch(["load","save"].includes(action)?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok)throw Error(response.status===403?"Сессия Telegram истекла. Откройте приложение заново.":({credits:"Недостаточно кредитов.",invalid_text:"Проверьте длину отзыва.",already_published_or_pending:"Отзыв уже отправлен.",busy:"Другая операция ещё выполняется."})[result.reason]||"Не удалось выполнить действие.");
     return result;
   };
   const showStage=stage=>{
     const pending=["waiting","unknown"].includes(stage);
-    heading.hidden=pending||stage==="published";field.hidden=heading.hidden;counter.hidden=heading.hidden;checkText.hidden=heading.hidden;
+    heading.hidden=pending||stage==="published";field.hidden=heading.hidden;counter.hidden=heading.hidden;checkText.hidden=heading.hidden;saveDraft.hidden=heading.hidden;
     preview.hidden=true;check.hidden=!pending;
     status.textContent=stage==="waiting"?"⏳ Отзыв отправлен. Ожидайте проверки и подтверждения публикации. Это может занять некоторое время.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв опубликован. Подтверждение доступно в истории.":"";
-    if(stage==="rejected"){heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;check.hidden=true;}
+    if(stage==="rejected"){heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;saveDraft.hidden=false;check.hidden=true;}
   };
-  checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};
-  edit.onclick=()=>{preview.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;consent.checked=false;};
+  checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};
+  saveDraft.onclick=async()=>{saveDraft.disabled=true;try{await request("save",field.value.trim());status.textContent="✅ Черновик сохранён.";}catch(e){status.textContent="⚠️ "+e.message;}finally{saveDraft.disabled=false;}};
+  edit.onclick=()=>{preview.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;saveDraft.hidden=false;consent.checked=false;};
   send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
   check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
   preview.append(heading2,content,accuracy,send,edit);
-  editor.append(heading,field,counter,checkText,preview,check,status);body.append(editor);field.oninput();
+  editor.append(heading,field,counter,checkText,saveDraft,preview,check,status);body.append(editor);field.oninput();
   request("status").then(x=>{if(x.stage==="draft")return request("load").then(d=>{field.value=d.text||"";field.oninput();});showStage(x.stage);}).catch(e=>{status.textContent="⚠️ "+e.message;});
  }
  if(kind==="rating"){
