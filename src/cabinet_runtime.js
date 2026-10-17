@@ -308,6 +308,25 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }
   return engine.miniDeleteProfile(env,String(event.profileId||""));
  }
+ if(event.kind==="mini_review_draft"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  return engine.miniReviewDraft(env,String(event.profileId||""),event.action,event.text);
+ }
+ if(event.kind==="mini_rating_open"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  if(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")return {ok:false,reason:"disabled"};
+  return engine.miniRatingOpen(env,String(event.profileId||""));
+ }
  if(event.kind==="mini_rating_form"){
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||

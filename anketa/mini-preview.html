@@ -99,8 +99,8 @@ p,.muted,.mini{color:#b6ab99}
 </div>
 <div class="stats"><div class="stat"><strong id="cardBank">—</strong>💎 Кредиты</div><div class="stat"><strong id="cardDaily">—</strong>📅 Сегодня по анкете</div></div>
 <div class="section-heading"><h2>Действия для анкеты</h2></div>
-<div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Проверить возможность в Telegram ›</button></div>
-<div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Проверить возможность в Telegram ›</button></div>
+<div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Открыть оценки ›</button></div>
+<div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Открыть отзывы ›</button></div>
 
 <div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
 </section>
@@ -209,13 +209,13 @@ function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelecto
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
- const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Возможность уточняется в Telegram"};
+ const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить доступность действия"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
   const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
   button.hidden=!["published","check_in_bot"].includes(state);
-  button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Проверить оценку в Telegram ›":"✍️ Проверить отзыв в Telegram ›";
+  button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Открыть оценки ›":"✍️ Открыть отзывы ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
  scrollTo(0,0);}
@@ -256,17 +256,36 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   }
   const hint=document.createElement("p");hint.className="muted";hint.textContent="Это сохранённый выбор из действующего кабинета, не подтверждение публикации.";body.append(hint);
  }
+ if(kind==="review"){
+  const editor=document.createElement("div");editor.className="card";
+  const heading=document.createElement("h2");heading.textContent="✍️ Текст отзыва";
+  const field=document.createElement("textarea");field.rows=8;field.maxLength=3000;field.placeholder="Введите достоверный текст отзыва (10–3000 символов)";
+  field.style.cssText="width:100%;min-height:170px;resize:vertical;border-radius:14px;padding:14px;background:#1c1221;border:1px solid #805b70;color:#f9edf4;font:inherit";
+  const counter=document.createElement("p");field.oninput=()=>counter.textContent=field.value.length+" / 3000";
+  const save=document.createElement("button");save.className="primary";save.textContent="💾 Сохранить черновик";save.type="button";
+  const message=document.createElement("p");message.setAttribute("aria-live","polite");
+  const request=async(action,text)=>{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");
+   const response=await fetch("/api/anketa/mini-review-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action,text}),cache:"no-store"});
+   if(response.status===404)throw Error("Сервер новой версии пока не развёрнут.");
+   const result=await response.json().catch(()=>({}));
+   if(!response.ok||!result.ok)throw Error(response.status===403?"Сессия кабинета не подтверждена.":result.reason==="already_published_or_pending"?"Отзыв уже опубликован или проверяется.":"Операция пока недоступна.");
+   return result;};
+  save.onclick=async()=>{save.disabled=true;message.textContent="⏳ Сохраняю…";try{if(field.value.length<10)throw Error("Введите не менее 10 символов.");await request("save",field.value);message.textContent="✅ Черновик сохранён. На модерацию и публикацию не отправлялся.";}catch(e){message.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
+  editor.append(heading,field,counter,save,message);body.append(editor);field.oninput();
+  request("load").then(result=>{field.value=result.text||"";field.oninput();if(result.text)message.textContent="✅ Сохранённый черновик восстановлен.";}).catch(e=>message.textContent="⚠️ "+e.message);
+ }
  if(kind==="rating"){
-  const loadForm=document.createElement("button");loadForm.type="button";loadForm.className="ghost";loadForm.textContent="📋 Посмотреть форму оценок";
+  const loadForm=document.createElement("button");loadForm.type="button";loadForm.className="ghost";loadForm.textContent="📋 Загрузить оценки";
   const panel=document.createElement("div");panel.className="rating-form-panel";panel.hidden=true;
   loadForm.onclick=async()=>{
    loadForm.disabled=true;loadForm.textContent="⏳ Загружаю форму…";
    try{
     if(!tg?.initData)throw Error("Откройте приложение из Telegram.");
-    const res=await fetch("/api/anketa/mini-rating-form",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id}),cache:"no-store"});
+    const res=await fetch("/api/anketa/mini-rating-open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id}),cache:"no-store"});
     if(!res.ok)throw Error(res.status===403?"Сессия Telegram не подтверждена. Закройте приложение полностью и откройте заново.":res.status===404?"Обновление сервера ещё не установлено. Повторите позже.":"Ошибка сервера при открытии формы (код "+res.status+").");
     const data=await res.json();
-    if(!data.ok)throw Error(data.reason==="not_ready"?"Сначала откройте оценки в рабочем Telegram-кабинете.":data.reason==="already_published_or_pending"?"Оценки уже опубликованы или находятся на проверке.":"Форма пока недоступна.");
+    if(data.ok&&data.stage==="loading"){panel.replaceChildren();const msg=document.createElement("p");msg.textContent="⏳ Загружаются действующие категории оценок. Нажмите «Обновить форму оценок» после завершения проверки.";panel.append(msg);panel.hidden=false;return;}
+    if(!data.ok)throw Error(data.reason==="not_ready"?"Рабочая форма оценок ещё не подготовлена сервером.":data.reason==="already_published_or_pending"?"Оценки уже опубликованы или находятся на проверке.":data.reason==="credits"?"Недостаточно кредитов.":data.reason==="daily_limit"?"Дневной лимит исчерпан.":data.reason==="busy"?"Предыдущая операция ещё выполняется.":"Форма пока недоступна.");
     panel.replaceChildren();
     const hint=document.createElement("p");hint.className="muted";hint.textContent="Выберите оценки и сохраните черновик. Публикация на сайте выполняется отдельно.";panel.append(hint);
     const draft={...data.selected};
@@ -304,7 +323,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        const chosen=document.createElement("strong");chosen.textContent=value;row.append(name,chosen);review.append(row);}
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";review.append(extra);}
       const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();const field=panel.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
-      const notice=document.createElement("p");notice.className="muted";notice.textContent="Это проверка сохранённых значений. Подтверждение размещения и публикация здесь пока недоступны.";
+      const notice=document.createElement("p");notice.className="muted";notice.textContent="Черновик сохранён. Пока сервер не разрешает публикацию из Mini App, отправка останется недоступной.";
       review.append(notice,back);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
@@ -312,8 +331,10 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
    finally{loadForm.disabled=false;loadForm.textContent="📋 Обновить форму оценок";}
   };
   body.append(loadForm,panel);
+  // Open the existing authenticated Mini App editor immediately, without a legacy Telegram detour.
+  loadForm.click();
  }
- const note=document.createElement("div");note.className="proof-note";note.textContent="Это просмотр существующей последовательности. Публикация пока выполняется только через рабочий Telegram-кабинет.";body.append(note);
+ const note=document.createElement("div");note.className="proof-note";note.textContent="Черновики редактируются здесь. Публикация пока выполняется только через рабочий Telegram-кабинет. После подключения серверного подтверждения отправка станет доступна в Mini App.";body.append(note);
  const controls=document.createElement("div");controls.className="workflow-controls";
  const refresh=document.createElement("button");refresh.type="button";refresh.className="ghost";refresh.textContent="🔄 Обновить состояние";refresh.onclick=async()=>{refresh.disabled=true;refresh.textContent="⏳ Обновляю…";try{const ok=await load();if(ok){const current=profiles.find(p=>p.id===selected?.id);if(current){selected=current;syncStage();}else status.textContent="🌷 Анкета больше не сохранена."; }else status.textContent="⚠️ Не удалось обновить состояние. Попробуйте позже.";}finally{refresh.disabled=false;refresh.textContent="🔄 Обновить состояние";}};
  const back=document.createElement("button");back.type="button";back.className="ghost";back.textContent="← К мужчине";back.onclick=()=>$("subBack").click();
@@ -321,6 +342,6 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  $("detail").hidden=true;$("subview").hidden=false;tg?.BackButton?.show?.();scrollTo(0,0);
 });
 $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
-async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Для просмотра войдите в обычный кабинет Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
+async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
 $("refresh").onclick=load;load();
 </script></body></html>
