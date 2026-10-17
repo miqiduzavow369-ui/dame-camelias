@@ -1455,6 +1455,7 @@ async function moderateReview(env,send,input){
   const active=await stateGet(env);
   if(active?.step==="review_moderation"&&active.moderationTicket===input.ticket)await statePut(env,{...ticket.snapshot,step:"review_cancelled",moderationTicket:input.ticket});
   await navigationSay(env,send,"🌹 DAME CAMELIAS\n\n✍️ ПОПРОБУЕМ ДРУГОЙ ОТЗЫВ\n\n🌹 Анкета №"+ticket.snapshot.id+"\n\n🌷 Этот отзыв не отправлен. Публикация не списана.\n\n💕 Напишите другой текст и отправьте его на повторную проверку.",buttons([[{text:"✍️ Ввести другой отзыв",callback_data:"owner_anketa:reviewretry:"+input.ticket}],[{text:"🌹 К моим анкетам",callback_data:"owner_anketa:open"}],[{text:"🏠 В начало",callback_data:"owner_anketa:home"}]]));
+  await env.VISITORS_KV.put(privatePrefix("mini_review_rejected_v1:")+ticket.snapshot.id,JSON.stringify({ticket:input.ticket,at:Date.now()}));
   await env.VISITORS_KV.put(key,JSON.stringify({...ticket,status:"cancelled",cancelNoticeSent:true}));return {ok:true};
  }
  if(ticket.status==="started")return {ok:true,already:true};
@@ -2294,10 +2295,11 @@ async function miniReviewAction(env,profileId,action,text){
  if(receipt)return {ok:true,stage:receipt.status==="published"?"published":"waiting"};
  const ticketKey=privatePrefix("mini_review_ticket_v1:")+profileId;
  const activeTicket=await env.VISITORS_KV.get(ticketKey,"json");
+ const rejectionInfo=async ticket=>{const event=await env.VISITORS_KV.get(privatePrefix("mini_review_rejected_v1:")+profileId,"json");return {ok:true,stage:"rejected",reason:"Нарушение правил публикации",rejectedAt:event?.ticket===ticket?event.at:null};};
  if(action==="status"){
   if(!activeTicket?.ticket)return {ok:true,stage:"draft"};
   const record=await env.VISITORS_KV.get("cabinet_review_moderation:"+OWNER_ID+":"+activeTicket.ticket,"json");
-  if(record?.status==="cancelled")return {ok:true,stage:"rejected"};
+  if(record?.status==="cancelled")return rejectionInfo(activeTicket.ticket);
   if(record?.status==="delivery_unknown")return {ok:true,stage:"unknown"};
   return {ok:true,stage:"waiting"};
  }
