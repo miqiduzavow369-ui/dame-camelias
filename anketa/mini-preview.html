@@ -426,6 +426,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   rejection.append(rejectionText,retry);body.append(rejection);
   retry.onclick=()=>{rejection.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;saveDraft.hidden=false;check.hidden=true;preview.hidden=true;field.value="";field.oninput();consent.checked=false;status.textContent="";field.focus();};
   const showStage=(stage,info={})=>{
+    if(stage==="published")void refreshCabinetSnapshot();
     const pending=["waiting","unknown"].includes(stage);
     rejection.hidden=stage!=="rejected";
     if(stage==="rejected"){const date=Number.isFinite(info.rejectedAt)&&info.rejectedAt>0?new Date(info.rejectedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"Дата недоступна";rejectionText.textContent="❌ Отзыв не прошёл проверку из-за нарушения правил · "+date;}
@@ -617,6 +618,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       proofRetry.onclick=fetchProof;
       proofCard.append(proofHeading,proofNote,proofHolder,proofRetry);review.append(proofCard);
       const reflect=stage=>{
+       if(stage==="published")void refreshCabinetSnapshot();
        const waiting=["preparing","publishing","checking"].includes(stage);
        publish.hidden=stage!=="draft"&&stage!=="failed"&&stage!=="expired";
        check.hidden=!waiting;
