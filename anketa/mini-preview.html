@@ -82,15 +82,15 @@ p,.muted,.mini{color:#b6ab99}
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
 <section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Ваши опубликованные оценки, отзывы и подтверждения — в одном месте.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><div class="section-heading"><h2>🗂 Запросы и сохранённые черновики</h2></div><div id="activityCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Если подтверждение ещё не готово, вы увидите текущий статус.</p></section>
-<section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Управляйте доступными публикациями и просматривайте историю их использования.</p>
+<section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Ваш баланс</h1><p>Управляйте доступными публикациями и просматривайте историю их использования.</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
 <div class="card"><div class="stats"><div class="stat"><strong id="spentTotal">—</strong>Потрачено кредитов</div><div class="stat"><strong id="reservedTotal">—</strong>Зарезервировано</div></div>
 <p class="muted">Подробные даты начислений и списаний появятся после подключения подтверждённого журнала операций. Эти данные не заменяются историей публикаций.</p></div>
 <div class="section-heading"><h2>Управление</h2></div>
-<button class="action" type="button" id="topup"><span>💬 Запросить пополнение кредитов<small>Связаться с менеджером в Telegram</small></span><span class="next">›</span></button>
+<button class="action" type="button" id="topup"><span>💬 Пополнить баланс<small>Связаться с менеджером</small></span><span class="next">›</span></button>
 <button class="ghost" id="refresh" type="button">🔄 Обновить баланс</button>
-<button class="ghost" id="close" type="button">⬅️ Вернуться в Telegram</button>
+<button class="ghost" id="close" type="button">Закрыть приложение</button>
 </section>
 <section id="detail" hidden>
 <div class="detailbar"><button id="back">← К мужчинам</button><span class="muted">РАБОТА С АНКЕТОЙ</span></div>
@@ -127,7 +127,7 @@ for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
-$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.";};
+$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="После ввода проверим формат ссылки. Не удалось проверить ссылку. Попробуйте ещё раз чуть позже.";};
 $("addProfileCancel").onclick=()=>showTab("profiles");
 let addNonce="";
 async function miniAdd(action,extra={}){
@@ -166,7 +166,7 @@ function selectAccount(account){
  $("secondSelected").textContent=account==="yan_second"?"✓":"○";
  $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
  $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
- $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+". Рабочий аккаунт в Telegram не меняется.";
+ $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+". Ваши настройки публикаций сохраняются.";
  renderHistory();
 }
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
@@ -221,7 +221,7 @@ function renderHistory(){
  $("firstTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_first").length;
  $("secondTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_second").length;
 }
-function render(data){legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
+function render(data){legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"Баланс ваших публикаций";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
 for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
 $("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
 if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";const previousId=workProfile?.id;const kept=profiles.find(p=>p.id===previousId);if(kept||profiles.length===1){workProfile=kept||profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
@@ -280,7 +280,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  function syncStage(){
   const active=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
   const i=stageIndex[kind]?.[active];
-  status.textContent=kind==="rating"?"🌹 Вы заполняете черновик. Публикация отдельно и только после подтверждения.":active&&stageNames[active]?"⏳ Состояние рабочего кабинета: "+stageNames[active]:"ℹ️ Активный этап не подтверждён.";
+  status.textContent=kind==="rating"?"🌹 Вы заполняете черновик. Публикация отдельно и только после подтверждения.":active&&stageNames[active]?"⏳ Сейчас: "+stageNames[active]:"ℹ️ Активный этап не подтверждён.";
   stageRows.forEach((row,n)=>{row.classList.toggle("workflow-current",n===i);row.classList.toggle("workflow-done",Number.isInteger(i)&&n<i);});
  }
  syncStage();
@@ -486,7 +486,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   body.append(panel);
   loadForm.click();
  }
- // Публикация пока выполняется только через рабочий Telegram-кабинет.
+ // Mini App uses the existing server publication workflow.
 
  const controls=document.createElement("div");controls.className="workflow-controls";
  const refresh=document.createElement("button");refresh.type="button";refresh.className="ghost";refresh.textContent="🔄 Обновить состояние";refresh.onclick=async()=>{refresh.disabled=true;refresh.textContent="⏳ Обновляю…";try{const ok=await load();if(ok){const current=profiles.find(p=>p.id===selected?.id);if(current){selected=current;syncStage();}else status.textContent="🌷 Анкета больше не сохранена."; }else status.textContent="⚠️ Не удалось обновить состояние. Попробуйте позже.";}finally{refresh.disabled=false;refresh.textContent="🔄 Обновить состояние";}};
@@ -495,6 +495,6 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  $("detail").hidden=true;$("subview").hidden=false;tg?.BackButton?.show?.();scrollTo(0,0);
 });
 $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
-async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
+async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось открыть ваши анкеты. Закройте приложение и откройте его снова.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
 $("refresh").onclick=load;load();
 </script></body></html>
