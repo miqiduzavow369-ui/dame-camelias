@@ -2286,6 +2286,22 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
+async function miniReviewDraft(env,profileId,action,text){
+ if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
+ const record=await savedGet(env,profileId);
+ if(!record?.confirmed||String(record.profile?.id)!==String(profileId))return {ok:false,reason:"not_saved"};
+ if(await publicationStatus(env,profileId,"review"))return {ok:false,reason:"already_published_or_pending"};
+ if(action==="load"){
+  const draft=await reviewDraftGet(env,profileId);
+  return {ok:true,text:draft?.text||"",savedAt:draft?.savedAt||null};
+ }
+ if(action!=="save"||typeof text!=="string"||text.length<10||text.length>3000)return {ok:false,reason:"invalid_text"};
+ const current=await stateGet(env);
+ if(current&&["publishing","review_dispatch","review_recheck","proof_loading","dryfill_loading","review_moderation"].includes(current.step))
+  return {ok:false,reason:"busy"};
+ await reviewDraftSave(env,{id:String(profileId),account:ACTIVE_ACCOUNT,text});
+ return {ok:true,text,saved:true};
+}
 async function miniRatingOpen(env,profileId){
  if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
  const record=await savedGet(env,profileId);
@@ -2411,7 +2427,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniReviewDraft,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
