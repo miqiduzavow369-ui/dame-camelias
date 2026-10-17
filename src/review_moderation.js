@@ -3,6 +3,17 @@ export const MODERATION_CHAT="-1003900552612";
 const validUid=x=>/^[1-9]\d{4,15}$/.test(String(x));
 const validTicket=x=>/^[a-f0-9]{16}$/.test(String(x));
 const escape=x=>String(x??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// Bound the escaped HTML itself, not the raw text: a review containing many
+// ampersands would otherwise exceed Telegram's 4096-character message limit.
+function escapeLimited(value,max){
+ let result="";
+ for(const char of String(value??"")){
+  const encoded=escape(char);
+  if(result.length+encoded.length>max-1)return result+"…";
+  result+=encoded;
+ }
+ return result;
+}
 export async function moderationTelegram(env,method,data){
  const response=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/"+method,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data),signal:AbortSignal.timeout(10000)});
  const body=await response.json();if(!response.ok||!body.ok)throw Error("Moderation Telegram delivery failed");return body.result;
@@ -54,12 +65,12 @@ function card(record){
   ...(record.decidedAt?["🕰 <b>Решение:</b> "+date(record.decidedAt)+" МСК"]:[]),
   "",
   "✍️ <b>"+(history.length?"ИТОГОВЫЙ ТЕКСТ":"ТЕКСТ ОТЗЫВА")+"</b>",
-  escape(record.text.length>2200?record.text.slice(0,2199)+"…":record.text),
+  escapeLimited(record.text,1800),
   ...(history.length?["","✏️ <b>Исправлений:</b> "+history.length,
-   "<b>Исходный текст:</b> "+escape(String(record.originalText||history[0].text).slice(0,450))]:[]),
+   "<b>Исходный текст:</b> "+escapeLimited(record.originalText||history[0].text,400)]:[]),
   ...(record.status==="published"?["","📸 <b>Подтверждение:</b> "+(record.proofFileId?"сохранено в архиве":"ожидается")]:[]),
   ...(record.status==="cancelled"?["","🔒 <b>Публикация:</b> отменена, списания нет"]:[]),
-  ...(record.note?["","ℹ️ "+escape(record.note)]:[])
+  ...(record.note?["","ℹ️ "+escapeLimited(record.note,250)]:[])
  ];
  // Telegram messages have a 4096-character cap. Preserve the current review;
  // bound original text to avoid losing the moderation controls to an oversized card.
