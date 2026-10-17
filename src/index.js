@@ -697,6 +697,21 @@ export default {
       const result=await cabinetRPC(env,uid,{kind:"mini_delete",profileId:String(body.profileId)});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:400,headers:{"Cache-Control":"no-store"}});
     }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-proof"){
+      if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      const result=await cabinetRPC(env,uid,{kind:"mini_proof",profileId:body?.profileId,publicationKind:body?.kind,account:body?.account});
+      if(!result?.ok)return new Response("Proof unavailable",{status:result?.status===403?403:404});
+      const file=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(result.fileId),{signal:AbortSignal.timeout(10000)}).then(r=>r.json()).catch(()=>null);
+      const path=file?.ok&&file?.result?.file_path;
+      if(typeof path!=="string"||!/^photos\/[a-zA-Z0-9_\/-]+\\.(?:jpg|jpeg|png)$/.test(path))return new Response("Proof temporarily unavailable",{status:502});
+      const image=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+path,{signal:AbortSignal.timeout(15000)}).catch(()=>null);
+      if(!image?.ok)return new Response("Proof temporarily unavailable",{status:502});
+      return new Response(image.body,{headers:{"Content-Type":path.endsWith(".png")?"image/png":"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'"}});
+    }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-review-draft"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
