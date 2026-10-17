@@ -382,7 +382,14 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        info.summary.textContent=(filled?"✅ ":"✦ ")+info.name+" · "+filled+"/"+info.controls.length;
       }
     };
-    data.catalog.forEach((item,i)=>{
+    const orderedFields=data.catalog.map((item,i)=>({item,i}));
+    const phonePosition=orderedFields.findIndex(x=>/^общение по телефону$/i.test(String(x.item.label||"").trim())&&String(x.item.subgroup||"").trim()==="Основной перечень");
+    if(phonePosition>=0){
+     const [phone]=orderedFields.splice(phonePosition,1);
+     const endOfMain=orderedFields.findIndex(x=>String(x.item.subgroup||"").trim()!=="Основной перечень");
+     orderedFields.splice(endOfMain<0?orderedFields.length:endOfMain,0,phone);
+    }
+    orderedFields.forEach(({item,i})=>{
      const name=item.group||"Оценки";
      let info=groups.get(name);
      if(!info){
