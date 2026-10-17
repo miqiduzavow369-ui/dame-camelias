@@ -424,6 +424,14 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     statuses[kind]=value?.status==="published"?"published":
       value?.status==="publishing"||value?.status==="needs_verification"?"checking":"unknown";
    }
+   // A pending moderated review is not a published review and must not spend a credit.
+   if(statuses.review==="unknown"){
+    const ticket=await env.VISITORS_KV.get((uid===OWNER_ID?"":"cabinet_v3:"+uid+":")+"mini_review_ticket_v1:"+id,"json").catch(()=>null);
+    if(ticket?.ticket){
+     const moderation=await env.VISITORS_KV.get("cabinet_review_moderation:"+uid+":"+ticket.ticket,"json").catch(()=>null);
+     if(moderation?.status!=="cancelled")statuses.review="moderation";
+    }
+   }
    // Archive-backed completed actions must never be displayed as publishable.
    for(const kind of ["rating","review"]){
     if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind))
@@ -441,7 +449,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    for(const kind of ["rating","review"]){
     const state=statuses[kind];
     const reason=state==="published"?"published":
-      state==="checking"?"checking":
+      state==="checking"||state==="moderation"?"checking":
       balance?.available===0?"credits":
       !Number.isSafeInteger(balance?.available)?"unknown":
       daily?.remaining===0?"daily_limit":
