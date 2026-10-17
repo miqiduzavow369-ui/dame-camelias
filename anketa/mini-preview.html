@@ -261,9 +261,11 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
    const holder=document.createElement("div");holder.className="proof-image";holder.hidden=true;panel.append(holder);
    document.querySelector('[data-sub="'+kind+'"]').closest(".card").append(panel);
   }
+  if(!panel.hidden){panel.hidden=true;b.textContent="📸 Посмотреть подтверждение ›";return;}
+  b.textContent="📸 Скрыть подтверждение ▴";
   const note=panel.querySelector('p[aria-live]'),holder=panel.querySelector(".proof-image");
   if(!entry?.hasProof){note.textContent="⚠️ Оригинал подтверждения отсутствует в архиве.";return;}
-  panel.hidden=false;showOriginalProof(holder,entry,note);return;
+  panel.hidden=false;if(!holder.querySelector("img"))showOriginalProof(holder,entry,note);return;
  }
  const kind=b.dataset.sub,body=$("subContent");body.replaceChildren();
  $("subTitle").textContent=kind==="rating"?"⭐ Порядок публикации оценок":"✍️ Порядок публикации отзыва";
@@ -282,17 +284,6 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   stageRows.forEach((row,n)=>{row.classList.toggle("workflow-current",n===i);row.classList.toggle("workflow-done",Number.isInteger(i)&&n<i);});
  }
  syncStage();
- if(kind==="rating"&&Array.isArray(legacyWorkflow?.ratingDraft)&&legacyWorkflow.profileId===String(selected.id)&&legacyWorkflow.account===selectedAccount){
-  const heading=document.createElement("h2");heading.textContent="⭐ Сохранённый выбор оценок";heading.className="draft-heading";body.append(heading);
-  if(!legacyWorkflow.ratingDraft.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Оценки пока не выбраны.";body.append(empty);}
-  for(const item of legacyWorkflow.ratingDraft){
-   const line=document.createElement("div");line.className="draft-preview-item";
-   const label=document.createElement("span");label.textContent=item.label;
-   const value=document.createElement("strong");value.textContent=item.value;
-   line.append(label,value);body.append(line);
-  }
-  const hint=document.createElement("p");hint.className="muted";hint.textContent="Это сохранённый выбор из действующего кабинета, не подтверждение публикации.";body.append(hint);
- }
  if(kind==="review"){
   const editor=document.createElement("div");editor.className="card";
   const heading=document.createElement("h2");heading.textContent="✍️ Текст отзыва";
@@ -325,7 +316,15 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     if(!data.ok)throw Error(data.reason==="not_ready"?"Рабочая форма оценок ещё не подготовлена сервером.":data.reason==="already_published_or_pending"?"Оценки уже опубликованы или находятся на проверке.":data.reason==="credits"?"Недостаточно кредитов.":data.reason==="daily_limit"?"Дневной лимит исчерпан.":data.reason==="busy"?"Предыдущая операция ещё выполняется.":"Форма пока недоступна.");
     panel.replaceChildren();
     const hint=document.createElement("p");hint.className="muted";hint.textContent="Выберите оценки и сохраните черновик. Публикация на сайте выполняется отдельно.";panel.append(hint);
-    const draft={...data.selected};
+    const draft={};
+    const choiceControls=[];
+    const progress=document.createElement("p");progress.className="proof-note";panel.append(progress);
+    const updateProgress=()=>{const chosen=choiceControls.filter(x=>!x.disabled&&x.value).length;const total=choiceControls.filter(x=>!x.disabled).length;progress.textContent="⭐ Заполнено "+chosen+" из "+total+" · можно оставить пункты без ответа.";};
+    const existing=Object.keys(data.selected||{}).length>0;
+    if(existing){const oldNotice=document.createElement("p");oldNotice.className="muted";oldNotice.textContent="Есть сохранённый ранее черновик. Форма открыта чистой — при необходимости можете восстановить прежние ответы.";panel.append(oldNotice);
+      const restore=document.createElement("button");restore.type="button";restore.className="ghost";restore.textContent="↩️ Восстановить старый черновик";panel.append(restore);
+      restore.onclick=()=>{for(const [i,control] of choiceControls.entries()){if(control.disabled)continue;const value=data.selected[i];control.value=value&&data.catalog[i].options.includes(value)?value:"";if(control.value)draft[i]=control.value;else delete draft[i];}checkbox.checked=false;updateProgress();};}
+
     let lastGroup="";
     data.catalog.forEach((item,i)=>{
      if(item.group!==lastGroup){const group=document.createElement("h3");group.className="rating-form-group";group.textContent=item.group;panel.append(group);lastGroup=item.group;}
@@ -337,19 +336,22 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      const fixed=/^(?:isFair|Фото соответствует)$/i.test(item.label.trim());
      if(fixed){select.value="Фото соответствует";select.disabled=true;draft[i]="Фото соответствует";}
      else if(indie&&item.options.length===1){select.value=item.options[0];draft[i]=item.options[0];select.disabled=true;}
-     else if(Object.hasOwn(data.selected,i)&&item.options.includes(data.selected[i]))select.value=data.selected[i];
-     select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];};
+     
+     select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();};choiceControls.push(select);
      entry.append(select);panel.append(entry);
     });
     const elsewhere=document.createElement("label");elsewhere.className="rating-elsewhere";
     const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=data.metElsewhere===true;
     const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);panel.append(elsewhere);
-    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="💾 Сохранить черновик оценок";panel.append(save);
+    updateProgress();
+    const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Заполнить заново";
+    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;panel.querySelector(".draft-review")?.remove();updateProgress();result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
+    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить и сохранить оценки";panel.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");panel.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
       const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
       const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error("Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
-      result.textContent="✅ Черновик сохранён. Проверьте выбранные значения ниже. Публикация не запускалась.";
+      result.textContent="✅ Выбор сохранён. Ниже итоговые оценки; публикация не запускалась.";
       const previous=panel.querySelector(".draft-review");if(previous)previous.remove();
       const review=document.createElement("div");review.className="draft-review";
       const title=document.createElement("h3");title.textContent="🌹 Проверка черновика";review.append(title);
@@ -361,7 +363,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";review.append(extra);}
       const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();const field=panel.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       const notice=document.createElement("p");notice.className="muted";notice.textContent="Черновик сохранён. Пока сервер не разрешает публикацию из Mini App, отправка останется недоступной.";
-      review.append(notice,back);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
+      const again=document.createElement("button");again.type="button";again.className="ghost";again.textContent="↺ Заполнить заново";again.onclick=()=>{reset.click();};review.append(notice,back,again);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
    }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;panel.append(error);panel.hidden=false;}
