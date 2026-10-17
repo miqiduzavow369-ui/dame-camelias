@@ -4,6 +4,7 @@ import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
 import {validWebApp} from "./telegram_auth.js";
+import {handleAdminApi} from "./admin_app_api.js";
 import { serveProfileThumbnail } from "./owner_anketa.js";
 export { OrderReminder } from "./reminders.js";
 const MANAGER_URL = "https://t.me/DameCamelias";
@@ -110,10 +111,11 @@ async function sendPhotoFile(env, data, url) {
 function keyboard(key, env) {
   const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
   const adminRow=[{text:"👑 АДМИНИСТРАТОР",callback_data:"clients:menu"}];
-  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
+  const adminMiniRow=[{text:"👑 ADMIN · Mini App",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/admin/preview"}}];
+  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminMiniRow,adminRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
-    if(owner)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}],adminRow);
+    if(owner)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}],adminMiniRow,adminRow);
     else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}]);
     else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
     rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
@@ -659,6 +661,23 @@ export default {
       const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/order/index.html");
       if (!result.ok) return new Response("Form unavailable", { status: 502 });
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+    }
+    if(url.pathname==="/api/admin/app")return handleAdminApi(request,env);
+    // Owner-only administrative Mini App staging preview.
+    // GET contains no application UI; the HTML is returned only after Telegram initData
+    // signature and owner identity are checked on the server.
+    if(request.method==="GET"&&url.pathname==="/admin/preview"){
+      const bootstrap=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>DAME CAMELIAS ADMIN</title><script src="https://telegram.org/js/telegram-web-app.js"></script></head><body style="background:#100e12;color:#d5b88b;font:14px system-ui;padding:32px;text-align:center"><main id="status">Проверка доступа ADMIN…</main><script>(async()=>{const el=document.getElementById('status');try{const tg=window.Telegram?.WebApp;if(!tg?.initData)throw Error('Откройте ADMIN через кнопку вашего Telegram-бота.');tg.ready();const res=await fetch('/api/admin/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData}),cache:'no-store'});if(!res.ok)throw Error('Доступ запрещён.');const html=await res.text();document.open();document.write(html);document.close();}catch(e){el.textContent=e.message;}})();</script></body></html>`;
+      return new Response(bootstrap,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Robots-Tag":"noindex, nofollow","X-Content-Type-Options":"nosniff"}});
+    }
+    if(request.method==="POST"&&url.pathname==="/api/admin/preview"){
+      let body;try{body=await request.json();}catch{return new Response("Forbidden",{status:403});}
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,900))return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
+      let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(uid!=="5866034656")return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
+      const html=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/admin/preview-v3.html",{cache:"no-store"});
+      if(!html.ok)return new Response("Admin preview unavailable",{status:503});
+      return new Response(await html.text(),{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Robots-Tag":"noindex, nofollow","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="GET"&&url.pathname==="/anketa/mini-preview"){
       const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html?restore="+Date.now(),{cache:"no-store"});
