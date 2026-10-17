@@ -313,7 +313,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const rejection=document.createElement("div");rejection.className="card";rejection.hidden=true;rejection.style.cssText="position:sticky;top:8px;z-index:3;border-color:#b58c49;padding:13px 15px;background:#211a12";
   const rejectionText=document.createElement("p");rejectionText.style.margin="0 0 10px";
   const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="↺ Попробовать снова";
-  rejection.append(rejectionText,retry);body.insertBefore(rejection,editor);
+  rejection.append(rejectionText,retry);body.append(rejection);
   retry.onclick=()=>{rejection.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;saveDraft.hidden=false;check.hidden=true;preview.hidden=true;field.value="";field.oninput();consent.checked=false;status.textContent="";field.focus();};
   const showStage=(stage,info={})=>{
     const pending=["waiting","unknown"].includes(stage);
