@@ -322,7 +322,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     verify.append(title,desc,begin);panel.append(verify);
     const editor=document.createElement("div");editor.hidden=true;panel.append(editor);
     begin.onclick=()=>{verify.hidden=true;editor.hidden=false;editor.scrollIntoView({block:"start",behavior:"smooth"});};
-    const hint=document.createElement("p");hint.className="muted";hint.textContent="Отметьте то, что хотите оценить. Можно пропускать вопросы.";editor.append(hint);
+    const hint=document.createElement("p");hint.className="muted";hint.textContent="Выберите подходящие оценки. Ненужные пункты можно пропустить.";editor.append(hint);
     const draft={};
     const choiceControls=[];
     const progress=document.createElement("p");progress.className="proof-note";editor.append(progress);
@@ -382,15 +382,15 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     updateProgress();
     const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Заполнить заново";
     reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
-    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";editor.append(save,reset);
+    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";save.hidden=true;editor.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
       const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
       const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error("Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
-      result.textContent="✅ Выбор сохранён. Ниже итоговые оценки; публикация не запускалась.";
+      result.textContent="✅ Оценки сохранены.";
       const previous=editor.querySelector(".draft-review");if(previous)previous.remove();
       const review=document.createElement("div");review.className="draft-review";for(const section of summaries)section.hidden=true;navigation.hidden=true;stepStatus.hidden=true;
-      const title=document.createElement("h3");title.textContent="🌹 Проверка черновика";review.append(title);
+      const title=document.createElement("h3");title.textContent="🌹 Ваши оценки";review.append(title);
       const rows=Object.entries(saved.selected||{}).sort((a,b)=>Number(a[0])-Number(b[0]));
       for(const [index,value] of rows){const field=data.catalog[Number(index)];if(!field)continue;
        const row=document.createElement("div");row.className="draft-preview-item";
