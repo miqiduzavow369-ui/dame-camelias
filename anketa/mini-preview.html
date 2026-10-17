@@ -181,6 +181,19 @@ function openDeleteProfile(p){deleteTarget=p;$("deleteProfileCaption").textConte
 $("cancelDeleteProfile").onclick=()=>{deleteTarget=null;showTab("profiles");};
 $("confirmDeleteProfile").onclick=async()=>{if(!deleteTarget)return;const button=$("confirmDeleteProfile");button.disabled=true;$("deleteError").textContent="";
  try{const response=await fetch("/api/anketa/mini-delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:deleteTarget.id}),cache:"no-store"});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw Error("Удаление не выполнено. Попробуйте ещё раз.");deleteTarget=null;await load();showTab("profiles");}catch(e){$("deleteError").textContent="⚠️ "+e.message;}finally{button.disabled=false;}};
+async function showOriginalProof(container,entry,note){
+ note.textContent="⏳ Загружаю оригинал подтверждения…";
+ if(!tg?.initData){note.textContent="⚠️ Откройте приложение из Telegram.";return;}
+ try{
+  const res=await fetch("/api/anketa/mini-proof",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:entry.id,kind:entry.kind,account:entry.account}),cache:"no-store"});
+  if(!res.ok)throw Error(res.status===404?"Файл подтверждения не найден.":"Ошибка получения фото ("+res.status+").");
+  const blob=await res.blob();if(!blob.type.startsWith("image/"))throw Error("Сервер вернул не изображение.");
+  const url=URL.createObjectURL(blob),img=document.createElement("img");
+  img.className="photo-large";img.alt="Подтверждение анкеты №"+entry.id;img.style.width="100%";
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error("Не удалось открыть изображение."));img.src=url;}).finally(()=>URL.revokeObjectURL(url));
+  container.replaceChildren(img);container.hidden=false;note.textContent="✅ Оригинал подтверждения";
+ }catch(e){container.replaceChildren();container.hidden=true;note.textContent="⚠️ "+e.message;}
+}
 function renderHistory(){
  const published=$("publishedCards");published.replaceChildren();
  const activityBox=$("activityCards");activityBox.replaceChildren();
@@ -198,16 +211,7 @@ function renderHistory(){
   if(entry.hasProof){
    const open=document.createElement("button");open.type="button";open.className="ghost";open.textContent="📸 Открыть подтверждение";
    const note=document.createElement("p");note.setAttribute("aria-live","polite");
-   open.onclick=async()=>{open.disabled=true;note.textContent="⏳ Загружаю оригинал из архива…";
-    try{
-     const res=await fetch("/api/anketa/mini-proof",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:entry.id,kind:entry.kind,account:entry.account}),cache:"no-store"});
-     if(!res.ok)throw Error(res.status===404?"Подтверждение не найдено.":"Не удалось загрузить фото ("+res.status+").");
-     const blob=await res.blob();if(!blob.type.startsWith("image/"))throw Error("Неверный формат фото.");
-     const image=document.createElement("img");image.className="photo-large";image.alt="Оригинальное подтверждение анкеты №"+entry.id;
-     const url=URL.createObjectURL(blob);image.src=url;image.onload=()=>URL.revokeObjectURL(url);
-     row.querySelector(".proof-image")?.remove();const holder=document.createElement("div");holder.className="proof-image";holder.append(image);row.append(holder);
-     note.textContent="✅ Оригинал подтверждения";
-    }catch(e){note.textContent="⚠️ "+e.message;}finally{open.disabled=false;}
+   open.onclick=async()=>{open.disabled=true;let holder=row.querySelector(".proof-image");if(!holder){holder=document.createElement("div");holder.className="proof-image";row.append(holder);}await showOriginalProof(holder,entry,note);open.disabled=false;
    };row.append(open,note);
   }
   published.append(row);
@@ -247,7 +251,20 @@ const legacySteps={
 };
 document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  if(!selected)return;
- if(b.dataset.mode==="proof"){showTab("published");return;}
+ if(b.dataset.mode==="proof"){
+  const kind=b.dataset.sub,pid=String(selected.id);
+  const entry=history.find(x=>x.id===pid&&x.kind===kind&&x.account===selectedAccount);
+  let panel=$("detail").querySelector('[data-inline-proof="'+kind+'"]');
+  if(!panel){panel=document.createElement("div");panel.className="card";panel.dataset.inlineProof=kind;
+   panel.append(Object.assign(document.createElement("h2"),{textContent:kind==="rating"?"📸 Подтверждение оценки":"📸 Подтверждение отзыва"}));
+   const note=document.createElement("p");note.setAttribute("aria-live","polite");panel.append(note);
+   const holder=document.createElement("div");holder.className="proof-image";holder.hidden=true;panel.append(holder);
+   document.querySelector('[data-sub="'+kind+'"]').closest(".card").append(panel);
+  }
+  const note=panel.querySelector('p[aria-live]'),holder=panel.querySelector(".proof-image");
+  if(!entry?.hasProof){note.textContent="⚠️ Оригинал подтверждения отсутствует в архиве.";return;}
+  panel.hidden=false;showOriginalProof(holder,entry,note);return;
+ }
  const kind=b.dataset.sub,body=$("subContent");body.replaceChildren();
  $("subTitle").textContent=kind==="rating"?"⭐ Порядок публикации оценок":"✍️ Порядок публикации отзыва";
  $("subId").textContent="Анкета №"+selected.id+" · "+accountName(selectedAccount);
