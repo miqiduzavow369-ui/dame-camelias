@@ -606,7 +606,12 @@ async function clearExtraNavigation(env,send){
 
 // Navigation has one active message; audit, publication and result messages
 // are sent through say() and are never removed by navigation cleanup.
+async function miniSilent(env){
+ const state=await stateGet(env).catch(()=>null);
+ return state?.miniApp===true;
+}
 async function navigationSay(env,send,text,reply_markup,parse_mode){
+  if(await miniSilent(env))return null;
   await clearExtraNavigation(env,send);
   const rows=Array.isArray(reply_markup?.inline_keyboard)?reply_markup.inline_keyboard:[];
   const hasHome=rows.some(row=>row.some(button=>button.callback_data==="owner_anketa:home"));
@@ -672,12 +677,14 @@ const NEW_NUMBER = [{text:"🔄 Ввести другую анкету",callback
 // Keep meaningful bot replies and found-profile cards in Telegram history.
 // Only the transient progress message is updated; owner-entered IDs are cleaned up.
 async function say(env, send, text, reply_markup, parse_mode) {
+  if(await miniSilent(env))return null;
   const response=await sendWithLoadingEmoji(env,send,"sendMessage",{chat_id:OWNER_ID,text,...(reply_markup?{reply_markup}:{}),...(parse_mode?{parse_mode}:{})});
   await trackAnketaMessage(env,response?.message_id);
   return response;
 }
 const PROGRESS_KEY="owner_anketa_progress:"+OWNER_ID;
 async function progressSay(env,send,text){
+  if(await miniSilent(env))return;
   let old=null;
   try{old=await env.VISITORS_KV?.get(PROGRESS_KEY,"json");}catch{}
   if(Number.isSafeInteger(old?.id)){
@@ -2315,7 +2322,7 @@ async function miniReviewAction(env,profileId,action,text){
  const draft=await stateGet(env);
  if(draft&&["publishing","review_dispatch","review_recheck","proof_loading","dryfill_loading","review_moderation"].includes(draft.step))return {ok:false,reason:"busy"};
  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
- const snapshot={step:"review_agreed",id:String(profileId),account:ACTIVE_ACCOUNT,text:text.trim(),nonce,agreedAt:Date.now(),host:saved.host};
+ const snapshot={step:"review_agreed",miniApp:true,id:String(profileId),account:ACTIVE_ACCOUNT,text:text.trim(),nonce,agreedAt:Date.now(),host:saved.host};
  const key="cabinet_review_moderation:"+OWNER_ID+":"+nonce;
  await env.VISITORS_KV.put(key,JSON.stringify({status:"pending",snapshot}));
  // Establish the ticket before delivery, so subsequent requests cannot enqueue another review.
@@ -2414,7 +2421,7 @@ async function miniRatingAction(env,profileId,action){
   if(state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000)return {ok:true,stage:"ready"};
   if(!["ratings","ratings_agreed"].includes(state.step)||!state.draftReady||!Object.keys(state.selected||{}).length)return {ok:false,reason:"not_ready"};
   if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
-  const approved={...state,step:"ratings_agreed",agreedAt:Date.now()};
+  const approved={...state,miniApp:true,step:"ratings_agreed",agreedAt:Date.now()};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
   const pending={...approved,step:"dryfill_loading",id:String(profileId),previousNonce:state.nonce,nonce,prepublish:true};
   if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
@@ -2439,7 +2446,7 @@ async function miniRatingAction(env,profileId,action){
   if(!await recordPublication(env,profileId,"rating","publishing","mini-app-confirmation",{userId:OWNER_ID,creditNonce:token,dailyDate:day}))
    return {ok:false,reason:"already_published_or_pending"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  const pending={...state,step:"publishing",id:String(profileId),creditNonce:token,dailyDate:day,
+  const pending={...state,miniApp:true,step:"publishing",id:String(profileId),creditNonce:token,dailyDate:day,
    nonce,previousNonce:token,readyAt:null,confirmedAt:Date.now(),dispatchPending:true};
   if(!await statePut(env,pending))return {ok:false,reason:"state_failure"};
   const dispatch=await dispatchLookup(env,profileId,nonce,"publish",state.host).catch(()=>null);
