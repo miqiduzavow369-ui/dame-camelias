@@ -334,7 +334,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   // Open the existing authenticated Mini App editor immediately, without a legacy Telegram detour.
   loadForm.click();
  }
- const note=document.createElement("div");note.className="proof-note";note.textContent="Черновики редактируются здесь. Отправка на публикацию станет доступна только после серверного подтверждения возможности действия.";body.append(note);
+ const note=document.createElement("div");note.className="proof-note";note.textContent="Черновики редактируются здесь. Публикация пока выполняется только через рабочий Telegram-кабинет. После подключения серверного подтверждения отправка станет доступна в Mini App.";body.append(note);
  const controls=document.createElement("div");controls.className="workflow-controls";
  const refresh=document.createElement("button");refresh.type="button";refresh.className="ghost";refresh.textContent="🔄 Обновить состояние";refresh.onclick=async()=>{refresh.disabled=true;refresh.textContent="⏳ Обновляю…";try{const ok=await load();if(ok){const current=profiles.find(p=>p.id===selected?.id);if(current){selected=current;syncStage();}else status.textContent="🌷 Анкета больше не сохранена."; }else status.textContent="⚠️ Не удалось обновить состояние. Попробуйте позже.";}finally{refresh.disabled=false;refresh.textContent="🔄 Обновить состояние";}};
  const back=document.createElement("button");back.type="button";back.className="ghost";back.textContent="← К мужчине";back.onclick=()=>$("subBack").click();
