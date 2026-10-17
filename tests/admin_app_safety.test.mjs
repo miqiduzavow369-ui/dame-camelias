@@ -8,7 +8,7 @@ const index=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
 const api=readFileSync(new URL('../src/admin_app_api.js',import.meta.url),'utf8');
 
 test('ADMIN V3 inline JavaScript parses',()=>{
- const matches=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/gi)];
+ const matches=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
  assert.equal(matches.length,1);
  new Script(matches[0][1],{filename:'admin/preview-v3.html'});
 });
