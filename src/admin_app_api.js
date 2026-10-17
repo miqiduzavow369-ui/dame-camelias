@@ -58,17 +58,24 @@ export async function handleAdminApi(request,env){
    if(archive.status!==200)return bad("archive_unavailable",503);
    const item=archive.archive?.items?.find(x=>String(x.profileId)===profileId&&x.account===account&&x.kind===kind&&x.fileId);
    if(!item)return bad("proof_missing",404);
+   // Telegram stores image messages under photos/, and image documents under documents/.
+   // The provider can return application/octet-stream even when the body is an image.
    const info=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(item.fileId),{signal:AbortSignal.timeout(10000)});
    const infoJson=await info.json().catch(()=>null);
    const filePath=infoJson?.result?.file_path;
-   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!/^photos\/[A-Za-z0-9_.\/-]+$/.test(filePath))return bad("proof_unavailable",503);
+   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!^(?:photos|documents)\\/[A-Za-z0-9_.\\/-]{1,240}$/.test(filePath)||filePath.includes(".."))return bad("telegram_file_unavailable",502);
    const photo=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+filePath,{signal:AbortSignal.timeout(12000)});
-   if(!photo.ok)return bad("proof_unavailable",503);
-   const contentType=photo.headers.get("content-type")||"";
-   if(!contentType.startsWith("image/"))return bad("invalid_proof_type",503);
+   if(!photo.ok)return bad("telegram_image_unavailable",502);
    const bytes=await photo.arrayBuffer();
-   if(bytes.byteLength>10*1024*1024)return bad("proof_too_large",413);
-   return new Response(bytes,{headers:{...safeHeaders,"Content-Type":contentType}});
+   if(bytes.byteLength===0||bytes.byteLength>10*1024*1024)return bad("invalid_image_size",502);
+   const first=new Uint8Array(bytes.slice(0,16));
+   const jpeg=first[0]===0xff&&first[1]===0xd8&&first[2]===0xff;
+   const png=first[0]===0x89&&first[1]===0x50&&first[2]===0x4e&&first[3]===0x47;
+   const webp=String.fromCharCode(...first.slice(0,4))==="RIFF"&&String.fromCharCode(...first.slice(8,12))==="WEBP";
+   const gif=String.fromCharCode(...first.slice(0,3))==="GIF";
+   const mime=jpeg?"image/jpeg":png?"image/png":webp?"image/webp":gif?"image/gif":null;
+   if(!mime)return bad("image_format_unavailable",502);
+   return new Response(bytes,{headers:{...safeHeaders,"Content-Type":mime,"Content-Disposition":"inline; filename=proof."+mime.slice(6),"Content-Security-Policy":"default-src 'none'; sandbox"}});
   }
   if(action==="archive"){
    const {client}=await registry(env,{action:"get",userId:uid});
