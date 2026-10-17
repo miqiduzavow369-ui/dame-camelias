@@ -707,7 +707,7 @@ export default {
       if(!result?.ok)return new Response("Proof unavailable",{status:result?.status===403?403:404});
       const file=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(result.fileId),{signal:AbortSignal.timeout(10000)}).then(r=>r.json()).catch(()=>null);
       const path=file?.ok&&file?.result?.file_path;
-      if(typeof path!=="string"||!/^photos\/[a-zA-Z0-9_\/-]+\\.(?:jpg|jpeg|png)$/.test(path))return new Response("Proof temporarily unavailable",{status:502});
+      if(typeof path!=="string"||!/^photos\/[a-zA-Z0-9_\/-]+\.(?:jpg|jpeg|png)$/.test(path))return new Response("Proof temporarily unavailable",{status:502});
       const image=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+path,{signal:AbortSignal.timeout(15000)}).catch(()=>null);
       if(!image?.ok)return new Response("Proof temporarily unavailable",{status:502});
       return new Response(image.body,{headers:{"Content-Type":path.endsWith(".png")?"image/png":"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'"}});
