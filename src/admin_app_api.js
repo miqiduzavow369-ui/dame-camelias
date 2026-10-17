@@ -63,7 +63,7 @@ export async function handleAdminApi(request,env){
    const info=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(item.fileId),{signal:AbortSignal.timeout(10000)});
    const infoJson=await info.json().catch(()=>null);
    const filePath=infoJson?.result?.file_path;
-   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!^(?:photos|documents)\\/[A-Za-z0-9_.\\/-]{1,240}$/.test(filePath)||filePath.includes(".."))return bad("telegram_file_unavailable",502);
+   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!new RegExp("^(photos|documents)/[A-Za-z0-9_./-]{1,240}$").test(filePath)||filePath.includes(".."))return bad("telegram_file_unavailable",502);
    const photo=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+filePath,{signal:AbortSignal.timeout(12000)});
    if(!photo.ok)return bad("telegram_image_unavailable",502);
    const bytes=await photo.arrayBuffer();
