@@ -1211,6 +1211,7 @@ async function handleAnketaLookupResult(request,env,send) {
       if(ok && finalAuditOk){
         const finalState={...restored,step:"prepublish_ready",prepublish:true,readyAt:Date.now()};
         await statePut(env,finalState);
+        if(current.miniApp===true)return Response.json({ok:true,prepublish:true});
         // The preparation progress is transient; remove it before showing the final choice.
         await clearProgress(env,send);
         await say(env,send,"✅ ВСЁ ГОТОВО К ПУБЛИКАЦИИ\n\n👤 "+current.profile.name+
@@ -1223,6 +1224,7 @@ async function handleAnketaLookupResult(request,env,send) {
           buttons([[{text:"✅ Да, опубликовать",callback_data:"owner_anketa:publish_confirm:"+current.previousNonce}],
             [{text:"❌ Отмена",callback_data:"owner_anketa:publish_cancel:"+current.previousNonce}]]));
       }else{
+        if(current.miniApp===true)return Response.json({ok:true,prepublish:false});
         await say(env,send,"⚠️ ПОДГОТОВКА НЕ ПРОШЛА\n\n🆔 Анкета №"+id+
           "\n✅ Проверено в браузере: "+((Number(report?.verified)||0)+(report?.extraFlag?.ok===true?1:0))+" из "+total+
           (misses.length?"\n\nПроверьте:\n"+misses.slice(0,20).join("\n"):"")+
