@@ -598,13 +598,32 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку.",incomplete_ratings:"❗ Заполните обязательные оценки и не менее 20% остальных услуг."})[payload.reason]||("Не удалось подтвердить действие (HTTP "+response.status+(typeof payload.reason==="string"?", код: "+payload.reason.slice(0,64):"")+"). Проверьте статус публикации перед повтором."));
        return payload;
       };
+      // The original confirmation is fetched read-only from the existing proof archive.
+      // Never trigger a new publication to obtain an image.
+      const proofCard=document.createElement("div");proofCard.className="card";proofCard.hidden=true;
+      const proofHeading=document.createElement("h2");proofHeading.textContent="📸 Подтверждение публикации";
+      const proofNote=document.createElement("p");proofNote.setAttribute("aria-live","polite");
+      const proofHolder=document.createElement("div");proofHolder.className="proof-image";proofHolder.hidden=true;
+      const proofRetry=document.createElement("button");proofRetry.type="button";proofRetry.className="ghost";proofRetry.textContent="🔄 Проверить подтверждение ещё раз";
+      let proofLoading=false,proofLoaded=false;
+      const fetchProof=async()=>{
+       if(proofLoading||proofLoaded)return;
+       proofLoading=true;proofRetry.disabled=true;proofNote.textContent="⏳ Загружаем оригинальный скриншот публикации…";
+       await showOriginalProof(proofHolder,{id:String(selected.id),kind:"rating",account:selectedAccount},proofNote);
+       proofLoaded=!!proofHolder.querySelector("img")&&!proofHolder.hidden;
+       if(!proofLoaded)proofNote.textContent="📸 Скриншот пока не поступил в архив. Публикацию повторять не нужно.";
+       proofRetry.hidden=proofLoaded;proofRetry.disabled=false;proofLoading=false;
+      };
+      proofRetry.onclick=fetchProof;
+      proofCard.append(proofHeading,proofNote,proofHolder,proofRetry);review.append(proofCard);
       const reflect=stage=>{
        const waiting=["preparing","publishing","checking"].includes(stage);
        publish.hidden=stage!=="draft"&&stage!=="failed"&&stage!=="expired";
        check.hidden=!waiting;
        send.hidden=stage!=="ready";
        back.hidden=stage!=="ready";
-       actionStatus.textContent=stage==="preparing"?"⏳ Проверяем данные на сайте. Обычно это занимает пару минут. Нажмите «Посмотреть результат».":stage==="ready"?"✅ Проверка пройдена. Теперь можно изменить оценки или опубликовать их.":stage==="publishing"||stage==="checking"?"⏳ Публикация выполняется. Нажмите «Посмотреть результат» чуть позже.":stage==="published"?"✅ Оценки опубликованы. Подтверждение появится в истории.":stage==="failed"?"⚠️ Подготовка не завершилась. Можно повторить проверку.":stage==="expired"?"⏳ Время подтверждения истекло. Подготовьте оценки ещё раз.":"";
+       proofCard.hidden=stage!=="published";if(stage==="published"&&!proofLoaded&&!proofLoading)void fetchProof();
+       actionStatus.textContent=stage==="preparing"?"⏳ Проверяем данные на сайте. Обычно это занимает пару минут. Нажмите «Посмотреть результат».":stage==="ready"?"✅ Проверка пройдена. Теперь можно изменить оценки или опубликовать их.":stage==="publishing"||stage==="checking"?"⏳ Публикация выполняется. Нажмите «Посмотреть результат» чуть позже.":stage==="published"?"✅ Оценки опубликованы. Скриншот подтверждения ниже и сохраняется в «Истории».":stage==="failed"?"⚠️ Подготовка не завершилась. Можно повторить проверку.":stage==="expired"?"⏳ Время подтверждения истекло. Подготовьте оценки ещё раз.":"";
       };
       publish.onclick=async()=>{publish.disabled=true;actionStatus.textContent="⏳ Запускаем проверку…";try{const x=await requestAction("prepare");reflect(x.stage);}catch(e){actionStatus.textContent="⚠️ "+e.message;}finally{publish.disabled=false;}};
       check.onclick=async()=>{check.disabled=true;try{const x=await requestAction("status");reflect(x.stage);}catch(e){actionStatus.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
