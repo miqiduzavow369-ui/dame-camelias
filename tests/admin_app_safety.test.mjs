@@ -43,3 +43,14 @@ test('ADMIN archive proofs are owner protected and agreement is status-only',()=
  assert.match(html,/async function loadProof\(/);
  assert.match(html,/padding-bottom:calc\(170px/);
 });
+
+test('ADMIN review history reuses only published archives',()=>{
+ assert.match(api,/action==="review_history"/);
+ assert.match(api,/kind:"admin_archive"/);
+ assert.match(api,/x\.kind==="review"/);
+ assert.doesNotMatch(api,/moderationRPC\(/);
+ assert.match(html,/История отзывов/);
+ assert.match(html,/callAdmin\('review_history'\)/);
+ assert.doesNotMatch(html,/Модерация в подготовке/);
+ assert.doesNotMatch(html,/Входящие отзывы · решения/);
+});
