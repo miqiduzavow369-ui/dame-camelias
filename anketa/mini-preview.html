@@ -187,6 +187,46 @@ body:has(#tab-profiles:not([hidden])) .app>header .tag{
  box-shadow:inset 0 1px #f9d7922e;
 }
 #tab-profiles::before{content:none!important;display:none!important}
+
+/* Premium secondary screens: background art only; preserve all existing screen structure and handlers. */
+body:has(#tab-published:not([hidden])) .app,
+body:has(#detail:not([hidden])) .app,
+body:has(#subview:not([hidden])) .app,
+body:has(#tab-cabinet:not([hidden])) .app{position:relative;isolation:isolate}
+body:has(#tab-published:not([hidden])) .app::before,
+body:has(#detail:not([hidden])) .app::before,
+body:has(#subview:not([hidden])) .app::before,
+body:has(#tab-cabinet:not([hidden])) .app::before{
+ content:"";position:absolute;inset:0 0 auto;min-height:100%;z-index:-1;pointer-events:none;
+ background-repeat:no-repeat;background-position:center top;
+ background-size:100% 100%,100% auto;
+ -webkit-mask-image:linear-gradient(#000 0%,#000 85%,transparent 100%);
+ mask-image:linear-gradient(#000 0%,#000 85%,transparent 100%);
+}
+body:has(#tab-published:not([hidden])) .app::before{
+ background-image:linear-gradient(180deg,#08070650,#08070630 32%,#080706b8 92%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/history-premium-bg.png");
+}
+body:has(#detail:not([hidden])) .app::before,
+body:has(#subview:not([hidden])) .app::before{
+ background-image:linear-gradient(180deg,#08070655,#08070630 34%,#080706d9 95%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/profile-work-premium-bg.png");
+}
+body:has(#tab-cabinet:not([hidden])) .app::before{
+ background-image:linear-gradient(180deg,#0807064d,#08070635 35%,#080706d5 95%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/cabinet-premium-bg.png");
+}
+body:has(#tab-published:not([hidden])) .app>header,
+body:has(#detail:not([hidden])) .app>header,
+body:has(#subview:not([hidden])) .app>header,
+body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+:is(#tab-published,#detail,#subview,#tab-cabinet) :is(.card,.hero,.action,.ghost,.stat,.finance-entry,.finance-summary>div,.workflow-step,.proof-note){
+ background:linear-gradient(125deg,#17130fdc,#0c0b0ae8 70%,#171109df);
+ border-color:#b58e50;
+ backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+ box-shadow:inset 0 1px #f6d49a25,0 7px 20px #0008;
+}
+:is(#tab-published,#detail,#subview,#tab-cabinet) :is(.action,.ghost,.back-top,.detailbar button){
+ color:#f4e5c9;text-shadow:0 1px 3px #000e;
+}
+:is(#tab-published,#detail,#subview,#tab-cabinet) :is(h1,h2,.card b,.finance-description b){text-shadow:0 1px 4px #000e}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
