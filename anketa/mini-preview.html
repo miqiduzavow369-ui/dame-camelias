@@ -54,6 +54,9 @@ p,.muted,.mini{color:#b6ab99}
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p>Выберите аккаунт клиента и свою анкету. Мы покажем, что можно сделать сейчас.</p>
 <div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
+<div class="section-heading"><h2>📜 Документы</h2></div>
+<button class="agreement-open" id="signedAgreementOpen" type="button"><span class="agreement-symbol">📜</span><span>Подписанное соглашение<small>Просмотр документа и даты согласия</small></span><span>›</span></button>
+<div id="signedAgreementPanel" class="card" hidden><h2>📜 Подписанное соглашение</h2><div id="signedAgreementContent"></div><button class="ghost" id="signedAgreementClose" type="button">← Вернуться к работе</button></div>
 <div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
 <div id="profiles"></div><button class="action" type="button" id="beginAddProfile"><span>➕ Добавить анкету<small>Проверка ссылки и подтверждение данных</small></span><span class="next">›</span></button>
 <div id="menWorkspace" class="card" hidden>
@@ -90,9 +93,6 @@ p,.muted,.mini{color:#b6ab99}
 <div class="section-heading"><h2>Финансы и расход</h2></div>
 <div class="card"><div class="stats"><div class="stat"><strong id="spentTotal">—</strong>Потрачено кредитов</div><div class="stat"><strong id="reservedTotal">—</strong>Зарезервировано</div></div>
 <p class="muted">Подробные даты начислений и списаний появятся после подключения подтверждённого журнала операций. Эти данные не заменяются историей публикаций.</p></div>
-<div class="section-heading"><h2>Документы</h2></div>
-<button class="agreement-open" id="signedAgreementOpen" type="button"><span class="agreement-symbol">📜</span><span>Подписанное соглашение<small>Просмотр документа и даты согласия</small></span><span>›</span></button>
-<div id="signedAgreementPanel" class="card" hidden><h2>📜 Подписанное соглашение</h2><div id="signedAgreementContent"></div><button class="ghost" id="signedAgreementClose" type="button">← Вернуться в кабинет</button></div>
 <div class="section-heading"><h2>Управление</h2></div>
 <button class="action" type="button" id="topup"><span>💬 Запросить пополнение кредитов<small>Связаться с менеджером в Telegram</small></span><span class="next">›</span></button>
 <button class="ghost" id="refresh" type="button">🔄 Обновить баланс</button>
