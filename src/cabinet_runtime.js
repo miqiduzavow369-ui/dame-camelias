@@ -3,7 +3,7 @@ import {LOADING_EMOJI_KEY,selectedLoadingEmoji} from "./loading_emoji.js";
 import {validWebApp} from "./telegram_auth.js";
 import {createCabinet} from "./owner_anketa.js";
 import {registry,OWNER_ID,TRIAL_ID,validId,pinRecord} from "./client_registry.js";
-import {credits,adjustCredits} from "./publication_credits.js";
+import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publication_archive.js";
 import {dailyLimit} from "./daily_publication_limit.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
@@ -387,8 +387,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }
   // The read-only summary uses the existing publication archive and credit ledger.
   // No additional mutable publication state is introduced for the Mini App.
-  let balance=null,archive={items:[]};
+  let balance=null,archive={items:[]},finance=null;
   try{balance=await credits(env,uid,"status");}catch{}
+  try{finance=await creditHistory(env,uid);}catch{}
   try{archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);}catch{}
   const proofCounts=new Map();
   for(const item of archive.items||[]){
@@ -491,7 +492,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     }
    }
   }catch{}
-  return {ok:true,profiles,history,activities,workflow,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  return {ok:true,profiles,history,activities,workflow,finance:finance?.ok?finance:null,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
