@@ -236,13 +236,25 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 #tab-profiles>.hero .hero-bottom{font-size:11px;line-height:1.35}
 #tab-profiles>.hero .over:first-letter{font-size:21px}
 @media(max-width:380px){#tab-profiles>.hero{width:67%;padding:13px 10px}#tab-profiles>.hero .over{font-size:10px;letter-spacing:.6px}#tab-profiles>.hero .number{font-size:40px}#tab-profiles .work-intro{max-width:81%}}
+
+/* Approved Diamond VIP publication balance — Work tab only. */
+#tab-profiles>.hero.work-vip-balance{width:63%;max-width:345px;margin-left:0;margin-right:auto;padding:12px 13px 13px;min-height:0;border:1px solid #d4ac6e;border-radius:21px;background:linear-gradient(120deg,#251708dd,#100d0bcd 70%,#24170cce);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px #ffe5ab50,0 0 16px #e7b45a26,0 9px 24px #0009}
+#tab-profiles .work-vip-balance .over{font-size:10px;letter-spacing:1.2px;line-height:1.35;white-space:normal;color:#f4d29d}
+#tab-profiles .work-vip-main{display:flex;align-items:center;justify-content:space-between;gap:4px;margin:8px 0 9px}
+#tab-profiles .work-vip-count{display:flex;align-items:center;gap:3px;min-width:0}
+#tab-profiles .work-vip-diamond{font-size:36px;line-height:1;filter:drop-shadow(0 0 8px #9bc7ff77);flex:none}
+#tab-profiles .work-vip-balance .number{font-family:Georgia,serif;font-size:54px;font-weight:700;line-height:1;margin:0;color:#ffe3a0;text-shadow:0 1px 1px #fff7db44,0 0 15px #dbab4380}
+#tab-profiles .work-vip-topup{flex:none;max-width:49%;border:1px solid #ecc17e;border-radius:100px;padding:10px 9px;background:linear-gradient(125deg,#c28f4580,#37240fcc);color:#ffdfaa;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;box-shadow:inset 0 1px #ffe0aa63,0 0 8px #c38a384a;cursor:pointer}
+#tab-profiles .work-vip-topup:focus-visible{outline:2px solid #fff0c9;outline-offset:3px}
+#tab-profiles .work-vip-balance .hero-bottom{padding-top:8px;border-top:1px solid #b28c565c;font-size:10px;color:#d0b894;line-height:1.4}
+@media(max-width:390px){#tab-profiles>.hero.work-vip-balance{width:66%;padding:11px 9px}#tab-profiles .work-vip-diamond{font-size:30px}#tab-profiles .work-vip-balance .number{font-size:46px}#tab-profiles .work-vip-topup{font-size:10px;padding:9px 6px}#tab-profiles .work-vip-balance .over{font-size:9px;letter-spacing:.65px}}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p class="work-intro">Ваши анкеты и действия ниже.</p>
 <button class="agreement-open" id="signedAgreementOpen" type="button"><span class="agreement-symbol">📜</span><span>Подписанное соглашение</span><span>›</span></button>
 <div id="signedAgreementPanel" class="card" hidden><h2>📜 Подписанное соглашение</h2><div id="signedAgreementContent"></div><button class="ghost" id="signedAgreementClose" type="button">← Вернуться к работе</button></div>
-<div class="hero"><div class="over">💎 ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="number" id="balance">—</div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
+<div class="hero work-vip-balance"><div class="over">ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="work-vip-main"><div class="work-vip-count"><span class="work-vip-diamond" aria-hidden="true">💎</span><div class="number" id="balance">—</div></div><button class="work-vip-topup" id="workTopup" type="button">＋ Пополнить</button></div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
 <div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
 <div id="profiles"></div><button class="action" type="button" id="beginAddProfile"><span>➕ Добавить анкету<small>Проверка ссылки и подтверждение данных</small></span><span class="next">›</span></button>
 <div id="menWorkspace" class="card" hidden>
@@ -836,7 +848,7 @@ $("signedAgreementOpen").onclick=async()=>{
  panel.scrollIntoView({block:"start",behavior:"smooth"});
 };
 $("signedAgreementClose").onclick=()=>{$("signedAgreementPanel").hidden=true;$("signedAgreementOpen").hidden=false;};
-$("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
+$("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("workTopup").onclick=()=>{$("topup").click();};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
 async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
 // Refresh read-only cabinet data when users return to the app or navigate tabs.
 let snapshotRefresh=null;
