@@ -255,11 +255,41 @@ function renderHistory(){
  $("secondTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_second").length;
 }
 
-let financialData=null,financeFilter="all";
+let financialData=null,latestFinanceBalance=null,financeFilter="all";
 function renderFinance(){
  const root=$("financeTimeline");if(!root)return;root.replaceChildren();
  const f=financialData;
- if(!f){root.textContent="Финансовая история пока недоступна. Баланс показан отдельно.";return;}
+ if(!f){
+  // Legacy deployed Worker returns balance and publication archive but not ledger events.
+  // Show verified source summaries without fabricating historical transactions.
+  const b=latestFinanceBalance;
+  const total=Number.isSafeInteger(b?.available)&&Number.isSafeInteger(b?.spent)&&Number.isSafeInteger(b?.reserved)?b.available+b.spent+b.reserved:null;
+  $("financeGranted").textContent=total===null?"—":String(total);
+  $("financeSpent").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";
+  const archived=Array.isArray(history)?history.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))):[];
+  const note=document.createElement("p");note.className="muted";
+  note.textContent="Действующий баланс и подтверждённый архив. Даты отдельных пополнений и точные списания появятся после обновления серверного журнала.";
+  root.append(note);
+  if(financeFilter!=="spent"){
+    const sum=document.createElement("div");sum.className="finance-entry";
+    const label=document.createElement("b");label.textContent="💎 Всего начислено с учётом корректировок";
+    const value=document.createElement("p");value.textContent=total===null?"Сумма пока не подтверждена":"Общий объём: "+total+" · Даты отдельных начислений недоступны";
+    sum.append(label,value);root.append(sum);
+  }
+  if(financeFilter!=="topup"){
+    if(!archived.length){const p=document.createElement("p");p.className="muted";p.textContent="Подтверждённых публикаций в архиве пока нет.";root.append(p);}
+    for(const item of archived){
+      const row=document.createElement("div");row.className="finance-entry";
+      const date=document.createElement("div");date.className="finance-date";
+      const d=String(item.date||"");date.textContent=/^\\d{8}$/.test(d)?d.slice(6,8)+"."+d.slice(4,6)+"."+d.slice(0,4)+" · время не сохранено":"Дата не сохранена";
+      const title=document.createElement("b");title.textContent=(item.kind==="rating"?"⭐ Оценка":"✍️ Отзыв")+" · подтверждена";
+      const detail=document.createElement("p");detail.textContent=accountName(item.account)+" · Анкета №"+String(item.id)+" · расход по этой записи проверяется по кредитному журналу";
+      row.append(date,title,detail);root.append(row);
+    }
+    const p=document.createElement("p");p.className="muted";p.textContent="По балансу потрачено: "+(Number.isSafeInteger(b?.spent)?b.spent:"—")+" кредитов. Архив публикаций не заменяет журнал списаний.";root.append(p);
+  }
+  return;
+ }
  $("financeGranted").textContent=Number.isSafeInteger(f.totalGranted)?String(f.totalGranted):"—";
  $("financeSpent").textContent=Number.isSafeInteger(f.spent)?String(f.spent):"—";
  const entries=Array.isArray(f.events)?f.events:[];
@@ -296,7 +326,7 @@ document.querySelectorAll("[data-finance]").forEach(button=>button.addEventListe
  renderFinance();
 }));
 
-function render(data){financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
+function render(data){latestFinanceBalance=data.balance||null;financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
 for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
 $("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
 if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";const previousId=workProfile?.id;const kept=profiles.find(p=>p.id===previousId);if(kept||profiles.length===1){workProfile=kept||profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
