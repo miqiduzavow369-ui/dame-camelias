@@ -5,6 +5,7 @@ import {registry,OWNER_ID,validId,pinRecord} from "./client_registry.js";
 import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {cabinetRPC} from "./cabinet_runtime.js";
 import {agreementStatus} from "./agreement.js";
+import {moderationHistory} from "./review_moderation.js";
 
 const safeHeaders={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 const respond=(value,status=200)=>Response.json(value,{status,headers:safeHeaders});
@@ -82,10 +83,24 @@ export async function handleAdminApi(request,env){
      return {ok:true,items};
     }catch{return {ok:false,items:[]};}
    }));
-   const items=outcomes.flatMap(x=>x.items)
-     .sort((a,b)=>String(b.at||b.date||"").localeCompare(String(a.at||a.date||"")))
-     .slice(0,500);
-   return respond({ok:true,items,partial:outcomes.some(x=>!x.ok),source:"published_archive"});
+   const archived=outcomes.flatMap(x=>x.items).map(x=>({...x,status:"published",text:null,corrected:false}));
+   let decisions=[],journalUnavailable=false;
+   try{
+    const history=await moderationHistory(env);
+    if(!history?.ok)throw Error("history_unavailable");
+    decisions=history.items||[];
+   }catch{journalUnavailable=true;}
+   const results=new Map();
+   // Archive entries stay visible, including legacy publications before the journal existed.
+   for(const item of archived)results.set("archive:"+item.userId+":"+item.profileId+":"+item.account,item);
+   for(const decision of decisions){
+    const matching=archived.find(item=>item.userId===decision.userId&&item.profileId===decision.profileId&&item.account===decision.account);
+    const key=matching?"archive:"+matching.userId+":"+matching.profileId+":"+matching.account:"decision:"+decision.userId+":"+decision.ticket;
+    results.set(key,{...matching,...decision,proof:matching?.proof||false,date:matching?.date||null,at:matching?.at||null,
+     status:matching? "published":decision.status});
+   }
+   const items=[...results.values()].sort((a,b)=>Number(b.decidedAt||b.publishedAt||b.at||0)-Number(a.decidedAt||a.publishedAt||a.at||0));
+   return respond({ok:true,items,partial:outcomes.some(x=>!x.ok)||journalUnavailable,source:"moderation_decisions_and_publication_archive"});
   }
   if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
   if(action==="client"){
