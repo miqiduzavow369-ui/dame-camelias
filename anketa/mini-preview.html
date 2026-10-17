@@ -418,17 +418,11 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();updateGroupSummaries();};
      const requiredSuggestion=/^(?:соответстви[ея]\s+фото|отношение\s+к\s+клиенту|общая\s+оценка|соответствие\s+параметров)$/i.test(String(item.label||"").trim())||indie;
      if(requiredSuggestion){
-      const recommended=indie?item.options.find(x=>/^\s*(?:да|реальная\s+инди)\s*$/i.test(x)):item.options.find(x=>String(x).trim()==="5");
-      const guide=document.createElement("p");guide.className="muted";
-      guide.textContent=recommended?"Предложенный вариант: "+(indie?"Да":"5")+" · Выберите, только если оценка соответствует действительности.":"Вариант для этой анкеты не предоставлен сайтом.";
-      const warning=document.createElement("small");warning.className="rating-required-warning";warning.textContent="❗ Выбор обязателен для оценки этого пункта";warning.hidden=true;
-      const suggestion=document.createElement("button");suggestion.type="button";suggestion.className="ghost";suggestion.textContent="Выбрать предложенное";
-      suggestion.hidden=!recommended;
-      suggestion.onclick=()=>{if(!recommended)return;select.value=recommended;select.dispatchEvent(new Event("change"));};
-      const sync=()=>{warning.hidden=!!select.value;};
-      select.addEventListener("change",sync);
-      entry.append(guide,suggestion,warning);
-      sync();
+      const warning=document.createElement("small");warning.className="rating-required-warning";
+      warning.textContent="❗ Обязательно к выбору";
+      warning.hidden=!!select.value;
+      select.addEventListener("change",()=>{warning.hidden=!!select.value;});
+      entry.append(warning);
      }
 
      info.controls.push(select);choiceControls.push(select);entry.append(select);info.section.append(entry);
