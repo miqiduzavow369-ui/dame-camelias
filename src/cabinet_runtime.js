@@ -427,6 +427,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,capabilities,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
   const allowed=new Set(profiles.map(p=>p.id));
+  // Read-only legacy memory: show saved drafts and publication requests without
+  // creating a second journal or exposing secrets and moderation payloads.
+  const activities=[];
+  for(const p of profiles){
+   const pid=p.id;
+   const ratingDraft=await env.VISITORS_KV.get("cabinet_rating_draft:"+uid+":"+pid,"json").catch(()=>null);
+   if(ratingDraft&&ratingDraft.selected&&Object.keys(ratingDraft.selected).length)
+    activities.push({id:pid,kind:"rating_draft",account:"yan_first",status:"saved",count:Object.keys(ratingDraft.selected).length});
+   const reviewKey=(uid===OWNER_ID?"":"cabinet_v3:"+uid+":")+"owner_anketa_review_draft_v1:yan_first:"+pid;
+   const reviewDraft=await env.VISITORS_KV.get(reviewKey,"json").catch(()=>null);
+   if(typeof reviewDraft?.text==="string"&&reviewDraft.text.length>=10)
+    activities.push({id:pid,kind:"review_draft",account:"yan_first",status:"saved",savedAt:reviewDraft.savedAt||null});
+   for(const kind of ["rating","review"]){
+    const status=p.statuses?.[kind];
+    if(status==="checking")activities.push({id:pid,kind,account:"yan_first",status:"checking"});
+   }
+  }
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
@@ -454,7 +471,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     }
    }
   }catch{}
-  return {ok:true,profiles,history,workflow,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  return {ok:true,profiles,history,activities,workflow,balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
