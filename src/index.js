@@ -113,8 +113,8 @@ function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
-    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview"}}],adminRow);
-    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview"}}]);
+    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?restore=2455c7d"}}],adminRow);
+    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?restore=2455c7d"}}]);
     else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
     rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
     return {inline_keyboard:rows};
@@ -661,7 +661,7 @@ export default {
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
     }
     if(request.method==="GET"&&url.pathname==="/anketa/mini-preview"){
-      const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html");
+      const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html?restore="+Date.now(),{cache:"no-store"});
       if(!result.ok)return new Response("Preview unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
     }
