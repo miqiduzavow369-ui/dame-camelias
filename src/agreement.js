@@ -30,6 +30,7 @@ export function signedAgreement(record){
 export async function agreementEvent(storage,env,input,send=telegram,now=Date.now()){
  const uid=String(input.userId),event=input.event||{};if(!validUid(uid))return {handled:true};
  const accepted=await storage.get("accepted");
+ if(event.action==="view")return accepted?{status:"accepted",version:accepted.version,acceptedAt:accepted.acceptedAt,userId:uid,sections:accepted.sections||AGREEMENT_SECTIONS}:{status:"not_accepted"};
  if(event.action==="status")return accepted?{status:"accepted",version:accepted.version,acceptedAt:accepted.acceptedAt}:{status:await storage.get("declinedAt")?"declined":"not_accepted"};
  let flow=await storage.get("flow"),navigation=await storage.get("navigation");
  const remove=async id=>{if(Number.isSafeInteger(id)&&id>0)await send(env,"deleteMessage",{chat_id:uid,message_id:id}).catch(()=>{});};
