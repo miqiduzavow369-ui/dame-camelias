@@ -2261,7 +2261,9 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
       return new Response("Unavailable photo option",{status:409});
     safe[i]="Фото соответствует";
   }
-  await statePut(env,{...state,step:"ratings",selected:safe,metElsewhere,draftReady:true,agreedAt:null});
+  const coverage=ratingCoverage(state.catalog,safe);
+ if(coverage.missing||coverage.optionalFilled<coverage.minimum)return {ok:false,reason:"incomplete_ratings",coverage};
+ await statePut(env,{...state,step:"ratings",selected:safe,metElsewhere,draftReady:true,agreedAt:null});
   // Preserve source field order and group headings in the Telegram review.
   const selected=Object.entries(safe).sort((a,b)=>Number(a[0])-Number(b[0]));
   const orderedFields=organizeCatalog(state.catalog);
@@ -2405,6 +2407,19 @@ async function miniRatingFormLoad(env,profileId){
  return {ok:true,profile:{id:state.profile.id,name:state.profile.name},catalog,
   selected:state.selected||{},metElsewhere:state.metElsewhere===true};
 }
+function ratingCoverage(catalog,selected){
+ const mandatory=["соответствие фото","соотв. параметров","соответствие параметров","реальная инди","отношение к клиенту","общая оценка"];
+ let missing=0,optionalTotal=0,optionalFilled=0;
+ for(let i=0;i<catalog.length;i++){
+  const name=String(catalog[i].label||"").trim().toLowerCase();
+  if(name==="isfair"||name==="фото соответствует")continue;
+  if(mandatory.includes(name)){if(!selected[i])missing++;continue;}
+  if(!catalog[i].options?.length)continue;
+  optionalTotal++;
+  if(selected[i])optionalFilled++;
+ }
+ return {missing,optionalTotal,optionalFilled,minimum:Math.ceil(optionalTotal*0.2)};
+}
 async function miniRatingAction(env,profileId,action){
  if(!ID_PATTERN.test(String(profileId))||!["prepare","status","publish"].includes(action))return {ok:false,reason:"invalid_request"};
  const state=await stateGet(env);
@@ -2418,6 +2433,7 @@ async function miniRatingAction(env,profileId,action){
     state.step==="publishing"?"publishing":state.step==="ratings_agreed"?"failed":
     state.step==="ratings"?"draft":"checking"};
  }
+ if(action!=="status"){const c=ratingCoverage(state.catalog||[],state.selected||{});if(c.missing||c.optionalFilled<c.minimum)return {ok:false,reason:"incomplete_ratings"};}
  if(action==="prepare"){
   if(state.step==="dryfill_loading")return {ok:true,stage:"preparing"};
   if(state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000)return {ok:true,stage:"ready"};
