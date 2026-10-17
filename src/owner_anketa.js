@@ -356,6 +356,13 @@ async function switchVerifiedDomain(env,newHost){
     }));
     const pending=await env.VISITORS_KV.get(REVIEW_PENDING_KEY+id,"json");
     if(pending)await env.VISITORS_KV.put(REVIEW_PENDING_KEY+id,JSON.stringify({...pending,host:newHost}));
+    // Keep internal rating selections valid after an account-wide domain migration.
+    // These server-side drafts are not a separate client UI section.
+    const draftKey="cabinet_rating_draft:"+OWNER_ID+":"+id;
+    const draft=await env.VISITORS_KV.get(draftKey,"json");
+    if(draft)await env.VISITORS_KV.put(draftKey,JSON.stringify({
+      ...draft,host:newHost,url:rehostUrl(draft.url,newHost)
+    }),{expirationTtl:604800});
   }
   const state=await stateGet(env);
   if(state && typeof state==="object"){
@@ -1391,21 +1398,22 @@ async function resumeVerifiedDomain(env,send,current){
  if(!recovery||recovery.id!==current.id||!recoverable(recovery.mode,recovery.resume?.step))return false;
  const id=current.id,host=current.host;
  const rehost=state=>({...state,host,...(state.profile?{profile:{...state.profile,url:"https://"+host+"/indi/anketa"+id+".htm"}}:{})});
+ // The verified host is a site-wide change for this client's saved library.
+ // Reuse the existing per-user migration, never touch another user's library.
+ await switchVerifiedDomain(env,host);
  const record=await savedGet(env,id);
  if(record){
-  await env.VISITORS_KV.put(PROFILE_KEY+id,JSON.stringify({...rehost(record),updatedAt:Date.now()}));
   for(const suffix of [".jpg",".card.jpg"]){
    const target=THUMBNAIL_PREFIX+host+"/"+id+suffix;
    if(!await env.VISITORS_KV.get(target,"arrayBuffer")){
-    const image=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+record.host+"/"+id+suffix,"arrayBuffer");
-    if(image)await env.VISITORS_KV.put(target,image);
+    const originalHost=recovery.resume?.host;
+    if(HOST_PATTERN.test(originalHost||"")){
+     const image=await env.VISITORS_KV.get(THUMBNAIL_PREFIX+originalHost+"/"+id+suffix,"arrayBuffer");
+     if(image)await env.VISITORS_KV.put(target,image);
+    }
    }
   }
  }
- const draftKey="cabinet_rating_draft:"+OWNER_ID+":"+id,draft=await env.VISITORS_KV.get(draftKey,"json");
- if(draft)await env.VISITORS_KV.put(draftKey,JSON.stringify({...draft,host,url:"https://"+host+"/indi/anketa"+id+".htm"}),{expirationTtl:604800});
- const pending=await env.VISITORS_KV.get(REVIEW_PENDING_KEY+id,"json");
- if(pending)await env.VISITORS_KV.put(REVIEW_PENDING_KEY+id,JSON.stringify({...pending,host}));
  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
  let mode=recovery.mode,next=rehost(recovery.resume);
  if(mode==="publish"){mode="proof";next={...next,step:"proof_loading",account:ACTIVE_ACCOUNT};}
