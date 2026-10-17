@@ -29,12 +29,53 @@ async function callCabinet(env,userId,event){
  if(!response.ok)throw Error("Cabinet approval unavailable");return response.json();
 }
 function card(record){
- const status={pending:"📝 ОТЗЫВ НА ПРОВЕРКУ",editing:"✏️ ОЖИДАЕМ ИСПРАВЛЕННЫЙ ТЕКСТ",approving:"⏳ ПРОВЕРЯЕМ ОТПРАВКУ",approved:"⏳ ОТПРАВКА ПОДТВЕРЖДЕНА",cancelled:"❌ ОТЗЫВ ОТМЕНЁН",published:"✅ ОТЗЫВ ОПУБЛИКОВАН",delivery_unknown:"🌷 ДОСТАВКА ЗАЯВКИ НЕ ПОДТВЕРЖДЕНА"}[record.status]||"📝 ОТЗЫВ";
- const text="🌹 <b>DAME CAMELIAS</b>\n\n<b>"+status+"</b>\n\n🆔 ID клиентки: "+record.userId+"\n👤 Telegram: "+escape(record.username?"@"+record.username:"ник не указан")+"\n🌹 Анкета №"+record.profileId+"\n👨‍💻 Аккаунт: "+escape(record.account==="yan_first"?"Ян Первый":record.account)+"\n\n✍️ <b>ТЕКСТ ОТЗЫВА</b>\n"+escape(record.text)+(record.note?"\n\n🌷 "+escape(record.note):"");
+ const titles={
+  pending:"✍️ НОВЫЙ ОТЗЫВ",editing:"✏️ КОРРЕКТИРОВКА ТЕКСТА",
+  approving:"⏳ ПОДГОТОВКА ПУБЛИКАЦИИ",approved:"⏳ ОЖИДАЕМ ПОДТВЕРЖДЕНИЕ",
+  cancelled:"❌ ОТЗЫВ ОТКЛОНЁН",published:"✅ ОТЗЫВ ОПУБЛИКОВАН",
+  delivery_unknown:"⏳ ПРОВЕРКА ДОСТАВКИ"
+ };
+ const date=at=>Number.isFinite(at)&&at>0?new Date(at).toLocaleString("ru-RU",{timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+ const label=titles[record.status]||"✍️ ОТЗЫВ";
+ const account=record.account==="yan_first"?"Ян Первый":record.account;
+ const name=record.username?"@"+record.username:"не указан";
+ const history=Array.isArray(record.revisions)?record.revisions:[];
+ const parts=[
+  "🌹 <b>DAME CAMELIAS</b>",
+  "━━━━━━━━━━━━━━━━",
+  "<b>"+label+"</b>",
+  "",
+  "🎫 <b>Заявка:</b> "+escape(record.ticket.slice(0,8).toUpperCase()),
+  "🌹 <b>Анкета:</b> №"+escape(record.profileId),
+  "👨‍💻 <b>Мужчина:</b> "+escape(account),
+  "👤 <b>Клиентка:</b> "+escape(record.userId),
+  "💬 <b>Telegram:</b> "+escape(name),
+  "🗓 <b>Получен:</b> "+date(record.createdAt)+" МСК",
+  ...(record.decidedAt?["🕰 <b>Решение:</b> "+date(record.decidedAt)+" МСК"]:[]),
+  "",
+  "✍️ <b>"+(history.length?"ИТОГОВЫЙ ТЕКСТ":"ТЕКСТ ОТЗЫВА")+"</b>",
+  escape(record.text),
+  ...(history.length?["","✏️ <b>Исправлений:</b> "+history.length,
+   "<b>Исходный текст:</b> "+escape(record.originalText||history[0].text)]:[]),
+  ...(record.status==="published"?["","📸 <b>Подтверждение:</b> "+(record.proofFileId?"сохранено в архиве":"ожидается")]:[]),
+  ...(record.status==="cancelled"?["","🔒 <b>Публикация:</b> отменена, списания нет"]:[]),
+  ...(record.note?["","ℹ️ "+escape(record.note)]:[])
+ ];
+ // Telegram messages have a 4096-character cap. Preserve the current review;
+ // bound original text to avoid losing the moderation controls to an oversized card.
+ const full=parts.join("\n");
+ const text=full.length<=3900?full:full.slice(0,3870)+"…";
  const action=name=>"reviewmod:"+name+":"+record.userId+":"+record.ticket+":"+record.version;
- const buttons=record.status==="pending"?[[{text:"✅ Опубликовать",callback_data:action("approve")}],[{text:"✏️ Корректировать",callback_data:action("edit")}],[{text:"❌ Отменить",callback_data:action("cancel")}]]:record.status==="editing"?[[{text:"❌ Отменить",callback_data:action("cancel")}]]:[];
+ const buttons=record.status==="pending"?[
+  [{text:"✅ Опубликовать",callback_data:action("approve")}],
+  [{text:"✏️ Скорректировать",callback_data:action("edit")}],
+  [{text:"❌ Отклонить",callback_data:action("cancel")}]
+ ]:record.status==="editing"?[
+  [{text:"❌ Отклонить",callback_data:action("cancel")}]
+ ]:[];
  return {chat_id:MODERATION_CHAT,text,parse_mode:"HTML",reply_markup:{inline_keyboard:buttons}};
 }
+
 async function refresh(env,send,record){
  try{await send(env,"editMessageText",{...card(record),message_id:record.messageId});}catch{ /* State, not a stale Telegram button, decides access. */ }
 }
@@ -53,7 +94,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
   await storage.put("moderation",record);
   const delivered=await send(env,"sendMessage",card({...record,status:"pending"}));
   if(!Number.isSafeInteger(delivered?.message_id))return {ok:false};
-  record={...record,messageId:delivered.message_id,status:"pending"};await storage.put("moderation",record);
+  record={...record,messageId:delivered.message_id,status:"pending",originalText:record.text};await storage.put("moderation",record);
   await registerMessage(storage,env,record,record.messageId,register);return {ok:true};
  }
  if(!record)return {ok:false};
@@ -66,7 +107,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  const editingReply=event.action==="replace";
  if(editingReply){
   if(record.status!=="editing"||![record.messageId,record.editPromptId].includes(event.replyTo)||typeof event.text!=="string"||event.text.trim().length<10||event.text.trim().length>3000)return {ok:false,note:"Ответьте на запрос корректировки текстом от 10 до 3000 символов."};
-  record.revisions.push({text:record.text,at:Date.now(),actorId:MODERATOR_ID});record.text=event.text.trim();record.status="pending";record.version++;record.note=null;
+  record.revisions.push({text:record.text,at:Date.now(),actorId:MODERATOR_ID});record.text=event.text.trim();record.status="pending";record.version++;record.note=null;record.correctedAt=Date.now();
   const editPromptId=record.editPromptId;record.editPromptId=null;
   await storage.put("moderation",record);await refresh(env,send,record);
   if(Number.isSafeInteger(event.messageId))await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:event.messageId}).catch(()=>{});
@@ -82,7 +123,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  }
  if(event.action==="cancel"){
   // Decision is durable before notifying the cabinet; never changes into approval.
-  const editPromptId=record.editPromptId;record.editPromptId=null;record.status="cancelled";record.version++;record.cancelPending=true;await storage.put("moderation",record);await refresh(env,send,record);
+  const editPromptId=record.editPromptId;record.editPromptId=null;record.status="cancelled";record.version++;record.decidedAt=Date.now();record.cancelPending=true;await storage.put("moderation",record);await refresh(env,send,record);
   if(editPromptId)await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:editPromptId}).catch(()=>{});
   try{const result=await cabinet(env,uid,{kind:"review_moderation",actorId:MODERATOR_ID,action:"cancel",ticket});if(result.ok){record.cancelPending=false;await storage.put("moderation",record);}}catch{}
   if(record.cancelPending)await storage.setAlarm(Date.now()+1000);return {ok:true};
@@ -93,7 +134,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
 async function launchApproval(storage,env,record,send,cabinet){
  const uid=record.userId,ticket=record.ticket;
  if(env.CABINET_PUBLICATIONS_ENABLED==="false"||uid!==MODERATOR_ID&&env.CABINET_CLIENTS_ENABLED==="false")return {ok:false,note:"Публикации сейчас отключены."};
- record.status="approving";record.version++;await storage.put("moderation",record);await refresh(env,send,record);
+ record.status="approving";record.version++;record.decidedAt=Date.now();await storage.put("moderation",record);await refresh(env,send,record);
  let result;
  try{result=await cabinet(env,uid,{kind:"review_moderation",actorId:MODERATOR_ID,action:"approve",ticket,text:record.text});}
  catch{record.note="Результат запуска уточняется. Повторной автоматической отправки не будет.";await storage.put("moderation",record);await refresh(env,send,record);return {ok:false,note:record.note};}
