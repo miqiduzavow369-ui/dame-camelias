@@ -1107,10 +1107,10 @@ async function handleAnketaLookupResult(request,env,send) {
     if(bytes.length<1000 || bytes.length>700000 || bytes[0]!==255 || bytes[1]!==216 || bytes.at(-2)!==255 || bytes.at(-1)!==217)
       return new Response("Invalid photo",{status:400});
     const payload=new FormData();
-    payload.append("chat_id",OWNER_ID);
+    payload.append("chat_id",current.miniApp===true?MODERATION_CHAT:OWNER_ID);
     if(!isOwner)payload.append("protect_content","true");
     payload.append("caption",proofText(current.account,id,proof.date));
-    payload.append("reply_markup",JSON.stringify(proofNav(id)));
+    if(current.miniApp!==true)payload.append("reply_markup",JSON.stringify(proofNav(id)));
     payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+id+".jpg");
     const telegramResponse=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
       {method:"POST",body:payload});
