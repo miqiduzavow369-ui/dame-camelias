@@ -2373,14 +2373,14 @@ async function miniRatingAction(env,profileId,action){
  if(action==="prepare"){
   if(state.step==="dryfill_loading")return {ok:true,stage:"preparing"};
   if(state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000)return {ok:true,stage:"ready"};
-  if(state.step!=="ratings"||!state.draftReady||!Object.keys(state.selected||{}).length)return {ok:false,reason:"not_ready"};
+  if(!["ratings","ratings_agreed"].includes(state.step)||!state.draftReady||!Object.keys(state.selected||{}).length)return {ok:false,reason:"not_ready"};
   if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
   const approved={...state,step:"ratings_agreed",agreedAt:Date.now()};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
   const pending={...approved,step:"dryfill_loading",id:String(profileId),previousNonce:state.nonce,nonce,prepublish:true};
   if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
   const started=await dispatchLookup(env,profileId,nonce,"dryfill",state.host).catch(()=>({ok:false}));
-  if(!started.ok){await statePut(env,approved);return {ok:false,reason:"dispatch_failed"};}
+  if(!started.ok){await statePut(env,{...approved,step:"ratings_agreed"});return {ok:false,reason:"dispatch_failed"};}
   return {ok:true,stage:"preparing"};
  }
  if(state.step!=="prepublish_ready"||!state.readyAt||Date.now()-state.readyAt>900000)return {ok:false,reason:"expired"};
