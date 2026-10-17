@@ -211,7 +211,7 @@ function renderHistory(){
   if(entry.hasProof){
    const open=document.createElement("button");open.type="button";open.className="ghost";open.textContent="📸 Открыть подтверждение";
    const note=document.createElement("p");note.setAttribute("aria-live","polite");
-   open.onclick=async()=>{open.disabled=true;let holder=row.querySelector(".proof-image");if(!holder){holder=document.createElement("div");holder.className="proof-image";row.append(holder);}await showOriginalProof(holder,entry,note);open.disabled=false;
+   open.onclick=async()=>{open.disabled=true;let holder=row.querySelector(".proof-image");if(!holder){holder=document.createElement("div");holder.className="proof-image";holder.hidden=true;row.append(holder);}await showOriginalProof(holder,entry,note);open.disabled=false;
    };row.append(open,note);
   }
   published.append(row);
@@ -229,7 +229,7 @@ if(!profiles.length)list.textContent="Пока нет сохранённых а�
 let availableBalance=null,legacyWorkflow=null;
 function refreshManButtons(){const man=availableMen.find(m=>m.id===selectedAccount);$("detailAccount").textContent=man?.name||accountName(selectedAccount);const src=man?.image||"";for(const key of ["detailManImage","fullManImage"]){const im=$(key);im.hidden=!src;if(src)im.src=src;}$("fullManCard").hidden=true;$("aboutMan").textContent="👤 О мужчине ▾";}
 $("aboutMan").onclick=()=>{const el=$("fullManCard");el.hidden=!el.hidden;$("aboutMan").textContent=el.hidden?"👤 О мужчине ▾":"👤 Свернуть карточку ▴";};
-function openDetail(p){tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=["🌹 Был по анкете №"+p.id,p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
+function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEach(el=>el.remove());tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=["🌹 Был по анкете №"+p.id,p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
