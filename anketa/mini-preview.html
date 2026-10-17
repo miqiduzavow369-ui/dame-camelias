@@ -281,7 +281,7 @@ function renderFinance(){
     for(const item of archived){
       const row=document.createElement("div");row.className="finance-entry";
       const date=document.createElement("div");date.className="finance-date";
-      const d=String(item.date||"");date.textContent=/^\\d{8}$/.test(d)?d.slice(6,8)+"."+d.slice(4,6)+"."+d.slice(0,4)+" · время не сохранено":"Дата не сохранена";
+      const d=String(item.date||"");date.textContent=/^\d{8}$/.test(d)?d.slice(6,8)+"."+d.slice(4,6)+"."+d.slice(0,4)+" · время не сохранено":"Дата не сохранена";
       const title=document.createElement("b");title.textContent=(item.kind==="rating"?"⭐ Оценка":"✍️ Отзыв")+" · подтверждена";
       const detail=document.createElement("p");detail.textContent=accountName(item.account)+" · Анкета №"+String(item.id)+" · расход по этой записи проверяется по кредитному журналу";
       row.append(date,title,detail);root.append(row);
