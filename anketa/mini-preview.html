@@ -99,8 +99,8 @@ p,.muted,.mini{color:#b6ab99}
 </div>
 <div class="stats"><div class="stat"><strong id="cardBank">—</strong>💎 Кредиты</div><div class="stat"><strong id="cardDaily">—</strong>📅 Сегодня по анкете</div></div>
 <div class="section-heading"><h2>Действия для анкеты</h2></div>
-<div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Открыть оценки ›</button></div>
-<div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Открыть отзывы ›</button></div>
+<div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Оставить оценки ›</button></div>
+<div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Оставить отзыв ›</button></div>
 
 <div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
 </section>
@@ -239,7 +239,7 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
   const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
   button.hidden=!["published","check_in_bot"].includes(state);
-  button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Открыть оценки ›":"✍️ Открыть отзывы ›";
+  button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
  scrollTo(0,0);}
@@ -315,16 +315,18 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     if(data.ok&&data.stage==="loading"){panel.replaceChildren();const msg=document.createElement("p");msg.textContent="⏳ Подготавливаем оценки. Попробуйте открыть форму чуть позже.";panel.append(msg);panel.hidden=false;return;}
     if(!data.ok)throw Error(data.reason==="not_ready"?"Рабочая форма оценок ещё не подготовлена сервером.":data.reason==="already_published_or_pending"?"Оценки уже опубликованы или находятся на проверке.":data.reason==="credits"?"Недостаточно кредитов.":data.reason==="daily_limit"?"Дневной лимит исчерпан.":data.reason==="busy"?"Предыдущая операция ещё выполняется.":"Форма пока недоступна.");
     panel.replaceChildren();
-    const hint=document.createElement("p");hint.className="muted";hint.textContent="Отметьте то, что хотите оценить. Можно пропускать вопросы.";panel.append(hint);
+    const verify=document.createElement("div");verify.className="card";
+    const title=document.createElement("h2");title.textContent="🌹 Проверьте анкету";
+    const desc=document.createElement("p");desc.textContent="Анкета №"+selected.id+" · "+selected.name+". Убедитесь, что выбрали нужную анкету.";
+    const begin=document.createElement("button");begin.type="button";begin.className="primary";begin.textContent="✅ Всё верно, оставить оценки";
+    verify.append(title,desc,begin);panel.append(verify);
+    const editor=document.createElement("div");editor.hidden=true;panel.append(editor);
+    begin.onclick=()=>{verify.hidden=true;editor.hidden=false;editor.scrollIntoView({block:"start",behavior:"smooth"});};
+    const hint=document.createElement("p");hint.className="muted";hint.textContent="Отметьте то, что хотите оценить. Можно пропускать вопросы.";editor.append(hint);
     const draft={};
     const choiceControls=[];
-    const progress=document.createElement("p");progress.className="proof-note";panel.append(progress);
+    const progress=document.createElement("p");progress.className="proof-note";editor.append(progress);
     const updateProgress=()=>{const chosen=choiceControls.filter(x=>!x.disabled&&x.value).length;const total=choiceControls.filter(x=>!x.disabled).length;progress.textContent="⭐ Заполнено "+chosen+" из "+total;};
-    const existing=Object.keys(data.selected||{}).length>0;
-    if(existing){const oldNotice=document.createElement("p");oldNotice.className="muted";oldNotice.textContent="Есть сохранённые ответы.";panel.append(oldNotice);
-      const restore=document.createElement("button");restore.type="button";restore.className="ghost";restore.textContent="↩️ Восстановить старый черновик";panel.append(restore);
-      restore.onclick=()=>{for(const [i,control] of choiceControls.entries()){if(control.disabled)continue;const value=data.selected[i];control.value=value&&data.catalog[i].options.includes(value)?value:"";if(control.value)draft[i]=control.value;else delete draft[i];}checkbox.checked=data.metElsewhere===true;updateProgress();updateGroupSummaries();};}
-
     const groups=new Map();
     const summaries=[];
     const updateGroupSummaries=()=>{
@@ -339,19 +341,19 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      if(!info){
       const section=document.createElement("details");section.className="rating-group";
       const summary=document.createElement("summary");summary.className="rating-group-summary";section.append(summary);
-      info={section,summary,name,controls:[]};groups.set(name,info);summaries.push(section);panel.append(section);
+      info={section,summary,name,controls:[]};groups.set(name,info);summaries.push(section);editor.append(section);
       summary.textContent=name;
 
      }
      const entry=document.createElement("div");entry.className="rating-form-entry";
      const label=document.createElement("b");label.textContent=item.label;entry.append(label);
      const select=document.createElement("select");select.className="rating-select";select.setAttribute("aria-label",item.label);
-     const indie=/реальн\\S*\\s+инди/i.test(item.label);
+     const indie=/реальн\S*\s+инди/i.test(item.label);
      if(!indie){const empty=document.createElement("option");empty.value="";empty.textContent="Не выбрано";select.append(empty);}
      for(const option of item.options){const choice=document.createElement("option");choice.value=option;choice.textContent=option;select.append(choice);}
      const fixed=/^(?:isFair|Фото соответствует)$/i.test(item.label.trim());
      if(fixed){select.value="Фото соответствует";select.disabled=true;draft[i]="Фото соответствует";}
-     else if(indie&&item.options.length===1){select.value=item.options[0];draft[i]=item.options[0];select.disabled=true;}
+     else if(indie){const yes=item.options.find(x=>/^\s*реальная\s+инди\s*$/i.test(x));if(yes){select.value=yes;draft[i]=yes;select.disabled=true;}}
      select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();updateGroupSummaries();};
      info.controls.push(select);choiceControls.push(select);entry.append(select);info.section.append(entry);
     });
@@ -370,23 +372,23 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     previous.onclick=()=>{showStep(step-1);stepStatus.scrollIntoView({behavior:"smooth",block:"start"});};
     next.onclick=()=>{if(step<summaries.length-1){showStep(step+1);stepStatus.scrollIntoView({behavior:"smooth",block:"start"});}else{save.click();}};
     navigation.append(previous,next);
-    panel.insertBefore(stepStatus,summaries[0]||null);
-    panel.append(navigation);
+    editor.insertBefore(stepStatus,summaries[0]||null);
+    editor.append(navigation);
     if(summaries.length)showStep(0);
     updateGroupSummaries();
     const elsewhere=document.createElement("label");elsewhere.className="rating-elsewhere";
-    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=data.metElsewhere===true;
-    const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);panel.append(elsewhere);
+    const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=false;
+    const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);editor.append(elsewhere);
     updateProgress();
     const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Заполнить заново";
-    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;panel.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
-    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";panel.append(save,reset);
-    const result=document.createElement("p");result.setAttribute("aria-live","polite");panel.append(result);
+    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
+    const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";editor.append(save,reset);
+    const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
       const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
       const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error("Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
       result.textContent="✅ Выбор сохранён. Ниже итоговые оценки; публикация не запускалась.";
-      const previous=panel.querySelector(".draft-review");if(previous)previous.remove();
+      const previous=editor.querySelector(".draft-review");if(previous)previous.remove();
       const review=document.createElement("div");review.className="draft-review";for(const section of summaries)section.hidden=true;navigation.hidden=true;stepStatus.hidden=true;
       const title=document.createElement("h3");title.textContent="🌹 Проверка черновика";review.append(title);
       const rows=Object.entries(saved.selected||{}).sort((a,b)=>Number(a[0])-Number(b[0]));
@@ -395,9 +397,9 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        const name=document.createElement("span");name.textContent=field.label;
        const chosen=document.createElement("strong");chosen.textContent=value;row.append(name,chosen);review.append(row);}
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";review.append(extra);}
-      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;if(summaries.length)showStep(0);const field=panel.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
+      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       const notice=document.createElement("p");notice.className="muted";notice.textContent="Оценки сохранены.";
-      const again=document.createElement("button");again.type="button";again.className="ghost";again.textContent="↺ Заполнить заново";again.onclick=()=>{reset.click();};review.append(notice,back,again);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
+      const again=document.createElement("button");again.type="button";again.className="ghost";again.textContent="↺ Заполнить заново";again.onclick=()=>{reset.click();};review.append(notice,back,again);editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
    }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
