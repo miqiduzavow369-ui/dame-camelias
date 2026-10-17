@@ -46,3 +46,22 @@ test("cancel while editing removes prompt and never submits",async()=>{
  const s=setup();await run(s,enqueue);await run(s,action("edit",s.data.get("moderation")));const record=s.data.get("moderation");await run(s,action("cancel",record));
  assert.equal(s.data.get("moderation").status,"cancelled");assert.equal(s.calls.length,1);assert.equal(s.calls[0].event.action,"cancel");assert.ok(s.sent.some(x=>x.m==="deleteMessage"&&x.p.message_id===record.editPromptId));
 });
+
+test("long HTML-sensitive review remains inside Telegram card limit",async()=>{
+ const s=setup();
+ const text="&<>".repeat(1000);
+ await run(s,{...enqueue,text});
+ const first=s.sent.find(x=>x.m==="sendMessage");
+ assert.ok(first);
+ assert.ok(first.p.text.length<=4096, "Telegram HTML text must fit");
+ assert.ok(!first.p.text.endsWith("&amp"), "HTML entities must remain intact");
+ assert.ok(first.p.text.includes("&amp;&lt;&gt;"));
+ const record=s.data.get("moderation");
+ await run(s,action("edit",record));
+ const editing=s.data.get("moderation");
+ await run(s,{action:"replace",actorId:MODERATOR_ID,chatId:MODERATION_CHAT,
+  replyTo:editing.editPromptId,text:"&<>".repeat(1000),messageId:300});
+ const updates=s.sent.filter(x=>x.m==="editMessageText");
+ assert.ok(updates.every(x=>x.p.text.length<=4096));
+ assert.equal(s.data.get("moderation").text.length,3000);
+});
