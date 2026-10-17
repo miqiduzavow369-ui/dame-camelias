@@ -463,7 +463,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
       const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
-      const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error("Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
+      const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error(saved.reason==="incomplete_ratings"?"❗ Заполните обязательные оценки и не менее 20% остальных услуг.":"Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
       result.textContent="";
       const previous=editor.querySelector(".draft-review");if(previous)previous.remove();
       const review=document.createElement("div");review.className="draft-review";for(const section of summaries)section.hidden=true;navigation.hidden=true;stepStatus.hidden=true;progress.hidden=true;hint.hidden=true;elsewhere.hidden=true;reset.hidden=true;
@@ -485,7 +485,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const requestAction=async action=>{
        const response=await fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
        const payload=await response.json().catch(()=>({}));
-       if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку."})[payload.reason]||"Не удалось выполнить действие.");
+       if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку.",incomplete_ratings:"❗ Заполните обязательные оценки и не менее 20% остальных услуг."})[payload.reason]||"Не удалось выполнить действие.");
        return payload;
       };
       const reflect=stage=>{
