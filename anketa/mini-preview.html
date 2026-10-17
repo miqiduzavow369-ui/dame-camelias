@@ -163,6 +163,30 @@ p,.muted,.mini{color:#b6ab99}
 #tab-profiles .section-heading h2,#tab-profiles h1{color:#ffe9ba;text-shadow:0 1px 14px #dba44b55}
 #tab-profiles .gold,#tab-profiles .number,#tab-profiles .stat strong{color:#ffd38b;text-shadow:0 0 13px #f1b95c55}
 #tab-profiles .action .next,#tab-profiles .arrow{color:#f8c772}
+
+/* Work background extends behind the existing brand row; no layout or event changes. */
+body:has(#tab-profiles:not([hidden])) .app{position:relative;isolation:isolate}
+body:has(#tab-profiles:not([hidden])) .app::before{
+ content:"";position:absolute;z-index:-1;pointer-events:none;
+ top:0;left:0;right:0;height:1250px;
+ background-image:linear-gradient(180deg,#09080748 0%,#09080716 24%,#09080716 49%,#090807d9 97%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/IMG_7316.PNG");
+ background-repeat:no-repeat;
+ background-position:center top,center top;
+ background-size:100% 100%,100% auto;
+ -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 72%,transparent 100%);
+ mask-image:linear-gradient(to bottom,#000 0%,#000 72%,transparent 100%);
+}
+body:has(#tab-profiles:not([hidden])) .app>header{
+ position:relative;background:linear-gradient(180deg,#0a090850,#0a090815);
+ border-bottom-color:#cfa15b5c;
+ backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+}
+body:has(#tab-profiles:not([hidden])) .app>header .tag{
+ background:#15110c7d;border-color:#c69b53;
+ backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+ box-shadow:inset 0 1px #f9d7922e;
+}
+#tab-profiles::before{content:none!important;display:none!important}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
