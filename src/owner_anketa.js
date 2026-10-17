@@ -757,7 +757,7 @@ function organizeCatalog(catalog) {
     if(low==="классический секс")next="Секс";
     else if(/^(классический|расслабляющий)$/.test(low) ||
       /массаж/.test(siteGroup))next="Массаж";
-    else if(low==="игры" || /(?:бдсм|bdsm)/.test(siteGroup)||/(?:бдсм|bdsm)/.test(sourceSubgroup))next="БДСМ";
+    else if(/^(?:игры|бондаж|доминирование|подчинение|порка|флагелляция|страпон|фетиш|садо-мазо|садомазо)$/.test(low)||/(?:бдсм|bdsm)/.test(siteGroup)||/(?:бдсм|bdsm)/.test(sourceSubgroup))next="БДСМ";
     else if(/^(?:окончание в рот|окончание на грудь|золотой дождь|фетиш)$/.test(low) ||
       /^(?:другое|другие услуги|дополнительные услуги)$/.test(siteGroup))next="Другое";
     // Explicit field boundaries win over previously cached heuristic subgroups.
