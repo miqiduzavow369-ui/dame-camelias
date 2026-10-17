@@ -528,8 +528,10 @@ $("signedAgreementOpen").onclick=async()=>{
  $("signedAgreementOpen").hidden=true;
  try{
   const res=await fetch("/api/anketa/mini-signed-agreement",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData}),cache:"no-store"});
-  const data=await res.json();
-  if(!res.ok||data.status!=="accepted"||!Array.isArray(data.sections))throw Error("Не удалось получить подписанный документ.");
+  const data=await res.json().catch(()=>null);
+  if(!res.ok)throw Error(res.status===404?"Сервис соглашения ещё не обновлён.":res.status===403?"Откройте Mini App заново из Telegram.":"Сервис соглашения недоступен (HTTP "+res.status+").");
+  if(data?.status==="not_accepted")throw Error("Для этого Telegram ID подписанное соглашение не найдено. Проверьте, что приложение открыто из нужного аккаунта.");
+  if(data?.status!=="accepted"||!Array.isArray(data.sections))throw Error("Не удалось прочитать сохранённое соглашение.");
   container.replaceChildren();
   const stamp=document.createElement("p");stamp.className="agreement-stamp";
   stamp.textContent="✅ Подписан ID: "+data.userId+" · "+new Date(data.acceptedAt).toLocaleString("ru-RU",{timeZone:"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"})+" (Москва)";
