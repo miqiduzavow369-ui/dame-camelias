@@ -675,7 +675,7 @@ export default {
       if(!await validWebApp(body?.initData,env.BOT_TOKEN,900))return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(uid!=="5866034656")return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
-      const html=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/admin/preview-v3.html",{cache:"no-store"});
+      const html=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/admin/preview-v3.html?admin_version=6_20261017_gold_normalwindow",{cache:"no-store"});
       if(!html.ok)return new Response("Admin preview unavailable",{status:503});
       return new Response(await html.text(),{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Robots-Tag":"noindex, nofollow","X-Content-Type-Options":"nosniff"}});
     }
