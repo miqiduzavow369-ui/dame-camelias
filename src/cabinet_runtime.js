@@ -345,6 +345,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }
   return engine.miniRatingDraftSave(env,String(event.profileId||""),event.selected,event.metElsewhere);
  }
+ if(event.kind==="mini_proof"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+   const session=await storage.get("client_session");
+   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+  }
+  const id=String(event.profileId||""),kind=String(event.publicationKind||""),account=String(event.account||"");
+  if(!/^\\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!["yan_first","yan_second"].includes(account))return {ok:false,status:400};
+  const archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);
+  const entry=archive.items.find(item=>String(item.profileId)===id&&item.kind===kind&&item.account===account);
+  return entry?.fileId?{ok:true,fileId:entry.fileId}:{ok:false,status:404};
+ }
  if(event.kind==="mini_preview"){
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
@@ -414,7 +427,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     metro:String(saved.profile.metro||"").slice(0,100),photo,statuses,capabilities,daily,counts:proofCounts.get(String(id))||{rating:0,review:0,total:0}});
   }
   const allowed=new Set(profiles.map(p=>p.id));
-  const history=(archive.items||[]).filter(item=>allowed.has(String(item.profileId))).map(item=>({
+  const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
   }));
