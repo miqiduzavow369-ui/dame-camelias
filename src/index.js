@@ -697,6 +697,17 @@ export default {
       const result=await cabinetRPC(env,uid,{kind:"mini_delete",profileId:String(body.profileId)});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:400,headers:{"Cache-Control":"no-store"}});
     }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-open"){
+      if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      let uid;
+      try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      if(!/^\\d{1,9}$/.test(String(body?.profileId||"")))return new Response("Invalid profile",{status:400});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_open",profileId:String(body.profileId)});
+      return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+    }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-form"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
