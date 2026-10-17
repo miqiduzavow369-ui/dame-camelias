@@ -353,7 +353,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      for(const option of item.options){const choice=document.createElement("option");choice.value=option;choice.textContent=option;select.append(choice);}
      const fixed=/^(?:isFair|Фото соответствует)$/i.test(item.label.trim());
      if(fixed){select.value="Фото соответствует";select.disabled=true;draft[i]="Фото соответствует";}
-     else if(indie){const yes=item.options.find(x=>/^\s*реальная\s+инди\s*$/i.test(x));if(yes){select.value=yes;draft[i]=yes;select.disabled=true;}}
+     else if(indie){const yes=item.options.find(x=>/^\s*реальная\s+инди\s*$/i.test(x));if(yes){select.value=yes;draft[i]=yes;select.disabled=true;select.hidden=true;const fixedValue=document.createElement("div");fixedValue.className="rating-select";fixedValue.textContent="✅ Да";fixedValue.setAttribute("aria-label","Реальная инди — Да");entry.append(fixedValue);}else{select.hidden=true;const warning=document.createElement("p");warning.textContent="⚠️ Значение недоступно. Обновите анкету перед заполнением.";entry.append(warning);}}
      select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();updateGroupSummaries();};
      info.controls.push(select);choiceControls.push(select);entry.append(select);info.section.append(entry);
     });
