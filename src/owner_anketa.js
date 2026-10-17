@@ -757,8 +757,8 @@ function organizeCatalog(catalog) {
     if(low==="классический секс")next="Секс";
     else if(/^(классический|расслабляющий)$/.test(low) ||
       /массаж/.test(siteGroup))next="Массаж";
-    else if(low==="игры" || /(?:бдсм|bdsm)/.test(siteGroup))next="БДСМ";
-    else if(low==="окончание в рот" ||
+    else if(low==="игры" || /(?:бдсм|bdsm)/.test(siteGroup)||/(?:бдсм|bdsm)/.test(sourceSubgroup))next="БДСМ";
+    else if(/^(?:окончание в рот|окончание на грудь|золотой дождь|фетиш)$/.test(low) ||
       /^(?:другое|другие услуги|дополнительные услуги)$/.test(siteGroup))next="Другое";
     // Explicit field boundaries win over previously cached heuristic subgroups.
     // Unambiguous source section captions are a fallback for other profiles.
@@ -2352,7 +2352,7 @@ async function miniRatingFormLoad(env,profileId){
   label:String(field.label||"").slice(0,110),
   group:String(field.group||"Оценки анкеты").slice(0,90),
   subgroup:String(field.subgroup||"").slice(0,90),
-  options:field.options.filter(value=>typeof value==="string"&&!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)&&(!isIndieField(field)||/^\s*реальная\s+инди\s*$/i.test(value))).map(value=>value.slice(0,100))
+  options:field.options.filter(value=>typeof value==="string"&&!/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value)&&(!isIndieField(field)||/^(?:\s*да\s*|\s*реальная\s+инди\s*)$/i.test(value))).map(value=>value.slice(0,100))
  }));
  return {ok:true,profile:{id:state.profile.id,name:state.profile.name},catalog,
   selected:state.selected||{},metElsewhere:state.metElsewhere===true};
@@ -2368,7 +2368,7 @@ async function miniRatingDraftSave(env,profileId,selected,metElsewhere){
   if(!/^(0|[1-9]\d{0,2})$/.test(index)||typeof value!=="string")return {ok:false,reason:"invalid_choice"};
   const field=state.catalog[Number(index)];
   if(!field||!Array.isArray(field.options)||!field.options.includes(value)||/^\s*(?:не знаю|отказано|[1-4])\s*$/i.test(value))return {ok:false,reason:"invalid_choice"};
-  if(/реальн\S*\s+инди/i.test(String(field.label||""))&&!/^\s*реальная\s+инди\s*$/i.test(value))return {ok:false,reason:"invalid_choice"};
+  if(/реальн\S*\s+инди/i.test(String(field.label||""))&&!/^(?:\s*да\s*|\s*реальная\s+инди\s*)$/i.test(value))return {ok:false,reason:"invalid_choice"};
   if(/^(?:isFair|Фото соответствует)$/i.test(String(field.label||"").trim())&&value!=="Фото соответствует")return {ok:false,reason:"invalid_choice"};
   safe[index]=value;
  }
