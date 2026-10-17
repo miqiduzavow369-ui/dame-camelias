@@ -389,13 +389,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   // No additional mutable publication state is introduced for the Mini App.
   let balance=null,archive={items:[]},finance=null,financeError=null;
   try{balance=await credits(env,uid,"status");}catch{}
-  try{
-   finance=await creditHistory(env,uid);
-   if(finance?.ok&&uid!==OWNER_ID){
+  // Primary finance source is the atomic status ledger. The dedicated history endpoint
+  // remains a compatibility fallback for already-deployed versions.
+  if(balance?.ok&&Array.isArray(balance.events))finance=balance;
+  if(!finance)try{finance=await creditHistory(env,uid);}catch(e){financeError="ledger_unavailable";console.error("Mini App finance report unavailable",String(e));}
+  if(finance?.ok&&uid!==OWNER_ID){
+   try{
     const registryEvents=await registry(env,{action:"history",userId:uid});
     finance.topups=Array.isArray(registryEvents?.events)?registryEvents.events:[];
-   }
-  }catch(e){financeError="ledger_unavailable";console.error("Mini App finance report unavailable",String(e));}
+   }catch(e){console.error("Finance top-up history unavailable",String(e));}
+  }
   try{archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);}catch{}
   const proofCounts=new Map();
   for(const item of archive.items||[]){
