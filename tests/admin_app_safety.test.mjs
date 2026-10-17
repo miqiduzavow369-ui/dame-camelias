@@ -65,3 +65,12 @@ test('ADMIN Telegram nicknames and chat links are owner-only UI features',()=>{
  assert.match(html,/tg:\/\/user\?id=/);
  assert.match(html,/https:\/\/t\.me\//);
 });
+
+test('ADMIN review decisions are durable and never cause duplicate publications',()=>{
+ assert.match(api,/moderationHistory\(env\)/);
+ assert.match(api,/source:"moderation_decisions_and_publication_archive"/);
+ assert.match(html,/Решение по отзыву/);
+ assert.match(html,/Отклонено/);
+ assert.match(html,/Одобрено/);
+ assert.doesNotMatch(api,/moderationRPC\(/);
+});
