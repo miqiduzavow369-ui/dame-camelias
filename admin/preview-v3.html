@@ -115,11 +115,16 @@ async function loadProof(){
  target.textContent='Загружаем подтверждение…';
  try{
   const response=await fetch('/api/admin/app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:auth(),action:'archive_proof',userId:x.uid,profileId:x.profile,account:x.account,kind:x.kindKey}),cache:'no-store'});
-  if(!response.ok||!(response.headers.get('content-type')||'').startsWith('image/'))throw Error('Скриншот недоступен');
+  if(!response.ok||!(response.headers.get('content-type')||'').startsWith('image/')){
+   const error=await response.json().catch(()=>null);
+   const codes={proof_missing:'У записи нет сохранённого изображения',telegram_file_unavailable:'Telegram не выдал сохранённый файл',telegram_image_unavailable:'Telegram не отдал изображение',image_format_unavailable:'Неподдерживаемый формат изображения',invalid_image_size:'Изображение повреждено или слишком большое',forbidden:'Нет доступа'};
+   throw Error(codes[error?.reason]||'Не удалось открыть скриншот ('+response.status+')');
+  }
   const blob=await response.blob(),url=URL.createObjectURL(blob);
   target.innerHTML='<img alt="Подтверждение публикации" style="width:100%;height:auto;max-height:75vh;object-fit:contain;border-radius:12px">';
   target.querySelector('img').src=url;
   target.querySelector('img').onload=()=>URL.revokeObjectURL(url);
+  target.querySelector('img').onerror=()=>{target.textContent='Не удалось отобразить изображение на устройстве';URL.revokeObjectURL(url)};
  }catch(e){target.textContent=e.message}
 }
 async function openArchive(){
