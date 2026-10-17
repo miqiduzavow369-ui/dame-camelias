@@ -665,6 +665,16 @@ export default {
       if(!result.ok)return new Response("Preview unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
     }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-signed-agreement"){
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,600))return new Response("Forbidden",{status:403});
+      let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      const access=await cabinetRPC(env,uid,{kind:"mini_preview"});
+      if(!access?.ok)return new Response("Forbidden",{status:403});
+      const signed=await agreementRPC(env,uid,{action:"view"});
+      return Response.json(signed,{headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-preview"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
       const body=await request.json().catch(()=>null);
