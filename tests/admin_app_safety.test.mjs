@@ -54,3 +54,14 @@ test('ADMIN review history reuses only published archives',()=>{
  assert.doesNotMatch(html,/Модерация в подготовке/);
  assert.doesNotMatch(html,/Входящие отзывы · решения/);
 });
+
+test('ADMIN Telegram nicknames and chat links are owner-only UI features',()=>{
+ assert.match(api,/telegramUsername\(env/);
+ assert.match(api,/getChat/);
+ assert.match(api,/usernameCache/);
+ assert.match(html,/const chatHref=/);
+ assert.match(html,/class="client-chat"/);
+ assert.match(html,/class="detail-chat"/);
+ assert.match(html,/tg:\/\/user\?id=/);
+ assert.match(html,/https:\/\/t\.me\//);
+});
