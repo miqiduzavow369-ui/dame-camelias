@@ -1295,17 +1295,19 @@ async function handleAnketaLookupResult(request,env,send) {
       .map(x => ({label:x.label.slice(0,90),group:typeof x.group==="string" ? x.group.slice(0,90) : "Оценки анкеты",subgroup:ratingSubgroup(x),options:x.options.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,50))}));
     if(data.status!=="found" || !catalog.length || !data.profile || String(data.profile.id)!==id) {
       await statePut(env,{step:"chosen",profile,nonce:current.previousNonce,host:current.host});
+      if(current.source==="mini_app")return Response.json({ok:true,found:false});
       await say(env,send,"🌷 Сейчас не удалось загрузить категории оценок для анкеты №"+id+
         ".\n\n💕 Пожалуйста, попробуйте немного позже.",buttons([NEW_NUMBER]));
       return Response.json({ok:true,found:false});
     }
     const orderedCatalog=organizeCatalog(catalog);
     if(current.account!==ACTIVE_ACCOUNT || !await selectedAccount(env,id)){
-      await say(env,send,"🌷 Выбор аккаунта устарел. Откройте анкету и выберите 👨‍💻 Ян Первый.");return Response.json({ok:false},{status:409});
+      if(current.source!=="mini_app")await say(env,send,"🌷 Выбор аккаунта устарел. Откройте анкету и выберите 👨‍💻 Ян Первый.");return Response.json({ok:false},{status:409});
     }
     const next={step:"ratings",account:current.account,profile,host:current.host,nonce:current.previousNonce,catalog:orderedCatalog,selected:{},...await ratingDraftGet(env,id,current.host,orderedCatalog)};
     await savedPut(env,{profile,host:current.host,catalog:orderedCatalog});
     await statePut(env,next);
+    if(current.source==="mini_app")return Response.json({ok:true,found:true});
     await navigationSay(env,send,"🌹 ВСЁ ГОТОВО!\n\n💕 Я подготовила для вас индивидуальную форму оценок анкеты "+profile.name+
       ".\n\n✨ Откройте её, отметьте нужные пункты и нажмите «Готово». Все выбранные значения вернутся сюда на проверку.",
       buttons([[{text:"💎 Заполнить оценки",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/ratings?key="+next.nonce}}],NEW_NUMBER]));
@@ -2376,7 +2378,7 @@ async function miniRatingOpen(env,profileId){
  if(!catalog.length||catalog.length>120){
   if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  const pending={step:"ratings_loading",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,nonce};
+  const pending={step:"ratings_loading",source:"mini_app",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,nonce};
   if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
   const started=await dispatchLookup(env,profileId,nonce,"ratings",record.host).catch(()=>({ok:false}));
   if(!started.ok){await statePut(env,{step:"chosen",account:ACTIVE_ACCOUNT,profile:record.profile,host:record.host,nonce});return {ok:false,reason:"lookup_failed"};}
