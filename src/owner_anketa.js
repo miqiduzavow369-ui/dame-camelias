@@ -1,5 +1,5 @@
 import {agreementStatus} from "./agreement.js";
-import {moderationRPC} from "./review_moderation.js";
+import {moderationRPC,MODERATION_CHAT} from "./review_moderation.js";
 import {sendWithLoadingEmoji} from "./loading_emoji.js";
 import {claimPublication,publicationState} from "./publication_claim.js";
 // Shared user cabinet with backward-compatible owner keys. Identity comes from a verified
@@ -79,6 +79,7 @@ function proofNav(id){return buttons([
   [{text:"🏠 В начало",callback_data:"owner_anketa:home"}]
 ]);}
 async function deliverSavedProof(env,send,account,id){
+  if(await miniSilent(env))return true;
   const archive=await savedProof(env,account,id);
   if(!archive)return false;
   try{
@@ -91,6 +92,7 @@ async function deliverSavedProof(env,send,account,id){
 const REVIEW_PENDING_KEY=privatePrefix("owner_anketa_review_pending_v1:yan_first:");
 const REVIEW_ARCHIVE_KEY=privatePrefix("owner_anketa_review_proof_archive_v1:yan_first:");
 async function deliverSavedReviewProof(env,send,id){
+  if(await miniSilent(env))return true;
   const proof=await env.VISITORS_KV?.get(REVIEW_ARCHIVE_KEY+id,"json");
   if(proof?.account!=="yan_first" || proof.profileId!==id ||
      typeof proof.fileId!=="string" || proof.fileId.length>300)return false;
@@ -1026,18 +1028,18 @@ async function handleAnketaLookupResult(request,env,send) {
       if(bytes.length<1000||bytes.length>700000||bytes[0]!==255||bytes[1]!==216||bytes.at(-2)!==255||bytes.at(-1)!==217)
         return new Response("Invalid proof",{status:400});
       const payload=new FormData();
-      payload.append("chat_id",OWNER_ID);
+      payload.append("chat_id",current.miniApp===true?MODERATION_CHAT:OWNER_ID);
     if(!isOwner)payload.append("protect_content","true");
       payload.append("caption","✍️ ОТЗЫВ ОПУБЛИКОВАН!\n👨‍💻 ЯН ПЕРВЫЙ\n🌹 Анкета №"+id+
         "\n✅ Публикация подтверждена\n📸 Скриншот опубликованного отзыва");
-      payload.append("reply_markup",JSON.stringify(proofNav(id)));
+      if(current.miniApp!==true)payload.append("reply_markup",JSON.stringify(proofNav(id)));
       payload.append("photo",new Blob([bytes],{type:"image/jpeg"}),"review-"+id+".jpg");
       const delivered=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",
         {method:"POST",body:payload});
       if(!delivered.ok)throw new Error("Review proof Telegram delivery failed");
       const telegramData=await delivered.json();
       if(!telegramData.ok)throw new Error("Review proof Telegram API rejected");
-      await rememberProofMessage(env,telegramData.result?.message_id);
+      if(current.miniApp!==true)await rememberProofMessage(env,telegramData.result?.message_id);
       const fileId=telegramData.result?.photo?.at(-1)?.file_id;
       if(typeof fileId==="string"&&fileId.length<300)
         await env.VISITORS_KV.put(REVIEW_ARCHIVE_KEY+id,
