@@ -2301,7 +2301,11 @@ async function miniReviewAction(env,profileId,action,text){
   if(record?.status==="delivery_unknown")return {ok:true,stage:"unknown"};
   return {ok:true,stage:"waiting"};
  }
- if(activeTicket?.ticket)return {ok:true,stage:"waiting"};
+ if(activeTicket?.ticket){
+  const previous=await env.VISITORS_KV.get("cabinet_review_moderation:"+OWNER_ID+":"+activeTicket.ticket,"json");
+  if(previous?.status!=="cancelled")return {ok:true,stage:previous?.status==="delivery_unknown"?"unknown":"waiting"};
+  await env.VISITORS_KV.delete(ticketKey);
+ }
  if(typeof text!=="string"||text.trim().length<10||text.length>3000)return {ok:false,reason:"invalid_text"};
  if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
  const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
