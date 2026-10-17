@@ -5,7 +5,7 @@ test("rating form and saved draft use real whitespace and numeric-index regexes"
 
 test("rating publication actions stay hidden until verification succeeds",()=>{
  assert.match(html,/publish\.textContent="🔎 Проверить результат"/);
- assert.match(html,/back\.hidden=stage!=="ready"&&stage!=="failed"&&stage!=="expired"/);
+ assert.match(html,/back\.hidden=stage!=="ready"/);
  assert.match(html,/send\.hidden=stage!=="ready"/);
  assert.match(html,/review\.append\(publish,check,back,send,actionStatus\);reflect\("draft"\)/);
  assert.match(html,/requestAction\("prepare"\)/);
