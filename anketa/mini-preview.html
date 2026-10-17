@@ -268,6 +268,20 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 #tab-published .archive-filters select{appearance:none;-webkit-appearance:none;width:100%;min-width:0;border:1px solid #b68e50;border-radius:12px;padding:11px 26px 11px 10px;background:#17110ce8;color:#f8e9cd;font-size:12px;line-height:1.3;box-shadow:inset 0 1px #ffdb9630;outline-offset:2px}
 #tab-published .archive-filters label{position:relative}
 #tab-published .archive-filters label::after{content:"⌄";position:absolute;right:10px;bottom:10px;pointer-events:none;color:#edc889}
+
+/* Archive VIP: verified counts from existing filtered archive. */
+#tab-published>.archive-vip-summary{padding:15px 16px 14px;margin:12px 0 14px;border:1px solid #d3aa68;border-radius:21px;background:linear-gradient(120deg,#2a1c0fdf,#0d0b09e9 72%);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px #ffe1aa55,0 8px 25px #0009,0 0 16px #b886332d}
+#tab-published .archive-vip-top{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#efd19a;letter-spacing:1.1px;font-size:10px;line-height:1.35;font-weight:700}
+#tab-published .archive-vip-seal{border:1px solid #af8d56;border-radius:30px;padding:5px 7px;white-space:nowrap;letter-spacing:.4px;color:#dac19a;background:#2a21139c;font-size:9px}
+#tab-published .archive-vip-main{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0}
+#tab-published .archive-vip-number{font:700 51px/1 Georgia,serif;color:#ffe0a0;text-shadow:0 1px #fff1d052,0 0 18px #cfa24b5f}
+#tab-published .archive-vip-caption{color:#c6b499;font-size:11px;margin-top:6px}
+#tab-published .archive-vip-gem{font-size:37px;filter:drop-shadow(0 0 12px #8dcaff7d)}
+#tab-published .archive-vip-counts{display:grid;grid-template-columns:1fr 1fr;gap:9px;border-top:1px solid #9f7b464f;padding-top:11px;margin-top:4px}
+#tab-published .archive-vip-counts>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;border:1px solid #85673d9c;border-radius:11px;background:#17120ec9}
+#tab-published .archive-vip-counts span{font-size:12px;color:#e3c99e}
+#tab-published .archive-vip-counts strong{font-size:19px;color:#ffdb97}
+@media(max-width:390px){#tab-published .archive-vip-top{font-size:9px;letter-spacing:.4px}#tab-published .archive-vip-counts span{font-size:11px}#tab-published .archive-vip-number{font-size:44px}}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -305,7 +319,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 </div><div class="proof-note" id="selectedAccountNote">Выбранный мужчина</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div class="archive-filters"><label for="archiveMan">Мужчина<select id="archiveMan"><option value="all">Все мужчины</option></select></label><label for="archiveProfile">Анкета<select id="archiveProfile"><option value="all">Все анкеты</option></select></label></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
+<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero archive-vip-summary"><div class="archive-vip-top"><span>✦ ПОДТВЕРЖДЁННЫЕ ПУБЛИКАЦИИ</span><span class="archive-vip-seal">АРХИВ ✓</span></div><div class="archive-vip-main"><div><div class="archive-vip-number" id="publishedTotal">—</div><div class="archive-vip-caption">Публикаций по выбранным фильтрам</div></div><span class="archive-vip-gem" aria-hidden="true">💎</span></div><div class="archive-vip-counts"><div><span>⭐ Оценки</span><strong id="publishedRatings">0</strong></div><div><span>✍️ Отзывы</span><strong id="publishedReviews">0</strong></div></div></div><div class="archive-filters"><label for="archiveMan">Мужчина<select id="archiveMan"><option value="all">Все мужчины</option></select></label><label for="archiveProfile">Анкета<select id="archiveProfile"><option value="all">Все анкеты</option></select></label></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
 <section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Кредиты, пополнение и учёт расходов — без дублирования вкладок «Работа» и «История».</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
