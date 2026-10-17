@@ -134,6 +134,27 @@ export class OrderReminder {
           ledger.history=[...(ledger.history||[]),{type:"adjust",at:now,delta,operation:input.operation}];
           await storage.put("credits_v1",ledger);return Response.json({ok:true,available:input.target});
         }
+        if(input.type==="credits_history"){
+          // Read-only, user-isolated ledger. Never use publication archive as a financial ledger.
+          const events=[];
+          for(const [key,claim] of Object.entries(claims)){
+            const match=/^(rating|review):(\d{1,9})$/.exec(key);
+            if(!match||!claim)continue;
+            if(claim.status==="completed"&&Number.isFinite(claim.completedAt))
+              events.push({type:"spend",kind:match[1],profileId:match[2],at:claim.completedAt,delta:-1});
+            else if(claim.status==="reserved"&&Number.isFinite(claim.at))
+              events.push({type:"reserve",kind:match[1],profileId:match[2],at:claim.at,delta:0});
+          }
+          for(const record of ledger.history||[]){
+            if(record.type==="adjust"&&Number.isSafeInteger(record.delta)&&Number.isFinite(record.at))
+              events.push({type:"adjust",at:record.at,delta:record.delta});
+          }
+          events.sort((a,b)=>b.at-a.at);
+          return Response.json({ok:true,available:balance,reserved:occupied,spent:ledger.spent,
+            totalGranted:total,grant:ledger.grant,adjustment:ledger.adjustment||0,
+            events:events.slice(0,500),complete:events.length<=500,
+            historicalGrantDatesAvailable:false});
+        }
         if(input.type==="credits_status")
           return Response.json({grant:ledger.grant,spent:ledger.spent,
             available:balance,reserved:occupied,remaining:ledger.grant+(ledger.adjustment||0)-ledger.spent});
