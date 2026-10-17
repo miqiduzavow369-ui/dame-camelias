@@ -29,10 +29,42 @@ async function index(env,action,messageId,value){
  if(!response.ok)throw Error("Moderation index unavailable");return response.json();
 }
 export async function moderationIndex(storage,input){
+ if(input.action==="history_put"){
+  const entry=input.value;
+  if(!validUid(entry?.userId)||!validTicket(entry?.ticket)||!["approved","rejected","published"].includes(entry.status))return {ok:false};
+  const key="history:"+entry.userId+":"+entry.ticket;
+  const previous=await storage.get(key);
+  if(previous?.status==="published"&&entry.status==="approved")return {ok:true};
+  await storage.put(key,entry);
+  return {ok:true};
+ }
+ if(input.action==="history_list"){
+  const entries=await storage.list({prefix:"history:"});
+  return {ok:true,items:[...entries.values()].sort((a,b)=>(b.decidedAt||0)-(a.decidedAt||0))};
+ }
  if(!Number.isSafeInteger(input.messageId)||input.messageId<=0)return {ok:false};
  const key="message:"+input.messageId;
  if(input.action==="put"&&validUid(input.value?.userId)&&validTicket(input.value?.ticket))await storage.put(key,input.value);
  return {ok:true,value:await storage.get(key)||null};
+}
+// Persistent, idempotent decision history in the already deployed moderation index DO.
+function historyEntry(record){
+ return {userId:record.userId,ticket:record.ticket,profileId:record.profileId,account:record.account,
+  username:record.username||null,status:record.status==="cancelled"?"rejected":record.status==="published"?"published":"approved",
+  text:record.text,originalText:record.originalText||record.text,corrected:(record.revisions||[]).length>0,
+  createdAt:record.createdAt,decidedAt:record.decidedAt||Date.now(),publishedAt:record.publishedAt||null};
+}
+async function persistDecision(storage,env,record){
+ const item=historyEntry(record);
+ await storage.put("decision_journal_pending",item);
+ try{
+  const result=await index(env,"history_put",null,item);
+  if(!result?.ok)throw Error("history_put_failed");
+  await storage.delete("decision_journal_pending");
+ }catch{await storage.setAlarm(Date.now()+60000);}
+}
+export async function moderationHistory(env){
+ return index(env,"history_list",null,null);
 }
 async function callCabinet(env,userId,event){
  const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("cabinet-events:v1:"+userId));
@@ -111,7 +143,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  if(event.action==="published"){
   if(event.proofDelivered!==true||event.profileId!==record.profileId||!["approving","approved","published"].includes(record.status))return {ok:false};
   record.proofFileId=typeof event.proofFileId==="string"&&event.proofFileId.length<300?event.proofFileId:null;record.status="published";record.publishedAt=record.publishedAt||Date.now();await storage.put("moderation",record);
-  await storage.setAlarm(Date.now()+1000);return {ok:true};
+  await persistDecision(storage,env,record);await storage.setAlarm(Date.now()+1000);return {ok:true};
  }
  if(event.actorId!==MODERATOR_ID||String(event.chatId)!==MODERATION_CHAT)return {ok:false,forbidden:true};
  const editingReply=event.action==="replace";
@@ -133,7 +165,7 @@ export async function moderationEvent(storage,env,input,send=moderationTelegram,
  }
  if(event.action==="cancel"){
   // Decision is durable before notifying the cabinet; never changes into approval.
-  const editPromptId=record.editPromptId;record.editPromptId=null;record.status="cancelled";record.version++;record.decidedAt=Date.now();record.cancelPending=true;await storage.put("moderation",record);await refresh(env,send,record);
+  const editPromptId=record.editPromptId;record.editPromptId=null;record.status="cancelled";record.version++;record.decidedAt=Date.now();record.cancelPending=true;await storage.put("moderation",record);await persistDecision(storage,env,record);await refresh(env,send,record);
   if(editPromptId)await send(env,"deleteMessage",{chat_id:MODERATION_CHAT,message_id:editPromptId}).catch(()=>{});
   try{const result=await cabinet(env,uid,{kind:"review_moderation",actorId:MODERATOR_ID,action:"cancel",ticket});if(result.ok){record.cancelPending=false;await storage.put("moderation",record);}}catch{}
   if(record.cancelPending)await storage.setAlarm(Date.now()+1000);return {ok:true};
@@ -149,9 +181,15 @@ async function launchApproval(storage,env,record,send,cabinet){
  try{result=await cabinet(env,uid,{kind:"review_moderation",actorId:MODERATOR_ID,action:"approve",ticket,text:record.text});}
  catch{record.note="Результат запуска уточняется. Повторной автоматической отправки не будет.";await storage.put("moderation",record);await refresh(env,send,record);return {ok:false,note:record.note};}
  if(result.ok){record.status="approved";record.note=result.note||null;}else{record.status="pending";record.note=result.note||"Сейчас отправка недоступна. Проверьте доступ, баланс и лимит анкеты.";}
- await storage.put("moderation",record);await refresh(env,send,record);return result;
+ await storage.put("moderation",record);if(result.ok)await persistDecision(storage,env,record);await refresh(env,send,record);return result;
 }
 export async function moderationAlarm(storage,env,send=moderationTelegram){
+ const pending=await storage.get("decision_journal_pending");
+ if(pending){
+  try{const done=await index(env,"history_put",null,pending);if(!done?.ok)throw Error("history_pending");await storage.delete("decision_journal_pending");}
+  catch{await storage.setAlarm(Date.now()+60000);}
+ }
+
  const record=await storage.get("moderation");if(!record)return false;
  for(const id of [...(record.indexPending||[])]){try{await index(env,"put",id,{userId:record.userId,ticket:record.ticket});record.indexPending=record.indexPending.filter(x=>x!==id);}catch{}}
  if(record.cancelPending){try{const result=await callCabinet(env,record.userId,{kind:"review_moderation",actorId:MODERATOR_ID,action:"cancel",ticket:record.ticket});if(result.ok)record.cancelPending=false;}catch{}}
