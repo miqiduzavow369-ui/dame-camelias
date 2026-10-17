@@ -4,7 +4,7 @@ import {validWebApp} from "./telegram_auth.js";
 import {registry,OWNER_ID,validId,pinRecord} from "./client_registry.js";
 import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {cabinetRPC} from "./cabinet_runtime.js";
-import {agreementStatus,agreementRPC} from "./agreement.js";
+import {agreementStatus} from "./agreement.js";
 
 const safeHeaders={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 const respond=(value,status=200)=>Response.json(value,{status,headers:safeHeaders});
@@ -49,15 +49,9 @@ export async function handleAdminApi(request,env){
    const [balance,agreement]=await Promise.all([credits(env,uid,"status"),agreementStatus(env,uid)]);
    return respond({ok:true,client:{...summarize(client,balance),agreement}});
   }
-  if(action==="agreement_view"){
-   const {client}=await registry(env,{action:"get",userId:uid});
-   if(!client)return bad("missing",404);
-   const agreement=await agreementRPC(env,uid,{action:"view"});
-   return respond({ok:true,agreement});
-  }
   if(action==="archive_proof"){
    const profileId=String(body.profileId||""),account=String(body.account||""),kind=String(body.kind||"");
-   if(!/^\\d{1,9}$/.test(profileId)||!/^[a-z][a-z0-9_]{0,11}$/.test(account)||!["rating","review"].includes(kind))return bad("invalid_proof");
+   if(!/^\d{1,9}$/.test(profileId)||!/^[a-z][a-z0-9_]{0,11}$/.test(account)||!["rating","review"].includes(kind))return bad("invalid_proof");
    const {client}=await registry(env,{action:"get",userId:uid});
    if(!client)return bad("missing",404);
    const archive=await cabinetRPC(env,uid,{kind:"admin_archive",actorId:OWNER_ID});
@@ -67,7 +61,7 @@ export async function handleAdminApi(request,env){
    const info=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(item.fileId),{signal:AbortSignal.timeout(10000)});
    const infoJson=await info.json().catch(()=>null);
    const filePath=infoJson?.result?.file_path;
-   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!/^photos\\/[A-Za-z0-9_.\\/-]+$/.test(filePath))return bad("proof_unavailable",503);
+   if(!info.ok||!infoJson?.ok||typeof filePath!=="string"||!/^photos\/[A-Za-z0-9_.\/-]+$/.test(filePath))return bad("proof_unavailable",503);
    const photo=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+filePath,{signal:AbortSignal.timeout(12000)});
    if(!photo.ok)return bad("proof_unavailable",503);
    const contentType=photo.headers.get("content-type")||"";
