@@ -612,7 +612,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       review.append(publish,check,actionStatus,back,send);reflect("draft");editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
-   }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
+   }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+(e instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(e.message||""))?"Не удалось связаться с сервером. Проверьте подключение и повторите попытку.":e.message);const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
    finally{loadForm.disabled=false;loadForm.textContent="⭐ Начать заполнение";}
   };
   body.append(panel);
