@@ -42,6 +42,28 @@ export async function handleAdminApi(request,env){
    }));
    return respond({ok:true,clients:entries});
   }
+  if(action==="review_history"){
+   const listed=await registry(env,{action:"list",actorId:OWNER_ID});
+   if(!listed?.ok)return bad("registry_unavailable",503);
+   const clients=listed.clients||[];
+   // Reuse the exact same read-only archive as existing ADMIN; no new journal or moderation writes.
+   const outcomes=await Promise.all(clients.map(async client=>{
+    const userId=String(client.id);
+    try{
+     const result=await cabinetRPC(env,userId,{kind:"admin_archive",actorId:OWNER_ID});
+     if(result?.status!==200)throw Error("archive_unavailable");
+     const items=(result.archive?.items||[]).filter(x=>x.kind==="review").map(x=>({
+      userId,profileId:String(x.profileId),account:x.account,
+      kind:"review",date:x.date,at:x.at||null,proof:!!x.fileId
+     }));
+     return {ok:true,items};
+    }catch{return {ok:false,items:[]};}
+   }));
+   const items=outcomes.flatMap(x=>x.items)
+     .sort((a,b)=>String(b.at||b.date||"").localeCompare(String(a.at||a.date||"")))
+     .slice(0,500);
+   return respond({ok:true,items,partial:outcomes.some(x=>!x.ok),source:"published_archive"});
+  }
   if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
   if(action==="client"){
    const {client}=await registry(env,{action:"get",userId:uid});
