@@ -1,7 +1,7 @@
 name = "dame-camelias"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
-# Request Cloudflare Git-linked rebuild for Mini App changes through PR #154
+# Request Git-linked rebuild for read-only finance history in Mini App (2026-10-17)
 
 # Daily visitor summaries: 10:00, 16:00, 22:00 Moscow (UTC+3)
 [triggers]
