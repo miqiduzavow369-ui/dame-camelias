@@ -95,6 +95,33 @@ p,.muted,.mini{color:#b6ab99}
 
 #tab-cabinet .finance-amount.neutral{color:#e7c786}
 #tab-cabinet .finance-disclaimer{font-size:11px;margin-top:14px}
+
+/* DAME CAMELIAS | work-only visual refinement. No layout, navigation or state changes. */
+#tab-profiles{position:relative;isolation:isolate}
+#tab-profiles::before{content:"";position:absolute;z-index:-1;pointer-events:none;inset:-8px -17px auto;min-height:640px;background:
+ radial-gradient(ellipse 50% 26% at 102% 7%,#c49b5538 0%,#6a461a18 42%,transparent 100%),
+ radial-gradient(ellipse 38% 20% at 86% 16%,transparent 40%,#bd8a3a22 48%,transparent 60%),
+ radial-gradient(ellipse 36% 22% at 90% 18%,transparent 43%,#a57a3420 48%,transparent 57%),
+ radial-gradient(ellipse 20% 15% at 95% 20%,#b78d3d24 4%,transparent 80%),
+ linear-gradient(155deg,#17120b 0%,#0c0b09 44%,transparent 96%);opacity:.92}
+#tab-profiles h1{color:#f7e8cb;text-shadow:0 1px 12px #d0a75a1c}
+#tab-profiles h1 .gold{color:#e5bf75;text-shadow:0 0 12px #c99e4a77}
+#tab-profiles .hero{border-color:#ba8e46;background:radial-gradient(ellipse at 3% 5%,#6e4b202b,transparent 65%),linear-gradient(135deg,#242016,#100f0c 78%);box-shadow:inset 0 1px #f7dba130,0 10px 26px #0008,0 0 15px #b28b291a}
+#tab-profiles .hero .number{color:#f4cf83;text-shadow:0 0 16px #aa7b2860}
+#tab-profiles .section-heading h2{color:#f6e4bf;text-shadow:0 0 12px #cd9b391c}
+#tab-profiles .card{border-color:#a68145;background:linear-gradient(135deg,#211b13,#12110d 55%,#0d0c0b);box-shadow:inset 0 1px #f9d79c1b,0 8px 22px #0007}
+#tab-profiles .profile-row .card{background:linear-gradient(116deg,#211b12,#13110d 52%,#0b0b0a);border-color:#98743b}
+#tab-profiles .profile-row .card:focus-within{border-color:#e4bd75;box-shadow:0 0 0 1px #dfb87555,0 8px 24px #0009}
+#tab-profiles .thumb{border-color:#d2a75c;box-shadow:0 2px 11px #0009}
+#tab-profiles .action:not(.profile){background:linear-gradient(115deg,#261c0e,#15120c 60%,#241a10);border-color:#a58249;box-shadow:inset 0 1px #e7c58722,0 7px 20px #0005}
+#tab-profiles .action:not(.profile) .next{color:#f2ca7c}
+#tab-profiles .agreement-open{background:linear-gradient(120deg,#261e12,#14120d);border-color:#a7844c;box-shadow:inset 0 1px #f1d49a24;color:#efd19a}
+#tab-profiles .stat{border-color:#9c7942;background:linear-gradient(140deg,#2a2114,#15120e);box-shadow:inset 0 1px #f0ce9230}
+#tab-profiles .stat strong{color:#f6d38d}
+#tab-profiles .man-tile{border-color:#967445;background:linear-gradient(150deg,#231c12,#100f0d)}
+#tab-profiles .seg.active{background:linear-gradient(110deg,#f4d898,#b78840);border-color:#f0d399;box-shadow:0 0 15px #b9904640;color:#171109}
+@media(prefers-reduced-motion:no-preference){#tab-profiles .card,#tab-profiles .action,#tab-profiles .agreement-open{transition:background-color .18s,border-color .18s,box-shadow .18s}}
+
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
