@@ -2312,6 +2312,8 @@ async function miniRatingOpen(env,profileId){
  const day=await dailyLimit(env,OWNER_ID,profileId,"status","rating").catch(()=>null);
  if(!Number.isSafeInteger(day?.remaining)||day.remaining<=0)return {ok:false,reason:"daily_limit"};
  const current=await stateGet(env);
+ if(current?.step==="ratings_loading"&&String(current.profile?.id||current.id)===String(profileId)&&current.account===ACTIVE_ACCOUNT)
+  return {ok:true,stage:"loading"};
  if(current&&["publishing","review_dispatch","review_recheck","proof_loading","dryfill_loading","audit_loading","ratings_loading"].includes(current.step))
   return {ok:false,reason:"busy"};
  if(current&&["ratings","ratings_agreed"].includes(current.step)&&String(current.profile?.id)===String(profileId)&&
