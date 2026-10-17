@@ -28,6 +28,13 @@ export async function registryRequest(storage,input,now=Date.now()){
  const state=await storage.get("registry_v1")||{clients:{[TRIAL_ID]:{id:TRIAL_ID,active:true,grant:2,revision:1,authVersion:1,pin:{algorithm:"legacy-sha256",hash:LEGACY_PIN}}},operations:{}};
  const uid=String(input.userId||"");
  if(input.action==="get")return {client:state.clients[uid]?view(state.clients[uid]):null};
+ if(input.action==="history"){
+  // Never expose other clients, operation identifiers, PINs, or credentials.
+  return {ok:true,events:Object.values(state.operations).filter(e=>e.userId===uid&&["create","topup"].includes(e.action)).map(e=>({
+    type:e.action==="create"?"initial":"topup",at:e.at,
+    amount:Number.isSafeInteger(e.amount)?e.amount:null
+  })).sort((a,b)=>b.at-a.at)};
+ }
  if(input.action==="login"){
   const c=state.clients[uid];
   if(!c||!c.active)return {ok:false};
@@ -69,7 +76,7 @@ export async function registryRequest(storage,input,now=Date.now()){
    c.pin=input.credential;c.authVersion++;c.attempts={count:0,until:0};
   }else return {ok:false,reason:"invalid_action"};
  }
- state.operations[input.operation]={at:now,userId:uid,action:input.action};
+ state.operations[input.operation]={at:now,userId:uid,action:input.action,...(input.action==="topup"?{amount:input.amount}:input.action==="create"?{amount:input.grant}:{})};
  await storage.put("registry_v1",state);
  return {ok:true,client:view(c)};
 }
