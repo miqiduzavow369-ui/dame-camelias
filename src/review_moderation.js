@@ -54,17 +54,16 @@ function card(record){
   ...(record.decidedAt?["🕰 <b>Решение:</b> "+date(record.decidedAt)+" МСК"]:[]),
   "",
   "✍️ <b>"+(history.length?"ИТОГОВЫЙ ТЕКСТ":"ТЕКСТ ОТЗЫВА")+"</b>",
-  escape(record.text),
+  escape(record.text.length>2200?record.text.slice(0,2199)+"…":record.text),
   ...(history.length?["","✏️ <b>Исправлений:</b> "+history.length,
-   "<b>Исходный текст:</b> "+escape(record.originalText||history[0].text)]:[]),
+   "<b>Исходный текст:</b> "+escape(String(record.originalText||history[0].text).slice(0,450))]:[]),
   ...(record.status==="published"?["","📸 <b>Подтверждение:</b> "+(record.proofFileId?"сохранено в архиве":"ожидается")]:[]),
   ...(record.status==="cancelled"?["","🔒 <b>Публикация:</b> отменена, списания нет"]:[]),
   ...(record.note?["","ℹ️ "+escape(record.note)]:[])
  ];
  // Telegram messages have a 4096-character cap. Preserve the current review;
  // bound original text to avoid losing the moderation controls to an oversized card.
- const full=parts.join("\n");
- const text=full.length<=3900?full:full.slice(0,3870)+"…";
+ const text=parts.join("\n");
  const action=name=>"reviewmod:"+name+":"+record.userId+":"+record.ticket+":"+record.version;
  const buttons=record.status==="pending"?[
   [{text:"✅ Опубликовать",callback_data:action("approve")}],
