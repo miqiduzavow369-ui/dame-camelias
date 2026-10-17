@@ -110,12 +110,12 @@ async function sendPhotoFile(env, data, url) {
 }
 function keyboard(key, env) {
   const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
-  const adminRow=[{text:"👑 АДМИНИСТРАТОР",callback_data:"clients:menu"}];
+  // Legacy ADMIN callback remains supported as a fallback; its menu button is hidden.
   const adminMiniRow=[{text:"👑 ADMIN · Mini App",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/admin/preview"}}];
-  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminMiniRow,adminRow]:[])]};
+  if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminMiniRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
-    if(owner)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}],adminMiniRow,adminRow);
+    if(owner)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}],adminMiniRow);
     else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}]);
     else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
     rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
