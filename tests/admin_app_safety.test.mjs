@@ -32,3 +32,12 @@ test('ADMIN writes reuse existing atomic providers',()=>{
  assert.match(api,/validOp\(body\.operation\)/);
  assert.doesNotMatch(api,/env\.VISITORS_KV\.put\(/);
 });
+
+test('ADMIN archive and agreement read paths are protected',()=>{
+ assert.match(api,/agreementRPC\(env,uid,\{action:"view"\}\)/);
+ assert.match(api,/action==="archive_proof"/);
+ assert.match(api,/archive\.archive\?\.items\?\.find/);
+ assert.match(html,/async function openAgreement\(/);
+ assert.match(html,/async function loadProof\(/);
+ assert.match(html,/padding-bottom:calc\(170px/);
+});
