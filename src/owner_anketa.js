@@ -2286,6 +2286,39 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
+async function miniRatingOpen(env,profileId){
+ if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
+ const record=await savedGet(env,profileId);
+ if(!record?.confirmed||String(record.profile?.id)!==String(profileId))return {ok:false,reason:"not_saved"};
+ if(await publicationStatus(env,profileId,"rating"))return {ok:false,reason:"already_published_or_pending"};
+ const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
+ if(!Number.isSafeInteger(balance?.available)||balance.available<=0)return {ok:false,reason:"credits"};
+ const day=await dailyLimit(env,OWNER_ID,profileId,"status","rating").catch(()=>null);
+ if(!Number.isSafeInteger(day?.remaining)||day.remaining<=0)return {ok:false,reason:"daily_limit"};
+ const current=await stateGet(env);
+ if(current&&["publishing","review_dispatch","review_recheck","proof_loading","dryfill_loading","audit_loading","ratings_loading"].includes(current.step))
+  return {ok:false,reason:"busy"};
+ if(current&&["ratings","ratings_agreed"].includes(current.step)&&String(current.profile?.id)===String(profileId)&&
+   current.account===ACTIVE_ACCOUNT&&Array.isArray(current.catalog)&&current.catalog.length>0&&current.catalog.length<=120){
+  await chooseAccount(env,profileId);
+  return miniRatingFormLoad(env,profileId);
+ }
+ const catalog=Array.isArray(record.catalog)?organizeCatalog(record.catalog):[];
+ if(!catalog.length||catalog.length>120){
+  if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
+  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  const pending={step:"ratings_loading",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,nonce};
+  if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
+  const started=await dispatchLookup(env,profileId,nonce,"ratings",record.host).catch(()=>({ok:false}));
+  if(!started.ok){await statePut(env,{step:"chosen",account:ACTIVE_ACCOUNT,profile:record.profile,host:record.host,nonce});return {ok:false,reason:"lookup_failed"};}
+  return {ok:true,stage:"loading"};
+ }
+ if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+ const draft=await ratingDraftGet(env,profileId,record.host,catalog);
+ await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,catalog,nonce,selected:draft.selected||{},metElsewhere:draft.metElsewhere===true,draftReady:draft.draftReady===true});
+ return miniRatingFormLoad(env,profileId);
+}
 async function miniRatingFormLoad(env,profileId){
  if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
  const state=await stateGet(env);
@@ -2378,7 +2411,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
