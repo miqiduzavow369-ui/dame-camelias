@@ -407,10 +407,10 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      }
      const label=document.createElement("b");label.textContent=item.label;entry.append(label);
      const select=document.createElement("select");select.className="rating-select";select.setAttribute("aria-label",item.label);
-     const indie=/реальн\\S*\\s+инди/i.test(item.label);
+     const indie=/реальн\S*\s+инди/i.test(item.label);
      const empty=document.createElement("option");empty.value="";empty.textContent="Не выбрано";select.append(empty);
      if(indie){
-      const yes=item.options.find(x=>/^\\s*(?:да|реальная\\s+инди)\\s*$/i.test(x));
+      const yes=item.options.find(x=>/^\s*(?:да|реальная\s+инди)\s*$/i.test(x));
       const choice=document.createElement("option");choice.value=yes||"";choice.textContent="Да";choice.disabled=!yes;select.append(choice);
       select.value="";
       if(!yes){const help=document.createElement("p");help.className="muted";help.textContent="Сайт пока не предоставил вариант «Да» для этой анкеты.";entry.append(help);}
