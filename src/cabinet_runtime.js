@@ -389,7 +389,13 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   // No additional mutable publication state is introduced for the Mini App.
   let balance=null,archive={items:[]},finance=null;
   try{balance=await credits(env,uid,"status");}catch{}
-  try{finance=await creditHistory(env,uid);}catch{}
+  try{
+   finance=await creditHistory(env,uid);
+   if(finance?.ok&&uid!==OWNER_ID){
+    const registryEvents=await registry(env,{action:"history",userId:uid});
+    finance.topups=Array.isArray(registryEvents?.events)?registryEvents.events:[];
+   }
+  }catch{}
   try{archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);}catch{}
   const proofCounts=new Map();
   for(const item of archive.items||[]){
