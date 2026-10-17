@@ -19,6 +19,24 @@ async function authenticatedOwner(input,env){
  if(!await validWebApp(input?.initData,env.BOT_TOKEN,900))return false;
  try{return String(JSON.parse(new URLSearchParams(input.initData).get("user"))?.id||"")===OWNER_ID;}catch{return false;}
 }
+// ADMIN-only read: Telegram getChat provides a username only when the bot can access the chat.
+const usernameCache=new Map();
+async function telegramUsername(env,uid){
+ const now=Date.now(),existing=usernameCache.get(uid);
+ if(existing&&existing.until>now)return existing.value;
+ let value=null;
+ try{
+  const response=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getChat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:uid}),signal:AbortSignal.timeout(4500)});
+  const body=await response.json();
+  const raw=body?.ok&&String(body.result?.id)===uid?body.result.username:null;
+  if(typeof raw==="string"&&/^[A-Za-z0-9_]{5,32}$/.test(raw))value=raw;
+ }catch{}
+ usernameCache.set(uid,{value,until:now+(value?15*60_000:2*60_000)});
+ return value;
+}
+async function enrichClient(env,client,balance){
+ return {...summarize(client,balance),username:await telegramUsername(env,String(client.id))};
+}
 function summarize(client,balance){
  return {id:String(client.id),username:null,active:client.active===true,
   available:balance.available,spent:balance.spent,reserved:balance.reserved,
@@ -36,10 +54,15 @@ export async function handleAdminApi(request,env){
    const result=await registry(env,{action:"list",actorId:OWNER_ID});
    if(!result.ok)return bad("registry_unavailable",503);
    // Use the same credit ledger for both old and new ADMIN.
-   const entries=await Promise.all(result.clients.map(async client=>{
-    try{return summarize(client,await credits(env,client.id,"status"));}
-    catch{return {...client,username:null,financeUnavailable:true};}
-   }));
+   // Bounded Telegram lookups avoid flooding getChat for large client lists.
+   const entries=[];
+   for(let i=0;i<result.clients.length;i+=6){
+    const batch=await Promise.all(result.clients.slice(i,i+6).map(async client=>{
+     try{return await enrichClient(env,client,await credits(env,client.id,"status"));}
+     catch{return {...client,username:null,financeUnavailable:true};}
+    }));
+    entries.push(...batch);
+   }
    return respond({ok:true,clients:entries});
   }
   if(action==="review_history"){
@@ -69,7 +92,7 @@ export async function handleAdminApi(request,env){
    const {client}=await registry(env,{action:"get",userId:uid});
    if(!client)return bad("missing",404);
    const [balance,agreement]=await Promise.all([credits(env,uid,"status"),agreementStatus(env,uid)]);
-   return respond({ok:true,client:{...summarize(client,balance),agreement}});
+   return respond({ok:true,client:{...await enrichClient(env,client,balance),agreement}});
   }
   if(action==="archive_proof"){
    const profileId=String(body.profileId||""),account=String(body.account||""),kind=String(body.kind||"");
