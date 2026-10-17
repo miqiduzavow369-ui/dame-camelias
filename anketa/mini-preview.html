@@ -248,6 +248,19 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 #tab-profiles .work-vip-topup:focus-visible{outline:2px solid #fff0c9;outline-offset:3px}
 #tab-profiles .work-vip-balance .hero-bottom{padding-top:8px;border-top:1px solid #b28c565c;font-size:10px;color:#d0b894;line-height:1.4}
 @media(max-width:390px){#tab-profiles>.hero.work-vip-balance{width:66%;padding:11px 9px}#tab-profiles .work-vip-diamond{font-size:30px}#tab-profiles .work-vip-balance .number{font-size:46px}#tab-profiles .work-vip-topup{font-size:10px;padding:9px 6px}#tab-profiles .work-vip-balance .over{font-size:9px;letter-spacing:.65px}}
+
+/* Compact premium archive layout — presentation only. */
+#tab-published>h1{margin-top:14px;margin-bottom:4px}
+#tab-published>p:not(.proof-note){font-size:12px;line-height:1.45;margin:6px 0 10px;max-width:95%;text-shadow:0 1px 5px #000d}
+#tab-published>.hero{padding:13px 16px;margin:12px 0 16px;border-radius:18px;background:linear-gradient(115deg,#21170fe0,#0b0a09e8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#tab-published>.hero .number{font-size:35px;margin:2px 0}
+#tab-published>.hero .over{font-size:10px}
+#tab-published .archive-entry{margin:8px 0;padding:12px 13px;border-radius:16px;border-color:#be9859;background:linear-gradient(120deg,#17110de9,#0b0a09e6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px #e3be8530,0 6px 18px #0008}
+#tab-published .archive-entry>b{display:block;font-size:15px;line-height:1.35;color:#f7e5ca}
+#tab-published .archive-entry>p{font-size:11px;line-height:1.35;margin:5px 0 0;color:#c9b8a0}
+#tab-published .archive-entry>.ghost{padding:9px 12px;margin:10px 0 0;font-size:12px;border-radius:11px;min-height:40px;background:#1a140dbd;color:#f3d49f}
+#tab-published .archive-entry>.proof-image{margin-top:10px}
+#tab-published>.proof-note{padding:10px 12px;margin:12px 0;font-size:11px;line-height:1.4;background:#150f0bd9;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -285,7 +298,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 </div><div class="proof-note" id="selectedAccountNote">Выбранный мужчина</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><div class="section-heading"><h2>🗂 Запросы и сохранённые черновики</h2></div><div id="activityCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
+<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
 <section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Кредиты, пополнение и учёт расходов — без дублирования вкладок «Работа» и «История».</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
@@ -406,15 +419,11 @@ async function showOriginalProof(container,entry,note){
 }
 function renderHistory(){
  const published=$("publishedCards");published.replaceChildren();
- const activityBox=$("activityCards");activityBox.replaceChildren();
- const ownActivities=activities.filter(entry=>entry.account===selectedAccount);
- for(const entry of ownActivities){const row=document.createElement("div");row.className="card";const head=document.createElement("b");head.textContent=(entry.kind==="rating_draft"?"⭐ Черновик оценок":entry.kind==="review_draft"?"✍️ Черновик отзыва":entry.kind==="rating"?"⏳ Запрос на оценку":"⏳ Запрос на отзыв")+" · Анкета №"+entry.id;const desc=document.createElement("p");desc.textContent=entry.status==="checking"?"Ожидает подтверждения результата":entry.kind==="rating_draft"?"Сохранено выбранных полей: "+entry.count:"Сохранённый текст доступен в разделе «Работа»";row.append(head,desc);activityBox.append(row);}
- if(!ownActivities.length)activityBox.textContent="Нет активных запросов или сохранённых черновиков для этого мужчины.";
  const matches=history.filter(entry=>entry.account===selectedAccount);
  let ratings=0,reviews=0;
  for(const entry of matches){
   if(entry.kind==="rating")ratings++;if(entry.kind==="review")reviews++;
-  const row=document.createElement("div");row.className="card";
+  const row=document.createElement("div");row.className="card archive-entry";
   const heading=document.createElement("b");heading.textContent=(entry.kind==="rating"?"⭐ Оценка":"✍️ Отзыв")+" · Анкета №"+entry.id;
   const detail=document.createElement("p");detail.textContent=( /^\d{8}$/.test(String(entry.date||""))?String(entry.date).slice(6,8)+"."+String(entry.date).slice(4,6)+"."+String(entry.date).slice(0,4):String(entry.date||""))+" · "+accountName(entry.account)+(entry.hasProof?" · 📸 Фото в архиве":" · Без фото в архиве");
   row.append(heading,detail);
