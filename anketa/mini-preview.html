@@ -595,7 +595,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const requestAction=async action=>{
        const response=await fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
        const payload=await response.json().catch(()=>({}));
-       if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку.",incomplete_ratings:"❗ Заполните обязательные оценки и не менее 20% остальных услуг."})[payload.reason]||"Не удалось выполнить действие.");
+       if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку.",incomplete_ratings:"❗ Заполните обязательные оценки и не менее 20% остальных услуг."})[payload.reason]||("Не удалось подтвердить действие (HTTP "+response.status+(typeof payload.reason==="string"?", код: "+payload.reason.slice(0,64):"")+"). Проверьте статус публикации перед повтором."));
        return payload;
       };
       const reflect=stage=>{
