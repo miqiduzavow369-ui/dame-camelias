@@ -416,7 +416,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       if(!yes){const help=document.createElement("p");help.className="muted";help.textContent="Сайт пока не предоставил вариант «Да» для этой анкеты.";entry.append(help);}
      }else for(const option of item.options){const choice=document.createElement("option");choice.value=option;choice.textContent=option;select.append(choice);}
      select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();updateGroupSummaries();};
-     const requiredSuggestion=/^(?:соответстви[ея]\s+фото|отношение\s+к\s+клиенту|общая\s+оценка|соответствие\s+параметров)$/i.test(String(item.label||"").trim())||indie;
+     const requiredSuggestion=/^(?:соответстви[ея]\s+фото|отношение\s+к\s+клиенту|общая\s+оценка|(?:соответствие|соотв\.)\s*параметров)$/i.test(String(item.label||"").trim())||indie;
      if(requiredSuggestion){
       const warning=document.createElement("small");warning.className="rating-required-warning";
       warning.textContent="❗ Обязательно к выбору";
