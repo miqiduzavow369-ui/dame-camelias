@@ -204,7 +204,7 @@ function selectAccount(account){
 }
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
 function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));tg?.BackButton?.[name==="profiles"?"hide":"show"]?.();window.scrollTo({top:0,behavior:"smooth"});}
-document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{showTab(b.dataset.tab);void refreshCabinetSnapshot();});
 if(tg?.BackButton){tg.BackButton.onClick(()=>{if(!$("subview").hidden){$("subBack").click();return;}if(!$("detail").hidden){$("back").click();return;}if(lastTab!=="profiles"){showTab("profiles");return;}tg.close();});}
 const card=(p,clickable=true)=>{const wrapper=document.createElement("div");wrapper.className="profile-row";const el=document.createElement(clickable?"button":"div");el.className="card profile";if(clickable)el.type="button";
 const pic=p.photo?document.createElement("img"):document.createElement("div");pic.className="thumb";if(p.photo){pic.src=p.photo;pic.alt="Фото "+p.id;pic.onerror=()=>{pic.replaceWith(Object.assign(document.createElement("div"),{className:"thumb",textContent:"🌹"}));};}else pic.textContent="🌹";
@@ -671,5 +671,14 @@ $("signedAgreementOpen").onclick=async()=>{
 $("signedAgreementClose").onclick=()=>{$("signedAgreementPanel").hidden=true;$("signedAgreementOpen").hidden=false;};
 $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
 async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
-$("refresh").onclick=load;load();
+// Refresh read-only cabinet data when users return to the app or navigate tabs.
+let snapshotRefresh=null;
+async function refreshCabinetSnapshot(){
+ if(snapshotRefresh)return snapshotRefresh;
+ snapshotRefresh=load().finally(()=>{snapshotRefresh=null;});
+ return snapshotRefresh;
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)void refreshCabinetSnapshot();});
+window.addEventListener("pageshow",event=>{if(event.persisted)void refreshCabinetSnapshot();});
+$("refresh").onclick=refreshCabinetSnapshot;load();
 </script></body></html>
