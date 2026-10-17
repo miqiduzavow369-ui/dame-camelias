@@ -314,7 +314,7 @@ function renderFinance(){
   if(e.origin==="registry"){
    addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма старой операции не записана":"Начислено администратором",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
   }
-  else if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1",e.kind==="rating"?"⭐":"✍️","minus");
+  else if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1 публикация",e.kind==="rating"?"⭐":"✍️","minus");
   else if(e.type==="reserve")addEntry(stamp(e.at),"Публикация ожидает подтверждения",detail,"⏳", "⏳","neutral");
   else if(e.type==="adjust")addEntry(stamp(e.at),e.delta>0?"Пополнение баланса":"Корректировка баланса","Изменение администратором",(e.delta>0?"+":"")+e.delta,e.delta>0?"💎":"⚖️",e.delta>0?"plus":"minus");
  }
