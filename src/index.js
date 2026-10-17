@@ -1,4 +1,4 @@
-import {handleAgreement,agreementStatus} from "./agreement.js";
+import {handleAgreement,agreementStatus,agreementRPC} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
