@@ -400,13 +400,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      const entry=document.createElement("div");entry.className="rating-form-entry";
      const fixed=/^(?:isFair|Фото соответствует)$/i.test(item.label.trim());
      if(fixed){
-      const fixedValue="Фото соответствует";
-      const fixedText=document.createElement("div");fixedText.className="rating-fixed";
-      fixedText.textContent="✅ "+fixedValue;
-      entry.append(fixedText);draft[i]=fixedValue;
-      // The website accepts this one canonical value; never offer conflicting alternatives.
-      info.controls.push({value:fixedValue,disabled:true});
-      info.section.append(entry);
+      // Preserve the required website value without duplicating a visible photo question.
+      draft[i]="Фото соответствует";
       return;
      }
      const label=document.createElement("b");label.textContent=item.label;entry.append(label);
