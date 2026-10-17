@@ -2320,7 +2320,8 @@ async function miniReviewAction(env,profileId,action,text){
   await env.VISITORS_KV.delete(ticketKey);
  }
  if(typeof text!=="string"||text.trim().length<10||text.length>3000)return {ok:false,reason:"invalid_text"};
- if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
+ // Mini App account is already determined by the authenticated cabinet; renew its short-lived server selection.
+ if(!await chooseAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
  const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
  if(!Number.isSafeInteger(balance?.available)||balance.available<1)return {ok:false,reason:"credits"};
  const draft=await stateGet(env);
