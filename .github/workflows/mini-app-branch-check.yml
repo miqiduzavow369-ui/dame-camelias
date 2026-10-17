@@ -1,0 +1,36 @@
+name: Mini App isolated branch checks
+on:
+  push:
+    branches:
+      - feature/mini-app-native-flows-20261017
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'anketa/**'
+      - 'tests/**'
+      - '.github/workflows/mini-app-branch-check.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: JavaScript syntax
+        run: |
+          node --check src/index.js
+          node --check src/cabinet_runtime.js
+          node --check src/owner_anketa.js
+      - name: Node regression suite
+        run: node --test tests/*.test.mjs
+      - name: Python regression suite
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Python syntax
+        run: python -m py_compile tools/*.py
