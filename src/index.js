@@ -111,7 +111,7 @@ async function sendPhotoFile(env, data, url) {
 function keyboard(key, env) {
   const owner=String(env.__ownerMenuChatId ?? "")==="5866034656";
   // Legacy ADMIN callback remains supported as a fallback; its menu button is hidden.
-  const adminMiniRow=[{text:"👑 ADMIN · Mini App",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/admin/preview"}}];
+  const adminMiniRow=[{text:"👑 ADMINISTRATION",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/admin/preview"}}];
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminMiniRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
