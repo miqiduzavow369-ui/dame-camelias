@@ -268,7 +268,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   if(!entry?.hasProof){note.textContent="⚠️ Оригинал подтверждения отсутствует в архиве.";return;}
   panel.hidden=false;if(!holder.querySelector("img"))showOriginalProof(holder,entry,note);return;
  }
- const kind=b.dataset.sub,body=$("subContent");body.replaceChildren();
+ const kind=b.dataset.sub,body=$("subContent");body.replaceChildren();if(kind==="review"){$("detail").hidden=true;$("subview").hidden=false;}
  $("subTitle").textContent=kind==="rating"?"⭐ Заполнить оценки":"✍️ Написать отзыв";
  $("subId").textContent="Анкета №"+selected.id+" · "+accountName(selectedAccount);
  const introduction=document.createElement("p");introduction.className="muted";introduction.textContent=kind==="rating"?"Выберите оценки, проверьте заполнение и сохраните. Ошиблись — вернитесь к выбору или начните заново.":"Введите и сохраните текст отзыва.";if(kind!=="rating")body.append(introduction);
