@@ -113,8 +113,8 @@ function keyboard(key, env) {
   if (key === "welcome") return {inline_keyboard:[[{text:"✨ НАЧАТЬ",callback_data:"home"}],...(owner?[adminRow]:[])]};
   if (key === "home") {
     const rows=[...MAIN];
-    if(owner)rows.push([{text:"🔐 Личный кабинет",callback_data:"owner_anketa:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=dc029a03"}}],adminRow);
-    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"🌹 Мои анкеты",callback_data:"trial_cabinet:open"}],[{text:"✨ Мои анкеты · Тест",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=dc029a03"}}]);
+    if(owner)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}],adminRow);
+    else if(env.__agreementAccepted&&env.__clientMenu)rows.push([{text:"💎 Личный кабинет",web_app:{url:"https://dame-camelias.gptjjjgpt.workers.dev/anketa/mini-preview?ui=personal-cabinet"}}]);
     else if(!env.__agreementAccepted)rows.push([{text:"📜 Соглашение",callback_data:"agreement:start"}]);
     rows.push([{text:"🔄 Обновить",callback_data:"home:refresh"}]);
     return {inline_keyboard:rows};
