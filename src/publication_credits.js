@@ -32,6 +32,15 @@ export async function credits(env,userId,type,kind="",profileId="",nonce=""){
 }
 
 // Owner-only adjustment preserves every claim, spend and grant revision.
+// Read-only financial operations from the same atomic credit object.
+export async function creditHistory(env,userId){
+ const id=String(userId);
+ if(!env.ORDER_REMINDERS||!/^\d{5,16}$/.test(id))throw Error("Credits unavailable");
+ const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("publication-credits:"+id));
+ const res=await object.fetch("https://credits.internal/",{method:"POST",body:JSON.stringify({type:"credits_history",userId:id})});
+ if(!res.ok)throw Error("Credit history unavailable");
+ return res.json();
+}
 export async function adjustCredits(env,userId,target,expected,operation,actorId){
  await credits(env,userId,"status");
  const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("publication-credits:"+userId));
