@@ -84,11 +84,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .moderation-empty p{color:#bfb099;font-size:13px;line-height:1.65;margin:11px 0 0}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const exampleClients=[{id:'1000012345',username:'camelia_demo',active:true,grant:12,spent:4,reserved:1,agreement:true,pin:'******'},{id:'1000056789',username:'rose_client',active:true,grant:6,spent:2,reserved:0,agreement:true,pin:'******'},{id:'1000098765',username:null,active:false,grant:3,spent:1,reserved:0,agreement:false,pin:'******'}];
-const examples=[{id:'r1',uid:'1000012345',profile:'421',account:'Ян Первый',date:'16.10.2026',text:'Встреча прошла приятно. Общение было доброжелательным, всё соответствовало описанию анкеты.',status:'pending',original:null},{id:'r2',uid:'1000056789',profile:'258',account:'Ян Первый',date:'15.10.2026',text:'Хочу отметить приятное общение и внимательное отношение.',status:'approved',original:null}];
-const archive=[{uid:'1000012345',profile:'421',account:'Ян Первый',kind:'Оценка',date:'16.10.2026',proof:true},{uid:'1000012345',profile:'421',account:'Ян Первый',kind:'Отзыв',date:'15.10.2026',proof:true},{uid:'1000056789',profile:'258',account:'Ян Первый',kind:'Оценка',date:'15.10.2026',proof:true}];
-const moderationConnected=false; // keep disabled until the source queue exposes authoritative review versions
-let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -106,7 +102,7 @@ const AdminDataAdapter={
   getAgreementStatus:async id=>Boolean(cby(String(id))?.agreement),
   // Production adapter: registry(create/topup/pin/suspend/resume), adjustCredits,
   // credits(status/history), cabinetRPC(admin_archive), moderationRPC; server auth required.
-};const b=(label,call,css='secondary')=>`<button class="${css}" onclick="${call}">${label}</button>`;const link=(icon,label,call,right='›')=>`<button class="linkrow" onclick="${call}"><span class="linkico">${icon}</span><span class="flex">${label}</span><span class="chev">${right}</span></button>`;const go=(page,extra={})=>{Object.assign(state,{page,...extra});render();scrollTo({top:0,behavior:'instant'})};const root=(page)=>{go(page,{client:null,review:null,query:'',wizard:null,action:null,ack:''})};
+};const b=(label,call,css='secondary')=>`<button class="${css}" onclick="${call}">${label}</button>`;const link=(icon,label,call,right='›')=>`<button class="linkrow" onclick="${call}"><span class="linkico">${icon}</span><span class="flex">${label}</span><span class="chev">${right}</span></button>`;const go=(page,extra={})=>{Object.assign(state,{page,...extra});render();scrollTo({top:0,behavior:'instant'})};const root=(page)=>{go(page,{client:null,review:null,query:'',wizard:null,action:null,ack:''});if(page==='reviews')reloadReviewHistory()};
 const archiveDate=x=>/^\d{8}$/.test(String(x||''))?String(x).slice(6,8)+'.'+String(x).slice(4,6)+'.'+String(x).slice(0,4):String(x||'');const accountName=x=>({yan_first:'Ян Первый',yan_second:'Ян Второй'})[x]||x;
 const back=(call)=>`<button class="back" onclick="${call}" aria-label="Назад"><span class="back-arrow" aria-hidden="true">←</span><span>Назад</span></button>`;
 const actionTile=(icon,label,detail,call,extra='')=>`<button class="action-tile ${extra}" onclick="${call}" aria-label="${esc(label)}"><span class="tile-icon" aria-hidden="true">${icon}</span><span><span class="tile-label">${esc(label)}</span><span class="tile-hint" style="display:block;margin-top:4px">${esc(detail)}</span></span></button>`;
@@ -115,12 +111,17 @@ if(p==='clients'){let matches=clients.filter(c=>c.id.includes(state.query.trim()
 else if(p==='client'){let c=cby(state.client);if(!c){root('clients');return}h=`${back("root('clients')")}<div class="row"><div><h1>${normalizeUsername(c.username)?username(c):"Клиентка · ID"}</h1><div class="small muted">${normalizeUsername(c.username)?"Telegram ID "+esc(c.id):esc(c.id)+" · Ник не указан"}</div></div><span class="status ${c.active?'':'off'}">${c.active?'Активна':'Приостановлена'}</span></div><div class="summary"><div class="mini">БАЛАНС ПУБЛИКАЦИЙ</div><div class="number">${available(c)} <span class="balance-caption">доступно</span></div><div class="balance-stats"><div><span class="balance-stat-label">Использовано за всё время</span><b>${Number(c.spent)||0}</b></div><div><span class="balance-stat-label">Всего начислено</span><b>${Number.isFinite(Number(c.grant))?Number(c.grant):'—'}</b></div></div></div>${b('＋  Пополнить баланс',"startAction('topup')",'primary')}<div class="agreement-compact"><span class="agreement-caption"><span class="agreement-icon">▣</span> Соглашение</span><span class="${c.agreement?'status':'status off'}">${c.agreement?'Подписано':'Не подписано'}</span></div><div class="section action-heading">Быстрое управление</div><div class="action-grid">${actionTile('⚖','Изменить остаток','Корректировка баланса',"startAction('balance')")}${actionTile('⌘','Код доступа','Сменить PIN',"startAction('pin')")}${actionTile(c.active?'◷':'▷',c.active?'Приостановить доступ':'Восстановить доступ',c.active?'Ограничить вход':'Открыть вход',"startAction('access')",(c.active?'danger-tile ':'')+'action-wide')}</div><button class="archive-compact" onclick="openArchive()"><span aria-hidden="true">▤</span><span>Публикации и подтверждения</span><span aria-hidden="true">›</span></button><div class="watermark">Операции выполняются сервером и требуют подтверждения</div>`}
 else if(p==='archive'){let a=archive.filter(x=>x.uid===state.client&&(x.profile.includes(state.archquery)||x.account.toLowerCase().includes(state.archquery.toLowerCase())||archiveDate(x.date).includes(state.archquery)));h=`${back("go('client')")}<h1>Публикации</h1><p class="small muted">Клиентка ${esc(state.client)}</p><input class="search" placeholder="⌕  Анкета, мужчина, дата" value="${esc(state.archquery)}" oninput="searchArchive(this.value)"><div class="section">История · ${a.length}</div><div class="list">${a.map((x,i)=>`<button class="listitem" onclick="go('proof',{proof:${archive.indexOf(x)}})"><span class="avatar">${x.kind==='Оценка'?'☆':'✎'}</span><span class="flex"><span class="strong">${x.kind} · Анкета №${x.profile}</span><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Подтверждения не найдены</div>'}</div>`}
 else if(p==='proof'){let x=archive[state.proof];h=`${back("go('archive')")}<h1>Подтверждение</h1><div class="card"><strong>${x.kind} · анкета №${x.profile}</strong><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div><div class="thin"></div><div class="fakeproof">▧<br>${x.proof?'<button class="secondary" onclick="loadProof()">Открыть скриншот</button><div id="proof-image" class="hint">Скриншот загружается только по вашему запросу</div>':'Скриншот не сохранён. Публикация есть в архиве.'}</div></div>`}
-else if(p==='reviews'){const r=reviews.filter(x=>state.filter==='all'||(state.filter==='done'?['approved','cancelled','published'].includes(x.status):['pending','editing'].includes(x.status)));
- const pending=reviews.filter(x=>['pending','editing'].includes(x.status)).length;
- h=`<div class="toprow"><div><h1>Отзывы</h1><div class="muted small">Входящие отзывы · решения и история</div></div><span class="count" aria-label="Ожидают проверки">${pending} новых</span></div>
- <div class="chipbar"><button class="chip ${state.filter==='pending'?'selected':''}" onclick="filterReviews('pending')">Входящие</button><button class="chip ${state.filter==='done'?'selected':''}" onclick="filterReviews('done')">История</button></div>
- ${!moderationConnected?'<div class="moderation-empty"><div class="mod-emblem">✦</div><strong>Модерация в подготовке</strong><p>Реальные отзывы пока обрабатываются в прежнем ADMIN. Здесь не отображаются фиктивные заявки и не выполняются дублирующие решения.</p></div>':`<div class="list">${r.map(x=>`<button class="listitem" onclick="go('review',{review:'${esc(x.id)}',editor:''})"><span class="avatar">✎</span><span class="flex"><span class="strong">Анкета №${esc(x.profile)}</span><div class="light">${esc(accountName(x.account))} · ${esc(x.date)}</div><div class="light">${esc(x.status)}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">В этом разделе пока нет отзывов</div>'}</div>`}`}
-else if(p==='review'){let x=reviews.find(y=>y.id===state.review);h=`${back("go('reviews')")}<h1>Отзыв</h1><div class="muted small">Анкета №${x.profile} · ${x.account}</div><div class="card"><div class="row"><span class="mini">ТЕКСТ ОТЗЫВА</span><span class="date">${x.date}</span></div><div class="reviewtext">${esc(x.text)}</div>${x.original?`<div class="thin"></div><div class="muted small">Исходный текст сохранён в истории корректировок</div>`:''}</div>${x.status==='pending'?`${b('Опубликовать',"startAction('approve')",'primary')}<div style="height:9px"></div>${b('✎  Скорректировать',"startAction('edit')")}${b('Отклонить',"startAction('reject')",'secondary danger')}`:`<div class="note">${x.status==='approved'?'Решение: одобрен':'Решение: отклонён'}. Это демонстрационный статус.</div>`}`}
+else if(p==='reviews'){
+ const entries=reviewHistory.filter(x=>x.userId.includes(state.reviewQuery.trim())||x.profileId.includes(state.reviewQuery.trim())||accountName(x.account).toLowerCase().includes(state.reviewQuery.trim().toLowerCase())||archiveDate(x.date).includes(state.reviewQuery.trim()));
+ h=`<div class="toprow"><div><h1>История отзывов</h1><div class="muted small">Подтверждённые публикации из общего архива</div></div><span class="count">${entries.length}</span></div>
+ <input class="search" id="review-search" placeholder="⌕  Клиентка, анкета, мужчина, дата" value="${esc(state.reviewQuery)}" oninput="searchReviewHistory(this.value)">
+ ${historyLoadError?'<div class="note">'+esc(historyLoadError)+'</div>':''}
+ ${historyPartial?'<div class="note">Часть архивов временно недоступна. Показаны полученные записи.</div>':''}
+ <div class="section">Опубликованные отзывы · ${entries.length}</div>
+ <div class="list">${entries.map(x=>`<button class="listitem" onclick="openHistoryProof(${reviewHistory.indexOf(x)})"><span class="avatar">✎</span><span class="flex"><span class="strong">Анкета №${esc(x.profileId)} · ${esc(accountName(x.account))}</span><div class="light">Клиентка ID ${esc(x.userId)} · ${esc(archiveDate(x.date))}</div><div class="light"><span class="status">Опубликовано</span> · ${x.proof?'Скриншот сохранён':'Без скриншота'}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Опубликованных отзывов по запросу нет</div>'}</div>
+ <div class="watermark">Только подтверждённые публикации. Решения модерации остаются в прежнем ADMIN.</div>`;
+}
+else if(p==='proof'){let x=archive[state.proof];if(!x){go('reviews');return;}h=`${back(state.fromReviews?"go('reviews')":"go('archive')")}<h1>Подтверждение</h1><div class="card"><strong>${x.kind} · анкета №${esc(x.profile)}</strong><div class="light">${esc(accountName(x.account))} · ${esc(archiveDate(x.date))}</div><div class="thin"></div><div class="fakeproof">▧<div>${x.proof?'<button class="secondary" onclick="loadProof()">Открыть скриншот</button><div id="proof-image" class="hint">Изображение загружается по запросу</div>':'Скриншот не сохранён в архиве'}</div></div></div>`;}
 else if(p==='form'){h=formContent()}
 else if(p==='confirm'){h=confirmContent()}
 el.innerHTML=h;}
@@ -156,6 +157,26 @@ async function reloadClients(){
   state.page='clients';render();
  }catch(e){clients=[];reviews=[];render();toast('ADMIN недоступен: '+e.message)}
 }
+async function reloadReviewHistory(){
+ historyLoadError='';historyPartial=false;
+ try{
+  const data=await callAdmin('review_history');
+  reviewHistory=(data.items||[]).map(x=>({...x}));
+  historyPartial=!!data.partial;
+ }catch(e){reviewHistory=[];historyLoadError='Не удалось загрузить историю: '+e.message}
+ if(state.page==='reviews')render();
+}
+function searchReviewHistory(value){
+ state.reviewQuery=value;render();
+ const input=document.getElementById('review-search');
+ if(input){input.focus();input.setSelectionRange(value.length,value.length)}
+}
+function openHistoryProof(index){
+ const x=reviewHistory[index];if(!x)return;
+ archive.length=0;
+ archive.push({uid:x.userId,profile:x.profileId,account:x.account,kind:'Отзыв',kindKey:'review',date:x.date,proof:x.proof});
+ go('proof',{proof:0,fromReviews:true});
+}
 async function openClient(id){
  try{
   const r=await callAdmin('client',{userId:id});
@@ -188,7 +209,7 @@ async function openArchive(){
   const r=await callAdmin('archive',{userId:state.client});
   archive.length=0;
   for(const x of (r.archive?.items||[]))archive.push({uid:state.client,profile:String(x.profileId||''),account:x.account||'',kind:x.kind==='rating'?'Оценка':'Отзыв',date:String(x.date||''),proof:!!x.fileId,kindKey:x.kind,fileId:null});
-  go('archive',{archquery:''});
+  go('archive',{archquery:'',fromReviews:false});
  }catch(e){toast('Не удалось открыть архив: '+e.message)}
 }
 let pendingOperation=null,busy=false;
