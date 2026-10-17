@@ -405,26 +405,29 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const checkbox=document.createElement("input");checkbox.type="checkbox";checkbox.checked=false;
     const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);editor.append(elsewhere);
     updateProgress();
-    const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Заполнить заново";
+    const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Очистить ответы";reset.hidden=true;
     reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
     const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";save.hidden=true;editor.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
       const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
       const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error("Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
-      result.textContent="✅ Оценки сохранены.";
+      result.textContent="";
       const previous=editor.querySelector(".draft-review");if(previous)previous.remove();
-      const review=document.createElement("div");review.className="draft-review";for(const section of summaries)section.hidden=true;navigation.hidden=true;stepStatus.hidden=true;
-      const title=document.createElement("h3");title.textContent="🌹 Ваши оценки";review.append(title);
+      const review=document.createElement("div");review.className="draft-review";for(const section of summaries)section.hidden=true;navigation.hidden=true;stepStatus.hidden=true;progress.hidden=true;hint.hidden=true;elsewhere.hidden=true;reset.hidden=true;
+      const title=document.createElement("h3");title.textContent="✅ Оценки подготовлены";review.append(title);
+      const subtitle=document.createElement("p");subtitle.className="muted";subtitle.textContent="Анкета №"+selected.id+" · выбрано "+Object.keys(saved.selected||{}).length+" пунктов. Проверьте итог перед публикацией.";review.append(subtitle);
+      const details=document.createElement("details");details.className="rating-group";const summary=document.createElement("summary");summary.className="rating-group-summary";summary.textContent="📋 Посмотреть выбранные оценки";details.append(summary);review.append(details);
       const rows=Object.entries(saved.selected||{}).sort((a,b)=>Number(a[0])-Number(b[0]));
       for(const [index,value] of rows){const field=data.catalog[Number(index)];if(!field)continue;
        const row=document.createElement("div");row.className="draft-preview-item";
        const name=document.createElement("span");name.textContent=field.label;
-       const chosen=document.createElement("strong");chosen.textContent=value;row.append(name,chosen);review.append(row);}
-      if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";review.append(extra);}
-      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
-      const notice=document.createElement("p");notice.className="muted";notice.textContent="Оценки сохранены.";
-      const again=document.createElement("button");again.type="button";again.className="ghost";again.textContent="↺ Заполнить заново";again.onclick=()=>{reset.click();};review.append(notice,back,again);editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
+       const chosen=document.createElement("strong");chosen.textContent=value;row.append(name,chosen);details.append(row);}
+      if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";details.append(extra);}
+      const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;progress.hidden=false;hint.hidden=false;elsewhere.hidden=false;reset.hidden=true;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
+      const publish=document.createElement("div");publish.className="proof-note";publish.textContent="Для отправки на публикацию требуется заключительная проверка. Сейчас она доступна в Telegram-кабинете.";
+      back.textContent="✏️ Изменить оценки";
+      review.append(publish,back);editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
    }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
