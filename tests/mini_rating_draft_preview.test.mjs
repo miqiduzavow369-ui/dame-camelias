@@ -12,7 +12,7 @@ test('rating draft is constrained to saved profile and authenticated cabinet',()
  assert.match(runtime,/value:value\.slice\(0,50\)/);
 });
 test('draft preview does not mutate publication',()=>{
- assert.match(html,/Сохранённый выбор оценок/);
- assert.match(html,/не подтверждение публикации/);
+ assert.match(html,/Черновик оценок/);
+ assert.match(html,/Публикация отдельно и только после подтверждения/);
  assert.match(html,/Публикация пока выполняется только через рабочий Telegram-кабинет/);
 });
