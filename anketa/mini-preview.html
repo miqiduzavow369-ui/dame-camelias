@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>DAME CAMELIAS · Мои анкеты</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>
+<style>[hidden]{display:none!important}
 :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f9edf4;background:#110817}
 *{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(circle at 90% -10%,#62264b55,transparent 55%),#110817;padding:0 0 105px}.app{max-width:540px;margin:auto;padding:20px 17px}
 header{display:flex;justify-content:space-between;align-items:center;padding:13px 2px 22px}.logo{font-size:17px;font-weight:850;letter-spacing:2px;color:#e9c687}.tag{color:#e7b8cb;font-size:11px;border:1px solid #684251;border-radius:100px;padding:6px 10px}
@@ -400,7 +400,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const again=document.createElement("button");again.type="button";again.className="ghost";again.textContent="↺ Заполнить заново";again.onclick=()=>{reset.click();};review.append(notice,back,again);panel.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
-   }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;panel.append(error);panel.hidden=false;}
+   }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
    finally{loadForm.disabled=false;loadForm.textContent="⭐ Начать заполнение";}
   };
   body.append(panel);
