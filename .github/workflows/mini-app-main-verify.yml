@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'anketa/**'
+      - 'tests/**'
       - '.github/workflows/mini-app-main-verify.yml'
   workflow_dispatch:
 permissions:
