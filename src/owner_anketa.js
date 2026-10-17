@@ -2357,6 +2357,59 @@ async function miniRatingFormLoad(env,profileId){
  return {ok:true,profile:{id:state.profile.id,name:state.profile.name},catalog,
   selected:state.selected||{},metElsewhere:state.metElsewhere===true};
 }
+async function miniRatingAction(env,profileId,action){
+ if(!ID_PATTERN.test(String(profileId))||!["prepare","status","publish"].includes(action))return {ok:false,reason:"invalid_request"};
+ const state=await stateGet(env);
+ if(!state||String(state.profile?.id||state.id)!==String(profileId)||state.account!==ACTIVE_ACCOUNT)
+  return {ok:false,reason:"not_ready"};
+ const prior=await publicationStatus(env,profileId,"rating");
+ if(prior)return {ok:true,stage:prior.status==="published"?"published":"checking"};
+ if(action==="status"){
+  return {ok:true,stage:state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000?"ready":
+    state.step==="prepublish_ready"?"expired":state.step==="dryfill_loading"?"preparing":
+    state.step==="publishing"?"publishing":state.step==="ratings_agreed"?"failed":
+    state.step==="ratings"?"draft":"checking"};
+ }
+ if(action==="prepare"){
+  if(state.step==="dryfill_loading")return {ok:true,stage:"preparing"};
+  if(state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000)return {ok:true,stage:"ready"};
+  if(state.step!=="ratings"||!state.draftReady||!Object.keys(state.selected||{}).length)return {ok:false,reason:"not_ready"};
+  if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
+  const approved={...state,step:"ratings_agreed",agreedAt:Date.now()};
+  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  const pending={...approved,step:"dryfill_loading",id:String(profileId),previousNonce:state.nonce,nonce,prepublish:true};
+  if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
+  const started=await dispatchLookup(env,profileId,nonce,"dryfill",state.host).catch(()=>({ok:false}));
+  if(!started.ok){await statePut(env,approved);return {ok:false,reason:"dispatch_failed"};}
+  return {ok:true,stage:"preparing"};
+ }
+ if(state.step!=="prepublish_ready"||!state.readyAt||Date.now()-state.readyAt>900000)return {ok:false,reason:"expired"};
+ if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
+ const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
+ if(!Number.isSafeInteger(balance?.available)||balance.available<1)return {ok:false,reason:"credits"};
+ const day=moscowDay(),token=state.nonce;
+ let reservedDay=false,reservedCredit=false;
+ try{
+  const slot=await dailyLimit(env,OWNER_ID,profileId,"reserve","rating",token,day);
+  if(!slot?.ok)return {ok:false,reason:"daily_limit"};reservedDay=true;
+  const cr=await credits(env,OWNER_ID,"reserve","rating",profileId,token);
+  if(!cr?.ok)return {ok:false,reason:"credits"};reservedCredit=true;
+  const claim=await claimPublication(env,OWNER_ID,profileId,"rating",token);
+  if(!claim?.ok)return {ok:false,reason:"already_published_or_pending"};
+  if(!await recordPublication(env,profileId,"rating","publishing","mini-app-confirmation",{userId:OWNER_ID,creditNonce:token,dailyDate:day}))
+   return {ok:false,reason:"already_published_or_pending"};
+  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+  const pending={...state,step:"publishing",id:String(profileId),creditNonce:token,dailyDate:day,
+   nonce,previousNonce:token,readyAt:null,confirmedAt:Date.now(),dispatchPending:true};
+  if(!await statePut(env,pending))return {ok:false,reason:"state_failure"};
+  const dispatch=await dispatchLookup(env,profileId,nonce,"publish",state.host).catch(()=>null);
+  if(dispatch?.definitiveFailure)await releaseUnsubmitted(env,profileId,"rating",token,day);
+  return {ok:true,stage:"publishing"};
+ }finally{
+  // Never release a claim after an ambiguous external dispatch or publication start.
+  if(reservedDay&&!reservedCredit)await dailyLimit(env,OWNER_ID,profileId,"release","rating",token,day).catch(()=>{});
+ }
+}
 async function miniRatingDraftSave(env,profileId,selected,metElsewhere){
  const gate=await miniRatingFormLoad(env,profileId);
  if(!gate.ok)return gate;
@@ -2429,7 +2482,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniReviewDraft,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniReviewDraft,miniRatingAction,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
