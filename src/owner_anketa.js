@@ -952,7 +952,7 @@ async function handleAnketaLookupResult(request,env,send) {
   const current=await stateGet(env);
   if(current?.step==="domain_refresh_verify"&&current.id===id&&current.nonce===nonce&&data.mode==="domain_probe"){
     const verified=data.status==="found"?validProfile(data.profile,id,current.host):null;
-    if(!verified){await statePut(env,{step:"domain_recovery",id,recoveryKey:current.recoveryKey});await showDomainRecovery(env,send,id);return Response.json({ok:true,domainUpdated:false});}
+    if(!verified){await statePut(env,{step:"domain_recovery",id,recoveryKey:current.recoveryKey,miniApp:current.miniApp===true});await showDomainRecovery(env,send,id);return Response.json({ok:true,domainUpdated:false});}
     if(!await resumeVerifiedDomain(env,send,current))return new Response("Recovery context unavailable",{status:409});
     return Response.json({ok:true,domainUpdated:true});
   }
@@ -1370,8 +1370,8 @@ async function requestDomainRecovery(env,send,resume,mode){
  const original="cabinet_operation:"+OWNER_ID+":"+resume.nonce;
  if(/^[a-f0-9]{12}$/.test(resume.nonce||"")&&await env.VISITORS_KV.get(original))
   await env.VISITORS_KV.put(original,JSON.stringify({...resume,step:"domain_recovery",id,recoveryKey:key}));
- await statePut(env,{step:"domain_recovery",id,recoveryKey:key});
- if(!env.__operationKey)await clearProgress(env,send);
+ await statePut(env,{step:"domain_recovery",id,recoveryKey:key,miniApp:resume.miniApp===true});
+ if(!resume.miniApp&&!env.__operationKey)await clearProgress(env,send);
  await showDomainRecovery(env,send,id,!!env.__operationKey);return true;
 }
 async function verifyRecoveryLink(env,send,state,text,messageId){
@@ -2357,6 +2357,28 @@ async function miniReviewDraft(env,profileId,action,text){
  await reviewDraftSave(env,{id:String(profileId),account:ACTIVE_ACCOUNT,text});
  return {ok:true,text,saved:true};
 }
+async function miniDomainRecovery(env,profileId,action,url){
+ if(!ID_PATTERN.test(String(profileId))||!["status","start"].includes(action))return {ok:false,reason:"invalid_request"};
+ const key=DOMAIN_RESUME_KEY+profileId;
+ const recovery=await env.VISITORS_KV.get(key,"json");
+ const state=await stateGet(env);
+ const permitted=recovery?.id===String(profileId)&&recovery.resume?.miniApp===true;
+ if(action==="status"){
+  if(!permitted)return {ok:true,stage:"complete"};
+  return {ok:true,stage:state?.step==="domain_refresh_verify"&&state.id===String(profileId)&&state.recoveryKey===key?"verifying":"required"};
+ }
+ if(!permitted||state?.step!=="domain_recovery"||state.recoveryKey!==key)return {ok:false,reason:"not_ready"};
+ const link=parseProfileLink(url);
+ if(!link||link.id!==String(profileId))return {ok:false,reason:"invalid_link"};
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+ await statePut(env,{step:"domain_refresh_verify",id:String(profileId),host:link.host,nonce,recoveryKey:key,miniApp:true});
+ const started=await dispatchLookup(env,profileId,nonce,"domain_probe",link.host).catch(()=>({ok:false}));
+ if(!started.ok){
+  await statePut(env,{step:"domain_recovery",id:String(profileId),recoveryKey:key,miniApp:true});
+  return {ok:false,reason:"lookup_failed"};
+ }
+ return {ok:true,stage:"verifying"};
+}
 async function miniRatingOpen(env,profileId){
  if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
  const record=await savedGet(env,profileId);
@@ -2555,7 +2577,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniReviewAction,miniReviewDraft,miniRatingAction,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniDomainRecovery,miniReviewAction,miniReviewDraft,miniRatingAction,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
