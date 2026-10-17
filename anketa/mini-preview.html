@@ -130,6 +130,39 @@ p,.muted,.mini{color:#b6ab99}
 #tab-profiles .profile-row .card{border-color:#b68c4c;background:linear-gradient(105deg,#211910f2,#0c0b0afb 75%);box-shadow:inset 0 1px #ffdfa32c,0 8px 25px #0008}
 #tab-profiles .agreement-open{border-color:#d1a85b;box-shadow:inset 0 1px #e8c18422,0 0 17px #d49e3e17}
 #tab-profiles .section-heading{border-bottom:1px solid #76552a4d;padding-bottom:5px}
+
+/* Approved uploaded work background, keep all existing DOM positions and interactions. */
+#tab-profiles{isolation:isolate}
+#tab-profiles::before{
+ content:"";position:absolute;z-index:-1;pointer-events:none;
+ inset:-16px -17px auto;min-height:1100px;opacity:1;
+ background-image:linear-gradient(to bottom,#0807060a 0%,#09080608 28%,#0b090841 63%,#090807 97%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/IMG_7316.PNG");
+ background-position:center top,center top;background-repeat:no-repeat;
+ background-size:100% 100%,100% auto;
+ -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 67%,transparent 100%);
+ mask-image:linear-gradient(to bottom,#000 0%,#000 67%,transparent 100%);
+}
+#tab-profiles::after{content:none;display:none}
+#tab-profiles .hero,
+#tab-profiles .card,
+#tab-profiles .profile-row .card,
+#tab-profiles .action:not(.profile),
+#tab-profiles .agreement-open,
+#tab-profiles .man-tile,
+#tab-profiles .stat{
+ background:linear-gradient(135deg,#17120dcc,#0c0b0ac9 62%,#151009d9);
+ border-color:#c69d55;
+ -webkit-backdrop-filter:blur(12px) saturate(105%);
+ backdrop-filter:blur(12px) saturate(105%);
+ box-shadow:inset 0 1px #ffdd9d42,0 6px 20px #0009,0 0 12px #a97a311c;
+}
+#tab-profiles .action:not(.profile),#tab-profiles .agreement-open{
+ background:linear-gradient(115deg,#21190dba,#0b0a09a6 68%,#2a1b0bbb);
+}
+#tab-profiles .hero{background:linear-gradient(125deg,#271a0cc2,#0c0a08b2 65%,#171009b8)}
+#tab-profiles .section-heading h2,#tab-profiles h1{color:#ffe9ba;text-shadow:0 1px 14px #dba44b55}
+#tab-profiles .gold,#tab-profiles .number,#tab-profiles .stat strong{color:#ffd38b;text-shadow:0 0 13px #f1b95c55}
+#tab-profiles .action .next,#tab-profiles .arrow{color:#f8c772}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
