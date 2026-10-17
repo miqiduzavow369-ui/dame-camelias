@@ -293,7 +293,8 @@ function renderFinance(){
  $("financeGranted").textContent=Number.isSafeInteger(f.totalGranted)?String(f.totalGranted):"—";
  $("financeSpent").textContent=Number.isSafeInteger(f.spent)?String(f.spent):"—";
  const entries=Array.isArray(f.events)?f.events:[];
- const filtered=entries.filter(e=>financeFilter==="all"||financeFilter==="spent"&&e.type==="spend"||financeFilter==="topup"&&e.type==="adjust"&&e.delta>0);
+ const topups=(Array.isArray(f.topups)?f.topups:[]).map(e=>({...e,delta:e.amount,origin:"registry"}));
+ const filtered=[...entries,...topups].filter(e=>financeFilter==="all"||financeFilter==="spent"&&e.type==="spend"||financeFilter==="topup"&&(e.type==="adjust"&&e.delta>0||e.origin==="registry")).sort((a,b)=>(b.at||0)-(a.at||0));
  function addEntry(date,title,detail,delta,icon,style){
   const wrap=document.createElement("div");wrap.className="finance-entry";
   const stamp=document.createElement("div");stamp.className="finance-date";stamp.textContent=date;wrap.append(stamp);
@@ -307,15 +308,18 @@ function renderFinance(){
  const stamp=at=>Number.isFinite(at)?new Date(at).toLocaleString("ru-RU",{timeZone:"Europe/Moscow",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"})+" · МСК":"Дата не сохранена";
  for(const e of filtered){
   if(!e||!Number.isFinite(e.at))continue;
-  const man=history.find(item=>item.profileId===String(e.profileId)&&item.kind===e.kind)?.account;
+  const man=history.find(item=>item.id===String(e.profileId)&&item.kind===e.kind)?.account;
   const manText=man?accountName(man):"Мужчина не указан в финансовом журнале";
   const detail=e.profileId?manText+" · Анкета №"+String(e.profileId):"Изменение баланса администратором";
-  if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1",e.kind==="rating"?"⭐":"✍️","minus");
+  if(e.origin==="registry"){
+   addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма старой операции не записана":"Начислено администратором",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
+  }
+  else if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1",e.kind==="rating"?"⭐":"✍️","minus");
   else if(e.type==="reserve")addEntry(stamp(e.at),"Публикация ожидает подтверждения",detail,"⏳", "⏳","neutral");
   else if(e.type==="adjust")addEntry(stamp(e.at),e.delta>0?"Пополнение баланса":"Корректировка баланса","Изменение администратором",(e.delta>0?"+":"")+e.delta,e.delta>0?"💎":"⚖️",e.delta>0?"plus":"minus");
  }
  if(financeFilter==="all"||financeFilter==="topup"){
-  if(Number.isSafeInteger(f.grant)&&f.grant>0)addEntry("Дата первоначального начисления не сохранена","Первоначальные начисления","Подтверждённый общий объём начислений, без вымышленной даты","+"+f.grant,"💎","plus");
+  if(Number.isSafeInteger(f.grant)&&f.grant>0&&!topups.length)addEntry("Дата первоначального начисления не сохранена","Начисления до ведения истории","Подтверждённая суммарная величина, без выдуманной даты","+"+f.grant,"💎","plus");
  }
  if(!root.children.length)root.textContent="Операций этой категории пока нет.";
  if(f.complete===false){const p=document.createElement("p");p.className="muted";p.textContent="Показаны последние 500 операций.";root.append(p);}
