@@ -464,7 +464,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const actionStatus=document.createElement("p");actionStatus.setAttribute("aria-live","polite");
       const publish=document.createElement("button");publish.type="button";publish.className="primary";publish.textContent="🔎 Проверить результат";
       const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
-      const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Опубликовать оценки";send.hidden=true;
+      const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Подтвердить публикацию";send.hidden=true;
       const requestAction=async action=>{
        const response=await fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
        const payload=await response.json().catch(()=>({}));
@@ -473,16 +473,16 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       };
       const reflect=stage=>{
        const waiting=["preparing","publishing","checking"].includes(stage);
-       publish.hidden=stage!=="draft"&&stage!=="failed";
+       publish.hidden=stage!=="draft"&&stage!=="failed"&&stage!=="expired";
        check.hidden=!waiting;
        send.hidden=stage!=="ready";
-       back.hidden=stage!=="ready"&&stage!=="failed"&&stage!=="expired";
+       back.hidden=stage!=="ready";
        actionStatus.textContent=stage==="preparing"?"⏳ Проверяем данные на сайте. Обычно это занимает пару минут. Нажмите «Посмотреть результат».":stage==="ready"?"✅ Проверка пройдена. Теперь можно изменить оценки или опубликовать их.":stage==="publishing"||stage==="checking"?"⏳ Публикация выполняется. Нажмите «Посмотреть результат» чуть позже.":stage==="published"?"✅ Оценки опубликованы. Подтверждение появится в истории.":stage==="failed"?"⚠️ Подготовка не завершилась. Можно повторить проверку.":stage==="expired"?"⏳ Время подтверждения истекло. Подготовьте оценки ещё раз.":"";
       };
       publish.onclick=async()=>{publish.disabled=true;actionStatus.textContent="⏳ Запускаем проверку…";try{const x=await requestAction("prepare");reflect(x.stage);}catch(e){actionStatus.textContent="⚠️ "+e.message;}finally{publish.disabled=false;}};
       check.onclick=async()=>{check.disabled=true;try{const x=await requestAction("status");reflect(x.stage);}catch(e){actionStatus.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
       send.onclick=async()=>{send.disabled=true;try{const x=await requestAction("publish");reflect(x.stage);}catch(e){actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
-      review.append(publish,check,back,send,actionStatus);reflect("draft");editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
+      review.append(publish,check,actionStatus,back,send);reflect("draft");editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
    }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+e.message;const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
