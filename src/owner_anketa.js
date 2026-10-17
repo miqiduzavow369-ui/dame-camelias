@@ -2286,6 +2286,39 @@ async function ownerRatingFormApi(request, env, send, verifyTelegram) {
   return Response.json({ok:true});
 }
 
+async function miniReviewAction(env,profileId,action,text){
+ if(!ID_PATTERN.test(String(profileId))||!["submit","status"].includes(action))return {ok:false,reason:"invalid_request"};
+ const saved=await savedGet(env,profileId);
+ if(!saved?.confirmed)return {ok:false,reason:"not_saved"};
+ const receipt=await publicationStatus(env,profileId,"review");
+ if(receipt)return {ok:true,stage:receipt.status==="published"?"published":"waiting"};
+ const ticketKey=privatePrefix("mini_review_ticket_v1:")+profileId;
+ const activeTicket=await env.VISITORS_KV.get(ticketKey,"json");
+ if(action==="status"){
+  if(!activeTicket?.ticket)return {ok:true,stage:"draft"};
+  const record=await env.VISITORS_KV.get("cabinet_review_moderation:"+OWNER_ID+":"+activeTicket.ticket,"json");
+  if(record?.status==="cancelled")return {ok:true,stage:"rejected"};
+  if(record?.status==="delivery_unknown")return {ok:true,stage:"unknown"};
+  return {ok:true,stage:"waiting"};
+ }
+ if(activeTicket?.ticket)return {ok:true,stage:"waiting"};
+ if(typeof text!=="string"||text.trim().length<10||text.length>3000)return {ok:false,reason:"invalid_text"};
+ if(!await selectedAccount(env,profileId))return {ok:false,reason:"account_not_selected"};
+ const balance=await credits(env,OWNER_ID,"status").catch(()=>null);
+ if(!Number.isSafeInteger(balance?.available)||balance.available<1)return {ok:false,reason:"credits"};
+ const draft=await stateGet(env);
+ if(draft&&["publishing","review_dispatch","review_recheck","proof_loading","dryfill_loading","review_moderation"].includes(draft.step))return {ok:false,reason:"busy"};
+ const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,16);
+ const snapshot={step:"review_agreed",id:String(profileId),account:ACTIVE_ACCOUNT,text:text.trim(),nonce,agreedAt:Date.now(),host:saved.host};
+ const key="cabinet_review_moderation:"+OWNER_ID+":"+nonce;
+ await env.VISITORS_KV.put(key,JSON.stringify({status:"pending",snapshot}));
+ // Establish the ticket before delivery, so subsequent requests cannot enqueue another review.
+ await env.VISITORS_KV.put(ticketKey,JSON.stringify({ticket:nonce,at:Date.now()}));
+ const queued=await moderationRPC(env,OWNER_ID,nonce,{action:"enqueue",profileId:String(profileId),account:ACTIVE_ACCOUNT,text:snapshot.text}).catch(()=>null);
+ if(!queued?.ok){await env.VISITORS_KV.put(key,JSON.stringify({status:"delivery_unknown",snapshot}));return {ok:true,stage:"unknown"};}
+ await statePut(env,{...snapshot,step:"review_moderation",moderationTicket:nonce});
+ return {ok:true,stage:"waiting"};
+}
 async function miniReviewDraft(env,profileId,action,text){
  if(!ID_PATTERN.test(String(profileId)))return {ok:false,reason:"invalid_profile"};
  const record=await savedGet(env,profileId);
@@ -2486,7 +2519,7 @@ async function miniAddProfile(input) {
  }
  return {ok:false,reason:"invalid_action"};
 }
-return {miniReviewDraft,miniRatingAction,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
+return {miniReviewAction,miniReviewDraft,miniRatingAction,miniRatingOpen,miniRatingDraftSave,miniRatingFormLoad,miniAddProfile,miniDeleteProfile,moderateReview,ownerAllowed,ownerDryfillPayload,ownerReviewStage,ownerReviewPayload,thumbnailUrl,serveProfileThumbnail,handleAnketaLookupResult,handleOwnerAnketa,ownerRatingFormApi,showExhaustedCabinet};
 }
 const ownerCabinet=createCabinet();
 export const ownerAllowed = (...args) => ownerCabinet.ownerAllowed(...args);
