@@ -33,11 +33,13 @@ test('ADMIN writes reuse existing atomic providers',()=>{
  assert.doesNotMatch(api,/env\.VISITORS_KV\.put\(/);
 });
 
-test('ADMIN archive and agreement read paths are protected',()=>{
- assert.match(api,/agreementRPC\(env,uid,\{action:"view"\}\)/);
+test('ADMIN archive proofs are owner protected and agreement is status-only',()=>{
  assert.match(api,/action==="archive_proof"/);
  assert.match(api,/archive\.archive\?\.items\?\.find/);
- assert.match(html,/async function openAgreement\(/);
+ assert.match(api,/validWebApp\(input\?\.initData,env\.BOT_TOKEN/);
+ assert.match(api,/photos/);
+ assert.doesNotMatch(api,/agreement_view/);
+ assert.doesNotMatch(html,/openAgreement/);
  assert.match(html,/async function loadProof\(/);
  assert.match(html,/padding-bottom:calc\(170px/);
 });
