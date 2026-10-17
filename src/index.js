@@ -663,7 +663,7 @@ export default {
     if(request.method==="GET"&&url.pathname==="/anketa/mini-preview"){
       const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html");
       if(!result.ok)return new Response("Preview unavailable",{status:502});
-      return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
+      return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-preview"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
