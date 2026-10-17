@@ -134,7 +134,7 @@ export class OrderReminder {
           ledger.history=[...(ledger.history||[]),{type:"adjust",at:now,delta,operation:input.operation}];
           await storage.put("credits_v1",ledger);return Response.json({ok:true,available:input.target});
         }
-        if(input.type==="credits_history"){
+        if(input.type==="credits_history"||input.type==="credits_status"){
           // Read-only, user-isolated ledger. Never use publication archive as a financial ledger.
           const events=[];
           for(const [key,claim] of Object.entries(claims)){
@@ -153,11 +153,9 @@ export class OrderReminder {
           return Response.json({ok:true,available:balance,reserved:occupied,spent:ledger.spent,
             totalGranted:total,grant:ledger.grant,adjustment:ledger.adjustment||0,
             events:events.slice(0,500),complete:events.length<=500,
-            historicalGrantDatesAvailable:false});
+            historicalGrantDatesAvailable:false,remaining:total-ledger.spent});
         }
-        if(input.type==="credits_status")
-          return Response.json({grant:ledger.grant,spent:ledger.spent,
-            available:balance,reserved:occupied,remaining:ledger.grant+(ledger.adjustment||0)-ledger.spent});
+
         const key=String(input.kind)+":"+String(input.profileId||"");
         if(!["rating","review"].includes(input.kind) ||
            !/^\d{1,9}$/.test(String(input.profileId)) ||
