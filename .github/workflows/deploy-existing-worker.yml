@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'src/**'
+      - 'anketa/**'
       - '.github/workflows/deploy-existing-worker.yml'
   workflow_dispatch:
 permissions:
