@@ -2402,7 +2402,7 @@ async function miniRatingOpen(env,profileId){
  if(!catalog.length||catalog.length>120){
   if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
-  const pending={step:"ratings_loading",source:"mini_app",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,nonce};
+  const pending={step:"ratings_loading",miniApp:true,source:"mini_app",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,nonce};
   if(!await statePut(env,pending))return {ok:false,reason:"unavailable"};
   const started=await dispatchLookup(env,profileId,nonce,"ratings",record.host).catch(()=>({ok:false}));
   if(!started.ok){await statePut(env,{step:"chosen",account:ACTIVE_ACCOUNT,profile:record.profile,host:record.host,nonce});return {ok:false,reason:"lookup_failed"};}
@@ -2411,7 +2411,7 @@ async function miniRatingOpen(env,profileId){
  if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
  const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
  const draft=await ratingDraftGet(env,profileId,record.host,catalog);
- await statePut(env,{step:"ratings",account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,catalog,nonce,selected:draft.selected||{},metElsewhere:draft.metElsewhere===true,draftReady:draft.draftReady===true});
+ await statePut(env,{step:"ratings",miniApp:true,account:ACTIVE_ACCOUNT,id:String(profileId),profile:record.profile,host:record.host,catalog,nonce,selected:draft.selected||{},metElsewhere:draft.metElsewhere===true,draftReady:draft.draftReady===true});
  return miniRatingFormLoad(env,profileId);
 }
 async function miniRatingFormLoad(env,profileId){
