@@ -81,7 +81,7 @@ p,.muted,.mini{color:#b6ab99}
 </div><div class="proof-note" id="selectedAccountNote">Аккаунт выбран только для фильтрации истории в тестовой версии.</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Оригиналы подтверждений пока открываются в обычном Telegram-кабинете. Мы не показываем вымышленные скриншоты.</p></section>
+<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero"><div class="over">ПОДТВЕРЖДЕНО В АРХИВЕ</div><div class="number" id="publishedTotal">—</div><div class="hero-bottom">⭐ <span id="publishedRatings">0</span> оценок · ✍️ <span id="publishedReviews">0</span> отзывов</div></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
 <section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Кредиты, пополнение и учёт расходов — без дублирования вкладок «Работа» и «История».</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
@@ -189,8 +189,24 @@ function renderHistory(){
   if(entry.kind==="rating")ratings++;if(entry.kind==="review")reviews++;
   const row=document.createElement("div");row.className="card";
   const heading=document.createElement("b");heading.textContent=(entry.kind==="rating"?"⭐ Оценка":"✍️ Отзыв")+" · Анкета №"+entry.id;
-  const detail=document.createElement("p");detail.textContent=String(entry.date||"")+" · "+accountName(entry.account)+(entry.hasProof?" · 📸 Фото в архиве":" · Без фото в архиве");
-  row.append(heading,detail);published.append(row);
+  const detail=document.createElement("p");detail.textContent=( /^\d{8}$/.test(String(entry.date||""))?String(entry.date).slice(6,8)+"."+String(entry.date).slice(4,6)+"."+String(entry.date).slice(0,4):String(entry.date||""))+" · "+accountName(entry.account)+(entry.hasProof?" · 📸 Фото в архиве":" · Без фото в архиве");
+  row.append(heading,detail);
+  if(entry.hasProof){
+   const open=document.createElement("button");open.type="button";open.className="ghost";open.textContent="📸 Открыть подтверждение";
+   const note=document.createElement("p");note.setAttribute("aria-live","polite");
+   open.onclick=async()=>{open.disabled=true;note.textContent="⏳ Загружаю оригинал из архива…";
+    try{
+     const res=await fetch("/api/anketa/mini-proof",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:entry.id,kind:entry.kind,account:entry.account}),cache:"no-store"});
+     if(!res.ok)throw Error(res.status===404?"Подтверждение не найдено.":"Не удалось загрузить фото ("+res.status+").");
+     const blob=await res.blob();if(!blob.type.startsWith("image/"))throw Error("Неверный формат фото.");
+     const image=document.createElement("img");image.className="photo-large";image.alt="Оригинальное подтверждение анкеты №"+entry.id;
+     const url=URL.createObjectURL(blob);image.src=url;image.onload=()=>URL.revokeObjectURL(url);
+     row.querySelector(".proof-image")?.remove();const holder=document.createElement("div");holder.className="proof-image";holder.append(image);row.append(holder);
+     note.textContent="✅ Оригинал подтверждения";
+    }catch(e){note.textContent="⚠️ "+e.message;}finally{open.disabled=false;}
+   };row.append(open,note);
+  }
+  published.append(row);
  }
  $("publishedRatings").textContent=ratings;$("publishedReviews").textContent=reviews;$("publishedTotal").textContent=ratings+reviews;
  if(!matches.length)published.textContent="У выбранного аккаунта мужчины нет подтверждённых публикаций в архиве.";
