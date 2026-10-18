@@ -40,8 +40,11 @@ export class ManStagingAccounts {
  constructor(state,env){this.storage=state.storage;this.stagingBotToken=env?.MAN_STAGING_BOT_TOKEN;}
  async fetch(request){
   if(request.method!=="POST")return json({ok:false,reason:"method_not_allowed"},405);
-  const body=await request.json().catch(()=>null);
-  if(!body||body.ownerId!==OWNER_ID||
+  const parsed=await boundedJson(request);
+  if(parsed.tooLarge)return json({ok:false,reason:"too_large"},413);
+  const body=parsed.value;
+  if(!body)return json({ok:false,reason:"invalid_request"},400);
+  if(body.ownerId!==OWNER_ID||
      !await authenticatedStagingOwner(body.initData,this.stagingBotToken))
    return json({ok:false,reason:"forbidden"},403);
   try{
