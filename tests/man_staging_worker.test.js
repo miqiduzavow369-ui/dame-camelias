@@ -32,7 +32,7 @@ function storage(){
  };
 }
 function harness(){
- const account=new ManStagingAccounts({storage:storage()});
+ const account=new ManStagingAccounts({storage:storage()},{MAN_STAGING_BOT_TOKEN:TOKEN});
  const bindings={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{
   idFromName:name=>name,
   get:()=>({fetch:(url,request)=>account.fetch(new Request(url,request))})
