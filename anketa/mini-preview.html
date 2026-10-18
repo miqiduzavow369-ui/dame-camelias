@@ -322,6 +322,12 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 .rating-verify-hint{margin:16px 0 0;color:#c5b79f;font-size:13px;line-height:1.5}
 .rating-verify-card>.primary{min-height:48px;margin-top:14px}
 @media(max-width:360px){.rating-verify-identity{gap:11px}.rating-verify-image{flex-basis:78px;width:78px}.rating-verify-info strong{font-size:15px}}
+.rating-countdown{margin:14px 0 12px;padding:20px 17px 17px;border:1px solid #b28b51;border-radius:19px;background:radial-gradient(ellipse at 50% 0%,#49341f 0%,#231a11 48%,#110f0c 100%);box-shadow:inset 0 1px 0 #f2d7a52b,0 10px 26px #0005;text-align:center}
+.rating-countdown-heading{font-size:12px;letter-spacing:2px;font-weight:700;color:#dabd87}
+.rating-countdown-time{font-variant-numeric:tabular-nums;font-size:clamp(38px,11vw,54px);line-height:1.2;letter-spacing:2px;font-weight:750;color:#f6d69c;margin:12px 0 8px;text-shadow:0 2px 20px #b28b5140}
+.rating-countdown-bar{height:6px;overflow:hidden;border-radius:20px;background:#53402a;margin:13px 0 12px}
+.rating-countdown-progress{height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,#99703a,#efd19c);transition:width .4s linear}
+.rating-countdown-caption{color:#d3bea0;font-size:12px;line-height:1.5;margin:0}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -921,14 +927,22 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;progress.hidden=false;hint.hidden=false;elsewhere.hidden=false;reset.hidden=true;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       back.textContent="✏️ Изменить оценки";
       const actionStatus=document.createElement("p");actionStatus.setAttribute("aria-live","polite");
-      const waitingClock=document.createElement("span");
-      waitingClock.hidden=true;
-      waitingClock.style.cssText="display:block;font-weight:600;font-variant-numeric:tabular-nums;margin:6px 0 12px";
+      const waitingClock=document.createElement("section");
+      waitingClock.className="rating-countdown";waitingClock.hidden=true;
+      const countdownHeading=document.createElement("div");countdownHeading.className="rating-countdown-heading";countdownHeading.textContent="✦ ОЖИДАЕМ ПОДТВЕРЖДЕНИЕ ✦";
+      const countdownTime=document.createElement("div");countdownTime.className="rating-countdown-time";countdownTime.textContent="02:18";
+      const countdownBar=document.createElement("div");countdownBar.className="rating-countdown-bar";
+      const countdownProgress=document.createElement("div");countdownProgress.className="rating-countdown-progress";countdownBar.append(countdownProgress);
+      const countdownCaption=document.createElement("p");countdownCaption.className="rating-countdown-caption";countdownCaption.textContent="Обычно около 2 минут 20 секунд. Время ориентировочное.";
+      waitingClock.append(countdownHeading,countdownTime,countdownBar,countdownCaption);
       let waitingTick=null,waitingStartedAt=0;
       const updateWaitingClock=()=>{
        if(!waitingClock.isConnected){if(waitingTick){clearInterval(waitingTick);waitingTick=null;}return;}
-       const left=Math.max(0,Math.ceil((138000-(Date.now()-waitingStartedAt))/1000));
-       waitingClock.textContent=left>0?"⏳ Ориентировочно осталось "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0"):"⏳ Обычное время ожидания прошло. Проверка результата продолжается.";
+       const elapsed=Math.max(0,Date.now()-waitingStartedAt);
+       const left=Math.max(0,Math.ceil((138000-elapsed)/1000));
+       countdownTime.textContent=left>0?String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0"):"00:00";
+       countdownProgress.style.width=Math.min(100,elapsed/138000*100)+"%";
+       countdownCaption.textContent=left>0?"Обычно около 2 минут 20 секунд. Время ориентировочное.":"Обычное время прошло. Проверка продолжается — публикацию не повторяйте.";
       };
       const publish=document.createElement("button");publish.type="button";publish.className="primary";publish.textContent="🔎 Проверить результат";
       const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
@@ -973,11 +987,9 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
        const at=Number(result.startedAt);
        if(["publishing","checking"].includes(stage)&&Number.isSafeInteger(at)&&at>0){
         waitingStartedAt=at;waitingClock.hidden=false;
-        // Delay one tick until the status element is attached to the document.
         if(waitingTick)clearInterval(waitingTick);
+        updateWaitingClock();
         waitingTick=setInterval(updateWaitingClock,1000);
-        const left=Math.max(0,Math.ceil((138000-(Date.now()-at))/1000));
-        waitingClock.textContent=left>0?"⏳ Ориентировочно осталось "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0"):"⏳ Обычное время ожидания прошло. Проверка результата продолжается.";
        }else{
         waitingClock.hidden=true;
         if(waitingTick){clearInterval(waitingTick);waitingTick=null;}
