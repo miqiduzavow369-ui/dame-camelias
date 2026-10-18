@@ -94,3 +94,21 @@ test("history is bounded to fifty records",async()=>{
  assert.equal(logs[0].version,11);
  assert.equal(logs[49].version,60);
 });
+
+test("old audit entries are sanitized before next persisted update",async()=>{
+ const s=storage();
+ await s.put("man-setup-history-v1:yan_second",[
+  {accountId:"yan_second",version:1,action:"plan",stage:"awaiting_credentials",at:90,
+   proxyPassword:"must-not-survive",ip:"203.0.113.7"},
+  {accountId:"yan_30",version:2,action:"reset",stage:"not_configured",at:91,
+   token:"must-not-survive"},
+  {accountId:"yan_second",version:3,action:"activate",stage:"disabled",at:92,
+   secret:"must-not-survive"}
+ ]);
+ await changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:100});
+ const raw=s.snapshot().get("man-setup-history-v1:yan_second");
+ assert.equal(raw.length,2);
+ assert.deepEqual(Object.keys(raw[0]).sort(),["accountId","action","at","stage","version"].sort());
+ assert.ok(!JSON.stringify(raw).includes("must-not-survive"));
+ assert.equal(raw[1].version,1);
+});
