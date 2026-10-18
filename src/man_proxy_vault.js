@@ -9,7 +9,7 @@ function account(id){requireManId(id);if(id==="yan_first")throw Error("Legacy ac
 function ipv4(ip){if(typeof ip!=="string"||!IP.test(ip))return false;
  const x=ip.split(".").map(Number);
  return x.every((n,i)=>n>=0&&n<=255&&String(n)===ip.split(".")[i]) &&
- x[0]!==0&&x[0]!==10&&x[0]!==127&&x[0]!==169&&x[0]!==172&&x[0]!==192&&x[0]!==224&&x[0]<224 &&
+ x[0]!==0&&x[0]!==10&&x[0]!==127&&x[0]!==169&&x[0]<224 &&
  !(x[0]===100&&x[1]>=64&&x[1]<=127)&&!(x[0]===198&&[18,19].includes(x[1])) &&
  !(x[0]===172&&x[1]>=16&&x[1]<=31)&&!(x[0]===192&&x[1]===168)&&!(x[0]===192&&x[1]===0) &&
  !(x[0]===198&&x[1]===51&&x[2]===100)&&!(x[0]===203&&x[1]===0&&x[2]===113) &&
