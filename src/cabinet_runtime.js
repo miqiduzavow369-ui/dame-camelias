@@ -11,6 +11,7 @@ import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {readSiteStatus,saveSiteCredentials} from "./man_site_vault.js";
+import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -280,6 +281,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const queue=await storage.get("ledger_outbox")||{};delete queue[settlementKey(entry)];await storage.put("ledger_outbox",queue);
  };
  const event=input.event;
+ if(event.kind==="admin_man_check_status"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await readManDiagnostics(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
+   catch{return {ok:false,status:400,reason:"diagnostic_unavailable"};}
+ }
+ if(event.kind==="admin_man_check_retry"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await prepareManRetry(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+      accountId:event.accountId,expectedVersion:event.expectedVersion,at:Date.now()});}
+   catch{return {ok:false,status:409,reason:"retry_preparation_rejected"};}
+ }
  if(event.kind==="admin_man_site_status"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    try{return await readSiteStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
