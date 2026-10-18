@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {readManSetupDraft,changeManSetupDraft,readManSetupDrafts} from "../src/man_setup_store.js";
+import {readManSetupDraft,changeManSetupDraft,readManSetupDrafts,readManSetupHistory} from "../src/man_setup_store.js";
 const owner="5866034656",accounts=[{id:"yan_first"},{id:"yan_second"},{id:"yan_30"}];
 // Mock transaction provides a serialized critical section, matching DO storage.
 const storage=()=>{const m=new Map();let queue=Promise.resolve();
@@ -62,4 +62,35 @@ test("two simultaneous changes cannot both win same version",async()=>{
 test("changes reject non-transactional storage instead of risking overwrite",async()=>{
  const unsafe={get:async()=>undefined,put:async()=>{}};
  await assert.rejects(changeManSetupDraft(unsafe,{...op,action:"plan",expectedVersion:0,at:1}),/Atomic storage unavailable/);
+});
+
+test("audit is atomic, owner-only and isolated between men",async()=>{
+ const s=storage();
+ await changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:101});
+ await changeManSetupDraft(s,{...op,action:"reset",expectedVersion:1,at:102});
+ const list=await readManSetupHistory(s,owner,owner,owner,"yan_second");
+ assert.equal(list.length,2);
+ assert.deepEqual(list.map(x=>x.action),["plan","reset"]);
+ assert.deepEqual(list.map(x=>x.version),[1,2]);
+ assert.equal(list[0].accountId,"yan_second");
+ assert.equal(JSON.stringify(list).includes("password"),false);
+ assert.deepEqual(await readManSetupHistory(s,owner,owner,owner,"yan_30"),[]);
+ await assert.rejects(readManSetupHistory(s,"1234567",owner,owner,"yan_second"));
+ await assert.rejects(readManSetupHistory(s,owner,owner,owner,"yan_first"));
+});
+test("failed/stale change adds no audit entry",async()=>{
+ const s=storage();
+ await changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:200});
+ await assert.rejects(changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:201}));
+ assert.equal((await readManSetupHistory(s,owner,owner,owner,"yan_second")).length,1);
+});
+test("history is bounded to fifty records",async()=>{
+ const s=storage();
+ for(let n=0;n<60;n++){
+  await changeManSetupDraft(s,{...op,action:n%2?"reset":"plan",expectedVersion:n,at:500+n});
+ }
+ const logs=await readManSetupHistory(s,owner,owner,owner,"yan_second");
+ assert.equal(logs.length,50);
+ assert.equal(logs[0].version,11);
+ assert.equal(logs[49].version,60);
 });
