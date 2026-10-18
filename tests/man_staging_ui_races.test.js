@@ -102,6 +102,7 @@ test("malformed response never reaches queue history or action buttons",async()=
   {items:null},{items:[{...fixtureRow(),sitePublished:true}]},
   {items:[{...fixtureRow(),profileId:{value:"652282"}}]},
   {items:[{...fixtureRow(),correlationKey:null}]},
+  {items:[{...fixtureRow(),correlationKey:fixtureRow("yan_03").correlationKey}]},
   {items:[{...fixtureRow(),status:"published"}]}
  ]){
   const h=harness(async()=>result);
