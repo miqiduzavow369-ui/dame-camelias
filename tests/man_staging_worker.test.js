@@ -121,3 +121,27 @@ test("staging rejects malformed JSON and non-object input",async()=>{
   assert.equal(res.status,400);
  }
 });
+
+test("staging refuses production Worker bindings and secrets even with owner signature",async()=>{
+ const legitimate={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{
+  idFromName: name=>name,
+  get:()=>({fetch:()=>{throw Error("misconfigured staging reached storage")}})
+ }};
+ for(const key of [
+  "ORDER_REMINDERS","VISITORS_KV","BOT_TOKEN","ANKETA_CALLBACK_TOKEN",
+  "INTIMCITY_LOGIN","INTIMCITY_PASSWORD","PROXY_PASSWORD"
+ ]){
+  const bindings={...legitimate,[key]:key==="BOT_TOKEN"?TOKEN:{}};
+  const response=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),bindings);
+  assert.equal(response.status,503,"unsafe production binding must be rejected: "+key);
+  assert.equal((await response.json()).reason,"staging_unconfigured");
+ }
+});
+test("staging refuses nonstring token without reaching Durable Object",async()=>{
+ const bindings={...env,MAN_STAGING_BOT_TOKEN:{value:"wrong"},MAN_STAGING_ACCOUNTS:{
+  idFromName:name=>name,
+  get:()=>({fetch:()=>{throw Error("invalid token reached storage")}})
+ }};
+ const response=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),bindings);
+ assert.equal(response.status,503);
+});
