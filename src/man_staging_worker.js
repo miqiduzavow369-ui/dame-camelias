@@ -96,8 +96,15 @@ export class ManStagingAccounts {
 }
 // One fail-closed readiness policy for health, test HTML and authenticated API.
 // Never expose secret values or production binding names in public responses.
+const STAGING_ENV_KEYS=new Set([
+ "MAN_STAGING_ONLY","CABINET_PUBLICATIONS_ENABLED","CABINET_CLIENTS_ENABLED",
+ "MAN_STAGING_ACCOUNTS","MAN_STAGING_BOT_TOKEN"
+]);
 function stagingConfigured(env){
- return !!env&&
+ return !!env&&typeof env==="object"&&
+  // Strict allowlist: even production resources accidentally rebound under a
+  // different name must never be accessible in the staging Worker.
+  Object.keys(env).every(key=>STAGING_ENV_KEYS.has(key))&&
   env.MAN_STAGING_ONLY==="true"&&
   env.CABINET_PUBLICATIONS_ENABLED==="false"&&
   env.CABINET_CLIENTS_ENABLED==="false"&&
