@@ -31,7 +31,7 @@ test("all men have separate mock task identities but identical site-wide locks",
  assert.equal(new Set(tasks.map(t=>t.globalPublicationLock)).size,1);
  assert.equal(new Set(tasks.map(t=>t.globalReviewLock)).size,1);
  for(const t of tasks){
-  const receipt=simulateManExecution(t);
+  const receipt=simulateManExecution(t,{moscowDate:"2026-10-18"});
   assert.equal(receipt.sitePublished,false);
   assert.equal(receipt.creditsDebited,false);
   assert.equal(receipt.proofSubmitted,false);
@@ -40,10 +40,10 @@ test("all men have separate mock task identities but identical site-wide locks",
 });
 test("mock rejection is recorded without claiming successful publication",()=>{
  const task=createMockHandoff(identity,options("yan_second"));
- const receipt=simulateManExecution(task,{result:"mock_rejected"});
+ const receipt=simulateManExecution(task,{result:"mock_rejected",moscowDate:"2026-10-18"});
  assert.equal(receipt.status,"rejected");
  assert.equal(receipt.sitePublished,false);
- assert.throws(()=>simulateManExecution(task,{result:"publish"}),/Unsupported/);
+ assert.throws(()=>simulateManExecution(task,{result:"publish",moscowDate:"2026-10-18"}),/Unsupported/);
 });
 test("forged or cross-account callbacks are rejected at validation boundary",()=>{
  const task=createMockHandoff(identity,options("yan_second"));
@@ -53,5 +53,5 @@ test("forged or cross-account callbacks are rejected at validation boundary",()=
   {globalDailyLock:"daily-profile:652282:2026-10-19"},
   {globalPublicationLock:"publication-claim:yan_03:review:652282"},
   {callbackKey:"other"}, {correlationKey:"other"}, {mode:"production"}
- ]) assert.throws(()=>simulateManExecution({...task,...changed}));
+ ]) assert.throws(()=>simulateManExecution({...task,...changed},{moscowDate:"2026-10-18"}));
 });
