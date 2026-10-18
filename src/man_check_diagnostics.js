@@ -16,7 +16,6 @@ export const MAN_CHECK_ERRORS=Object.freeze({
   site_credentials_missing:{step:"site",severity:"blocked",hint:"После проверки IP заполните логин и пароль кабинета."},
   site_unreachable:{step:"site",severity:"error",hint:"Проверьте актуальную ссылку Intimcity. Прокси менять автоматически нельзя."},
   site_login_rejected:{step:"site",severity:"error",hint:"Проверьте логин и пароль Intimcity перед повторной попыткой."},
-  site_challenge:{step:"site",severity:"blocked",hint:"Потребуется ручная проверка CAPTCHA или кода; автоматический обход запрещён."},
   site_identity_mismatch:{step:"site",severity:"error",hint:"Вход в другой кабинет. Проверьте принадлежность логина этому мужчине."},
   site_identity_unconfirmed:{step:"site",severity:"blocked",hint:"Вход обнаружен, но личность мужчины не подтверждена."},
   site_session_expired:{step:"site",severity:"error",hint:"Сессия истекла. Выполните повторную проверку входа через тот же прокси."},
