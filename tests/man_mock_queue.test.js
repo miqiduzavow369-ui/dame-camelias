@@ -12,7 +12,11 @@ function store(){
   transaction(fn){
    const p=tail.then(async()=>{
     const draft=new Map(map);
-    const result=await fn({get:async k=>draft.get(k),put:async(k,v)=>draft.set(k,v)});
+    const result=await fn({
+     get:async k=>draft.get(k),
+     put:async(k,v)=>{draft.set(k,v)},
+     list:async({prefix="",limit=1000}={})=>new Map([...draft].filter(([k])=>k.startsWith(prefix)).slice(0,limit))
+    });
     map.clear();for(const [k,v]of draft)map.set(k,v);
     return result;
    });tail=p.catch(()=>{});return p;
