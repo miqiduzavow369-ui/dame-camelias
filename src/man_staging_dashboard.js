@@ -76,7 +76,13 @@ function jobRow(job){
 }
 async function load(){
  var requestVersion=++queueRequestVersion,accountId=select.value;
- var data=await api("mock_queue",{accountId:accountId});
+ var data;
+ try{data=await api("mock_queue",{accountId:accountId})}
+ catch(error){
+  // A failed obsolete fetch is not a failure of the currently selected man.
+  if(requestVersion!==queueRequestVersion||accountId!==select.value)return;
+  throw error;
+ }
  // Ignore responses for an account that is no longer selected, and older
  // responses for the same account after a newer refresh was requested.
  if(requestVersion!==queueRequestVersion||accountId!==select.value)return;
