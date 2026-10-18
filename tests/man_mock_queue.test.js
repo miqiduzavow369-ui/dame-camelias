@@ -20,7 +20,7 @@ function store(){
     map.clear();for(const [k,v]of draft)map.set(k,v);
     return result;
    });tail=p.catch(()=>{});return p;
-  },snapshot:()=>new Map(map)
+  },snapshot:()=>new Map(map),seed:(key,value)=>map.set(key,value)
  };
 }
 const enqueue=(storage,accountId="yan_second",nonce="abcdef123456",at=100)=>
@@ -98,4 +98,19 @@ test("creation-day scope survives midnight, but a forged completion day is rejec
  await assert.rejects(()=>finishMockManTask(s,{
   actorId:OWNER,ownerId:OWNER,task,moscowDate:"2026-10-19",at:201
  }));
+});
+
+test("atomic queue limit rejects two concurrent inserts at a 299-item boundary",async()=>{
+ const s=store();
+ for(let i=0;i<299;i++)s.seed("man-mock-queue-v1:fixture:"+i,{mode:"simulation",fixture:true});
+ const results=await Promise.allSettled([
+  enqueue(s,"yan_second","abcdef123456"),
+  enqueue(s,"yan_03","abcabcabcabc")
+ ]);
+ assert.equal(results.filter(x=>x.status==="fulfilled").length,1);
+ assert.equal(results.filter(x=>x.status==="rejected").length,1);
+ assert.equal(s.snapshot().size,300);
+ const again=await enqueue(s,"yan_second","abcdef123456");
+ if(results[0].status==="fulfilled")assert.equal(again.created,false);
+ else await assert.rejects(()=>enqueue(s,"yan_second","abcdef123456"));
 });
