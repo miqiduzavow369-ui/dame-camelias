@@ -86,6 +86,19 @@ async function load(){
  // Ignore responses for an account that is no longer selected, and older
  // responses for the same account after a newer refresh was requested.
  if(requestVersion!==queueRequestVersion||accountId!==select.value)return;
+ // The API is owner-authenticated, but never render a cross-account, malformed
+ // or inconsistent server response in another man's history panel.
+ if(!data||!Array.isArray(data.items)||data.items.length>50||
+    !data.items.every(function(job){
+     return job&&job.accountId===accountId&&
+      /^[0-9]{1,9}$/.test(job.profileId)&&
+      (job.kind==="rating"||job.kind==="review")&&
+      (job.status==="queued"||job.status==="completed"||job.status==="rejected")&&
+      Number.isSafeInteger(job.createdAt)&&job.createdAt>=0&&
+      typeof job.correlationKey==="string"&&
+      job.correlationKey.indexOf("man-mock-v1:")===0&&
+      job.sitePublished===false&&job.creditsDebited===false;
+    }))throw Error("Некорректная история выбранного мужчины");
  list.replaceChildren();data.items.forEach(function(job){list.appendChild(jobRow(job))});
  empty.textContent=data.items.length?"":"Заданий пока нет. Создайте демонстрационную операцию.";
 }
