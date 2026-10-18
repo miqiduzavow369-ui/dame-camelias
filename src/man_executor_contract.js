@@ -2,9 +2,9 @@
 // Not an executable queue, site adapter, proxy client, or permission token.
 import {planManRoute} from "./man_operation_route.js";
 
-const STAGES=new Set(["created","accepted","completed","rejected"]);
 const OUTCOMES=new Set(["mock_success","mock_rejected"]);
 const SCHEMA=1;
+const correlation=identity=>["man-mock-v1",identity.userId,identity.accountId,identity.profileId,identity.kind,identity.nonce].join(":");
 function ensureSafeRoute(route){
  if(!route||route.previewOnly!==true||route.canDispatch!==false||
     route.canDebit!==false||!route.identity||!route.keys)
@@ -20,6 +20,7 @@ export function createMockHandoff(identity,{moscowDate,serverActivation,stagingD
   activationVersion:route.activationVersion,
   userId:route.identity.userId,profileId:route.identity.profileId,
   kind:route.identity.kind,nonce:route.identity.nonce,
+  correlationKey:correlation(route.identity),
   operationKey:route.keys.operation,
   callbackKey:route.keys.callback,
   proofKey:route.keys.proof,
@@ -48,6 +49,7 @@ function validateTask(task){
  if(identity.accountId==="yan_first")throw Error("Legacy executor is excluded");
  if(!Number.isSafeInteger(task.activationVersion)||task.activationVersion<1 ||
     date===undefined ||
+    task.correlationKey!==correlation(identity)||
     task.operationKey!==manStorageKey({...identity,scope:"operation"})||
     task.callbackKey!==manStorageKey({...identity,scope:"callback"})||
     task.proofKey!==manStorageKey({...identity,scope:"proof"})||
