@@ -925,7 +925,17 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
       const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Подтвердить публикацию";send.hidden=true;
       const requestAction=async action=>{
-       const response=await fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
+       // Retry only read-only status requests after a transient connection error.
+       // Never automatically repeat prepare or publish; they may have reached the server.
+       const getResponse=()=>fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
+       let response;
+       try{response=await getResponse();}
+       catch(error){
+        if(action!=="status")throw Error("Связь прервалась. Действие могло выполниться. Не повторяйте его — сначала проверьте результат.");
+        await new Promise(resolve=>setTimeout(resolve,900));
+        try{response=await getResponse();}
+        catch{throw Error("Не удалось связаться с сервером. Сохранённые оценки не потеряны. Попробуйте посмотреть результат ещё раз чуть позже.");}
+       }
        const payload=await response.json().catch(()=>({}));
        if(!response.ok||!payload.ok)throw Error(({credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",expired:"Проверка устарела. Начните заново.",not_ready:"Состояние оценок изменилось.",already_published_or_pending:"Публикация уже выполняется.",dispatch_failed:"Не удалось запустить проверку.",busy:"⏳ Пожалуйста, подождите. Ваше последнее действие ещё выполняется. Попробуйте повторить немного позже.",incomplete_ratings:"❗ Заполните обязательные оценки и не менее 20% остальных услуг."})[payload.reason]||("Не удалось подтвердить действие (HTTP "+response.status+(typeof payload.reason==="string"?", код: "+payload.reason.slice(0,64):"")+"). Проверьте статус публикации перед повтором."));
        return payload;
