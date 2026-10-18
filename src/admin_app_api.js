@@ -107,7 +107,7 @@ export async function handleAdminApi(request,env){
       lastAt:item.visitedAt,interests:Array.isArray(item.interests)?item.interests.slice(0,8):[]});
     }
    }
-   const visitors=[...unique.values()].map(x=>({...x,isNew:Number.isFinite(Date.parse(x.firstSeen))&&Date.parse(x.firstSeen)>=now-7*msDay})).sort((a,b)=>Date.parse(b.lastAt)-Date.parse(a.lastAt));
+   const visitors=[...unique.values()].map(x=>({...x,isNew:Number.isFinite(Date.parse(x.firstSeen))&&Math.abs(Date.parse(x.lastAt)-Date.parse(x.firstSeen))<60000})).sort((a,b)=>Date.parse(b.lastAt)-Date.parse(a.lastAt));
    return respond({ok:true,visitors,partial,periodDays:7});
   }
   if(action==="review_history"){
