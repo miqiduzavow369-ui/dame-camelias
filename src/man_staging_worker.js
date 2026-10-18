@@ -8,6 +8,29 @@ import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_
 const OWNER_ID="5866034656";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 const json=(value,status=200)=>Response.json(value,{status,headers});
+const MAX_BODY_BYTES=16000;
+async function boundedJson(request){
+ const advertised=Number(request.headers.get("content-length")||0);
+ if(!Number.isFinite(advertised)||advertised>MAX_BODY_BYTES)return {tooLarge:true};
+ // Read no more than MAX_BODY_BYTES + 1, even if Content-Length is absent or false.
+ const reader=request.body?.getReader();
+ if(!reader)return {invalid:true};
+ const parts=[];let bytes=0;
+ try{
+  while(true){
+   const item=await reader.read();
+   if(item.done)break;
+   bytes+=item.value.byteLength;
+   if(bytes>MAX_BODY_BYTES){await reader.cancel().catch(()=>{});return {tooLarge:true};}
+   parts.push(item.value);
+  }
+  const combined=new Uint8Array(bytes);
+  let offset=0;for(const p of parts){combined.set(p,offset);offset+=p.byteLength;}
+  const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(combined));
+  return value&&typeof value==="object"&&!Array.isArray(value)?{value}:{invalid:true};
+ }catch{return {invalid:true};}
+ finally{reader.releaseLock();}
+}
 export class ManStagingAccounts {
  constructor(state){this.storage=state.storage;}
  async fetch(request){
@@ -50,9 +73,9 @@ export default {
      !env.MAN_STAGING_ACCOUNTS||
      !env.MAN_STAGING_BOT_TOKEN)
    return json({ok:false,reason:"staging_unconfigured"},503);
-  if(Number(request.headers.get("content-length")||0)>16000)
-   return json({ok:false,reason:"too_large"},413);
-  const body=await request.json().catch(()=>null);
+  const parsed=await boundedJson(request);
+  if(parsed.tooLarge)return json({ok:false,reason:"too_large"},413);
+  const body=parsed.value;
   if(!body || !["list","draft","history"].includes(body.action))
    return json({ok:false,reason:"invalid_request"},400);
   if(!await validWebApp(body.initData,env.MAN_STAGING_BOT_TOKEN,900))
