@@ -109,7 +109,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .events-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:17px 0}.events-stat{border:1px solid #7c6139;background:#251d14;border-radius:15px;padding:12px 9px}.events-stat b{display:block;font-size:26px;color:#f2d5a0}.events-stat span{font-size:11px;color:#c7b69e}.events-filters{display:flex;gap:7px;margin:12px 0}.events-filters button{flex:1;border:1px solid #785e3e;border-radius:11px;background:#1b1712;color:#c8b79b;padding:10px 3px;font-size:12px}.events-filters button.active{background:#82643c;color:#fff0cf}.event-row{display:flex;align-items:center;gap:11px;padding:14px 12px;border-bottom:1px solid #4f3d27;text-decoration:none;color:#ebdcc4}.event-row:last-child{border-bottom:0}.event-row.unread{background:linear-gradient(105deg,#3e2e15,#251b11 82%);border-left:3px solid #e9bc68;box-shadow:inset 0 0 0 1px #d6a74a33}.event-row.unread .event-avatar{border-color:#e3b968;color:#ffe0a0;box-shadow:0 0 12px #e5b75a30}.event-row.unread .event-info strong{color:#ffdda0}.event-row.unread .event-badge{background:#9d742e;color:#fff4d9;font-weight:700}.event-row .event-avatar{display:grid;place-items:center;min-width:38px;height:38px;background:#2d2215;border:1px solid #80633d;border-radius:12px;color:#e6c38d}.event-info{min-width:0;flex:1}.event-info strong{font-size:14px;display:block;overflow-wrap:anywhere}.event-info small{display:block;color:#a99a82;font-size:11px;margin-top:4px}.event-badge{font-size:10px;border-radius:7px;padding:5px 7px;background:#24372c;color:#a9ddbd}.event-badge.returning{background:#312719;color:#d7ba88}
 .men-note{margin:14px 0}.men-row{padding:13px;border-bottom:1px solid #4c402e;display:flex;align-items:center;gap:12px}.men-row:last-child{border-bottom:0}.men-row strong{font-size:13px}.men-row small{display:block;color:#b1a48d}.men-link{width:100%;border:1px solid #795f38;background:#241d13;color:#efd8ab;border-radius:13px;text-align:left;padding:13px;margin:12px 0}.men-status{font-size:11px;color:#cfb990}.men-status.online{color:#a9d1ac}.men-row-button{background:transparent;border:0;color:inherit;width:100%;text-align:left}.men-row-button:focus-visible{outline:2px solid #e5bc77}.men-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.men-detail-cell{border:1px solid #594932;border-radius:12px;padding:12px;background:#1c1812}.men-detail-cell small{display:block;color:#ae9f89}.men-detail-cell strong{font-size:12px;color:#ead3a7}.men-draft-actions{display:grid;gap:9px;margin:12px 0}.men-draft-actions button{min-height:44px}.men-draft-actions button:disabled{opacity:.45}</style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='';let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -233,29 +233,33 @@ function validateEdit(){let v=document.getElementById('entry').value.trim();if(v
 function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(y=>y.id===state.review);let intro='';if(t==='create')intro=`ID: ${state.wizard.id}<br>Начальный баланс: ${state.wizard.grant}<br>Код: ••••••`;if(t==='topup')intro=`${username(c)} · ID ${esc(c.id)}<br>Добавить: <b>${state.field}</b> публикаций<br>Остаток сейчас: ${available(c)}`;if(t==='balance')intro=`${username(c)} · ID ${esc(c.id)}<br>Сейчас: ${available(c)}<br>Установить: <b>${state.field}</b>`;if(t==='pin')intro=`${username(c)} · ID ${esc(c.id)}<br>Изменить код доступа`;if(t==='access')intro=`${username(c)} · ID ${esc(c.id)}<br>${c.active?'Приостановить доступ':'Восстановить доступ'}`;if(['approve','reject','edit'].includes(t))intro=`Анкета №${x.profile}<br>${x.account}<br>${t==='edit'?'Сохранить исправленный текст':t==='approve'?'Подтвердить публикацию':'Отклонить отзыв'}`;let returnTo=t==='create'?"root('clients')":['edit','approve','reject'].includes(t)?"go('review')":"go('client')";return `${back(returnTo)}<h1>Подтверждение</h1><p class="muted small">${actionTitle()}</p><div class="card" style="line-height:1.9">${intro}</div><div class="note">Операция будет записана в существующую систему после подтверждения.</div>${b('Подтвердить',"commitLive()",'primary')}<div style="height:9px"></div>${b('Отмена',returnTo)}`}
 
 const auth=()=>window.Telegram?.WebApp?.initData||'';
-function openManDetail(id){if(!manAccounts.some(x=>x.id===id))return;selectedManId=id;menHistory=[];menHistoryError='';go('man-detail');reloadManHistory(id)}
+function openManDetail(id){if(!manAccounts.some(x=>x.id===id))return;selectedManId=id;menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');reloadManHistory(id)}
 async function reloadManHistory(id=selectedManId){
+ const requestId=++menHistoryRequest;
  if(!id||id==='yan_first'){menHistory=[];return}
  try{
   const r=await callAdmin('man_setup_history',{accountId:id});
   if(!Array.isArray(r.items))throw Error('История недоступна');
-  if(selectedManId!==id)return;
+  if(selectedManId!==id||requestId!==menHistoryRequest)return;
   menHistory=r.items;menHistoryError='';
- }catch(e){if(selectedManId!==id)return;menHistory=[];menHistoryError='Не удалось загрузить историю'}
- if(state.page==='man-detail')render();
+ }catch(e){if(selectedManId!==id||requestId!==menHistoryRequest)return;menHistory=[];menHistoryError='Не удалось загрузить историю'}
+ if(state.page==='man-detail'&&selectedManId===id&&requestId===menHistoryRequest)render();
 }
 async function changeManPlanning(action){
  if(menChanging||!selectedManId||selectedManId==='yan_first')return;
- const x=manAccounts.find(m=>m.id===selectedManId),expectedVersion=x?.setup?.version;
+ const accountId=selectedManId;
+ const x=manAccounts.find(m=>m.id===accountId),expectedVersion=x?.setup?.version;
  if(!x||!Number.isSafeInteger(expectedVersion)||!['plan','reset'].includes(action))return;
  menChanging=true;render();
  try{
-  const result=await callAdmin('man_setup_draft',{accountId:selectedManId,expectedVersion,setupAction:action});
-  if(!result.setup||result.setup.accountId!==selectedManId||result.setup.canPublish!==false)throw Error('Некорректный ответ сервера');
-  const current=manAccounts.findIndex(m=>m.id===selectedManId);
+  const result=await callAdmin('man_setup_draft',{accountId,expectedVersion,setupAction:action});
+  if(!result.setup||result.setup.accountId!==accountId||result.setup.canPublish!==false)throw Error('Некорректный ответ сервера');
+  const current=manAccounts.findIndex(m=>m.id===accountId);
   if(current>=0)manAccounts[current]={...manAccounts[current],setup:result.setup,connection:result.setup.stage};
-  toast(action==='plan'?'Подготовка начата':'Статус подготовки сброшен');
-  await reloadManHistory(selectedManId);
+  if(selectedManId===accountId){
+   toast(action==='plan'?'Подготовка начата':'Статус подготовки сброшен');
+   await reloadManHistory(accountId);
+  }
  }catch(e){toast('Статус не обновлён: '+e.message);await reloadMen()}
  finally{menChanging=false;render()}
 }
