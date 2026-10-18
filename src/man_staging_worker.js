@@ -8,6 +8,7 @@ import {listMockManQueue} from "./man_mock_queue_view.js";
 import {enqueueMockManTask,finishMockManTask} from "./man_mock_queue.js";
 import {moscowDay} from "./daily_publication_limit.js";
 import {requireManId} from "./man_account_isolation.js";
+import {STAGING_DASHBOARD_HTML} from "./man_staging_dashboard.js";
 
 const OWNER_ID="5866034656";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
@@ -96,6 +97,8 @@ export class ManStagingAccounts {
 export default {
  async fetch(request,env){
   const url=new URL(request.url);
+  if(url.pathname==="/test-admin"&&request.method==="GET")
+   return new Response(STAGING_DASHBOARD_HTML,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY"}});
   if(url.pathname==="/health" && request.method==="GET")
    return json({ok:true,environment:"man-staging",publicationEnabled:false});
   if(url.pathname!=="/api/man-staging"||request.method!=="POST")
