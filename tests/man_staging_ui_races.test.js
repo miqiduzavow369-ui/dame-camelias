@@ -58,3 +58,33 @@ test("empty latest result clears the old list; stale nonempty result cannot refi
  assert.equal(h.rendered.length,0);
  assert.match(h.scope.empty.textContent,/Заданий пока нет/);
 });
+
+test("obsolete network error is ignored after switching to another man",async()=>{
+ const old=deferred(),fresh=deferred();
+ const h=harness((_action,payload)=>payload.accountId==="yan_second"?old.promise:fresh.promise);
+ const first=h.load();
+ h.scope.select.value="yan_03";
+ const second=h.load();
+ fresh.resolve({items:[{accountId:"yan_03",status:"completed"}]});
+ await second;
+ old.reject(Error("offline for prior account"));
+ await assert.doesNotReject(first);
+ assert.equal(h.rendered[0].accountId,"yan_03");
+});
+test("obsolete network error on same man does not override latest refresh",async()=>{
+ const old=deferred(),fresh=deferred();let count=0;
+ const h=harness(()=>++count===1?old.promise:fresh.promise);
+ const first=h.load(),second=h.load();
+ fresh.resolve({items:[{accountId:"yan_second",status:"completed"}]});
+ await second;
+ old.reject(Error("obsolete connection"));
+ await assert.doesNotReject(first);
+ assert.equal(h.rendered[0].status,"completed");
+});
+test("latest network error remains visible to the caller and preserves cached history",async()=>{
+ const h=harness(async()=>{throw Error("current connection failed")});
+ h.rendered.push({accountId:"yan_second",status:"queued"});
+ await assert.rejects(h.load(),/current connection failed/);
+ assert.equal(h.rendered.length,1);
+ assert.equal(h.rendered[0].status,"queued");
+});
