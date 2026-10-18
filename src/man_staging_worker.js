@@ -71,7 +71,17 @@ export default {
      env.CABINET_PUBLICATIONS_ENABLED!=="false"||
      env.CABINET_CLIENTS_ENABLED!=="false"||
      !env.MAN_STAGING_ACCOUNTS||
-     !env.MAN_STAGING_BOT_TOKEN)
+     typeof env.MAN_STAGING_BOT_TOKEN!=="string"||
+     !env.MAN_STAGING_BOT_TOKEN||
+     // Fail closed if a staging deploy accidentally receives a production binding.
+     // The staging worker must never have access to customer data or bot secrets.
+     "ORDER_REMINDERS" in env||
+     "VISITORS_KV" in env||
+     "BOT_TOKEN" in env||
+     "ANKETA_CALLBACK_TOKEN" in env||
+     "INTIMCITY_LOGIN" in env||
+     "INTIMCITY_PASSWORD" in env||
+     "PROXY_PASSWORD" in env)
    return json({ok:false,reason:"staging_unconfigured"},503);
   const parsed=await boundedJson(request);
   if(parsed.tooLarge)return json({ok:false,reason:"too_large"},413);
