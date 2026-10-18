@@ -5,6 +5,8 @@ import {newManSetup,validateManSetup,advanceManSetup,publicManSetup} from "./man
 import {requireManId} from "./man_account_isolation.js";
 
 const PREFIX="man-setup-draft-v1:";
+const HISTORY_PREFIX="man-setup-history-v1:";
+const MAX_HISTORY=50;
 const OWNER_ID_RE=/^[1-9]\d{4,15}$/;
 function requireOwner(actorId, cabinetId, ownerId){
  if(typeof actorId!=="string" || !OWNER_ID_RE.test(actorId) ||
@@ -30,6 +32,21 @@ export async function readManSetupDrafts(storage,actorId,cabinetId,ownerId,accou
  }
  return items;
 }
+// Owner-only audit trail of preparation status, without sensitive configuration.
+export async function readManSetupHistory(storage,actorId,cabinetId,ownerId,accountId){
+ requireOwner(actorId,cabinetId,ownerId);
+ draftKey(accountId);
+ const raw=await storage.get(HISTORY_PREFIX+accountId);
+ if(!Array.isArray(raw))return [];
+ return raw.filter(x=>x&&x.accountId===accountId &&
+   Number.isSafeInteger(x.version)&&x.version>0 &&
+   ["plan","reset"].includes(x.action) &&
+   ["not_configured","awaiting_credentials"].includes(x.stage) &&
+   Number.isSafeInteger(x.at)&&x.at>=0)
+   .slice(-MAX_HISTORY).map(x=>Object.freeze({
+     accountId,version:x.version,action:x.action,stage:x.stage,at:x.at
+   }));
+}
 // Only opt-in to the *planning* stage; no "proxy verified" or "ready" state can
 // be asserted through this endpoint. All sensitive setup remains postponed.
 export async function changeManSetupDraft(storage,{actorId,cabinetId,ownerId,accountId,expectedVersion,action,at}){
@@ -49,7 +66,13 @@ export async function changeManSetupDraft(storage,{actorId,cabinetId,ownerId,acc
          (current.stage==="awaiting_credentials"&&action==="reset")))
      throw Error("Invalid draft transition");
    const next=advanceManSetup(current,{accountId,expectedVersion,nextStage,at});
+   const historyKey=HISTORY_PREFIX+accountId;
+   const existing=await txn.get(historyKey);
+   if(existing!==undefined&&!Array.isArray(existing))throw Error("Invalid setup history");
+   const history=(existing||[]).slice(-(MAX_HISTORY-1));
+   history.push({accountId,version:next.version,action,stage:next.stage,at});
    await txn.put(key,next);
+   await txn.put(historyKey,history);
    return {ok:true,setup:publicManSetup(next,accountId)};
  });
 }
