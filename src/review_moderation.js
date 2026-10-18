@@ -208,9 +208,17 @@ export async function handleModeration(update,env,send=moderationTelegram){
  const match=/^reviewmod:(approve|cancel|edit):([1-9]\d{4,15}):([a-f0-9]{16}):(\d{1,6})$/.exec(callback?.data||"");
  if(callback?.data?.startsWith("reviewmod:")){
   if(!match||String(chat?.id)!==MODERATION_CHAT||String(actor?.id)!==MODERATOR_ID||actor?.is_bot){await send(env,"answerCallbackQuery",{callback_query_id:callback.id,text:"Решение доступно только администратору.",show_alert:true});return true;}
-  await send(env,"answerCallbackQuery",{callback_query_id:callback.id});
-  const result=await moderationRPC(env,match[2],match[3],{action:match[1],actorId:MODERATOR_ID,chatId:MODERATION_CHAT,messageId:callback.message.message_id,version:Number(match[4])});
-  if(!result.ok&&result.note)await send(env,"sendMessage",{chat_id:MODERATION_CHAT,text:"🌹 DAME CAMELIAS\n\n🌷 "+result.note,reply_parameters:{message_id:callback.message.message_id}});
+  // Confirm the decision to the moderator only after the durable coordinator responds.
+  // A failed callback must never look like a successfully processed decision.
+  try{
+   const result=await moderationRPC(env,match[2],match[3],{action:match[1],actorId:MODERATOR_ID,chatId:MODERATION_CHAT,messageId:callback.message.message_id,version:Number(match[4])});
+   const ok=result?.ok===true;
+   const label=match[1]==="cancel"?"✅ Заявка отклонена":match[1]==="edit"?"✏️ Ожидаю исправленный текст":"✅ Решение принято";
+   await send(env,"answerCallbackQuery",{callback_query_id:callback.id,text:ok?label:String(result?.note||"Не удалось обработать заявку. Попробуйте проверить её статус.").slice(0,180),show_alert:!ok});
+  }catch(error){
+   console.error("Review moderation callback failed",String(error));
+   await send(env,"answerCallbackQuery",{callback_query_id:callback.id,text:"⚠️ Не удалось подтвердить действие. Проверьте статус заявки перед повтором.",show_alert:true}).catch(()=>{});
+  }
   return true;
  }
  if(String(chat?.id)===MODERATION_CHAT&&String(actor?.id)===MODERATOR_ID&&!actor?.is_bot&&message?.reply_to_message&&typeof message.text==="string"){
