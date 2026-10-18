@@ -180,7 +180,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 @media(max-width:360px){.man-checks{gap:7px}.man-check{padding:11px 8px}}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -276,7 +276,7 @@ function renderManConsole(){
  '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+manChecks(x)+
  (!legacy?'<div class="section">Обязательная последовательность</div><div class="card"><div class="men-draft-actions"><div>01 · Прокси и закреплённый IP</div><div>02 · Проверка фактического IP <span class="pill">🔒</span></div><div>03 · Логин и пароль Intimcity <span class="pill">🔒</span></div><div>04 · Проверка кабинета <span class="pill">🔒</span></div><div>05 · Разрешение на работу <span class="pill">🔒</span></div></div><p class="hint">Каждый следующий этап откроется только после подтверждённого результата предыдущего. Пароль не означает успешный вход.</p></div>':'')+
  '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
- tile('🔐','Вход Intimcity',legacy?'Текущий механизм без изменений':'Только после проверки прокси/IP','','')+
+ tile('🔐','Вход Intimcity',legacy?'Текущий механизм без изменений':'Только после проверки прокси/IP',"openManSite()",!legacy&&x.networkStatus?.proxyVerified===true&&x.networkStatus?.ipVerified===true)+
  tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
  tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
  tile('🔒','Публикации',legacy?'Прежний рабочий механизм':'Отключены до активации','','')+
@@ -286,6 +286,57 @@ function renderManConsole(){
  '<div class="section">История настройки <button class="men-refresh" style="float:right;min-height:34px;padding:5px 10px;margin-top:-9px" onclick="reloadManHistory(selectedManId)">↻</button></div>'+
  '<div class="card">'+(menHistoryError?'<p class="error">'+esc(menHistoryError)+'</p>':'')+history+'</div>'+
  '<div class="watermark">Секреты скрыты · запуск публикаций отсутствует · изменения записываются сервером</div>';
+}
+
+
+function renderManSiteForm(){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
+ const st=siteVaultState,ready=st?.proxyReady===true;
+ return back("go('man-detail')")+'<div class="mini">ШАГ 03 / ПОДКЛЮЧЕНИЕ КАБИНЕТА</div>'+
+ '<h1>🔐 Вход Intimcity</h1><p class="muted small">'+esc(x.name)+' · отдельная учётная запись</p>'+
+ '<div class="man-checks"><div class="man-check '+(ready?'ok':'off')+'"><div class="man-check-head"><span class="man-check-dot"></span>Прокси / IP</div><div class="man-check-status">'+(ready?'Проверено':'Не проверено')+'</div></div>'+
+ '<div class="man-check off"><div class="man-check-head"><span class="man-check-dot"></span>Кабинет</div><div class="man-check-status">Не подтверждён</div></div></div>'+
+ '<div class="card"><strong>Используем проверенный вход Яна Первого</strong><p class="hint">На сайте автоматически определяется форма E-mail / пароль. Проверка кабинета выполняется только через прокси мужчины и не публикует отзывы или оценки.</p></div>'+
+ (siteVaultError?'<p class="error" role="alert">'+esc(siteVaultError)+'</p>':'')+
+ (!ready?'<div class="note">🔒 Сначала необходимо подтвердить фактический IP через индивидуальный прокси. Пока этот этап не пройден, ввод и сохранение реквизитов Intimcity заблокированы.</div>':
+ '<div class="men-detail-hero"><span class="pill">🔒 Публикации выключены</span><div class="hint">'+(st?.configured?'Логин и пароль сохранены зашифрованными; вход ещё не проверен.':'Данные Intimcity ещё не сохранены.')+'</div></div>'+
+ '<form id="manSiteForm" class="card" autocomplete="off" onsubmit="saveManSite(event)">'+
+ '<label for="manSiteUrl">Ссылка на сайт Intimcity</label><input class="field" id="manSiteUrl" type="url" required placeholder="https://a.intimcity.rip/" value="'+esc(st?.siteUrl||'https://a.intimcity.rip/')+'" autocapitalize="off" spellcheck="false">'+
+ '<label for="manSiteLogin">Логин Intimcity (E-mail)</label><input class="field" id="manSiteLogin" maxlength="256" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Логин мужского аккаунта">'+
+ '<label for="manSitePassword">Пароль Intimcity</label><input class="field" id="manSitePassword" type="password" maxlength="512" required autocomplete="new-password" placeholder="Пароль мужского аккаунта">'+
+ '<div class="note">Пароль не будет показан повторно. Изменение логина, пароля или ссылки требует новой проверки входа.</div>'+
+ '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+(siteSaving?'Сохранение…':'🔐 Зашифровать реквизиты')+'</button></form>')+
+ '<div class="card"><strong>Проверка входа</strong><p class="hint">После серверного подтверждения IP и подключения проверяющего исполнителя появится запуск реальной проверки. До этого зелёный статус входа недоступен.</p><button class="secondary" disabled>🔒 Проверить вход на Intimcity</button></div>'+
+ '<div class="watermark">Ян Первый защищён · доступы не сохраняются в GitHub или чате</div>';
+}
+async function openManSite(){
+ const id=selectedManId;
+ if(!id||id==='yan_first')return;
+ siteVaultState=null;siteVaultError='';go('man-site');
+ try{
+  const r=await callAdmin('man_site_status',{accountId:id});
+  if(selectedManId!==id)return;
+  siteVaultState=r;render();
+ }catch{if(selectedManId===id){siteVaultError='Не удалось загрузить защищённую настройку';render();}}
+}
+async function saveManSite(event){
+ event.preventDefault();
+ const id=selectedManId;
+ if(siteSaving||!siteVaultState?.proxyReady||!id||id==='yan_first')return;
+ const settings={siteUrl:document.getElementById('manSiteUrl').value.trim(),
+   login:document.getElementById('manSiteLogin').value.trim(),
+   password:document.getElementById('manSitePassword').value};
+ siteSaving=true;siteVaultError='';
+ try{
+  const r=await callAdmin('man_site_save',{accountId:id,expectedVersion:siteVaultState.version,settings});
+  if(selectedManId!==id)return;
+  if(r?.accountId!==id||r?.canPublish!==false)throw Error('invalid_save');
+  siteVaultState=r;toast('🔒 Данные Intimcity сохранены. Проверка входа ещё обязательна.');
+ }catch(e){
+  if(selectedManId===id)siteVaultError=e.message==='site_vault_key_missing'?'Ключ шифрования MAN_SITE_ENCRYPTION_KEY ещё не установлен. Его подключим на заключительном этапе.':
+   e.message==='proxy_not_verified'?'Сначала подтвердите прокси и IP.':'Не удалось сохранить. Проверьте реквизиты.';
+ }finally{siteSaving=false;if(selectedManId===id)render();}
 }
 
 function renderManProxyForm(){
@@ -336,7 +387,7 @@ function setMenFilter(filter){
  menFilter=filter;render();
 }
 
-function render(){document.getElementById('nav-clients').classList.toggle('active',!['reviews','review','events','men','man-detail'].includes(state.page));document.getElementById('nav-men').classList.toggle('active',['men','man-detail','man-proxy'].includes(state.page));document.getElementById('nav-reviews').classList.toggle('active',['reviews','review'].includes(state.page));document.getElementById('nav-events').classList.toggle('active',state.page==='events');let p=state.page;let h='';
+function render(){document.getElementById('nav-clients').classList.toggle('active',!['reviews','review','events','men','man-detail'].includes(state.page));document.getElementById('nav-men').classList.toggle('active',['men','man-detail','man-proxy','man-site'].includes(state.page));document.getElementById('nav-reviews').classList.toggle('active',['reviews','review'].includes(state.page));document.getElementById('nav-events').classList.toggle('active',state.page==='events');let p=state.page;let h='';
 if(p==='clients'){
  const query=state.query.trim().toLowerCase().replace(/^@/,'');
  const matches=clients.filter(c=>c.id.includes(query)||(normalizeUsername(c.username)||'').toLowerCase().includes(query));
@@ -354,6 +405,7 @@ if(p==='clients'){
 else if(p==='men'){h=renderMenDashboard();}
 else if(p==='man-detail'){h=renderManConsole();}
 else if(p==='man-proxy'){h=renderManProxyForm();}
+else if(p==='man-site'){h=renderManSiteForm();}
 else if(p==='client'){let c=cby(state.client);if(!c){root('clients');return}h=`${back("root('clients')")}<div class="row"><div><h1>${normalizeUsername(c.username)?username(c):"Клиентка · ID"}</h1><div class="small muted">${normalizeUsername(c.username)?"Telegram ID "+esc(c.id):esc(c.id)+" · Ник не указан"}</div><a class="detail-chat" href="${chatHref(c)}" aria-label="Написать в Telegram"><span aria-hidden="true">↗</span> Написать в Telegram</a></div><span class="status ${c.active?'':'off'}">${c.active?'Активна':'Приостановлена'}</span></div><div class="summary"><div class="mini">БАЛАНС ПУБЛИКАЦИЙ</div><div class="number">${available(c)} <span class="balance-caption">доступно</span></div><div class="balance-stats"><div><span class="balance-stat-label">Использовано за всё время</span><b>${Number(c.spent)||0}</b></div><div><span class="balance-stat-label">Всего начислено</span><b>${Number.isFinite(Number(c.grant))?Number(c.grant):'—'}</b></div></div></div>${b('＋  Пополнить баланс',"startAction('topup')",'primary')}<div class="agreement-compact"><span class="agreement-caption"><span class="agreement-icon">▣</span> Соглашение</span><span class="${c.agreement?'status':'status off'}">${c.agreement?'Подписано':'Не подписано'}</span></div><div class="section action-heading">Быстрое управление</div><div class="action-grid">${actionTile('⚖','Изменить остаток','Корректировка баланса',"startAction('balance')")}${actionTile('⌘','Код доступа','Сменить PIN',"startAction('pin')")}${actionTile(c.active?'◷':'▷',c.active?'Приостановить доступ':'Восстановить доступ',c.active?'Ограничить вход':'Открыть вход',"startAction('access')",(c.active?'danger-tile ':'')+'action-wide')}</div><button class="archive-compact" onclick="openArchive()"><span aria-hidden="true">▤</span><span>Публикации и подтверждения</span><span aria-hidden="true">›</span></button><div class="watermark">Операции выполняются сервером и требуют подтверждения</div>`}
 else if(p==='archive'){let a=archive.filter(x=>x.uid===state.client&&(x.profile.includes(state.archquery)||x.account.toLowerCase().includes(state.archquery.toLowerCase())||archiveDate(x.date).includes(state.archquery)));h=`${back("go('client')")}<h1>Публикации</h1><p class="small muted">Клиентка ${esc(state.client)}</p><input class="search" placeholder="⌕  Анкета, мужчина, дата" value="${esc(state.archquery)}" oninput="searchArchive(this.value)"><div class="section">История · ${a.length}</div><div class="list">${a.map((x,i)=>`<button class="listitem" onclick="go('proof',{proof:${archive.indexOf(x)}})"><span class="avatar">${x.kind==='Оценка'?'☆':'✎'}</span><span class="flex"><span class="strong">${x.kind} · Анкета №${x.profile}</span><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Подтверждения не найдены</div>'}</div>`}
 else if(p==='proof'){let x=archive[state.proof];h=`${back("go('archive')")}<h1>Подтверждение</h1><div class="card"><strong>${x.kind} · анкета №${x.profile}</strong><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div><div class="thin"></div><div class="fakeproof">▧<br>${x.proof?'<button class="secondary" onclick="loadProof()">Открыть скриншот</button><div id="proof-image" class="hint">Скриншот загружается только по вашему запросу</div>':'Скриншот не сохранён. Публикация есть в архиве.'}</div></div>`}
