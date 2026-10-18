@@ -4,6 +4,10 @@ import {validWebApp} from "./telegram_auth.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
+import {listMockManQueue} from "./man_mock_queue_view.js";
+import {enqueueMockManTask,finishMockManTask} from "./man_mock_queue.js";
+import {moscowDay} from "./daily_publication_limit.js";
+import {requireManId} from "./man_account_isolation.js";
 
 const OWNER_ID="5866034656";
 const headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
@@ -48,6 +52,35 @@ export class ManStagingAccounts {
     const items=await readManSetupHistory(this.storage,OWNER_ID,OWNER_ID,OWNER_ID,body.accountId);
     return json({ok:true,items});
    }
+   if(body.action==="mock_queue"){
+    const items=await listMockManQueue(this.storage,{actorId:OWNER_ID,ownerId:OWNER_ID,accountId:body.accountId});
+    return json({ok:true,items,simulationOnly:true});
+   }
+   if(body.action==="mock_seed"){
+    requireManId(body.accountId);
+    if(body.accountId==="yan_first"||!/^[0-9]{1,9}$/.test(body.profileId)||!["rating","review"].includes(body.kind))throw Error("Invalid mock input");
+    if(typeof this.storage.list!=="function")throw Error("Mock queue unavailable");
+    if((await this.storage.list({prefix:"man-mock-queue-v1:",limit:301})).size>=300)throw Error("Mock queue at capacity");
+    const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const result=await enqueueMockManTask(this.storage,{
+     actorId:OWNER_ID,ownerId:OWNER_ID,
+     identity:{userId:OWNER_ID,accountId:body.accountId,profileId:body.profileId,kind:body.kind,nonce},
+     moscowDate:moscowDay(),at:Date.now(),
+     // Hard-coded synthetic activation for test-only handoff; no real auth or proxy.
+     serverActivation:{accountId:body.accountId,enabled:true,proxyVerified:true,siteIdentityVerified:true,version:1}
+    });
+    return json({...result,ok:true,simulationOnly:true});
+   }
+   if(body.action==="mock_finish"){
+    if(typeof body.correlationKey!=="string"||!/^man-mock-v1:[0-9]{5,16}:yan_(?:second|[0-9]{2}):[0-9]{1,9}:(?:rating|review):[a-f0-9]{12}$/.test(body.correlationKey))throw Error("Invalid mock reference");
+    const item=await this.storage.get("man-mock-queue-v1:"+body.correlationKey);
+    if(!item?.task||item.task.correlationKey!==body.correlationKey)throw Error("Unknown mock job");
+    const result=await finishMockManTask(this.storage,{
+     actorId:OWNER_ID,ownerId:OWNER_ID,task:item.task,moscowDate:moscowDay(),
+     result:body.outcome==="mock_rejected"?"mock_rejected":body.outcome==="mock_success"?"mock_success":"invalid",at:Date.now()
+    });
+    return json({...result,ok:true,simulationOnly:true});
+   }
    if(body.action==="draft"){
     const result=await changeManSetupDraft(this.storage,{
      actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,
@@ -86,7 +119,7 @@ export default {
   const parsed=await boundedJson(request);
   if(parsed.tooLarge)return json({ok:false,reason:"too_large"},413);
   const body=parsed.value;
-  if(!body || !["list","draft","history"].includes(body.action))
+  if(!body || !["list","draft","history","mock_queue","mock_seed","mock_finish"].includes(body.action))
    return json({ok:false,reason:"invalid_request"},400);
   if(!await validWebApp(body.initData,env.MAN_STAGING_BOT_TOKEN,900))
    return json({ok:false,reason:"forbidden"},403);
@@ -94,7 +127,8 @@ export default {
   try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
   if(uid!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
   const payload={ownerId:OWNER_ID,action:body.action,
-    accountId:body.accountId,expectedVersion:body.expectedVersion,setupAction:body.setupAction};
+    accountId:body.accountId,expectedVersion:body.expectedVersion,setupAction:body.setupAction,
+    profileId:body.profileId,kind:body.kind,correlationKey:body.correlationKey,outcome:body.outcome};
   const stub=env.MAN_STAGING_ACCOUNTS.get(env.MAN_STAGING_ACCOUNTS.idFromName("owner-man-setup-v1"));
   return stub.fetch("https://staging.internal/",{method:"POST",body:JSON.stringify(payload)});
  }
