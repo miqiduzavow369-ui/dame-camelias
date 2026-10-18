@@ -94,31 +94,39 @@ export class ManStagingAccounts {
   }catch{return json({ok:false,reason:"operation_rejected"},409);}
  }
 }
+// One fail-closed readiness policy for health, test HTML and authenticated API.
+// Never expose secret values or production binding names in public responses.
+function stagingConfigured(env){
+ return !!env&&
+  env.MAN_STAGING_ONLY==="true"&&
+  env.CABINET_PUBLICATIONS_ENABLED==="false"&&
+  env.CABINET_CLIENTS_ENABLED==="false"&&
+  !!env.MAN_STAGING_ACCOUNTS&&
+  typeof env.MAN_STAGING_ACCOUNTS.idFromName==="function"&&
+  typeof env.MAN_STAGING_ACCOUNTS.get==="function"&&
+  typeof env.MAN_STAGING_BOT_TOKEN==="string"&&
+  env.MAN_STAGING_BOT_TOKEN.length>0&&
+  !("ORDER_REMINDERS" in env)&&
+  !("VISITORS_KV" in env)&&
+  !("BOT_TOKEN" in env)&&
+  !("ANKETA_CALLBACK_TOKEN" in env)&&
+  !("INTIMCITY_LOGIN" in env)&&
+  !("INTIMCITY_PASSWORD" in env)&&
+  !("PROXY_PASSWORD" in env);
+}
 export default {
  async fetch(request,env){
   const url=new URL(request.url);
+  if((url.pathname==="/health"||url.pathname==="/test-admin")&&
+     request.method==="GET"&&!stagingConfigured(env))
+   return json({ok:false,reason:"staging_unconfigured"},503);
   if(url.pathname==="/test-admin"&&request.method==="GET")
    return new Response(STAGING_DASHBOARD_HTML,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"frame-ancestors https://web.telegram.org https://*.telegram.org"}});
   if(url.pathname==="/health" && request.method==="GET")
    return json({ok:true,environment:"man-staging",publicationEnabled:false});
   if(url.pathname!=="/api/man-staging"||request.method!=="POST")
    return json({ok:false,reason:"not_found"},404);
-  if(env.MAN_STAGING_ONLY!=="true"||
-     env.CABINET_PUBLICATIONS_ENABLED!=="false"||
-     env.CABINET_CLIENTS_ENABLED!=="false"||
-     !env.MAN_STAGING_ACCOUNTS||
-     typeof env.MAN_STAGING_BOT_TOKEN!=="string"||
-     !env.MAN_STAGING_BOT_TOKEN||
-     // Fail closed if a staging deploy accidentally receives a production binding.
-     // The staging worker must never have access to customer data or bot secrets.
-     "ORDER_REMINDERS" in env||
-     "VISITORS_KV" in env||
-     "BOT_TOKEN" in env||
-     "ANKETA_CALLBACK_TOKEN" in env||
-     "INTIMCITY_LOGIN" in env||
-     "INTIMCITY_PASSWORD" in env||
-     "PROXY_PASSWORD" in env)
-   return json({ok:false,reason:"staging_unconfigured"},503);
+  if(!stagingConfigured(env))return json({ok:false,reason:"staging_unconfigured"},503);
   const parsed=await boundedJson(request);
   if(parsed.tooLarge)return json({ok:false,reason:"too_large"},413);
   const body=parsed.value;
