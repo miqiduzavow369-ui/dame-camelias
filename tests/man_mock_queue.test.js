@@ -76,3 +76,22 @@ test("unknown task, missing atomic storage and disabled accounts all fail closed
  await assert.rejects(()=>enqueueMockManTask(s,{actorId:OWNER,ownerId:OWNER,identity:identity("yan_30"),moscowDate:DATE,at:100}));
  await assert.rejects(()=>enqueueMockManTask(s,{actorId:OWNER,ownerId:OWNER,identity:identity("yan_first"),moscowDate:DATE,serverActivation:activation("yan_first"),at:100}));
 });
+
+test("creation-day scope survives midnight, but a forged completion day is rejected",async()=>{
+ const s=store(),task=make();
+ await enqueue(s);
+ const stored=[...s.snapshot().values()][0];
+ assert.equal(stored.moscowDate,DATE);
+ await assert.rejects(()=>finishMockManTask(s,{
+  actorId:OWNER,ownerId:OWNER,task,moscowDate:"2026-10-19",at:200
+ }));
+ const done=await finishMockManTask(s,{
+  actorId:OWNER,ownerId:OWNER,task,moscowDate:stored.moscowDate,at:200
+ });
+ assert.equal(done.status,"completed");
+ assert.equal(done.sitePublished,false);
+ assert.equal([...s.snapshot().values()][0].moscowDate,DATE);
+ await assert.rejects(()=>finishMockManTask(s,{
+  actorId:OWNER,ownerId:OWNER,task,moscowDate:"2026-10-19",at:201
+ }));
+});
