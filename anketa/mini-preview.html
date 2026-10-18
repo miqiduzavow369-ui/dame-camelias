@@ -678,7 +678,25 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  }
  syncStage();
  if(kind==="review"){
-  const editor=document.createElement("div");editor.className="card";
+  const confirm=document.createElement("div");confirm.className="card rating-verify-card";confirm.hidden=true;
+  const confirmTitle=document.createElement("h2");confirmTitle.textContent="🌹 Подтвердите анкету";
+  const identity=document.createElement("div");identity.className="rating-verify-identity";
+  const imageFrame=document.createElement("div");imageFrame.className="rating-verify-image";
+  const fallback=document.createElement("span");fallback.textContent="🌹";fallback.setAttribute("aria-hidden","true");imageFrame.append(fallback);
+  if(selected?.photo){
+    const photo=document.createElement("img");photo.alt="Фото анкеты №"+selected.id;photo.loading="lazy";
+    photo.onload=()=>{fallback.hidden=true;};photo.onerror=()=>{photo.remove();fallback.hidden=false;};
+    photo.src=selected.photo;imageFrame.append(photo);
+  }
+  const identityText=document.createElement("div");identityText.className="rating-verify-info";
+  const profileNumber=document.createElement("strong");profileNumber.textContent="Анкета №"+selected.id;
+  const profileName=document.createElement("p");profileName.textContent=selected.name||"Ваша анкета";
+  identityText.append(profileNumber,profileName);identity.append(imageFrame,identityText);
+  const question=document.createElement("p");question.className="rating-verify-hint";question.textContent="Вы точно выбрали нужную анкету из вашего списка?";
+  const continueButton=document.createElement("button");continueButton.type="button";continueButton.className="primary";continueButton.textContent="Продолжить к отзыву →";
+  confirm.append(confirmTitle,identity,question,continueButton);body.append(confirm);
+  const editor=document.createElement("div");editor.className="card";editor.hidden=true;
+  continueButton.onclick=()=>{confirm.hidden=true;editor.hidden=false;editor.scrollIntoView({block:"start",behavior:"smooth"});};
   const heading=document.createElement("h2");heading.textContent="✍️ Ваш отзыв";
   const field=document.createElement("textarea");field.rows=7;field.maxLength=3000;field.placeholder="Расскажите о своём опыте";
   field.style.cssText="width:100%;min-height:155px;resize:vertical;border-radius:14px;padding:14px;background:#18140f;border:1px solid #987746;color:#f5e8d2;font:inherit;font-size:16px;line-height:1.5;scroll-margin-bottom:26px";
@@ -726,7 +744,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage,x);}catch(e){if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
   preview.append(heading2,content,accuracy,send,edit);
   editor.append(heading,field,counter,checkText,saveDraft,preview,check,status);body.append(editor);field.oninput();
-  request("status").then(x=>{if(x.stage==="draft")return request("load").then(d=>{field.value=d.text||"";field.oninput();});showStage(x.stage,x);}).catch(async e=>{if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;});
+  request("status").then(x=>{if(x.stage==="draft")return request("load").then(d=>{field.value=d.text||"";field.oninput();confirm.hidden=false;});editor.hidden=false;showStage(x.stage,x);}).catch(async e=>{editor.hidden=false;if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;});
  }
  if(kind==="rating"){
   const loadForm=document.createElement("button");loadForm.type="button";loadForm.className="ghost";loadForm.textContent="⭐ Начать заполнение";
