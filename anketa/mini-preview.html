@@ -288,7 +288,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <div class="muted" style="font-size:12px">ВАШЕ ПРОСТРАНСТВО</div><h1>Моя работа <span class="gold">✦</span></h1><p class="work-intro">Ваши анкеты и действия ниже.</p>
 <button class="agreement-open" id="signedAgreementOpen" type="button"><span class="agreement-symbol">📜</span><span>Подписанное соглашение</span><span>›</span></button>
 <div id="signedAgreementPanel" class="card" hidden><h2>📜 Подписанное соглашение</h2><div id="signedAgreementContent"></div><button class="ghost" id="signedAgreementClose" type="button">← Вернуться к работе</button></div>
-<div class="hero work-vip-balance"><div class="over">ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="work-vip-main"><div class="work-vip-count"><span class="work-vip-diamond" aria-hidden="true">💎</span><div class="number" id="balance">—</div></div><button class="work-vip-topup" id="workTopup" type="button">＋ Пополнить</button></div><div class="hero-bottom" id="reserve">Баланс обновляется из рабочего кабинета</div></div>
+<div class="hero work-vip-balance"><div class="over">ДОСТУПНО ПУБЛИКАЦИЙ</div><div class="work-vip-main"><div class="work-vip-count"><span class="work-vip-diamond" aria-hidden="true">💎</span><div class="number" id="balance">—</div></div><button class="work-vip-topup" id="workTopup" type="button">＋ Пополнить</button></div><div class="hero-bottom" id="reserve">Ваш текущий баланс</div></div>
 <div class="section-heading"><h2>🌹 Выберите свою анкету</h2><small id="totalProfiles"></small></div>
 <div id="profiles"></div><button class="action" type="button" id="beginAddProfile"><span>➕ Добавить анкету<small>Проверка ссылки и подтверждение данных</small></span><span class="next">›</span></button>
 <div id="menWorkspace" class="card" hidden>
@@ -303,24 +303,24 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <section id="tab-add" hidden>
 <button id="addProfileCancel" type="button" class="back-top">← К моим анкетам</button>
 <div class="muted" style="font-size:12px">🌹 DAME CAMELIAS · МОИ АНКЕТЫ</div><h1>Добавить анкету <span class="gold">✦</span></h1>
-<p>Тот же порядок, что в Telegram: ссылка → проверка данных → подтверждение → сохранение.</p>
+<p>Укажите ссылку на анкету. Мы проверим данные перед сохранением.</p>
 <div class="profile-steps"><span class="current">01 · Ссылка</span><span>02 · Проверка</span><span>03 · Подтверждение</span></div>
 <div class="card"><h2>🔗 Ссылка на вашу анкету</h2><p>Вставьте полную ссылку с действующего домена Intimcity.</p>
 <label class="muted" for="addProfileUrl">Адрес анкеты</label>
 <input id="addProfileUrl" class="man-search" type="url" autocomplete="url" spellcheck="false" placeholder="https://сайт.intimcity.rip/indi/anketa123456.htm">
-<div id="addProfileNotice" class="proof-note" aria-live="polite">После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.</div>
+<div id="addProfileNotice" class="proof-note" aria-live="polite">Введите ссылку на вашу анкету, чтобы проверить её данные.</div>
 <button id="addProfileContinue" type="button" class="primary">🔎 Найти анкету</button><div id="addProfileFound" class="card" hidden><h2>🌹 Анкета найдена</h2><img id="addFoundImage" class="photo-large" alt="Фото анкеты" hidden><p id="addFoundDetails"></p><button id="addProfileConfirm" class="primary" type="button">✅ Это моя анкета</button></div><button id="addProfileCheck" class="ghost" type="button" hidden>🔄 Проверить результат поиска</button>
 </div><p class="muted">Никакие данные не сохраняются без проверки и вашего подтверждения.</p>
 </section>
-<section id="tab-delete" hidden><button type="button" class="back-top" id="cancelDeleteProfile">← К моим анкетам</button><h1>🗑 Удалить анкету?</h1><div class="card"><p id="deleteProfileCaption"></p><p class="muted">Удаление из списка не отменяет уже выполненные публикации и не восстанавливает израсходованные кредиты.</p><div id="deleteError" class="muted" aria-live="polite"></div><button id="confirmDeleteProfile" type="button" class="ghost">🗑 Да, удалить анкету</button></div></section><section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Это не меняет аккаунт, назначенный для реальной работы в Telegram.</p>
+<section id="tab-delete" hidden><button type="button" class="back-top" id="cancelDeleteProfile">← К моим анкетам</button><h1>🗑 Удалить анкету?</h1><div class="card"><p id="deleteProfileCaption"></p><p class="muted">Удаление из списка не отменяет уже выполненные публикации и не восстанавливает израсходованные кредиты.</p><div id="deleteError" class="muted" aria-live="polite"></div><button id="confirmDeleteProfile" type="button" class="ghost">🗑 Да, удалить анкету</button></div></section><section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Выберите мужчину, чтобы посмотреть его публикации.</p>
 <div class="card"><h2>👨‍💻 Выбор аккаунта мужчины</h2>
 <button class="action" data-account="yan_first"><span>👨‍💻 Ян Первый<small id="firstTotal">История загружается</small></span><span class="next" id="firstSelected">○</span></button>
 <button class="action" data-account="yan_second"><span>👨‍💻 Ян Второй<small id="secondTotal">История загружается</small></span><span class="next" id="secondSelected">○</span></button>
 </div><div class="proof-note" id="selectedAccountNote">Выбранный мужчина</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
-<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Все ранее подтверждённые действия, анкеты и аккаунты мужчины. Данные из существующего архива.</p><div class="hero archive-vip-summary"><div class="archive-vip-top"><span>✦ ПОДТВЕРЖДЁННЫЕ ПУБЛИКАЦИИ</span><span class="archive-vip-seal">АРХИВ ✓</span></div><div class="archive-vip-main"><div><div class="archive-vip-number" id="publishedTotal">—</div><div class="archive-vip-caption">Публикаций по выбранным фильтрам</div></div><span class="archive-vip-gem" aria-hidden="true">💎</span></div><div class="archive-vip-counts"><div><span>⭐ Оценки</span><strong id="publishedRatings">0</strong></div><div><span>✍️ Отзывы</span><strong id="publishedReviews">0</strong></div></div></div><div class="archive-filters"><label for="archiveMan">Мужчина<select id="archiveMan"><option value="all">Все мужчины</option></select></label><label for="archiveProfile">Анкета<select id="archiveProfile"><option value="all">Все анкеты</option></select></label></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
-<section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Кредиты, пополнение и учёт расходов — без дублирования вкладок «Работа» и «История».</p>
+<section id="tab-published" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>История и архив <span class="gold">✦</span></h1><p>Здесь хранятся ваши подтверждённые публикации и результаты.</p><div class="hero archive-vip-summary"><div class="archive-vip-top"><span>✦ ПОДТВЕРЖДЁННЫЕ ПУБЛИКАЦИИ</span><span class="archive-vip-seal">АРХИВ ✓</span></div><div class="archive-vip-main"><div><div class="archive-vip-number" id="publishedTotal">—</div><div class="archive-vip-caption">Публикаций по выбранным фильтрам</div></div><span class="archive-vip-gem" aria-hidden="true">💎</span></div><div class="archive-vip-counts"><div><span>⭐ Оценки</span><strong id="publishedRatings">0</strong></div><div><span>✍️ Отзывы</span><strong id="publishedReviews">0</strong></div></div></div><div class="archive-filters"><label for="archiveMan">Мужчина<select id="archiveMan"><option value="all">Все мужчины</option></select></label><label for="archiveProfile">Анкета<select id="archiveProfile"><option value="all">Все анкеты</option></select></label></div><div id="publishedCards"></div><p class="proof-note">📸 Нажмите «Открыть подтверждение», чтобы загрузить подлинный архивный снимок. Для записей без сохранённого файла показывается только статус публикации.</p></section>
+<section id="tab-cabinet" hidden><button class="back-top" type="button" data-tab="profiles">← К работе</button><h1>💎 Мой кабинет</h1><p>Ваш баланс, пополнения и история расходов.</p>
 <div class="hero"><div class="over">ДОСТУПНЫЕ КРЕДИТЫ</div><div class="number" id="balanceTwo">—</div><div class="hero-bottom">Остаток по действующему балансу</div></div>
 <div class="section-heading"><h2>Финансы и расход</h2></div>
 <div class="card"><div class="stats"><div class="stat"><strong id="spentTotal">—</strong>Потрачено кредитов</div><div class="stat"><strong id="reservedTotal">—</strong>Зарезервировано</div></div>
@@ -369,7 +369,7 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
  const submit=document.createElement("button");submit.type="button";submit.className="primary";submit.textContent="🔗 Проверить новую ссылку";
  const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Проверить результат";
  const status=document.createElement("p");status.className="muted";status.setAttribute("aria-live","polite");
- const safety=document.createElement("p");safety.className="muted";safety.textContent="🔒 Оценки, черновики, баланс и история сохраняются. Повторная публикация не запускается. Сообщений в Telegram не будет.";
+ const safety=document.createElement("p");safety.className="muted";safety.textContent="🔒 Ваши оценки, баланс и история сохраняются. Уже выполненные действия не повторяются.";
  const setStage=s=>{const pending=s==="verifying";input.hidden=pending;submit.hidden=pending;check.hidden=!pending;status.textContent=pending?"⏳ Проверяем адрес. Это может занять пару минут.":"🌷 Введите актуальную ссылку на эту же анкету.";};
  submit.onclick=async()=>{submit.disabled=true;try{const x=await api("start",input.value.trim());setStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{submit.disabled=false;}};
  check.onclick=async()=>{check.disabled=true;try{const x=await api("status");if(x.stage==="complete"){status.textContent="✅ Новый адрес проверен. Продолжаем работу.";if(onComplete)await onComplete();}else setStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
@@ -377,7 +377,7 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
 }
 const availableMen=[{id:"yan_first",name:"Ян Первый",image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg",enabled:true},{id:"yan_second",name:"Ян Второй",image:null,enabled:false}];
 let workProfile=null,allMenOpen=false;
-function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:"🔎 Проверить в Telegram",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
+function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:"🔎 Проверить доступность",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;b.append(img);}
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
@@ -389,7 +389,7 @@ for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
 $("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
-$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="После ввода проверим формат ссылки. Поиск и сохранение будут доступны после подключения существующей серверной проверки.";};
+$("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="Введите ссылку на вашу анкету, чтобы проверить её данные.";};
 const addProfileUrl=$("addProfileUrl");
 addProfileUrl.addEventListener("focus",()=>{
  document.body.classList.add("link-typing");
@@ -424,7 +424,7 @@ $("addProfileContinue").onclick=async()=>{const value=$("addProfileUrl").value.t
 $("addProfileCheck").onclick=async()=>{try{const r=await miniAdd("status");if(!r.ok)throw Error("Проверка недоступна.");addFound(r);}catch(e){$("addProfileNotice").textContent="⚠️ "+e.message;}};
 $("addProfileConfirm").onclick=async()=>{$("addProfileConfirm").disabled=true;try{const r=await miniAdd("confirm",{nonce:addNonce});if(!r.ok)throw Error("Подтверждение устарело. Проверьте анкету повторно.");addFound(r);}catch(e){$("addProfileNotice").textContent="⚠️ "+e.message;}finally{$("addProfileConfirm").disabled=false;}};
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
-const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Доступность проверяется в рабочем боте";
+const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Проверить доступность";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
 const accountName=account=>account==="yan_second"?"Ян Второй":"Ян Первый";
 function selectAccount(account){
@@ -434,7 +434,7 @@ function selectAccount(account){
  $("secondSelected").textContent=account==="yan_second"?"✓":"○";
  $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
  $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
- $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+". Рабочий аккаунт в Telegram не меняется.";
+ $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+".";
  renderHistory();
 }
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
@@ -493,8 +493,8 @@ function renderHistory(){
  }
  $("publishedRatings").textContent=ratings;$("publishedReviews").textContent=reviews;$("publishedTotal").textContent=ratings+reviews;
  if(!matches.length)published.textContent="По выбранным фильтрам публикаций нет.";
- $("firstTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_first").length;
- $("secondTotal").textContent="Публикаций в архиве: "+history.filter(item=>item.account==="yan_second").length;
+ $("firstTotal").textContent="Сохранённых публикаций: "+history.filter(item=>item.account==="yan_first").length;
+ $("secondTotal").textContent="Сохранённых публикаций: "+history.filter(item=>item.account==="yan_second").length;
 }
 
 let financialData=null,latestFinanceBalance=null,financeFilter="all";
@@ -510,7 +510,7 @@ function renderFinance(){
   $("financeSpent").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";
   const archived=Array.isArray(history)?history.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))):[];
   const note=document.createElement("p");note.className="muted";
-  note.textContent="Действующий баланс и подтверждённый архив. Даты отдельных пополнений и точные списания появятся после обновления серверного журнала.";
+  note.textContent="Баланс актуален. Даты некоторых прошлых операций пока недоступны.";
   root.append(note);
   if(financeFilter!=="spent"){
     const sum=document.createElement("div");sum.className="finance-entry";
@@ -552,9 +552,9 @@ function renderFinance(){
   if(!e||!Number.isFinite(e.at))continue;
   const man=history.find(item=>item.id===String(e.profileId)&&item.kind===e.kind)?.account;
   const manText=man?accountName(man):"Мужчина не указан в финансовом журнале";
-  const detail=e.profileId?manText+" · Анкета №"+String(e.profileId):"Изменение баланса администратором";
+  const detail=e.profileId?manText+" · Анкета №"+String(e.profileId):"Корректировка баланса";
   if(e.origin==="registry"){
-   addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма старой операции не записана":"Начислено администратором",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
+   addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма не указана":"Начислено администратором",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
   }
   else if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1 публикация",e.kind==="rating"?"⭐":"✍️","minus");
   else if(e.type==="reserve")addEntry(stamp(e.at),"Публикация ожидает подтверждения",detail,"⏳", "⏳","neutral");
@@ -814,7 +814,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);editor.append(elsewhere);
     updateProgress();
     const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Очистить ответы";reset.hidden=true;
-    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Форма очищена. Сохранённый на сервере черновик изменится только после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
+    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Ответы очищены. Изменения вступят в силу после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
     const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";save.hidden=true;editor.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
@@ -899,8 +899,8 @@ $("signedAgreementOpen").onclick=async()=>{
  try{
   const res=await fetch("/api/anketa/mini-signed-agreement",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData}),cache:"no-store"});
   const data=await res.json().catch(()=>null);
-  if(!res.ok)throw Error(res.status===404?"Сервис соглашения ещё не обновлён.":res.status===403?"Откройте Mini App заново из Telegram.":"Сервис соглашения недоступен (HTTP "+res.status+").");
-  if(data?.status==="not_accepted")throw Error("Для этого Telegram ID подписанное соглашение не найдено. Проверьте, что приложение открыто из нужного аккаунта.");
+  if(!res.ok)throw Error(res.status===404?"Не удалось открыть соглашение. Попробуйте позже.":res.status===403?"Откройте Mini App заново из Telegram.":"Не удалось открыть соглашение. Попробуйте позже.");
+  if(data?.status==="not_accepted")throw Error("Подписанное соглашение для этого аккаунта не найдено.");
   if(data?.status!=="accepted"||!Array.isArray(data.sections))throw Error("Не удалось прочитать сохранённое соглашение.");
   container.replaceChildren();
   const stamp=document.createElement("p");stamp.className="agreement-stamp";
