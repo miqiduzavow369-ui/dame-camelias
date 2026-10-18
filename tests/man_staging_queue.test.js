@@ -183,3 +183,24 @@ test("outer and internal staging routes reject future, stale and duplicate signe
  }
  assert.equal(h.stored.snapshot().size,0);
 });
+
+test("internal Durable Object refuses oversized and malformed JSON before storage",async()=>{
+ const stored=storage(),object=new ManStagingAccounts({storage:stored},{MAN_STAGING_BOT_TOKEN:TOKEN});
+ const invoke=async text=>object.fetch(new Request("https://staging.internal/",{
+  method:"POST",body:text
+ }));
+ for(const body of [
+  JSON.stringify({ownerId:OWNER,initData:signed(OWNER),action:"list",extra:"X".repeat(17000)}),
+  JSON.stringify({ownerId:OWNER,initData:signed(OWNER),action:"list",extra:"я".repeat(8500)})
+ ]){
+  const response=await invoke(body);
+  assert.equal(response.status,413);
+  assert.equal((await response.json()).reason,"too_large");
+ }
+ for(const body of ["{broken","[]","null"]){
+  const response=await invoke(body);
+  assert.equal(response.status,400);
+  assert.equal((await response.json()).reason,"invalid_request");
+ }
+ assert.equal(stored.snapshot().size,0);
+});
