@@ -309,6 +309,19 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 .rating-group.rating-group-complete{border-color:#bd985b}
 .rating-group.rating-group-complete>.rating-group-summary{color:#f4d59b;background:linear-gradient(90deg,#332714,#17120e)}
 @media(prefers-reduced-motion:reduce){.rating-select{transition:none}}
+/* Compact confirmation before rating selection: reuse the saved profile photo. */
+.rating-verify-card{padding:18px!important;border-color:#a7844a!important}
+.rating-verify-card>h2{margin:0 0 16px;font-size:21px;line-height:1.3;color:#f2d5a0}
+.rating-verify-identity{display:flex;align-items:center;gap:16px;min-width:0}
+.rating-verify-image{position:relative;display:grid;place-items:center;flex:0 0 98px;width:98px;aspect-ratio:3/4;overflow:hidden;border:2px solid #d9b571;border-radius:15px;background:#20170e;box-shadow:0 7px 19px #0009}
+.rating-verify-image img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.rating-verify-image span{font-size:28px}
+.rating-verify-info{min-width:0;overflow-wrap:anywhere}
+.rating-verify-info strong{display:block;font-size:17px;color:#f4ddb4;line-height:1.4}
+.rating-verify-info p{margin:7px 0 0;color:#ddd0b9;font-size:14px;line-height:1.45}
+.rating-verify-hint{margin:16px 0 0;color:#c5b79f;font-size:13px;line-height:1.5}
+.rating-verify-card>.primary{min-height:48px;margin-top:14px}
+@media(max-width:360px){.rating-verify-identity{gap:11px}.rating-verify-image{flex-basis:78px;width:78px}.rating-verify-info strong{font-size:15px}}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -759,11 +772,23 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       throw Error(res.status===403?"Сессия Telegram истекла. Откройте приложение заново.":reasons[data.reason]||"Не удалось открыть оценки. Попробуйте позже.");
     }
     panel.replaceChildren();
-    const verify=document.createElement("div");verify.className="card";
-    const title=document.createElement("h2");title.textContent="🌹 Проверьте анкету";
-    const desc=document.createElement("p");desc.textContent="Анкета №"+selected.id+" · "+selected.name+". Убедитесь, что выбрали нужную анкету.";
-    const begin=document.createElement("button");begin.type="button";begin.className="primary";begin.textContent="✅ Всё верно, оставить оценки";
-    verify.append(title,desc,begin);panel.append(verify);
+    const verify=document.createElement("div");verify.className="card rating-verify-card";
+    const title=document.createElement("h2");title.textContent="🌹 Подтвердите анкету";
+    const identity=document.createElement("div");identity.className="rating-verify-identity";
+    const imageFrame=document.createElement("div");imageFrame.className="rating-verify-image";
+    const fallback=document.createElement("span");fallback.textContent="🌹";fallback.setAttribute("aria-hidden","true");imageFrame.append(fallback);
+    if(selected?.photo){
+      const photo=document.createElement("img");photo.alt="Фото анкеты №"+selected.id;photo.loading="lazy";
+      photo.onload=()=>{fallback.hidden=true;};photo.onerror=()=>{photo.remove();fallback.hidden=false;};
+      photo.src=selected.photo;imageFrame.append(photo);
+    }
+    const info=document.createElement("div");info.className="rating-verify-info";
+    const number=document.createElement("strong");number.textContent="Анкета №"+selected.id;
+    const name=document.createElement("p");name.textContent=selected.name||"Ваша анкета";
+    info.append(number,name);identity.append(imageFrame,info);
+    const desc=document.createElement("p");desc.className="rating-verify-hint";desc.textContent="Это ваша анкета? Перейдите к заполнению оценок.";
+    const begin=document.createElement("button");begin.type="button";begin.className="primary";begin.textContent="Продолжить к оценкам →";
+    verify.append(title,identity,desc,begin);panel.append(verify);
     const editor=document.createElement("div");editor.hidden=true;panel.append(editor);
     begin.onclick=()=>{verify.hidden=true;editor.hidden=false;editor.scrollIntoView({block:"start",behavior:"smooth"});};
     const hint=document.createElement("p");hint.className="muted";hint.textContent="Выберите ответы и нажмите «Далее». Остальные вопросы можно пропустить.";editor.append(hint);
