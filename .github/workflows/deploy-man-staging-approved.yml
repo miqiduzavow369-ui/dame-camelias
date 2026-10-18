@@ -1,72 +1,8 @@
-name: Deploy isolated MAN staging ONLY (owner approved)
-
-on:
-  push:
-    branches:
-      - feature/yan-multiaccount-foundation
-    paths:
-      - '.github/workflows/deploy-man-staging-approved.yml'
-  workflow_dispatch:
-
+# Retired: separate MAN staging bot was explicitly cancelled by the owner.
+# This workflow has no triggers, jobs, secrets, or deployment commands.
+# Kept only as an auditable tombstone; the existing production bot is unchanged.
+name: Retired separate MAN staging deployment
+on: {}
 permissions:
   contents: read
-
-concurrency:
-  group: dame-camelias-man-staging-only-deploy
-  cancel-in-progress: false
-
-jobs:
-  deploy-staging:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      STAGING_BOT_TOKEN: ${{ secrets.MAN_STAGING_BOT_TOKEN }}
-      PROD_BOT_TOKEN_CHECK: ${{ secrets.BOT_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Confirm exclusively isolated staging target and available secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${GITHUB_REF}" != "refs/heads/feature/yan-multiaccount-foundation" ]; then
-            echo "::error::Only the isolated feature branch can deploy staging."
-            exit 1
-          fi
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN. Nothing deployed."; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID. Nothing deployed."; exit 1; }
-          test -n "$STAGING_BOT_TOKEN" || { echo "::error::Missing separate MAN_STAGING_BOT_TOKEN. Nothing deployed."; exit 1; }
-          if [ -n "$PROD_BOT_TOKEN_CHECK" ] && [ "$STAGING_BOT_TOKEN" = "$PROD_BOT_TOKEN_CHECK" ]; then
-            echo "::error::Staging Telegram token must differ from production. Nothing deployed."
-            exit 1
-          fi
-          grep -qx 'name = "dame-camelias-man-staging"' wrangler.man-staging.toml
-          grep -qx 'main = "src/man_staging_worker.js"' wrangler.man-staging.toml
-          grep -qx 'MAN_STAGING_ONLY = "true"' wrangler.man-staging.toml
-          grep -qx 'CABINET_PUBLICATIONS_ENABLED = "false"' wrangler.man-staging.toml
-          grep -qx 'CABINET_CLIENTS_ENABLED = "false"' wrangler.man-staging.toml
-          ! grep -Eq '(^|[[:space:]])(route|routes|kv_namespaces)[[:space:]]*=' wrangler.man-staging.toml
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Run pre-deployment staging boundary checks
-        run: |
-          node --experimental-default-type=module --test tests/man_staging_deploy_contract.test.js tests/man_staging_auth.test.js tests/man_staging_worker.test.js tests/man_staging_queue.test.js
-      - name: Deploy only separately named staging Worker
-        run: npx --yes wrangler@4.102.0 deploy --config wrangler.man-staging.toml
-      - name: Install isolated staging Telegram secret only
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "$STAGING_BOT_TOKEN" | npx --yes wrangler@4.102.0 secret put MAN_STAGING_BOT_TOKEN --config wrangler.man-staging.toml
-      - name: Confirm separate staging health endpoint
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="https://dame-camelias-man-staging.gptjjjgpt.workers.dev"
-          code="$(curl --silent --show-error --max-time 20 -o /tmp/man-staging-health.txt -w '%{http_code}' "$BASE/health")"
-          cat /tmp/man-staging-health.txt
-          test "$code" = "200"
-          grep -q '"publicationEnabled":false' /tmp/man-staging-health.txt
-# Never runs production wrangler.toml or deploy-existing-worker workflow.
+jobs: {}
