@@ -2517,7 +2517,8 @@ async function miniRatingDraftSave(env,profileId,selected,metElsewhere){
  const gate=await miniRatingFormLoad(env,profileId);
  if(!gate.ok)return gate;
  const state=await stateGet(env);
- if(state.step!=="ratings")return {ok:false,reason:"not_ready"};
+ // A failed prepublication check returns to ratings_agreed; allow the existing draft to be edited.
+ if(!["ratings","ratings_agreed"].includes(state.step))return {ok:false,reason:"not_ready"};
  if(!selected||typeof selected!=="object"||Array.isArray(selected)||typeof metElsewhere!=="boolean")return {ok:false,reason:"invalid_choice"};
  const safe={};
  for(const [index,value] of Object.entries(selected)){
