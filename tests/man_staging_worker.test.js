@@ -50,7 +50,8 @@ test("staging config cannot bind production customer state or publish",()=>{
  assert.doesNotMatch(cfg,/VISITORS_KV|ORDER_REMINDERS|secrets\.|routes\s*=/);
  assert.match(cfg,/CABINET_PUBLICATIONS_ENABLED = "false"/);
  const code=read("src/man_staging_worker.js");
- assert.doesNotMatch(code,/intimcity_profile_lookup|github\.com\/repos|api\.telegram\.org|PROXY_PASSWORD/);
+ assert.doesNotMatch(code,/intimcity_profile_lookup|github\.com\/repos|api\.telegram\.org/);
+ assert.match(code,/"PROXY_PASSWORD" in env/);
 });
 test("staging fails closed without separate staging bot secret",async()=>{
  const res=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),env);
