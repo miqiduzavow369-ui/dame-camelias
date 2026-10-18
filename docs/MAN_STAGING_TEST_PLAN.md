@@ -9,6 +9,8 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Independent Durable Object class / binding: `ManStagingAccounts` / `MAN_STAGING_ACCOUNTS`
 - No existing KV ID, production Durable Object binding, routes, proxy, site, or GitHub workflow dispatch.
 - Staging-only routes: `GET /health`, `GET /test-admin` (static test dashboard shell) and owner-signed `POST /api/man-staging` (all data/actions authenticated).
+- Readiness gate: `GET /health` returns 200 only when separate staging token, isolated Durable Object binding and all publication/client disable flags are present, and no production binding is detected. Otherwise `/health`, `/test-admin` and the API return `503 staging_unconfigured` without disclosing credentials.
+- A successful `/health` is a configuration check, **not** proof of Telegram authentication, GitHub Actions, site access, queue processing or end-to-end readiness.
 - Setup actions: `list`, `history`, `draft(plan/reset)`; no account credentials or real activation.
 - Mock executor actions: `mock_queue` (sanitized owner-only list), `mock_seed` (create inert fixture), and `mock_finish` (record mock success/rejection). Mock records never touch external sites, credits, customer data, or production Durable Objects.
 - The dashboard is accessible only through the separate staging Worker; opening the HTML without a staging Telegram signed `initData` cannot read or change queue data.
