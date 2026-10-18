@@ -6,8 +6,9 @@ import {STAGING_DASHBOARD_HTML} from "../src/man_staging_dashboard.js";
 import {enqueueMockManTask} from "../src/man_mock_queue.js";
 
 const OWNER="5866034656",TOKEN="fixture-staging-auth", OTHER="5866034657";
-function signed(uid){
- const p=new URLSearchParams({auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:Number(uid),first_name:"Fixture"})});
+function signed(uid,authDate=Math.floor(Date.now()/1000),extra=[]){
+ const p=new URLSearchParams({auth_date:String(authDate),user:JSON.stringify({id:Number(uid),first_name:"Fixture"})});
+ for(const [k,v] of extra)p.append(k,v);
  const data=[...p].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+"="+v).join("\n");
  const secret=createHmac("sha256","WebAppData").update(TOKEN).digest();
  p.set("hash",createHmac("sha256",secret).update(data).digest("hex"));
@@ -160,4 +161,25 @@ test("direct Durable Object calls cannot forge ownerId without signed Telegram d
  const authorized=await invoke({ownerId:OWNER,initData:signed(OWNER),action:"list"});
  assert.equal(authorized.status,200);
  assert.equal(authorized.data.accounts.length,30);
+});
+
+test("outer and internal staging routes reject future, stale and duplicate signed fields",async()=>{
+ const h=fixture(),now=Math.floor(Date.now()/1000);
+ const object=new ManStagingAccounts({storage:h.stored},{MAN_STAGING_BOT_TOKEN:TOKEN});
+ for(const initData of [
+  signed(OWNER,now+80),
+  signed(OWNER,now-1000),
+  signed(OWNER,now,[["auth_date",String(now)]]),
+  signed(OWNER,now,[["user",JSON.stringify({id:Number(OWNER)})]])
+ ]){
+  const outer=await worker.fetch(new Request("https://isolated.example/api/man-staging",{
+   method:"POST",body:JSON.stringify({action:"list",initData})
+  }),h.env);
+  assert.equal(outer.status,403);
+  const inner=await object.fetch(new Request("https://staging.internal/",{
+   method:"POST",body:JSON.stringify({ownerId:OWNER,action:"list",initData})
+  }));
+  assert.equal(inner.status,403);
+ }
+ assert.equal(h.stored.snapshot().size,0);
 });
