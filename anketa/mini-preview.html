@@ -528,7 +528,7 @@ function renderFinance(){
       const detail=document.createElement("p");detail.textContent=accountName(item.account)+" · Анкета №"+String(item.id)+" · расход по этой записи проверяется по кредитному журналу";
       row.append(date,title,detail);root.append(row);
     }
-    const p=document.createElement("p");p.className="muted";p.textContent="По балансу потрачено: "+(Number.isSafeInteger(b?.spent)?b.spent:"—")+" кредитов. Архив публикаций не заменяет журнал списаний.";root.append(p);
+    const p=document.createElement("p");p.className="muted";p.textContent="По балансу потрачено: "+(Number.isSafeInteger(b?.spent)?b.spent:"—")+" кредитов. Данные о расходах могут обновляться с задержкой.";root.append(p);
   }
   return;
  }
@@ -554,11 +554,11 @@ function renderFinance(){
   const manText=man?accountName(man):"Мужчина не указан в финансовом журнале";
   const detail=e.profileId?manText+" · Анкета №"+String(e.profileId):"Корректировка баланса";
   if(e.origin==="registry"){
-   addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма не указана":"Начислено администратором",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
+   addEntry(stamp(e.at),e.type==="initial"?"Первоначальное начисление":"Пополнение баланса",e.amount===null?"Сумма не указана":"Начисление",Number.isSafeInteger(e.amount)?"+"+e.amount:"Сумма —","💎","plus");
   }
   else if(e.type==="spend")addEntry(stamp(e.at),e.kind==="rating"?"Публикация оценки":"Публикация отзыва",detail,"−1 публикация",e.kind==="rating"?"⭐":"✍️","minus");
   else if(e.type==="reserve")addEntry(stamp(e.at),"Публикация ожидает подтверждения",detail,"⏳", "⏳","neutral");
-  else if(e.type==="adjust")addEntry(stamp(e.at),e.delta>0?"Пополнение баланса":"Корректировка баланса","Изменение администратором",(e.delta>0?"+":"")+e.delta,e.delta>0?"💎":"⚖️",e.delta>0?"plus":"minus");
+  else if(e.type==="adjust")addEntry(stamp(e.at),e.delta>0?"Пополнение баланса":"Корректировка баланса","Корректировка",(e.delta>0?"+":"")+e.delta,e.delta>0?"💎":"⚖️",e.delta>0?"plus":"minus");
  }
  if(financeFilter==="all"||financeFilter==="topup"){
   if(Number.isSafeInteger(f.grant)&&f.grant>0&&!topups.length)addEntry("Дата первоначального начисления не сохранена","Начисления до ведения истории","Подтверждённая суммарная величина, без выдуманной даты","+"+f.grant,"💎","plus");
@@ -586,7 +586,7 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
- const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить доступность действия"};
+ const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
   const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
