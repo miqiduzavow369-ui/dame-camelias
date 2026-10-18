@@ -97,7 +97,7 @@ export async function handleAdminApi(request,env){
    for(let offset=0;offset<names.length;offset+=20){
     const batch=await Promise.all(names.slice(offset,offset+20).map(name=>env.VISITORS_KV.get(name,"json").catch(()=>null)));
     for(const item of batch){
-     if(!item||!/^[1-9]\\d{4,15}$/.test(String(item.id||"")))continue;
+     if(!item||!/^[1-9]\d{4,15}$/.test(String(item.id||"")))continue;
      const id=String(item.id),at=Date.parse(item.visitedAt||"");
      if(!Number.isFinite(at)||at<now-7*msDay||at>now+60000)continue;
      const previous=unique.get(id);
