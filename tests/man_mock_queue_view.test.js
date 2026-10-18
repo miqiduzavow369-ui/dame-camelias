@@ -16,7 +16,11 @@ function storage(){
   transaction(fn){
    const p=tail.then(async()=>{
     const staged=new Map(map);
-    const result=await fn({get:async k=>staged.get(k),put:async(k,v)=>{staged.set(k,v)}});
+    const result=await fn({
+     get:async k=>staged.get(k),
+     put:async(k,v)=>{staged.set(k,v)},
+     list:async({prefix="",limit=1000}={})=>new Map([...staged].filter(([k])=>k.startsWith(prefix)).slice(0,limit))
+    });
     map.clear();for(const [k,v] of staged)map.set(k,v);
     return result;
    });tail=p.catch(()=>{});return p;
