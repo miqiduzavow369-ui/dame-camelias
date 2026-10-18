@@ -35,7 +35,7 @@ function storage(){
  return {get:async k=>data.get(k),put:async(k,v)=>data.set(k,v),transaction:tx,list,snapshot:()=>new Map(data)};
 }
 function fixture(){
- const stored=storage(),instance=new ManStagingAccounts({storage:stored});
+ const stored=storage(),instance=new ManStagingAccounts({storage:stored},{MAN_STAGING_BOT_TOKEN:TOKEN});
  const env={
   MAN_STAGING_ONLY:"true",CABINET_PUBLICATIONS_ENABLED:"false",CABINET_CLIENTS_ENABLED:"false",
   MAN_STAGING_BOT_TOKEN:TOKEN,
