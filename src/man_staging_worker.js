@@ -77,7 +77,7 @@ export class ManStagingAccounts {
     const item=await this.storage.get("man-mock-queue-v1:"+body.correlationKey);
     if(!item?.task||item.task.correlationKey!==body.correlationKey)throw Error("Unknown mock job");
     const result=await finishMockManTask(this.storage,{
-     actorId:OWNER_ID,ownerId:OWNER_ID,task:item.task,moscowDate:moscowDay(),
+     actorId:OWNER_ID,ownerId:OWNER_ID,task:item.task,moscowDate:item.moscowDate,
      result:body.outcome==="mock_rejected"?"mock_rejected":body.outcome==="mock_success"?"mock_success":"invalid",at:Date.now()
     });
     return json({...result,ok:true,simulationOnly:true});
