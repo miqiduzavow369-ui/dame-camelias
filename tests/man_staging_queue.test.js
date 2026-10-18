@@ -102,6 +102,8 @@ test("staging premium queue UI exists only at test route and carries no secrets"
  const res=await worker.fetch(new Request("https://isolated.example/test-admin"),h.env);
  assert.equal(res.status,200);
  assert.match(res.headers.get("Content-Type"),/text\/html/);
+ assert.equal(res.headers.get("X-Frame-Options"),null);
+ assert.match(res.headers.get("Content-Security-Policy"),/frame-ancestors https:\/\/web\.telegram\.org/);
  const html=await res.text();
  assert.equal(html,STAGING_DASHBOARD_HTML);
  assert.match(html,/SIMULATION ONLY/);
