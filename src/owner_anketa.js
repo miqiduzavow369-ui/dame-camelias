@@ -2460,13 +2460,16 @@ async function miniRatingAction(env,profileId,action){
  const state=await stateGet(env);
  if(!state||String(state.profile?.id||state.id)!==String(profileId)||state.account!==ACTIVE_ACCOUNT)
   return {ok:false,reason:"not_ready"};
+ const startedAt=Number(state.confirmedAt);
+ const publicationTiming=["publishing","proof_loading","publication_result"].includes(state.step)
+   && Number.isSafeInteger(startedAt)&&startedAt>0?{startedAt}:{}; // Informational only; never controls a publication.
  const prior=await publicationStatus(env,profileId,"rating");
- if(prior)return {ok:true,stage:prior.status==="published"?"published":"checking"};
+ if(prior)return {ok:true,stage:prior.status==="published"?"published":"checking",...publicationTiming};
  if(action==="status"){
   return {ok:true,stage:state.step==="prepublish_ready"&&Date.now()-Number(state.readyAt||0)<900000?"ready":
     state.step==="prepublish_ready"?"expired":state.step==="dryfill_loading"?"preparing":
     state.step==="publishing"?"publishing":state.step==="ratings_agreed"?"failed":
-    state.step==="ratings"?"draft":"checking"};
+    state.step==="ratings"?"draft":"checking",...publicationTiming};
  }
  if(action!=="status"){const c=ratingCoverage(state.catalog||[],state.selected||{});if(c.missing||c.optionalFilled<c.minimum)return {ok:false,reason:"incomplete_ratings"};}
  if(action==="prepare"){
@@ -2504,7 +2507,7 @@ async function miniRatingAction(env,profileId,action){
   if(!await statePut(env,pending))return {ok:false,reason:"state_failure"};
   const dispatch=await dispatchLookup(env,profileId,nonce,"publish",state.host).catch(()=>null);
   if(dispatch?.definitiveFailure)await releaseUnsubmitted(env,profileId,"rating",token,day);
-  return {ok:true,stage:"publishing"};
+  return {ok:true,stage:"publishing",startedAt:pending.confirmedAt};
  }finally{
   // Never release a claim after an ambiguous external dispatch or publication start.
   if(!claimed){
