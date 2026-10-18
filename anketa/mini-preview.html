@@ -778,7 +778,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       for(const [section,info] of groups){
        const filled=info.controls.filter(c=>!!c.value).length;
        info.summary.textContent="✦ "+info.name+" · "+filled+"/"+info.controls.length;
-       section.classList.toggle("rating-group-complete",info.controls.length>0&&filled===info.controls.length);
+       info.section.classList.toggle("rating-group-complete",info.controls.length>0&&filled===info.controls.length);
       }
     };
     const orderedFields=data.catalog.map((item,i)=>({item,i}));
