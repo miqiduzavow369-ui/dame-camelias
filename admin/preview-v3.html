@@ -151,7 +151,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 @media(max-width:360px){.men-square-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.men-square{min-height:138px}.footnav{padding-inline:5px}.navbtn{font-size:10px}}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all";let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -216,7 +216,7 @@ function renderManConsole(){
  '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+
  '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
  tile('🔐','Авторизация',legacy?'Текущая · не изменяем':'Не настроена','','')+
- tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Не настроены','','')+
+ tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
  tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
  tile('🔒','Публикации',legacy?'Прежний рабочий механизм':'Отключены до активации','','')+
  '</div>'+
@@ -226,12 +226,56 @@ function renderManConsole(){
  '<div class="card">'+(menHistoryError?'<p class="error">'+esc(menHistoryError)+'</p>':'')+history+'</div>'+
  '<div class="watermark">Секреты скрыты · запуск публикаций отсутствует · изменения записываются сервером</div>';
 }
+
+function renderManProxyForm(){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
+ const st=proxyVaultState;
+ return back("go('man-detail')")+'<div class="mini">ЗАЩИЩЁННЫЕ ПАРАМЕТРЫ / '+esc(x.id)+'</div><h1>🌐 Прокси · '+esc(x.name)+'</h1>'+
+ '<p class="muted small">Только для этого мужчины. Без включения публикаций.</p>'+
+ '<div class="men-detail-hero"><span class="pill">🔒 Неактивен</span><p class="hint">'+
+ (st?.configured?'Реквизиты сохранены в зашифрованном хранилище. Версия '+Number(st.version)+'.':'Параметры ещё не сохранены.')+
+ '</p><div class="hint">Ожидаемый IP: '+esc(st?.expectedIp||'не указан')+' · Проверка выхода: не выполнена</div></div>'+
+ (proxyVaultError?'<div class="error" role="alert">'+esc(proxyVaultError)+'</div>':'')+
+ '<form id="manProxyForm" class="card" onsubmit="saveManProxy(event)" autocomplete="off">'+
+ '<label for="proxyProtocol">Протокол</label><select class="field" id="proxyProtocol" required><option value="socks5">SOCKS5</option><option value="http">HTTP</option><option value="https">HTTPS</option></select>'+
+ '<label for="proxyHost">Адрес прокси / хост</label><input id="proxyHost" class="field" maxlength="253" placeholder="proxy.example.com" required autocapitalize="off" spellcheck="false">'+
+ '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" placeholder="1080">'+
+ '<label for="proxyUsername">Логин прокси (если есть)</label><input id="proxyUsername" class="field" maxlength="256" autocapitalize="off" spellcheck="false">'+
+ '<label for="proxyPassword">Индивидуальный пароль прокси</label><input id="proxyPassword" class="field" type="password" maxlength="512" required autocomplete="new-password">'+
+ '<label for="proxyExpectedIp">Закреплённый внешний IPv4</label><input id="proxyExpectedIp" class="field" inputmode="decimal" placeholder="203.x.x.x" required autocapitalize="off" spellcheck="false">'+
+ '<div class="note">При сохранении текущие реквизиты будут полностью заменены. Пароль не возвращается обратно в приложение. Проверка IP и включение публикаций не выполняются.</div>'+
+ '<button class="primary" type="submit" '+(proxySaving?'disabled':'')+'>'+(proxySaving?'Сохранение…':'🔐 Зашифровать и сохранить')+'</button></form>'+
+ '<div class="watermark">Ян Первый не затрагивается · GitHub не хранит пароли</div>';
+}
+async function openManProxy(){
+ if(!selectedManId||selectedManId==='yan_first')return;
+ proxyVaultState=null;proxyVaultError='';go('man-proxy');
+ try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
+ if(selectedManId!==r.accountId)return;proxyVaultState=r;render();
+ }catch(e){proxyVaultError='Не удалось прочитать статус: '+e.message;render();}
+}
+async function saveManProxy(event){
+ event.preventDefault();
+ if(proxySaving||!selectedManId||selectedManId==='yan_first'||!proxyVaultState)return;
+ const settings={protocol:document.getElementById('proxyProtocol').value,host:document.getElementById('proxyHost').value.trim(),
+ port:Number(document.getElementById('proxyPort').value),username:document.getElementById('proxyUsername').value,
+ password:document.getElementById('proxyPassword').value,expectedIp:document.getElementById('proxyExpectedIp').value.trim()};
+ proxySaving=true;proxyVaultError='';
+ try{
+  const result=await callAdmin('man_proxy_save',{accountId:selectedManId,expectedVersion:proxyVaultState.version,settings});
+  if(!result.ok||result.canPublish!==false||result.accountId!==selectedManId)throw Error('Некорректный ответ');
+  proxyVaultState=result;toast('🔒 Индивидуальные настройки сохранены. Аккаунт отключён.');
+ }catch(e){proxyVaultError=e.message==='vault_key_missing'?'На сервере не задан ключ шифрования. Нужен Cloudflare Secret MAN_PROXY_ENCRYPTION_KEY.':'Не удалось сохранить. Проверьте реквизиты и повторите.';}
+ finally{proxySaving=false;render();}
+}
+
 function setMenFilter(filter){
  if(!['all','active','waiting'].includes(filter))return;
  menFilter=filter;render();
 }
 
-function render(){document.getElementById('nav-clients').classList.toggle('active',!['reviews','review','events','men','man-detail'].includes(state.page));document.getElementById('nav-men').classList.toggle('active',['men','man-detail'].includes(state.page));document.getElementById('nav-reviews').classList.toggle('active',['reviews','review'].includes(state.page));document.getElementById('nav-events').classList.toggle('active',state.page==='events');let p=state.page;let h='';
+function render(){document.getElementById('nav-clients').classList.toggle('active',!['reviews','review','events','men','man-detail'].includes(state.page));document.getElementById('nav-men').classList.toggle('active',['men','man-detail','man-proxy'].includes(state.page));document.getElementById('nav-reviews').classList.toggle('active',['reviews','review'].includes(state.page));document.getElementById('nav-events').classList.toggle('active',state.page==='events');let p=state.page;let h='';
 if(p==='clients'){
  const query=state.query.trim().toLowerCase().replace(/^@/,'');
  const matches=clients.filter(c=>c.id.includes(query)||(normalizeUsername(c.username)||'').toLowerCase().includes(query));
@@ -248,6 +292,7 @@ if(p==='clients'){
 }
 else if(p==='men'){h=renderMenDashboard();}
 else if(p==='man-detail'){h=renderManConsole();}
+else if(p==='man-proxy'){h=renderManProxyForm();}
 else if(p==='client'){let c=cby(state.client);if(!c){root('clients');return}h=`${back("root('clients')")}<div class="row"><div><h1>${normalizeUsername(c.username)?username(c):"Клиентка · ID"}</h1><div class="small muted">${normalizeUsername(c.username)?"Telegram ID "+esc(c.id):esc(c.id)+" · Ник не указан"}</div><a class="detail-chat" href="${chatHref(c)}" aria-label="Написать в Telegram"><span aria-hidden="true">↗</span> Написать в Telegram</a></div><span class="status ${c.active?'':'off'}">${c.active?'Активна':'Приостановлена'}</span></div><div class="summary"><div class="mini">БАЛАНС ПУБЛИКАЦИЙ</div><div class="number">${available(c)} <span class="balance-caption">доступно</span></div><div class="balance-stats"><div><span class="balance-stat-label">Использовано за всё время</span><b>${Number(c.spent)||0}</b></div><div><span class="balance-stat-label">Всего начислено</span><b>${Number.isFinite(Number(c.grant))?Number(c.grant):'—'}</b></div></div></div>${b('＋  Пополнить баланс',"startAction('topup')",'primary')}<div class="agreement-compact"><span class="agreement-caption"><span class="agreement-icon">▣</span> Соглашение</span><span class="${c.agreement?'status':'status off'}">${c.agreement?'Подписано':'Не подписано'}</span></div><div class="section action-heading">Быстрое управление</div><div class="action-grid">${actionTile('⚖','Изменить остаток','Корректировка баланса',"startAction('balance')")}${actionTile('⌘','Код доступа','Сменить PIN',"startAction('pin')")}${actionTile(c.active?'◷':'▷',c.active?'Приостановить доступ':'Восстановить доступ',c.active?'Ограничить вход':'Открыть вход',"startAction('access')",(c.active?'danger-tile ':'')+'action-wide')}</div><button class="archive-compact" onclick="openArchive()"><span aria-hidden="true">▤</span><span>Публикации и подтверждения</span><span aria-hidden="true">›</span></button><div class="watermark">Операции выполняются сервером и требуют подтверждения</div>`}
 else if(p==='archive'){let a=archive.filter(x=>x.uid===state.client&&(x.profile.includes(state.archquery)||x.account.toLowerCase().includes(state.archquery.toLowerCase())||archiveDate(x.date).includes(state.archquery)));h=`${back("go('client')")}<h1>Публикации</h1><p class="small muted">Клиентка ${esc(state.client)}</p><input class="search" placeholder="⌕  Анкета, мужчина, дата" value="${esc(state.archquery)}" oninput="searchArchive(this.value)"><div class="section">История · ${a.length}</div><div class="list">${a.map((x,i)=>`<button class="listitem" onclick="go('proof',{proof:${archive.indexOf(x)}})"><span class="avatar">${x.kind==='Оценка'?'☆':'✎'}</span><span class="flex"><span class="strong">${x.kind} · Анкета №${x.profile}</span><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Подтверждения не найдены</div>'}</div>`}
 else if(p==='proof'){let x=archive[state.proof];h=`${back("go('archive')")}<h1>Подтверждение</h1><div class="card"><strong>${x.kind} · анкета №${x.profile}</strong><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div><div class="thin"></div><div class="fakeproof">▧<br>${x.proof?'<button class="secondary" onclick="loadProof()">Открыть скриншот</button><div id="proof-image" class="hint">Скриншот загружается только по вашему запросу</div>':'Скриншот не сохранён. Публикация есть в архиве.'}</div></div>`}
