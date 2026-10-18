@@ -301,6 +301,15 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 .rating-wait-help{margin:18px 1px 7px;font-size:13px}
 .rating-wait-card>.primary{margin-top:14px;min-height:52px}
 @media(max-width:380px){.rating-wait-top{grid-template-columns:78px minmax(0,1fr);gap:12px}.rating-wait-image{width:78px;border-radius:13px}.rating-wait-copy h2{font-size:17px}.rating-wait-copy p{font-size:13px}}
+/* Premium rating selectors: readable before selection, illuminated after selection. */
+.rating-select{min-height:52px;padding:12px 42px 12px 14px;background-color:#272218;color:#f3e6cf;border:1.5px solid #aa8952;border-radius:12px;font-size:16px;font-weight:550;line-height:1.4;box-shadow:inset 0 1px #e9ca8720,0 2px 7px #0007;transition:background-color .18s,border-color .18s,box-shadow .18s;max-width:100%}
+.rating-select:focus-visible,.rating-select:focus{outline:2px solid #e8c783;outline-offset:2px;border-color:#e6c181;background-color:#332817;box-shadow:0 0 0 4px #c79a3430,0 4px 14px #0009}
+.rating-select.rating-selected{color:#fff0d2;background-color:#403017;border-color:#e2bc72;font-weight:650;box-shadow:inset 0 1px #ffe0a735,0 0 0 1px #d0a45350,0 5px 14px #0008}
+.rating-select option{background:#211b13;color:#f7e8ce}
+.rating-choice-text{margin:7px 2px 0!important;color:#f2d6a0!important;font-size:13px!important;line-height:1.5!important;overflow-wrap:anywhere;white-space:pre-wrap}
+.rating-group.rating-group-complete{border-color:#bd985b}
+.rating-group.rating-group-complete>.rating-group-summary{color:#f4d59b;background:linear-gradient(90deg,#332714,#17120e)}
+@media(prefers-reduced-motion:reduce){.rating-select{transition:none}}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -768,7 +777,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const updateGroupSummaries=()=>{
       for(const [section,info] of groups){
        const filled=info.controls.filter(c=>!!c.value).length;
-       info.summary.textContent=(filled?"✅ ":"✦ ")+info.name+" · "+filled+"/"+info.controls.length;
+       info.summary.textContent="✦ "+info.name+" · "+filled+"/"+info.controls.length;
+       section.classList.toggle("rating-group-complete",info.controls.length>0&&filled===info.controls.length);
       }
     };
     const orderedFields=data.catalog.map((item,i)=>({item,i}));
@@ -803,6 +813,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
      }
      const label=document.createElement("b");label.textContent=item.label;entry.append(label);
      const select=document.createElement("select");select.className="rating-select";select.setAttribute("aria-label",item.label);
+     const chosenText=document.createElement("p");chosenText.className="rating-choice-text";chosenText.hidden=true;
+     const highlightChoice=()=>{select.classList.toggle("rating-selected",!!select.value);chosenText.hidden=!select.value;chosenText.textContent=select.value||"";};
      const indie=/реальн\S*\s+инди/i.test(item.label);
      const empty=document.createElement("option");empty.value="";empty.textContent="Не выбрано";select.append(empty);
      if(indie){
@@ -811,7 +823,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       select.value="";
       if(!yes){const help=document.createElement("p");help.className="muted";help.textContent="Сайт пока не предоставил вариант «Да» для этой анкеты.";entry.append(help);}
      }else for(const option of item.options){const choice=document.createElement("option");choice.value=option;choice.textContent=option;select.append(choice);}
-     select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];updateProgress();updateGroupSummaries();};
+     select.onchange=()=>{if(select.value)draft[i]=select.value;else delete draft[i];highlightChoice();updateProgress();updateGroupSummaries();};
      const requiredSuggestion=/^(?:соответстви[ея]\s+фото|отношение\s+к\s+клиенту|общая\s+оценка|(?:соответствие|соотв\.)\s*параметров)$/i.test(String(item.label||"").trim())||indie;
      if(requiredSuggestion){
       const warning=document.createElement("small");warning.className="rating-required-warning";
@@ -821,7 +833,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       entry.append(warning);
      }
 
-     info.controls.push(select);choiceControls.push(select);entry.append(select);info.section.append(entry);
+     info.controls.push(select);choiceControls.push(select);entry.append(select,chosenText);info.section.append(entry);highlightChoice();
     });
     let step=0;
     const stepStatus=document.createElement("div");stepStatus.className="proof-note";
@@ -847,7 +859,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const checkLabel=document.createElement("span");checkLabel.textContent="Встречался по другой анкете";elsewhere.append(checkbox,checkLabel);editor.append(elsewhere);
     updateProgress();
     const reset=document.createElement("button");reset.type="button";reset.className="ghost";reset.textContent="↺ Очистить ответы";reset.hidden=true;
-    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Ответы очищены. Изменения вступят в силу после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
+    reset.onclick=()=>{for(let i=0;i<choiceControls.length;i++){const select=choiceControls[i];if(!select.disabled){select.value="";select.dispatchEvent(new Event("change",{bubbles:false}));delete draft[i];}}checkbox.checked=false;editor.querySelector(".draft-review")?.remove();navigation.hidden=false;stepStatus.hidden=false;updateProgress();updateGroupSummaries();if(summaries.length)showStep(0);result.textContent="Ответы очищены. Изменения вступят в силу после сохранения.";panel.scrollIntoView({behavior:"smooth",block:"start"});};
     const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";save.hidden=true;editor.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
