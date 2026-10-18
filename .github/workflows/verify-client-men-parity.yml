@@ -1,0 +1,16 @@
+name: Verify client men parity
+on:
+  push:
+    branches: [feature/client-men-parity-guard-20261018]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/man_client_parity.test.mjs
+      - run: npx --yes wrangler@4 deploy --config wrangler.toml --dry-run
