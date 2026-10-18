@@ -2,7 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readManSetupDraft,changeManSetupDraft,readManSetupDrafts} from "../src/man_setup_store.js";
 const owner="5866034656",accounts=[{id:"yan_first"},{id:"yan_second"},{id:"yan_30"}];
-const storage=()=>{const m=new Map();return {get:async k=>m.get(k),put:async(k,v)=>m.set(k,v),snapshot:()=>m}};
+// Mock transaction provides a serialized critical section, matching DO storage.
+const storage=()=>{const m=new Map();let queue=Promise.resolve();
+ const access={get:async k=>m.get(k),put:async(k,v)=>{m.set(k,v)},snapshot:()=>m};
+ access.transaction=fn=>{
+  const job=queue.then(async()=>{
+   const staged=new Map(m);
+   const txn={get:async k=>staged.get(k),put:async(k,v)=>{staged.set(k,v)}};
+   const result=await fn(txn);
+   m.clear();for(const [k,v] of staged)m.set(k,v);
+   return result;
+  });
+  queue=job.catch(()=>{});
+  return job;
+ };
+ return access;
+};
 const op={actorId:owner,cabinetId:owner,ownerId:owner,accountId:"yan_second"};
 test("owner sees drafts without credentials, first man unchanged",async()=>{
  const s=storage(),items=await readManSetupDrafts(s,owner,owner,owner,accounts);
@@ -31,4 +46,20 @@ test("rejects impostors, legacy changes, and attempts to skip verification",asyn
  await assert.rejects(changeManSetupDraft(s,{...op,action:"verify",expectedVersion:0,at:1}));
  await assert.rejects(changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:-1}));
  await assert.rejects(readManSetupDrafts(s,"12345000",owner,owner,accounts));
+});
+
+test("two simultaneous changes cannot both win same version",async()=>{
+ const s=storage();
+ const a=changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:100});
+ const b=changeManSetupDraft(s,{...op,action:"plan",expectedVersion:0,at:101});
+ const settled=await Promise.allSettled([a,b]);
+ assert.equal(settled.filter(x=>x.status==="fulfilled").length,1);
+ assert.equal(settled.filter(x=>x.status==="rejected").length,1);
+ const draft=await readManSetupDraft(s,"yan_second");
+ assert.equal(draft.version,1);
+ assert.equal(draft.stage,"awaiting_credentials");
+});
+test("changes reject non-transactional storage instead of risking overwrite",async()=>{
+ const unsafe={get:async()=>undefined,put:async()=>{}};
+ await assert.rejects(changeManSetupDraft(unsafe,{...op,action:"plan",expectedVersion:0,at:1}),/Atomic storage unavailable/);
 });
