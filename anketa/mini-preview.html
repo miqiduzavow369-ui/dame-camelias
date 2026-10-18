@@ -361,7 +361,8 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <section id="tab-delete" hidden><button type="button" class="back-top" id="cancelDeleteProfile">← К моим анкетам</button><h1>🗑 Удалить анкету?</h1><div class="card"><p id="deleteProfileCaption"></p><p class="muted">Удаление из списка не отменяет уже выполненные публикации и не восстанавливает израсходованные кредиты.</p><div id="deleteError" class="muted" aria-live="polite"></div><button id="confirmDeleteProfile" type="button" class="ghost">🗑 Да, удалить анкету</button></div></section><section id="tab-accounts" hidden><h1>Аккаунт мужчины</h1><p>Выберите мужчину для просмотра истории его публикаций. Выберите мужчину, чтобы посмотреть его публикации.</p>
 <div class="card"><h2>👨‍💻 Выбор аккаунта мужчины</h2>
 <button class="action" data-account="yan_first"><span>👨‍💻 Ян Первый<small id="firstTotal">История загружается</small></span><span class="next" id="firstSelected">○</span></button>
-<button class="action" data-account="yan_second"><span>👨‍💻 Ян Второй<small id="secondTotal">История загружается</small></span><span class="next" id="secondSelected">○</span></button>
+<button class="action" data-account="yan_second" disabled><span>👨‍💻 Ян Второй<small id="secondTotal">История загружается · отключён</small></span><span class="next" id="secondSelected">🔒</span></button>
+<div id="remainingMenAccounts" class="men-grid" aria-label="Остальные отключённые мужчины"></div>
 </div><div class="proof-note" id="selectedAccountNote">Выбранный мужчина</div>
 <button class="primary" data-tab="published">📸 Смотреть публикации этого мужчины →</button>
 <button class="ghost" data-tab="profiles">🌹 Вернуться к анкетам</button></section>
@@ -421,7 +422,9 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
  check.onclick=async()=>{check.disabled=true;try{const x=await api("status");if(x.stage==="complete"){status.textContent="✅ Новый адрес проверен. Продолжаем работу.";if(onComplete)await onComplete();}else setStage(x.stage);}catch(e){status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
  card.append(heading,description,input,submit,check,status,safety);target.append(card);setStage(state.stage);return true;
 }
-const availableMen=[{id:"yan_first",name:"Ян Первый",image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg",enabled:true},{id:"yan_second",name:"Ян Второй",image:null,enabled:false}];
+// Client-only account catalogue; only Yan First can be selected for publication.
+const manOrdinals=["Первый","Второй","Третий","Четвёртый","Пятый","Шестой","Седьмой","Восьмой","Девятый","Десятый","Одиннадцатый","Двенадцатый","Тринадцатый","Четырнадцатый","Пятнадцатый","Шестнадцатый","Семнадцатый","Восемнадцатый","Девятнадцатый","Двадцатый","Двадцать первый","Двадцать второй","Двадцать третий","Двадцать четвёртый","Двадцать пятый","Двадцать шестой","Двадцать седьмой","Двадцать восьмой","Двадцать девятый","Тридцатый"];
+const availableMen=manOrdinals.map((ordinal,i)=>({id:i===0?"yan_first":i===1?"yan_second":"yan_"+String(i+1).padStart(2,"0"),name:"Ян "+ordinal,image:i===0?"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg":null,enabled:i===0}));
 let workProfile=null,allMenOpen=false;
 function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
@@ -429,7 +432,9 @@ if(man.image){const img=document.createElement("img");img.src=man.image;img.alt=
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
 const name=document.createElement("strong");name.textContent=man.name;b.append(name);
 for(const [kind,label] of [["rating","⭐ Оценка"],["review","✍️ Отзыв"]]){const line=document.createElement("small");line.textContent=label+" — "+manStatus(man,kind);b.append(line);}
-b.onclick=()=>{if(!man.enabled){const n=document.createElement("small");n.textContent="Аккаунт пока не подключён";b.append(n);return;}selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
+b.disabled=!man.enabled;
+b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":" — пока отключён"));
+b.onclick=()=>{if(!man.enabled)return;selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
 function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
 for(const man of availableMen.slice(0,3))list.append(manTile(man));
 const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
@@ -472,17 +477,19 @@ $("addProfileConfirm").onclick=async()=>{$("addProfileConfirm").disabled=true;tr
 $("showAllMen").onclick=()=>{allMenOpen=!allMenOpen;renderMen();};$("manSearch").oninput=renderMen;
 const label=s=>s==="published"?"🔒 Уже опубликовано · результат в Истории":s==="checking"?"⏳ Проверяется · открыть Историю":"🔎 Проверить доступность";
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
-const accountName=account=>account==="yan_second"?"Ян Второй":"Ян Первый";
+const accountName=account=>availableMen.find(man=>man.id===account)?.name||"Мужчина не указан";
 function selectAccount(account){
- if(!["yan_first","yan_second"].includes(account))return;
+ if(account!=="yan_first")return; // All other accounts remain disabled.
  selectedAccount=account;
  $("firstSelected").textContent=account==="yan_first"?"✓":"○";
- $("secondSelected").textContent=account==="yan_second"?"✓":"○";
+ $("secondSelected").textContent="🔒";
  $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
  $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
  $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+".";
  renderHistory();
 }
+const restMen=$("remainingMenAccounts");
+for(const man of availableMen.slice(2)){const b=document.createElement("button");b.type="button";b.className="man-tile";b.disabled=true;b.textContent="🔒 "+man.name+" · не подключён";restMen.append(b);}
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
 function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));tg?.BackButton?.[name==="profiles"?"hide":"show"]?.();window.scrollTo({top:0,behavior:"smooth"});}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{showTab(b.dataset.tab);void refreshCabinetSnapshot();});
@@ -635,7 +642,7 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
  const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
-  const state=selectedAccount==="yan_second"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
+  const state=selectedAccount!=="yan_first"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
   button.hidden=!["published","check_in_bot"].includes(state);
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
