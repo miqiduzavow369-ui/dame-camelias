@@ -76,33 +76,36 @@ export async function handleAdminApi(request,env){
    }
    // 22:00–10:00 is stored under the following day's 10:00 slot.
    slots.push(new Date(now+3*3600000+msDay).toISOString().slice(0,10)+"_10");
-   const unique=new Map();let partial=false,readCount=0;
+   const unique=new Map(),names=[];let partial=false;
    for(let offset=0;offset<slots.length;offset+=4){
-    const batch=await Promise.all(slots.slice(offset,offset+4).map(async slot=>{
+    const pages=await Promise.all(slots.slice(offset,offset+4).map(async slot=>{
      try{
       const page=await env.VISITORS_KV.list({prefix:"visit:"+slot+":",limit:250});
       return {keys:page.keys||[],complete:page.list_complete!==false};
      }catch{return {keys:[],complete:false};}
     }));
-    for(const page of batch){
+    for(const page of pages){
      if(!page.complete)partial=true;
      for(const key of page.keys){
-      if(readCount>=600){partial=true;break;}
-      readCount++;
-      try{
-       const item=await env.VISITORS_KV.get(key.name,"json");
-       if(!item||!/^[1-9]\d{4,15}$/.test(String(item.id||"")))continue;
-       const id=String(item.id),at=Date.parse(item.visitedAt||"");
-       if(!Number.isFinite(at)||at<now-7*msDay||at>now+60000)continue;
-       const previous=unique.get(id);
-       if(previous&&Date.parse(previous.lastAt)>=at)continue;
-       unique.set(id,{id,username:String(item.username||"").slice(0,32),
-        name:String(item.name||"").slice(0,100),firstSeen:item.firstSeen||null,
-        lastAt:item.visitedAt,interests:Array.isArray(item.interests)?item.interests.slice(0,8):[]});
-      }catch{partial=true;}
+      if(names.length>=500){partial=true;break;}
+      names.push(key.name);
      }
     }
-    if(readCount>=600)break;
+    if(names.length>=500)break;
+   }
+   // Read in bounded parallel groups to avoid a slow sequential KV waterfall.
+   for(let offset=0;offset<names.length;offset+=20){
+    const batch=await Promise.all(names.slice(offset,offset+20).map(name=>env.VISITORS_KV.get(name,"json").catch(()=>null)));
+    for(const item of batch){
+     if(!item||!/^[1-9]\\d{4,15}$/.test(String(item.id||"")))continue;
+     const id=String(item.id),at=Date.parse(item.visitedAt||"");
+     if(!Number.isFinite(at)||at<now-7*msDay||at>now+60000)continue;
+     const previous=unique.get(id);
+     if(previous&&Date.parse(previous.lastAt)>=at)continue;
+     unique.set(id,{id,username:String(item.username||"").slice(0,32),
+      name:String(item.name||"").slice(0,100),firstSeen:item.firstSeen||null,
+      lastAt:item.visitedAt,interests:Array.isArray(item.interests)?item.interests.slice(0,8):[]});
+    }
    }
    const visitors=[...unique.values()].map(x=>({...x,isNew:Number.isFinite(Date.parse(x.firstSeen))&&Date.parse(x.firstSeen)>=now-7*msDay})).sort((a,b)=>Date.parse(b.lastAt)-Date.parse(a.lastAt));
    return respond({ok:true,visitors,partial,periodDays:7});
