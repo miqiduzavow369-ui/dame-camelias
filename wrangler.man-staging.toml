@@ -1,0 +1,18 @@
+# Isolated manual preview ONLY. No production bindings, KV IDs, routes, or credentials.
+name = "dame-camelias-man-staging"
+main = "src/man_staging_worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "MAN_STAGING_ACCOUNTS"
+class_name = "ManStagingAccounts"
+
+[[migrations]]
+tag = "man-staging-v1"
+new_sqlite_classes = ["ManStagingAccounts"]
+
+[vars]
+MAN_STAGING_ONLY = "true"
+CABINET_PUBLICATIONS_ENABLED = "false"
+CABINET_CLIENTS_ENABLED = "false"
