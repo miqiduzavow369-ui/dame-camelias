@@ -51,7 +51,7 @@ export async function enqueueMockManTask(storage,{actorId,ownerId,identity,mosco
     throw Error("Conflicting mock task");
    return Object.freeze({created:false,...brief(existing)});
   }
-  const item={task,status:"queued",createdAt:at,finishedAt:null,receipt:null};
+  const item={task,moscowDate,status:"queued",createdAt:at,finishedAt:null,receipt:null};
   await tx.put(k,item);
   return Object.freeze({created:true,...brief(item)});
  });
@@ -64,14 +64,14 @@ export async function finishMockManTask(storage,{actorId,ownerId,task,moscowDate
  const receipt=simulateManExecution(expected,{moscowDate,result});
  return storage.transaction(async tx=>{
   const k=key(expected),item=await tx.get(k);
-  if(!item||JSON.stringify(item.task)!==JSON.stringify(expected))
+  if(!item||item.moscowDate!==moscowDate||JSON.stringify(item.task)!==JSON.stringify(expected))
    throw Error("Unknown or mismatched mock task");
   if(item.status!=="queued"){
    if(item.receipt?.outcome!==receipt.outcome)throw Error("Mock outcome already final");
    return Object.freeze({changed:false,...brief(item)});
   }
   if(at<item.createdAt)throw Error("Out-of-order mock completion");
-  const final={task:item.task,status:receipt.status,createdAt:item.createdAt,finishedAt:at,receipt};
+  const final={task:item.task,moscowDate:item.moscowDate,status:receipt.status,createdAt:item.createdAt,finishedAt:at,receipt};
   await tx.put(k,final);
   return Object.freeze({changed:true,...brief(final)});
  });
@@ -80,6 +80,6 @@ export async function readMockManTask(storage,{actorId,ownerId,task,moscowDate})
  owner(actorId,ownerId);
  const expected=safeTask(task,moscowDate);
  const item=await storage.get(key(expected));
- if(!item||JSON.stringify(item.task)!==JSON.stringify(expected))return null;
+ if(!item||item.moscowDate!==moscowDate||JSON.stringify(item.task)!==JSON.stringify(expected))return null;
  return brief(item);
 }
