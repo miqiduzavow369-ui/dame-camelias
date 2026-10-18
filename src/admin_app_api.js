@@ -66,6 +66,15 @@ export async function handleAdminApi(request,env){
    }
    return respond({ok:true,clients:entries});
   }
+  if(action==="visitor_seen"){
+   // An explicit owner click marks a new visitor as viewed. Bot activity is not modified.
+   if(!env.VISITORS_KV)return bad("visitors_unavailable",503);
+   if(!/^[1-9]\\d{4,15}$/.test(uid))return bad("invalid_visitor");
+   const first=await env.VISITORS_KV.get("first:"+uid,"json");
+   if(!first)return bad("visitor_not_found",404);
+   await env.VISITORS_KV.put("admin_visitor_seen_v1:"+uid,String(Date.now()));
+   return respond({ok:true});
+  }
   if(action==="visitors"){
    // Read-only visitor timeline from the existing bot activity keys; no new tracking or messages.
    if(!env.VISITORS_KV)return bad("visitors_unavailable",503);
@@ -108,6 +117,10 @@ export async function handleAdminApi(request,env){
     }
    }
    const visitors=[...unique.values()].map(x=>({...x,isNew:Number.isFinite(Date.parse(x.firstSeen))&&Math.abs(Date.parse(x.lastAt)-Date.parse(x.firstSeen))<60000})).sort((a,b)=>Date.parse(b.lastAt)-Date.parse(a.lastAt));
+   // Viewing is stable across ADMIN sessions and not reset by another bot visit.
+   await Promise.all(visitors.map(async x=>{
+    x.unread=x.isNew&&!(await env.VISITORS_KV.get("admin_visitor_seen_v1:"+x.id).catch(()=>null));
+   }));
    return respond({ok:true,visitors,partial,periodDays:7});
   }
   if(action==="review_history"){
