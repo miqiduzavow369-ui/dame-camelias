@@ -69,7 +69,18 @@ export async function changeManSetupDraft(storage,{actorId,cabinetId,ownerId,acc
    const historyKey=HISTORY_PREFIX+accountId;
    const existing=await txn.get(historyKey);
    if(existing!==undefined&&!Array.isArray(existing))throw Error("Invalid setup history");
-   const history=(existing||[]).slice(-(MAX_HISTORY-1));
+   // Sanitize prior records on every write: never carry unknown fields into
+   // a persistent audit log, even if a previously stored record was malformed.
+   const history=(existing||[]).filter(x=>
+     x && typeof x==="object" && !Array.isArray(x) &&
+     x.accountId===accountId &&
+     Number.isSafeInteger(x.version) && x.version>0 &&
+     ["plan","reset"].includes(x.action) &&
+     ["not_configured","awaiting_credentials"].includes(x.stage) &&
+     Number.isSafeInteger(x.at) && x.at>=0
+   ).slice(-(MAX_HISTORY-1)).map(x=>({
+     accountId,version:x.version,action:x.action,stage:x.stage,at:x.at
+   }));
    history.push({accountId,version:next.version,action,stage:next.stage,at});
    await txn.put(key,next);
    await txn.put(historyKey,history);
