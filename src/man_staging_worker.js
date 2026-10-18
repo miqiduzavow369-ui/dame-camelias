@@ -37,11 +37,16 @@ async function boundedJson(request){
  finally{reader.releaseLock();}
 }
 export class ManStagingAccounts {
- constructor(state){this.storage=state.storage;}
+ constructor(state,env){this.storage=state.storage;this.stagingBotToken=env?.MAN_STAGING_BOT_TOKEN;}
  async fetch(request){
   if(request.method!=="POST")return json({ok:false,reason:"method_not_allowed"},405);
   const body=await request.json().catch(()=>null);
-  if(!body || body.ownerId!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
+  if(!body||body.ownerId!==OWNER_ID||
+     !await validWebApp(body.initData,this.stagingBotToken,900))
+   return json({ok:false,reason:"forbidden"},403);
+  let signedUser="";
+  try{signedUser=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"")}catch{}
+  if(signedUser!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
   try{
    if(body.action==="list"){
     const info=ownerManRegistry(OWNER_ID,OWNER_ID,OWNER_ID);
@@ -144,7 +149,7 @@ export default {
   let uid="";
   try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
   if(uid!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
-  const payload={ownerId:OWNER_ID,action:body.action,
+  const payload={ownerId:OWNER_ID,initData:body.initData,action:body.action,
     accountId:body.accountId,expectedVersion:body.expectedVersion,setupAction:body.setupAction,
     profileId:body.profileId,kind:body.kind,correlationKey:body.correlationKey,outcome:body.outcome};
   const stub=env.MAN_STAGING_ACCOUNTS.get(env.MAN_STAGING_ACCOUNTS.idFromName("owner-man-setup-v1"));
