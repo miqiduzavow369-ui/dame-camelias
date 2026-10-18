@@ -786,7 +786,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const number=document.createElement("strong");number.textContent="Анкета №"+selected.id;
     const name=document.createElement("p");name.textContent=selected.name||"Ваша анкета";
     info.append(number,name);identity.append(imageFrame,info);
-    const desc=document.createElement("p");desc.className="rating-verify-hint";desc.textContent="Это ваша анкета? Перейдите к заполнению оценок.";
+    const desc=document.createElement("p");desc.className="rating-verify-hint";desc.textContent="Вы точно выбрали нужную анкету из вашего списка?";
     const begin=document.createElement("button");begin.type="button";begin.className="primary";begin.textContent="Продолжить к оценкам →";
     verify.append(title,identity,desc,begin);panel.append(verify);
     const editor=document.createElement("div");editor.hidden=true;panel.append(editor);
