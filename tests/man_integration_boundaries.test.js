@@ -43,7 +43,10 @@ test("new setup cannot activate or set credentials",()=>{
 test("feature tests do not deploy Worker or access secrets",()=>{
  const ci=read(".github/workflows/multi-man-foundation-tests.yml");
  assert.match(ci,/feature\/yan-multiaccount-foundation/);
- assert.ok(!/wrangler[^\n]*deploy/i.test(ci));
+ const deployLines=ci.split("\n").filter(line=>/\bwrangler[^\n]*\bdeploy\b/i.test(line));
+ assert.equal(deployLines.length,1,"CI may contain exactly one reviewed dry-run command");
+ assert.match(deployLines[0],/^\s*npx --yes wrangler@4\.102\.0 deploy --config wrangler\.man-staging\.toml --dry-run --outdir \/tmp\/dame-camelias-man-staging-bundle\s*$/);
+
  assert.ok(!/secrets\.[A-Z_]+/.test(ci));
  assert.ok(!ci.includes("INTIMCITY_LOGIN"));
 });
