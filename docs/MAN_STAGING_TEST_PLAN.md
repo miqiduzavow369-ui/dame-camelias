@@ -17,6 +17,8 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Mock executor actions: `mock_queue` (sanitized owner-only list), `mock_seed` (create inert fixture), and `mock_finish` (record mock success/rejection). Mock records never touch external sites, credits, customer data, or production Durable Objects.
 - The dashboard is accessible only through the separate staging Worker; opening the HTML without a staging Telegram signed `initData` cannot read or change queue data.
 - Defense in depth: the internal `ManStagingAccounts` Durable Object independently verifies the staging Telegram `initData` signature and owner user ID before any read or write. A forged `ownerId` field alone never authorizes internal DO access. The separate staging token is supplied only through the staging Worker environment.
+- Both boundaries now use `src/man_staging_auth.js`: require exactly one signed `hash`, `auth_date`, and `user`; reject timestamps more than 30 seconds in the future or older than 15 minutes; verify owner ID and the HMAC signature independently. This is **freshness validation**, not one-time-use replay prevention within the valid 15-minute window.
+- Regression coverage: `tests/man_staging_auth.test.js` plus outer/inner route cases in `tests/man_staging_queue.test.js`.
 - Stage operations are atomic and permanently unable to authorize website activity.
 
 ## Telegram Mini App readiness
