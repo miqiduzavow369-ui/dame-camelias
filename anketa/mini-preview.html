@@ -424,9 +424,28 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
 }
 // Client-only account catalogue; only Yan First can be selected for publication.
 const manOrdinals=["Первый","Второй","Третий","Четвёртый","Пятый","Шестой","Седьмой","Восьмой","Девятый","Десятый","Одиннадцатый","Двенадцатый","Тринадцатый","Четырнадцатый","Пятнадцатый","Шестнадцатый","Семнадцатый","Восемнадцатый","Девятнадцатый","Двадцатый","Двадцать первый","Двадцать второй","Двадцать третий","Двадцать четвёртый","Двадцать пятый","Двадцать шестой","Двадцать седьмой","Двадцать восьмой","Двадцать девятый","Тридцатый"];
-const availableMen=manOrdinals.map((ordinal,i)=>({id:i===0?"yan_first":i===1?"yan_second":"yan_"+String(i+1).padStart(2,"0"),name:"Ян "+ordinal,image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/dc_man_"+String(i+1).padStart(2,"0")+".webp",enabled:i===0}));
+let availableMen=manOrdinals.map((ordinal,i)=>({id:i===0?"yan_first":i===1?"yan_second":"yan_"+String(i+1).padStart(2,"0"),name:"Ян "+ordinal,image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/dc_man_"+String(i+1).padStart(2,"0")+".webp",enabled:i===0}));
+
+// All 30 account IDs, names and readiness are resolved by the server, never
+// from an ADMIN visual status, client-side edit, or static enabledByDefault.
+// Publication capability remains pinned to Yan First in the legacy engine.
+function applyServerMen(rows){
+ const ids=availableMen.map(x=>x.id);
+ if(!Array.isArray(rows)||rows.length!==30||rows.some((x,i)=>!x||x.id!==ids[i])){
+  availableMen=availableMen.map(x=>({...x,enabled:x.id==='yan_first',route:x.id==='yan_first'?'legacy_yan_first':'not_connected'}));
+  return;
+ }
+ availableMen=availableMen.map((item,i)=>{
+  const record=rows[i];
+  const allowed=item.id==='yan_first'&&record.enabled===true&&record.route==='legacy_yan_first';
+  return {...item,name:typeof record.name==='string'&&record.name.length<70?record.name:item.name,
+   enabled:allowed,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
+   readiness:record.readiness||'awaiting_isolated_executor'};
+ });
+ if(selectedAccount!=='yan_first')selectedAccount='yan_first';
+}
 let workProfile=null,allMenOpen=false;
-function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
+function manStatus(man,kind){if(!man.enabled)return "🔒 Ожидает подключения исполнителя";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;b.append(img);}
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
@@ -627,7 +646,7 @@ document.querySelectorAll("[data-finance]").forEach(button=>button.addEventListe
  renderFinance();
 }));
 
-function render(data){latestFinanceBalance=data.balance||null;financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
+function render(data){applyServerMen(data.men);latestFinanceBalance=data.balance||null;financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
 for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
 $("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
 if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";const previousId=workProfile?.id;const kept=profiles.find(p=>p.id===previousId);if(kept||profiles.length===1){workProfile=kept||profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
