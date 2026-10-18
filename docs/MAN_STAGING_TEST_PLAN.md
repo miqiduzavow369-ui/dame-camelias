@@ -22,6 +22,11 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Regression coverage: `tests/man_staging_auth.test.js` plus outer/inner route cases in `tests/man_staging_queue.test.js`.
 - Stage operations are atomic and permanently unable to authorize website activity.
 
+## Cloudflare bundle verification (non-deploying)
+- The feature-branch CI runs `npx --yes wrangler@4.102.0 deploy --config wrangler.man-staging.toml --dry-run --outdir /tmp/dame-camelias-man-staging-bundle`. The `--dry-run` flag compiles the staging Worker and **does not upload or publish it**.
+- CI checks a nonempty JavaScript bundle exists; the boundary regression test permits only that exact reviewed dry-run command, not a real deployment or any production credentials.
+- The dry-run validates Cloudflare bundling but does not prove live Durable Object migrations, a staging token, Telegram bot setup, or UI usability. Those remain blocked pending explicit staging-only deployment approval.
+
 ## Telegram Mini App readiness
 - The staging dashboard loads the official Telegram WebApp SDK before its own script and uses signed initData for all API actions.
 - The staging Worker allows Telegram Web framing; this does not bypass owner signature verification.
