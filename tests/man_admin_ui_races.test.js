@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 const html=readFileSync(new URL("../admin/preview-v3.html",import.meta.url),"utf8");
 const start=html.indexOf("async function reloadManHistory(");
-const stop=html.indexOf("async function reloadMen()",start);
+const stop=html.indexOf("function searchMen(v)",start);
 if(start<0||stop<start)throw Error("Man detail functions not found");
 const functions=html.slice(start,stop);
 const deferred=()=>{
@@ -20,11 +20,11 @@ function harness(callAdmin){
    {id:"yan_second",setup:{version:0,stage:"not_configured"}},
    {id:"yan_03",setup:{version:0,stage:"not_configured"}}
   ],
-  menChanging:false,state:{page:"man-detail"},
-  render:()=>{},toast:()=>{},callAdmin,reloadMen:async()=>{}
+  menChanging:false,menBusy:false,menError:"",state:{page:"man-detail"},
+  render:()=>{},toast:()=>{},callAdmin
  };
  vm.createContext(scope);
- vm.runInContext(functions+";globalThis.actions={reloadManHistory,changeManPlanning};",scope);
+ vm.runInContext(functions+";globalThis.actions={reloadManHistory,changeManPlanning,reloadMen};",scope);
  return scope;
 }
 test("late history from former account must not overwrite current man's history",async()=>{
@@ -66,4 +66,26 @@ test("planning response updates original man even if user switches cards",async(
  assert.equal(s.manAccounts[0].setup.version,1);
  assert.equal(s.manAccounts[1].setup.version,0);
  assert.equal(s.menHistory.length,0);
+});
+
+test("network error on refresh preserves cached accounts and renders current detail",async()=>{
+ let renders=0;
+ const s=harness(async()=>{throw Error("offline")});
+ s.render=()=>{renders++};
+ const original=s.manAccounts;
+ await s.actions.reloadMen();
+ assert.equal(s.manAccounts,original);
+ assert.equal(s.manAccounts.length,2);
+ assert.match(s.menError,/Ошибка загрузки/);
+ assert.equal(s.menBusy,false);
+ assert.ok(renders>=1);
+});
+test("failed planning operation preserves other man's cached status",async()=>{
+ const s=harness(async()=>{throw Error("offline")});
+ await s.actions.changeManPlanning("plan");
+ assert.equal(s.manAccounts.length,2);
+ assert.equal(s.manAccounts[0].setup.version,0);
+ assert.equal(s.manAccounts[1].setup.version,0);
+ assert.match(s.menError,/Ошибка загрузки/);
+ assert.equal(s.menChanging,false);
 });
