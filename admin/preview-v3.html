@@ -260,14 +260,17 @@ async function changeManPlanning(action){
    toast(action==='plan'?'Подготовка начата':'Статус подготовки сброшен');
    await reloadManHistory(accountId);
   }
- }catch(e){toast('Статус не обновлён: '+e.message);await reloadMen()}
+ }catch(e){
+  if(selectedManId===accountId)toast('Статус не обновлён: '+e.message);
+  await reloadMen();
+ }
  finally{menChanging=false;render()}
 }
 async function reloadMen(){
  if(menBusy)return;menBusy=true;menError='';
  try{const r=await callAdmin('man_accounts');if(r.readOnly!==true||!Array.isArray(r.accounts)||r.accounts.length!==30)throw Error('Реестр недоступен');manAccounts=r.accounts}
- catch(e){manAccounts=[];menError='Ошибка загрузки: '+e.message}
- finally{menBusy=false;if(state.page==='men')render()}
+ catch(e){menError='Ошибка загрузки: '+e.message}
+ finally{menBusy=false;if(state.page==='men'||state.page==='man-detail')render()}
 }
 function searchMen(v){menQuery=v;render();const i=document.getElementById('men-search');if(i){i.focus();i.setSelectionRange(v.length,v.length)}}
 async function callAdmin(action,payload={}){
