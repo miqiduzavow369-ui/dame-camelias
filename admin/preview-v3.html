@@ -149,6 +149,35 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .men-history-entry strong{font-size:12px}
 .men-history-entry small{display:block;font-size:11px;color:#b8a68f;margin-top:4px}
 @media(max-width:360px){.men-square-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.men-square{min-height:138px}.footnav{padding-inline:5px}.navbtn{font-size:10px}}
+
+/* Non-spoofable status display: gold=unverified, green=verified, red=failed,
+   neutral=not configured. No legacy assumption counts as a verified probe. */
+.man-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0 16px}
+.man-check{border:1px solid #6c5536;border-radius:15px;padding:13px 11px;background:linear-gradient(140deg,#271e14,#13110e);min-width:0}
+.man-check-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#e6d0a8}
+.man-check-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#d3ad67;flex:none;box-shadow:0 0 0 3px #d3ad671c}
+.man-check-status{font-size:11px;margin-top:9px;color:#e1be7f;font-weight:700}
+.man-check-note{display:block;font-size:10px;color:#b9a78c;line-height:1.4;margin-top:5px}
+.man-check.ok{border-color:#5e946a;background:linear-gradient(140deg,#183022,#101910)}
+.man-check.ok .man-check-dot{background:#71d29a;box-shadow:0 0 0 3px #71d29a24}
+.man-check.ok .man-check-status{color:#9ce8b4}
+.man-check.bad{border-color:#96505a;background:linear-gradient(140deg,#321a1e,#171012)}
+.man-check.bad .man-check-dot{background:#f18390;box-shadow:0 0 0 3px #f1839024}
+.man-check.bad .man-check-status{color:#f5a4aa}
+.man-check.off{border-color:#514735;background:#181612}
+.man-check.off .man-check-dot{background:#817869;box-shadow:none}
+.man-check.off .man-check-status{color:#aa9c88}
+.man-mini-checks{display:flex;align-items:center;gap:8px;margin-top:3px}
+.man-mini-check{display:flex;align-items:center;gap:3px;font-size:10px;color:#d9be89}
+.man-mini-check .man-check-dot{height:6px;width:6px;box-shadow:none}
+.man-mini-check.ok{color:#9bd9ae}
+.man-mini-check.bad{color:#e89da6}
+.man-mini-check.off{color:#928776}
+.man-mini-check.ok .man-check-dot{background:#71d29a}
+.man-mini-check.bad .man-check-dot{background:#f18390}
+.man-mini-check.off .man-check-dot{background:#817869}
+.men-square .sq-name{font-size:11px}
+@media(max-width:360px){.man-checks{gap:7px}.man-check{padding:11px 8px}}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
 const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
@@ -175,6 +204,37 @@ const archiveDate=x=>/^\d{8}$/.test(String(x||''))?String(x).slice(6,8)+'.'+Stri
 const back=(call)=>`<button class="back" onclick="${call}" aria-label="Назад"><span class="back-arrow" aria-hidden="true">←</span><span>Назад</span></button>`;
 const actionTile=(icon,label,detail,call,extra='')=>`<button class="action-tile ${extra}" onclick="${call}" aria-label="${esc(label)}"><span class="tile-icon" aria-hidden="true">${icon}</span><span><span class="tile-label">${esc(label)}</span><span class="tile-hint" style="display:block;margin-top:4px">${esc(detail)}</span></span></button>`;
 
+
+function manDiagnostics(x){
+ const n=x?.networkStatus;
+ // Legacy workflow does not publish current live network probe timestamps.
+ // Never paint Yan First green based only on the fact that publications work.
+ if(x?.id==='yan_first')return {proxy:'unknown',site:'unknown'};
+ if(!n||n.configured!==true)return {proxy:'off',site:'off'};
+ const proxy=(n.proxyVerified===true&&n.ipVerified===true)?'ok':n.proxyVerified===false||n.ipVerified===false?'unknown':'unknown';
+ const site=proxy==='ok'&&n.siteIdentityVerified===true?'ok':'unknown';
+ return {proxy,site};
+}
+function diagnosticMeta(kind,status,x){
+ if(status==='ok')return {cls:'ok',title:'Подтверждено',text:kind==='proxy'?'Фактический IP совпадает':'Мужской кабинет подтверждён'};
+ if(status==='bad')return {cls:'bad',title:'Ошибка проверки',text:kind==='proxy'?'IP или прокси не совпадает':'Авторизация не прошла'};
+ if(status==='off')return {cls:'off',title:'Не настроено',text:kind==='proxy'?'Добавьте индивидуальный прокси':'Вход ещё не настроен'};
+ return {cls:'pending',title:'Не проверено',text:kind==='proxy'?'Не было подтверждённой проверки IP':'Нет подтверждённой проверки кабинета'};
+}
+function manChecks(x,mini=false){
+ const statuses=manDiagnostics(x);
+ const parts=[['proxy','Прокси / IP'],['site','Кабинет Intimcity']];
+ return mini?'<span class="man-mini-checks">'+parts.map(([key,label])=>{
+   const m=diagnosticMeta(key,statuses[key],x);
+   return '<span class="man-mini-check '+m.cls+'" title="'+m.title+'"><span class="man-check-dot"></span>'+ (key==='proxy'?'IP':'Сайт')+'</span>';
+ }).join('')+'</span>':
+ '<div class="man-checks" role="group" aria-label="Проверка подключений">'+parts.map(([key,label])=>{
+   const m=diagnosticMeta(key,statuses[key],x);
+   return '<div class="man-check '+m.cls+'"><div class="man-check-head"><span class="man-check-dot" aria-hidden="true"></span>'+label+'</div>'+
+   '<div class="man-check-status">'+m.title+'</div><small class="man-check-note">'+m.text+'</small></div>';
+ }).join('')+'</div>';
+}
+
 function menStatus(x){
  if(x.connection==='legacy_active')return {label:'Действующий',short:'Работает',cls:'legacy',icon:'✦'};
  if(x.setup?.stage==='awaiting_credentials')return {label:'Ожидает настройки',short:'Подготовка',cls:'planning',icon:'◷'};
@@ -190,7 +250,7 @@ function renderMenDashboard(){
   const st=menStatus(x);
   return '<button type="button" class="men-square '+st.cls+'" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
     '<span class="sq-top"><span class="sq-number">'+String(x.number).padStart(2,'0')+'</span><span class="sq-icon">'+st.icon+'</span></span>'+
-    '<span class="sq-name">'+esc(x.name)+'</span><span class="sq-state">'+st.short+' ›</span></button>';
+    '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>';
  }).join('');
  return '<div class="men-topline"><div><div class="mini">👑 ADMINISTRATION · CONTROL CENTER</div><h1>Мужчины <span style="color:#e8c88e">✦</span></h1><p class="muted small">Управление аккаунтами</p></div>'+
  '<button class="men-refresh" type="button" onclick="reloadMen()" aria-label="Обновить список мужчин">↻ Обновить</button></div>'+
@@ -213,9 +273,10 @@ function renderManConsole(){
  const history=menHistory.length?menHistory.slice().reverse().map(log=>'<div class="men-history-entry"><span class="men-history-dot">✓</span><div><strong>'+(log.action==='plan'?'Подготовка начата':'Подготовка сброшена')+'</strong><small>Версия '+Number(log.version)+' · '+esc(new Date(log.at).toLocaleString('ru-RU'))+'</small></div></div>').join(''):'<div class="empty">Изменений пока нет</div>';
  return back("go('men')")+'<div class="mini">МУЖСКИЕ АККАУНТЫ / КАРТОЧКА</div>'+
  '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+'</div><h1>'+esc(x.name)+'</h1></div><span class="pill">'+st.icon+' '+st.short+'</span></div>'+
- '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+
+ '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+manChecks(x)+
+ (!legacy?'<div class="section">Обязательная последовательность</div><div class="card"><div class="men-draft-actions"><div>01 · Прокси и закреплённый IP</div><div>02 · Проверка фактического IP <span class="pill">🔒</span></div><div>03 · Логин и пароль Intimcity <span class="pill">🔒</span></div><div>04 · Проверка кабинета <span class="pill">🔒</span></div><div>05 · Разрешение на работу <span class="pill">🔒</span></div></div><p class="hint">Каждый следующий этап откроется только после подтверждённого результата предыдущего. Пароль не означает успешный вход.</p></div>':'')+
  '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
- tile('🔐','Авторизация',legacy?'Текущая · не изменяем':'Не настроена','','')+
+ tile('🔐','Вход Intimcity',legacy?'Текущий механизм без изменений':'Только после проверки прокси/IP','','')+
  tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
  tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
  tile('🔒','Публикации',legacy?'Прежний рабочий механизм':'Отключены до активации','','')+
