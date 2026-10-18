@@ -107,6 +107,9 @@ test("staging premium queue UI exists only at test route and carries no secrets"
  const html=await res.text();
  assert.equal(html,STAGING_DASHBOARD_HTML);
  assert.match(html,/SIMULATION ONLY/);
+ assert.match(html,/<script src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"><\/script>/);
+ assert.ok(html.indexOf("telegram-web-app.js")<html.indexOf("var web=window.Telegram"));
+ assert.match(html,/var auth=web&&web\.initData\|\|""/);
  assert.ok(!html.includes(TOKEN));
  assert.ok(html.includes("/api/man-staging"));
  assert.ok(!html.includes("api.telegram.org"));
