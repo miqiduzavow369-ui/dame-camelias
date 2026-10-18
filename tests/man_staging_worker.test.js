@@ -86,3 +86,38 @@ test("staging has no legacy man setup or activation action",async()=>{
  assert.equal((await h.call("draft",{accountId:"yan_03",setupAction:"activate",expectedVersion:0})).status,409);
  assert.equal((await h.call("publish")).status,400);
 });
+
+test("staging rejects oversized bodies even without Content-Length",async()=>{
+ const extra="X".repeat(17000);
+ const req=new Request("https://isolated.test/api/man-staging",{
+  method:"POST",body:JSON.stringify({action:"list",initData:sign(OWNER),extra})
+ });
+ // Request has no Content-Length in Node fetch, so the byte cap is essential.
+ assert.equal(req.headers.get("content-length"),null);
+ const bindings={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{
+  idFromName:name=>name,get:()=>({fetch:()=>{throw Error("oversized body reached DO")}})
+ }};
+ const res=await worker.fetch(req,bindings);
+ assert.equal(res.status,413);
+});
+test("staging rejects oversized UTF-8 bodies by bytes, not character count",async()=>{
+ const payload="я".repeat(8500);
+ const req=new Request("https://isolated.test/api/man-staging",{
+  method:"POST",body:JSON.stringify({action:"list",initData:sign(OWNER),extra:payload})
+ });
+ const bindings={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{
+  idFromName:name=>name,get:()=>({fetch:()=>{throw Error("oversized body reached DO")}})
+ }};
+ const res=await worker.fetch(req,bindings);
+ assert.equal(res.status,413);
+});
+test("staging rejects malformed JSON and non-object input",async()=>{
+ const bindings={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{
+  idFromName:name=>name,get:()=>({fetch:()=>{throw Error("invalid body reached DO")}})
+ }};
+ for(const body of ["{not-json","[]","null"]){
+  const req=new Request("https://isolated.test/api/man-staging",{method:"POST",body});
+  const res=await worker.fetch(req,bindings);
+  assert.equal(res.status,400);
+ }
+});
