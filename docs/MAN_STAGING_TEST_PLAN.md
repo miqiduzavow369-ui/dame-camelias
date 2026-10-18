@@ -29,7 +29,7 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Do not copy a production bot token to staging.
 
 ## Manual release prerequisites — not performed
-1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js`, `tests/man_staging_worker.test.js`, `tests/man_staging_queue.test.js`, and `tests/man_mock_queue_view.test.js`.
+1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js`, `tests/man_staging_worker.test.js`, `tests/man_staging_queue.test.js`, `tests/man_mock_queue_view.test.js`, and `tests/man_staging_html.test.js` (inline JavaScript compilation, Telegram SDK ordering, cross-account UI guards and isolation).
 2. Obtain a **separate staging bot token** in Cloudflare Worker secrets named `MAN_STAGING_BOT_TOKEN`. Do not copy production bot token, proxy details, GitHub Actions secrets, KV IDs or live data.
 3. Review deployment target and Cloudflare account permissions. Do not configure any production Worker name, route, KV or Durable Object.
 4. Explicitly approve a **manual staging-only deployment** before running `wrangler deploy --config wrangler.man-staging.toml`. This is a future manual step, not a CI step.
