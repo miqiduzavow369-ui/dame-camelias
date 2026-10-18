@@ -722,6 +722,10 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const saveDraft=document.createElement("button");saveDraft.type="button";saveDraft.className="ghost";saveDraft.textContent="💾 Сохранить черновик";
   const status=document.createElement("p");status.setAttribute("aria-live","polite");
   const check=document.createElement("button");check.type="button";check.className="ghost";check.textContent="🔄 Посмотреть результат";check.hidden=true;
+  const proofButton=document.createElement("button");proofButton.type="button";proofButton.className="primary";proofButton.textContent="📸 Посмотреть результат";proofButton.hidden=true;
+  const proofContainer=document.createElement("div");proofContainer.className="proof-image";proofContainer.hidden=true;
+  const proofFeedback=document.createElement("p");proofFeedback.className="muted";proofFeedback.setAttribute("aria-live","polite");
+  proofButton.onclick=async()=>{if(!proofContainer.hidden){proofContainer.hidden=true;proofButton.textContent="📸 Посмотреть результат";return;}proofButton.disabled=true;await showOriginalProof(proofContainer,{id:selected.id,kind:"review",account:"yan_first"},proofFeedback);proofButton.disabled=false;if(!proofContainer.hidden)proofButton.textContent="📸 Скрыть подтверждение";};
   const request=async(action,text)=>{
     const response=await fetch(["load","save"].includes(action)?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
     const result=await response.json().catch(()=>({}));
@@ -739,9 +743,10 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     rejection.hidden=stage!=="rejected";
     if(stage==="rejected"){const date=Number.isFinite(info.rejectedAt)&&info.rejectedAt>0?new Date(info.rejectedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"Дата недоступна";rejectionText.textContent="❌ Отзыв не прошёл проверку из-за нарушения правил · "+date;}
     heading.hidden=pending||stage==="published";field.hidden=heading.hidden;counter.hidden=heading.hidden;checkText.hidden=heading.hidden;saveDraft.hidden=heading.hidden;
-    preview.hidden=true;check.hidden=!pending;
-    status.style.cssText=stage==="waiting"?"white-space:pre-line;color:#f2d6a3;font-size:15px;line-height:1.65;background:#21180f;border:1px solid #b58e50;border-radius:14px;padding:16px;margin-top:16px":"";
-    status.textContent=stage==="waiting"?"🌹 Отзыв передан администратору на модерацию.\n\n⏳ После одобрения отзыв будет опубликован на сайте.\n\nВы можете проверить результат позже — повторно отправлять отзыв не нужно.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв опубликован. Подтверждение доступно в истории.":"";
+    preview.hidden=true;check.hidden=!pending;proofButton.hidden=stage!=="published";
+    if(stage!=="published"){proofContainer.hidden=true;proofContainer.replaceChildren();proofFeedback.textContent="";proofButton.textContent="📸 Посмотреть результат";}
+    status.style.cssText=["waiting","published"].includes(stage)?"white-space:pre-line;color:#f2d6a3;font-size:15px;line-height:1.65;background:#21180f;border:1px solid #b58e50;border-radius:14px;padding:16px;margin-top:16px":"";
+    status.textContent=stage==="waiting"?"🌹 Отзыв передан администратору на модерацию.\n\n⏳ После одобрения отзыв будет опубликован на сайте.\n\nВы можете проверить результат позже — повторно отправлять отзыв не нужно.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв отправлен на сайт. Скриншот подтверждения доступен ниже.\n\n⏳ После отправки отзыв проходит модерацию сайта. Обычно проверка занимает от 1 до 10 дней. Срок зависит от администрации сайта.":"";
     if(stage==="rejected"){heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;check.hidden=true;status.textContent="";}
   };
   checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};
@@ -750,7 +755,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage,x);}catch(e){if(e instanceof TypeError||/load failed|failed to fetch|networkerror|network request failed/i.test(String(e.message||""))){showStage("unknown");try{const x=await request("status");if(x.stage!=="draft")showStage(x.stage,x);}catch{} }else if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
   check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage,x);}catch(e){if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
   preview.append(heading2,content,accuracy,send,edit);
-  editor.append(heading,field,counter,checkText,saveDraft,preview,check,status);body.append(editor);field.oninput();
+  editor.append(heading,field,counter,checkText,saveDraft,preview,check,status,proofButton,proofContainer,proofFeedback);body.append(editor);field.oninput();
   request("status").then(x=>{if(x.stage==="draft")return request("load").then(d=>{field.value=d.text||"";field.oninput();confirm.hidden=false;});editor.hidden=false;showStage(x.stage,x);}).catch(async e=>{editor.hidden=false;if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;});
  }
  if(kind==="rating"){
