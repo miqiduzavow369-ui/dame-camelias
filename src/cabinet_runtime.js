@@ -8,6 +8,7 @@ import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publicat
 import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
+import {clientMenAvailability} from "./man_client_parity.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {readSiteStatus,saveSiteCredentials} from "./man_site_vault.js";
@@ -585,7 +586,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     }
    }
   }catch{}
-  return {ok:true,profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  return {ok:true,men:clientMenAvailability(),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
