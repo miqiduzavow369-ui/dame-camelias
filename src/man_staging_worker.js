@@ -98,7 +98,7 @@ export default {
  async fetch(request,env){
   const url=new URL(request.url);
   if(url.pathname==="/test-admin"&&request.method==="GET")
-   return new Response(STAGING_DASHBOARD_HTML,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY"}});
+   return new Response(STAGING_DASHBOARD_HTML,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"frame-ancestors https://web.telegram.org https://*.telegram.org"}});
   if(url.pathname==="/health" && request.method==="GET")
    return json({ok:true,environment:"man-staging",publicationEnabled:false});
   if(url.pathname!=="/api/man-staging"||request.method!=="POST")
