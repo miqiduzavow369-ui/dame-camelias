@@ -14,7 +14,7 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - The dashboard is accessible only through the separate staging Worker; opening the HTML without a staging Telegram signed `initData` cannot read or change queue data.
 - Stage operations are atomic and permanently unable to authorize website activity.
 
-## Manual release prerequisites — not performed
+## Telegram Mini App readiness\n- The staging dashboard loads the official Telegram WebApp SDK before its own script and uses signed initData for all API actions.\n- The staging Worker allows Telegram Web framing; this does not bypass owner signature verification.\n- Source-level checks are present; a real staging bot, Cloudflare deployment and authenticated Telegram Web acceptance are **not** yet verified.\n- Do not copy a production bot token to staging.\n\n## Manual release prerequisites — not performed
 1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js`, `tests/man_staging_worker.test.js`, `tests/man_staging_queue.test.js`, and `tests/man_mock_queue_view.test.js`.
 2. Obtain a **separate staging bot token** in Cloudflare Worker secrets named `MAN_STAGING_BOT_TOKEN`. Do not copy production bot token, proxy details, GitHub Actions secrets, KV IDs or live data.
 3. Review deployment target and Cloudflare account permissions. Do not configure any production Worker name, route, KV or Durable Object.
