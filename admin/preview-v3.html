@@ -107,9 +107,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .zero-balance .avatar{opacity:.65}
 .zero-balance .client-list-row{background:#151311}
 .events-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:17px 0}.events-stat{border:1px solid #7c6139;background:#251d14;border-radius:15px;padding:12px 9px}.events-stat b{display:block;font-size:26px;color:#f2d5a0}.events-stat span{font-size:11px;color:#c7b69e}.events-filters{display:flex;gap:7px;margin:12px 0}.events-filters button{flex:1;border:1px solid #785e3e;border-radius:11px;background:#1b1712;color:#c8b79b;padding:10px 3px;font-size:12px}.events-filters button.active{background:#82643c;color:#fff0cf}.event-row{display:flex;align-items:center;gap:11px;padding:14px 12px;border-bottom:1px solid #4f3d27;text-decoration:none;color:#ebdcc4}.event-row:last-child{border-bottom:0}.event-row.unread{background:linear-gradient(105deg,#3e2e15,#251b11 82%);border-left:3px solid #e9bc68;box-shadow:inset 0 0 0 1px #d6a74a33}.event-row.unread .event-avatar{border-color:#e3b968;color:#ffe0a0;box-shadow:0 0 12px #e5b75a30}.event-row.unread .event-info strong{color:#ffdda0}.event-row.unread .event-badge{background:#9d742e;color:#fff4d9;font-weight:700}.event-row .event-avatar{display:grid;place-items:center;min-width:38px;height:38px;background:#2d2215;border:1px solid #80633d;border-radius:12px;color:#e6c38d}.event-info{min-width:0;flex:1}.event-info strong{font-size:14px;display:block;overflow-wrap:anywhere}.event-info small{display:block;color:#a99a82;font-size:11px;margin-top:4px}.event-badge{font-size:10px;border-radius:7px;padding:5px 7px;background:#24372c;color:#a9ddbd}.event-badge.returning{background:#312719;color:#d7ba88}
-</style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
+.men-note{margin:14px 0}.men-row{padding:13px;border-bottom:1px solid #4c402e;display:flex;align-items:center;gap:12px}.men-row:last-child{border-bottom:0}.men-row strong{font-size:13px}.men-row small{display:block;color:#b1a48d}.men-link{width:100%;border:1px solid #795f38;background:#241d13;color:#efd8ab;border-radius:13px;text-align:left;padding:13px;margin:12px 0}.men-status{font-size:11px;color:#cfb990}.men-status.online{color:#a9d1ac}.men-row-button{background:transparent;border:0;color:inherit;width:100%;text-align:left}.men-row-button:focus-visible{outline:2px solid #e5bc77}.men-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.men-detail-cell{border:1px solid #594932;border-radius:12px;padding:12px;background:#1c1812}.men-detail-cell small{display:block;color:#ae9f89}.men-detail-cell strong{font-size:12px;color:#ead3a7}.men-draft-actions{display:grid;gap:9px;margin:12px 0}.men-draft-actions button{min-height:44px}.men-draft-actions button:disabled{opacity:.45}</style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -128,7 +128,7 @@ const AdminDataAdapter={
   getAgreementStatus:async id=>Boolean(cby(String(id))?.agreement),
   // Production adapter: registry(create/topup/pin/suspend/resume), adjustCredits,
   // credits(status/history), cabinetRPC(admin_archive), moderationRPC; server auth required.
-};const b=(label,call,css='secondary')=>`<button class="${css}" onclick="${call}">${label}</button>`;const link=(icon,label,call,right='›')=>`<button class="linkrow" onclick="${call}"><span class="linkico">${icon}</span><span class="flex">${label}</span><span class="chev">${right}</span></button>`;const go=(page,extra={})=>{Object.assign(state,{page,...extra});render();scrollTo({top:0,behavior:'instant'})};const root=(page)=>{go(page,{client:null,review:null,query:'',wizard:null,action:null,ack:''});if(page==='reviews')reloadReviewHistory();if(page==='events')reloadVisitorEvents()};
+};const b=(label,call,css='secondary')=>`<button class="${css}" onclick="${call}">${label}</button>`;const link=(icon,label,call,right='›')=>`<button class="linkrow" onclick="${call}"><span class="linkico">${icon}</span><span class="flex">${label}</span><span class="chev">${right}</span></button>`;const go=(page,extra={})=>{Object.assign(state,{page,...extra});render();scrollTo({top:0,behavior:'instant'})};const root=(page)=>{go(page,{client:null,review:null,query:'',wizard:null,action:null,ack:''});if(page==='reviews')reloadReviewHistory();if(page==='events')reloadVisitorEvents();if(page==='men')reloadMen()};
 const archiveDate=x=>/^\d{8}$/.test(String(x||''))?String(x).slice(6,8)+'.'+String(x).slice(4,6)+'.'+String(x).slice(0,4):String(x||'');const accountName=x=>({yan_first:'Ян Первый',yan_second:'Ян Второй'})[x]||x;
 const back=(call)=>`<button class="back" onclick="${call}" aria-label="Назад"><span class="back-arrow" aria-hidden="true">←</span><span>Назад</span></button>`;
 const actionTile=(icon,label,detail,call,extra='')=>`<button class="action-tile ${extra}" onclick="${call}" aria-label="${esc(label)}"><span class="tile-icon" aria-hidden="true">${icon}</span><span><span class="tile-label">${esc(label)}</span><span class="tile-hint" style="display:block;margin-top:4px">${esc(detail)}</span></span></button>`;
@@ -140,12 +140,43 @@ if(p==='clients'){
  const zeroBalance=matches.filter(c=>!(available(c)>0));
  const clientRow=c=>`<div class="client-list-row"><button class="listitem client-open" onclick="openClient('${c.id}')"><span class="avatar">✦</span><span class="flex">${clientLabel(c)}<div class="light"><span class="status ${c.active?'':'off'}">${c.active?'Доступ открыт':'Приостановлен'}</span> · 💎 ${available(c)} доступно</div></span></button><a class="client-chat" href="${chatHref(c)}" aria-label="Написать клиентке ${esc(c.id)}" title="Открыть чат Telegram"><span aria-hidden="true">↗</span><small>Чат</small></a></div>`;
  h=`<div class="toprow"><div><h1>Клиентки</h1><div class="muted small">Управление доступом и кредитами</div></div><button class="iconadd" aria-label="Добавить клиентку" onclick="startAdd()">+</button></div>
- <input class="search" id="search" placeholder="⌕  Telegram ник или ID" value="${esc(state.query)}" oninput="searchClients(this.value)">
+ <button class="men-link" onclick="root(\'men\')">♙ &nbsp; Мужские аккаунты · 30 <span style="float:right">›</span></button><input class="search" id="search" placeholder="⌕  Telegram ник или ID" value="${esc(state.query)}" oninput="searchClients(this.value)">
  <div class="client-group-title"><span class="group-indicator has-credit"></span><span>Есть публикации</span><span class="group-count">${withBalance.length}</span></div>
  <div class="list client-group">${withBalance.map(clientRow).join('')||'<div class="empty">Нет клиенток с положительным балансом</div>'}</div>
  <div class="client-group-title depleted"><span class="group-indicator no-credit"></span><span>Баланс 0</span><span class="group-count">${zeroBalance.length}</span></div>
  <div class="list client-group zero-balance">${zeroBalance.map(clientRow).join('')||'<div class="empty">Нет клиенток с нулевым балансом</div>'}</div>
  <div class="watermark">Данные из общей системы · Ник появится, когда Telegram его предоставит</div>`;
+}
+else if(p==='men'){
+ const q=menQuery.toLowerCase().trim(),entries=manAccounts.filter(x=>x.name.toLowerCase().includes(q)||x.id.includes(q)||String(x.number).includes(q));
+ h=`${back("root('clients')")}<h1>Мужские аккаунты</h1><p class="muted small">Реестр 30 мужчин · только просмотр</p><div class="note men-note">Логины, IP, прокси и пароли будут настроены в конце разработки. Пока подключение и изменение отключены.</div>
+ ${menError?'<div class="error">'+esc(menError)+'</div>':''}
+ <input class="search" id="men-search" placeholder="⌕  Имя или номер мужчины" value="${esc(menQuery)}" oninput="searchMen(this.value)">
+ <div class="section">Аккаунты · ${entries.length} <button style="float:right;border:0;background:transparent;color:#e9c68e" onclick="reloadMen()">↻ Обновить</button></div>
+ <div class="list">${entries.map(x=>`<button type="button" class="men-row men-row-button" onclick="openManDetail(\'${esc(x.id)}\')"><span class="avatar">${String(x.number).padStart(2,'0')}</span><span class="flex"><strong>${esc(x.name)}</strong><small>${esc(x.id)}</small><span class="men-status ${x.connection==='legacy_active'?'online':''}">${x.connection==='legacy_active'?'● Действующий':x.setup?.stage==='awaiting_credentials'?'◷ Ожидает данные':'○ Не настроен'}</span></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Список ещё не загружен</div>'}</div><div class="watermark">Секретные данные никогда не передаются в реестр</div>`;
+}
+else if(p==='man-detail'){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x){h=back("go('men')")+'<h1>Аккаунт недоступен</h1>';}
+ else {
+ const legacy=x.connection==='legacy_active',stage=x.setup?.stage||'not_configured';
+ h=back("go('men')")+'<h1>'+esc(x.name)+'</h1><p class="muted small">Аккаунт №'+String(x.number).padStart(2,'0')+' · '+esc(x.id)+'</p>'+
+ '<div class="summary"><div class="mini">СТАТУС ПОДКЛЮЧЕНИЯ</div><div style="font-size:22px;color:#ebd39e;margin-top:8px">'+(legacy?'Существующее подключение':'Отключён · Не настроен')+'</div></div>'+
+ '<div class="section">Параметры аккаунта</div><div class="men-detail-grid">'+
+ '<div class="men-detail-cell"><small>Авторизация</small><strong>'+(legacy?'Существующая':'Не настроена')+'</strong></div>'+
+ '<div class="men-detail-cell"><small>Прокси и IP</small><strong>'+(legacy?'Существующий':'Не настроены')+'</strong></div>'+
+ '<div class="men-detail-cell"><small>Секреты</small><strong>Скрыты</strong></div>'+
+ '<div class="men-detail-cell"><small>Управление</small><strong>Только просмотр</strong></div></div>'+
+ '<div class="note">Ввод логинов, паролей, IP и прокси, а также смена адреса без смены пароля будут доступны после завершения разработки и проверки безопасности.</div>'+
+ (!legacy?'<div class="section">Планирование подключения</div><div class="card"><div class="small muted">Статус: '+(stage==='awaiting_credentials'?'Ожидает ввода данных':'Не начато')+'</div><div class="men-draft-actions">'+
+ (stage==='not_configured'?'<button class="secondary" '+(menChanging?'disabled':'')+' onclick="changeManPlanning(\'plan\')">Начать подготовку</button>':'')+
+ (stage==='awaiting_credentials'?'<button class="secondary" '+(menChanging?'disabled':'')+' onclick="changeManPlanning(\'reset\')">Сбросить подготовку</button>':'')+
+ '</div><div class="hint">Действие изменяет только внутренний статус. Логины, IP, прокси и публикации не затрагиваются.</div></div>':'')+
+ '<div class="section">История подготовки</div><div class="card">'+
+ (menHistoryError?'<div class="error">'+esc(menHistoryError)+'</div>':'')+
+ (menHistory.length?menHistory.slice().reverse().map(log=>'<div class="archiveentry"><strong>'+(log.action==='plan'?'Подготовка начата':'Подготовка сброшена')+'</strong><div class="light">Версия '+Number(log.version)+' · '+esc(new Date(log.at).toLocaleString('ru-RU'))+'</div></div>').join(''):'<div class="small muted">Изменений пока нет</div>')+
+ '</div><div class="watermark">Подключение и публикации с этой страницы не запускаются</div>';
+ }
 }
 else if(p==='client'){let c=cby(state.client);if(!c){root('clients');return}h=`${back("root('clients')")}<div class="row"><div><h1>${normalizeUsername(c.username)?username(c):"Клиентка · ID"}</h1><div class="small muted">${normalizeUsername(c.username)?"Telegram ID "+esc(c.id):esc(c.id)+" · Ник не указан"}</div><a class="detail-chat" href="${chatHref(c)}" aria-label="Написать в Telegram"><span aria-hidden="true">↗</span> Написать в Telegram</a></div><span class="status ${c.active?'':'off'}">${c.active?'Активна':'Приостановлена'}</span></div><div class="summary"><div class="mini">БАЛАНС ПУБЛИКАЦИЙ</div><div class="number">${available(c)} <span class="balance-caption">доступно</span></div><div class="balance-stats"><div><span class="balance-stat-label">Использовано за всё время</span><b>${Number(c.spent)||0}</b></div><div><span class="balance-stat-label">Всего начислено</span><b>${Number.isFinite(Number(c.grant))?Number(c.grant):'—'}</b></div></div></div>${b('＋  Пополнить баланс',"startAction('topup')",'primary')}<div class="agreement-compact"><span class="agreement-caption"><span class="agreement-icon">▣</span> Соглашение</span><span class="${c.agreement?'status':'status off'}">${c.agreement?'Подписано':'Не подписано'}</span></div><div class="section action-heading">Быстрое управление</div><div class="action-grid">${actionTile('⚖','Изменить остаток','Корректировка баланса',"startAction('balance')")}${actionTile('⌘','Код доступа','Сменить PIN',"startAction('pin')")}${actionTile(c.active?'◷':'▷',c.active?'Приостановить доступ':'Восстановить доступ',c.active?'Ограничить вход':'Открыть вход',"startAction('access')",(c.active?'danger-tile ':'')+'action-wide')}</div><button class="archive-compact" onclick="openArchive()"><span aria-hidden="true">▤</span><span>Публикации и подтверждения</span><span aria-hidden="true">›</span></button><div class="watermark">Операции выполняются сервером и требуют подтверждения</div>`}
 else if(p==='archive'){let a=archive.filter(x=>x.uid===state.client&&(x.profile.includes(state.archquery)||x.account.toLowerCase().includes(state.archquery.toLowerCase())||archiveDate(x.date).includes(state.archquery)));h=`${back("go('client')")}<h1>Публикации</h1><p class="small muted">Клиентка ${esc(state.client)}</p><input class="search" placeholder="⌕  Анкета, мужчина, дата" value="${esc(state.archquery)}" oninput="searchArchive(this.value)"><div class="section">История · ${a.length}</div><div class="list">${a.map((x,i)=>`<button class="listitem" onclick="go('proof',{proof:${archive.indexOf(x)}})"><span class="avatar">${x.kind==='Оценка'?'☆':'✎'}</span><span class="flex"><span class="strong">${x.kind} · Анкета №${x.profile}</span><div class="light">${accountName(x.account)} · ${archiveDate(x.date)}</div></span><span class="chev">›</span></button>`).join('')||'<div class="empty">Подтверждения не найдены</div>'}</div>`}
@@ -202,6 +233,46 @@ function validateEdit(){let v=document.getElementById('entry').value.trim();if(v
 function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(y=>y.id===state.review);let intro='';if(t==='create')intro=`ID: ${state.wizard.id}<br>Начальный баланс: ${state.wizard.grant}<br>Код: ••••••`;if(t==='topup')intro=`${username(c)} · ID ${esc(c.id)}<br>Добавить: <b>${state.field}</b> публикаций<br>Остаток сейчас: ${available(c)}`;if(t==='balance')intro=`${username(c)} · ID ${esc(c.id)}<br>Сейчас: ${available(c)}<br>Установить: <b>${state.field}</b>`;if(t==='pin')intro=`${username(c)} · ID ${esc(c.id)}<br>Изменить код доступа`;if(t==='access')intro=`${username(c)} · ID ${esc(c.id)}<br>${c.active?'Приостановить доступ':'Восстановить доступ'}`;if(['approve','reject','edit'].includes(t))intro=`Анкета №${x.profile}<br>${x.account}<br>${t==='edit'?'Сохранить исправленный текст':t==='approve'?'Подтвердить публикацию':'Отклонить отзыв'}`;let returnTo=t==='create'?"root('clients')":['edit','approve','reject'].includes(t)?"go('review')":"go('client')";return `${back(returnTo)}<h1>Подтверждение</h1><p class="muted small">${actionTitle()}</p><div class="card" style="line-height:1.9">${intro}</div><div class="note">Операция будет записана в существующую систему после подтверждения.</div>${b('Подтвердить',"commitLive()",'primary')}<div style="height:9px"></div>${b('Отмена',returnTo)}`}
 
 const auth=()=>window.Telegram?.WebApp?.initData||'';
+function openManDetail(id){if(!manAccounts.some(x=>x.id===id))return;selectedManId=id;menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');reloadManHistory(id)}
+async function reloadManHistory(id=selectedManId){
+ const requestId=++menHistoryRequest;
+ if(!id||id==='yan_first'){menHistory=[];return}
+ try{
+  const r=await callAdmin('man_setup_history',{accountId:id});
+  if(!Array.isArray(r.items))throw Error('История недоступна');
+  if(selectedManId!==id||requestId!==menHistoryRequest)return;
+  menHistory=r.items;menHistoryError='';
+ }catch(e){if(selectedManId!==id||requestId!==menHistoryRequest)return;menHistory=[];menHistoryError='Не удалось загрузить историю'}
+ if(state.page==='man-detail'&&selectedManId===id&&requestId===menHistoryRequest)render();
+}
+async function changeManPlanning(action){
+ if(menChanging||!selectedManId||selectedManId==='yan_first')return;
+ const accountId=selectedManId;
+ const x=manAccounts.find(m=>m.id===accountId),expectedVersion=x?.setup?.version;
+ if(!x||!Number.isSafeInteger(expectedVersion)||!['plan','reset'].includes(action))return;
+ menChanging=true;render();
+ try{
+  const result=await callAdmin('man_setup_draft',{accountId,expectedVersion,setupAction:action});
+  if(!result.setup||result.setup.accountId!==accountId||result.setup.canPublish!==false)throw Error('Некорректный ответ сервера');
+  const current=manAccounts.findIndex(m=>m.id===accountId);
+  if(current>=0)manAccounts[current]={...manAccounts[current],setup:result.setup,connection:result.setup.stage};
+  if(selectedManId===accountId){
+   toast(action==='plan'?'Подготовка начата':'Статус подготовки сброшен');
+   await reloadManHistory(accountId);
+  }
+ }catch(e){
+  if(selectedManId===accountId)toast('Статус не обновлён: '+e.message);
+  await reloadMen();
+ }
+ finally{menChanging=false;render()}
+}
+async function reloadMen(){
+ if(menBusy)return;menBusy=true;menError='';
+ try{const r=await callAdmin('man_accounts');if(r.readOnly!==true||!Array.isArray(r.accounts)||r.accounts.length!==30)throw Error('Реестр недоступен');manAccounts=r.accounts}
+ catch(e){menError='Ошибка загрузки: '+e.message}
+ finally{menBusy=false;if(state.page==='men'||state.page==='man-detail')render()}
+}
+function searchMen(v){menQuery=v;render();const i=document.getElementById('men-search');if(i){i.focus();i.setSelectionRange(v.length,v.length)}}
 async function callAdmin(action,payload={}){
  if(!auth())throw Error('Откройте ADMIN из вашего Telegram-бота');
  const response=await fetch('/api/admin/app',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:auth(),action,...payload}),cache:'no-store'});

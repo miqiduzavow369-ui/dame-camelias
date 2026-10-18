@@ -6,6 +6,9 @@ import {registry,OWNER_ID,TRIAL_ID,validId,pinRecord} from "./client_registry.js
 import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publication_archive.js";
 import {dailyLimit} from "./daily_publication_limit.js";
+import {ownerManRegistry} from "./man_admin_registry.js";
+import {MAN_ACCOUNTS} from "./man_accounts.js";
+import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -275,6 +278,31 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const queue=await storage.get("ledger_outbox")||{};delete queue[settlementKey(entry)];await storage.put("ledger_outbox",queue);
  };
  const event=input.event;
+ if(event.kind==="admin_man_registry"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
+   const drafts=await readManSetupDrafts(storage,event.actorId,uid,OWNER_ID,MAN_ACCOUNTS);
+   const staged=new Map(drafts.map(x=>[x.id,x.setup]));
+   return {...inventory,accounts:inventory.accounts.map(x=>({
+     ...x,setup:staged.get(x.id)??null,
+     connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
+   }))};
+ }
+ if(event.kind==="admin_man_setup_history"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+     const items=await readManSetupHistory(storage,event.actorId,uid,OWNER_ID,event.accountId);
+     return {ok:true,items};
+   }catch{return {ok:false,status:400,reason:"invalid_account"};}
+ }
+ if(event.kind==="admin_man_setup_draft"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await changeManSetupDraft(storage,{
+     actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+     accountId:event.accountId,expectedVersion:event.expectedVersion,
+     action:event.setupAction,at:Date.now()
+   });}catch{return {ok:false,status:409,reason:"draft_change_rejected"};}
+ }
  if(event.kind==="admin_archive"){
   // This event is only constructed by the authenticated owner's private UI.
   // Public cabinet endpoints never accept this event kind from request bodies.
