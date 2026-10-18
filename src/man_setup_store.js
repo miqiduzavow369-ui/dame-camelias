@@ -36,14 +36,20 @@ export async function changeManSetupDraft(storage,{actorId,cabinetId,ownerId,acc
  requireOwner(actorId,cabinetId,ownerId);
  const key=draftKey(accountId);
  if(action!=="plan"&&action!=="reset")throw Error("Unsupported draft action");
- const current=await readManSetupDraft(storage,accountId);
- if(!Number.isSafeInteger(expectedVersion)||current.version!==expectedVersion)throw Error("Version conflict");
- const nextStage=action==="plan"?"awaiting_credentials":"not_configured";
- // Restrict transitions: no ability to imply proxy or identity checks.
- if(!((current.stage==="not_configured"&&action==="plan")||
-       (current.stage==="awaiting_credentials"&&action==="reset")))
-   throw Error("Invalid draft transition");
- const next=advanceManSetup(current,{accountId,expectedVersion,nextStage,at});
- await storage.put(key,next);
- return {ok:true,setup:publicManSetup(next,accountId)};
+ // Durable Object storage.transaction serializes the read/CAS/write atomically.
+ // Never silently fall back to separate storage.get/put: that would allow lost updates.
+ if(typeof storage.transaction!=="function")throw Error("Atomic storage unavailable");
+ return storage.transaction(async txn=>{
+   const current=await readManSetupDraft(txn,accountId);
+   if(!Number.isSafeInteger(expectedVersion)||current.version!==expectedVersion)
+     throw Error("Version conflict");
+   const nextStage=action==="plan"?"awaiting_credentials":"not_configured";
+   // Restrict transitions: no ability to imply proxy or identity checks.
+   if(!((current.stage==="not_configured"&&action==="plan")||
+         (current.stage==="awaiting_credentials"&&action==="reset")))
+     throw Error("Invalid draft transition");
+   const next=advanceManSetup(current,{accountId,expectedVersion,nextStage,at});
+   await txn.put(key,next);
+   return {ok:true,setup:publicManSetup(next,accountId)};
+ });
 }
