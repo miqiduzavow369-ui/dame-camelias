@@ -55,6 +55,10 @@ export async function handleAdminApi(request,env){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_registry",actorId:OWNER_ID});
    return respond(result,result?.ok?200:result?.status===403?403:503);
   }
+  if(action==="man_setup_history"){
+   const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_setup_history",actorId:OWNER_ID,accountId:body.accountId});
+   return respond(result,result?.ok?200:result?.status===403?403:400);
+  }
   if(action==="man_setup_draft"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_setup_draft",
      actorId:OWNER_ID,accountId:body.accountId,

@@ -8,7 +8,7 @@ import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publicat
 import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
-import {readManSetupDrafts,changeManSetupDraft} from "./man_setup_store.js";
+import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -287,6 +287,13 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      ...x,setup:staged.get(x.id)??null,
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
+ }
+ if(event.kind==="admin_man_setup_history"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+     const items=await readManSetupHistory(storage,event.actorId,uid,OWNER_ID,event.accountId);
+     return {ok:true,items};
+   }catch{return {ok:false,status:400,reason:"invalid_account"};}
  }
  if(event.kind==="admin_man_setup_draft"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
