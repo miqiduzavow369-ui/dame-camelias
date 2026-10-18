@@ -650,9 +650,6 @@ async function scheduledVisitorReport(env, at) {
 }
 import {BACKUP_PATH, handleLedgerBackup} from "./admin_ledger_backup.js";
 export default {
-  async scheduled(controller,env,ctx) {
-    ctx.waitUntil(scheduledVisitorReport(env,controller.scheduledTime).catch(err=>console.error("Scheduled visitor report failed",err)));
-  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === BACKUP_PATH) return handleLedgerBackup(request, env);
