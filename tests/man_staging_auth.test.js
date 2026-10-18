@@ -35,8 +35,11 @@ test("duplicate signed identity, date and hash fields are rejected",async()=>{
 });
 test("tampered, missing and malformed payloads are rejected",async()=>{
  const now=Math.floor(Date.now()/1000),valid=sign(OWNER,now);
+ const changed=new URLSearchParams(valid);
+ changed.set("user",JSON.stringify({id:Number(OWNER),first_name:"Changed"}));
+ assert.notEqual(changed.toString(),valid,"tampered fixture must differ from the signed payload");
  for(const invalid of [
-  "",(()=>{const p=new URLSearchParams(valid);p.set("user",JSON.stringify({id:Number(OWNER),first_name:"Changed"}));return p.toString()})(),"auth_date=not-a-date",
+  "",changed.toString(),"auth_date=not-a-date",
   new URLSearchParams({auth_date:String(now)}).toString(),
   new URLSearchParams({auth_date:String(now),user:"not-json",hash:"a".repeat(64)}).toString()
  ]){
