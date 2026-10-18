@@ -673,7 +673,7 @@ def inspect(pid, mode='profile'):
                     checkbox_result=profile_page.evaluate(r"""() => {
                       const form=document.querySelector('#checked_form');
                       if(!form)return {ok:false,count:0,inForm:false,serialized:false,reason:'form_missing'};
-                      const clean=s=>String(s||'').toLowerCase().replace(/\\s+/g,' ').trim();
+                      const clean=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
                       const isQuestion=s=>{
                         const text=clean(s);
                         return /(?:встречал|встреча|виделся|знаком)/i.test(text)
