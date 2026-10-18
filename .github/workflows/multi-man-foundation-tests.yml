@@ -1,0 +1,48 @@
+name: Verify 30-man foundation (no deployment)
+
+on:
+  push:
+    branches:
+      - feature/yan-multiaccount-foundation
+    paths:
+      - 'src/man_*.js'
+      - 'src/admin_app_api.js'
+      - 'src/cabinet_runtime.js'
+      - 'admin/preview-v3.html'
+      - 'tests/man_*.test.js'
+      - '.github/workflows/multi-man-foundation-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multi-man-foundation-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Source checks and isolated unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify core server module syntax
+        run: |
+          node --check src/man_accounts.js
+          node --check src/man_account_isolation.js
+          node --check src/man_setup_state.js
+          node --check src/man_setup_store.js
+          node --check src/man_admin_registry.js
+          node --check src/admin_app_api.js
+          node --check src/cabinet_runtime.js
+      - name: Run 30-man foundation regression suite
+        run: |
+          node --test tests/man_accounts.test.js tests/man_account_isolation.test.js tests/man_admin_registry.test.js tests/man_setup_state.test.js tests/man_setup_store.test.js
+      - name: Validate admin inline JavaScript syntax
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; import vm from "node:vm"; const html=fs.readFileSync("admin/preview-v3.html","utf8");const match=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!match)throw Error("ADMIN inline script not found");new vm.Script(match[1]);'
+# No Cloudflare deployment, site automation, credentials, or proxy calls.
