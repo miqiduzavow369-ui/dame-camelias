@@ -205,7 +205,15 @@ async function reloadReviewHistory(){
  historyLoadError='';historyPartial=false;
  try{
   const data=await callAdmin('review_history');
-  reviewHistory=(data.items||[]).map(x=>({...x}));
+  // Display newest moderation decisions first, without altering the stored archive.
+  const decisionTime=x=>{
+   const decided=Number(x.decidedAt);
+   if(Number.isFinite(decided)&&decided>0)return decided;
+   const date=String(x.date||"");
+   if(/^\\d{8}$/.test(date)){const parsed=Date.parse(date.slice(0,4)+"-"+date.slice(4,6)+"-"+date.slice(6,8)+"T00:00:00Z");return Number.isFinite(parsed)?parsed:0;}
+   return 0;
+  };
+  reviewHistory=(data.items||[]).map(x=>({...x})).sort((a,b)=>decisionTime(b)-decisionTime(a));
   historyPartial=!!data.partial;
  }catch(e){reviewHistory=[];historyLoadError='Не удалось загрузить историю: '+e.message}
  if(state.page==='reviews')render();
