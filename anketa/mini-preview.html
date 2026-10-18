@@ -423,7 +423,7 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
 }
 const availableMen=[{id:"yan_first",name:"Ян Первый",image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/yan_first.jpg",enabled:true},{id:"yan_second",name:"Ян Второй",image:null,enabled:false}];
 let workProfile=null,allMenOpen=false;
-function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:"🔎 Проверить доступность",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
+function manStatus(man,kind){if(!man.enabled)return "🔒 Не подключён";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"🔎 Проверить доступность",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;b.append(img);}
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
