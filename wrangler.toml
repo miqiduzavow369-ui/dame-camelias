@@ -3,10 +3,7 @@ main = "src/index.js"
 compatibility_date = "2026-09-01"
 # Git-linked Cloudflare rebuild: finance ledger and top-up report (2026-10-17)
 
-# Daily visitor summaries: 10:00, 16:00, 22:00 Moscow (UTC+3)
-[triggers]
-crons = ["0 7 * * *", "0 13 * * *", "0 19 * * *"]
-
+# Visitor events are viewed inside ADMINISTRATION. Telegram reports disabled.
 # Profile thumbnails share existing VISITORS_KV namespace (no R2 bucket required).
 [[kv_namespaces]]
 binding = "VISITORS_KV"
