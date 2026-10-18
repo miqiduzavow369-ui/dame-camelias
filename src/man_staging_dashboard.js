@@ -26,7 +26,7 @@ button:hover:not(:disabled){border-color:#f3cc8c}
 .item .buttons{display:flex;gap:6px;flex-wrap:wrap}.item button{padding:7px 9px;font-size:12px}
 #notice{min-height:20px}#notice.error{color:#ed9c91}#notice.good{color:#e6c68c}
 @media(max-width:560px){.item{align-items:flex-start;flex-direction:column}main{padding:18px 12px}}
-</style></head><body>
+</style><script src="https://telegram.org/js/telegram-web-app.js"></script></head><body>
 <main><header><div><div class="eyebrow">DAME CAMELIAS · тестовый контур</div>
 <h1>♙ Очередь мужчин</h1></div><span class="lab">SIMULATION ONLY</span></header>
 <p>Демонстрационные задания не публикуются на сайте, не списывают баланс и не запускают реальные мужские аккаунты. Доступ к данным — только владельцу через отдельного тестового Telegram-бота.</p>
