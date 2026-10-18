@@ -6,6 +6,7 @@ import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {cabinetRPC} from "./cabinet_runtime.js";
 import {agreementStatus} from "./agreement.js";
 import {moderationHistory} from "./review_moderation.js";
+import {ownerManRegistry} from "./man_admin_registry.js";
 
 const safeHeaders={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 const respond=(value,status=200)=>Response.json(value,{status,headers:safeHeaders});
@@ -51,6 +52,7 @@ export async function handleAdminApi(request,env){
  const action=String(body.action||"");
  const uid=String(body.userId||"");
  try{
+  if(action==="man_accounts")return respond(ownerManRegistry(OWNER_ID,OWNER_ID,OWNER_ID));
   if(action==="clients"){
    const result=await registry(env,{action:"list",actorId:OWNER_ID});
    if(!result.ok)return bad("registry_unavailable",503);
