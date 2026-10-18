@@ -711,7 +711,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const counter=document.createElement("p");counter.className="muted";field.oninput=()=>{counter.textContent=field.value.length+" / 3000";};
   const preview=document.createElement("div");preview.className="draft-review";preview.hidden=true;
   const heading2=document.createElement("h3");heading2.textContent="🌹 Проверьте отзыв";
-  const content=document.createElement("p");content.style.whiteSpace="pre-wrap";
+  const content=document.createElement("p");content.style.cssText="white-space:pre-wrap;color:#ffe4ae;font-size:17px;font-weight:600;line-height:1.65;background:#24190e;border:1px solid #b58d50;border-radius:12px;padding:16px;margin:14px 0 20px;overflow-wrap:anywhere";
   const accuracy=document.createElement("label");accuracy.className="rating-elsewhere";
   const consent=document.createElement("input");consent.type="checkbox";
   const agreeText=document.createElement("span");agreeText.textContent="Подтверждаю, что отзыв достоверен и не вводит клиентов в заблуждение.";
@@ -746,7 +746,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};
   saveDraft.onclick=async()=>{saveDraft.disabled=true;try{await request("save",field.value.trim());status.textContent="✅ Черновик сохранён.";}catch(e){status.textContent="⚠️ "+e.message;}finally{saveDraft.disabled=false;}};
   edit.onclick=()=>{preview.hidden=true;heading.hidden=false;field.hidden=false;counter.hidden=false;checkText.hidden=false;saveDraft.hidden=false;consent.checked=false;};
-  send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage,x);}catch(e){if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
+  send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage,x);}catch(e){if(e instanceof TypeError||/load failed|failed to fetch|networkerror|network request failed/i.test(String(e.message||""))){showStage("unknown");try{const x=await request("status");if(x.stage!=="draft")showStage(x.stage,x);}catch{} }else if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
   check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage,x);}catch(e){if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
   preview.append(heading2,content,accuracy,send,edit);
   editor.append(heading,field,counter,checkText,saveDraft,preview,check,status);body.append(editor);field.oninput();
