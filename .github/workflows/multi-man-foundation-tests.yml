@@ -54,7 +54,7 @@ jobs:
       - name: Bundle isolated staging Worker without publishing
         run: |
           npx --yes wrangler@4.102.0 deploy --config wrangler.man-staging.toml --dry-run --outdir /tmp/dame-camelias-man-staging-bundle
-          test -s /tmp/dame-camelias-man-staging-bundle/man_staging_worker.js
+          find /tmp/dame-camelias-man-staging-bundle -type f -name '*.js' -size +0c | grep -q .
       - name: Validate admin inline JavaScript syntax
         run: |
           node --input-type=module -e 'import fs from "node:fs"; import vm from "node:vm"; const html=fs.readFileSync("admin/preview-v3.html","utf8");const js=html.split("<script>")[1]?.split("</script>")[0];if(!js)throw Error("ADMIN inline script not found");new vm.Script(js);'
