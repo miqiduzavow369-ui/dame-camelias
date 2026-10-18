@@ -33,6 +33,14 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Source-level checks are present; a real staging bot, Cloudflare deployment and authenticated Telegram Web acceptance are **not** yet verified.
 - Do not copy a production bot token to staging.
 
+## Owner-approved staging deployment attempt — blocked safely
+- On 2026-10-18, workflow `.github/workflows/deploy-man-staging-approved.yml` ran on the feature branch as GitHub Actions run `39148015832`.
+- Its pre-deployment gate stopped with `Missing CLOUDFLARE_API_TOKEN. Nothing deployed.`. All deployment, staging secret installation, and health verification steps were skipped. **Staging is not deployed.**
+- Add GitHub Actions **repository secrets** under Settings → Secrets and variables → Actions: `CLOUDFLARE_API_TOKEN` (scoped for the separate Worker), `CLOUDFLARE_ACCOUNT_ID` (target Cloudflare account), and `MAN_STAGING_BOT_TOKEN` (token issued by a separate Telegram test bot). Do not add token values to code, chat, logs or regular GitHub variables.
+- The staging workflow refuses to deploy if any required secret is missing or if the staging Telegram bot token matches the production `BOT_TOKEN` secret where present. It targets only `wrangler.man-staging.toml` on `feature/yan-multiaccount-foundation`; it does not use the production `wrangler.toml`.
+- After secrets are added, rerun the failed workflow through its GitHub Actions UI. Inspect the last health-check job and independently verify the resulting staging workers.dev address; do not assume a URL is live before a successful deployment.
+- Separate staging Telegram bot setup and Mini App menu/web app URL must be configured before owner-signed UI acceptance; the Worker workflow by itself does not register the Telegram bot menu.
+
 ## Manual release prerequisites — not performed
 1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js`, `tests/man_staging_worker.test.js`, `tests/man_staging_queue.test.js`, `tests/man_mock_queue_view.test.js`, and `tests/man_staging_html.test.js` (inline JavaScript compilation, Telegram SDK ordering, cross-account UI guards and isolation), and `tests/man_staging_deploy_contract.test.js` (strict separate Worker, Durable Object, migration and permitted Wrangler variables).
 2. Obtain a **separate staging bot token** in Cloudflare Worker secrets named `MAN_STAGING_BOT_TOKEN`. Do not copy production bot token, proxy details, GitHub Actions secrets, KV IDs or live data.
