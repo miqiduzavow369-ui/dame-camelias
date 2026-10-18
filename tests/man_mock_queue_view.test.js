@@ -66,3 +66,22 @@ test("malformed old rows cannot contaminate queue listing",async()=>{
  await s.put("man-mock-queue-v1:foo",{task:{schema:1,mode:"simulation",correlationKey:"foo",accountId:"yan_31"},status:"completed",createdAt:1,finishedAt:2});
  assert.deepEqual(await listMockManQueue(s,{actorId:OWNER,ownerId:OWNER}),[]);
 });
+
+test("malformed dates, forged outcomes and nested credentials never leave queue storage",async()=>{
+ const s=storage();await enqueue(s,"yan_second");
+ const task=createMockHandoff(identity("yan_second"),{serverActivation:activation("yan_second"),moscowDate:DATE});
+ const key="man-mock-queue-v1:"+task.correlationKey;
+ const base=await s.get(key);
+ for(const record of [
+  {...base,moscowDate:"2026-10-19"},
+  {...base,task:{...task,profileId:{password:"LEAK"}}},
+  {...base,task:{...task,nonce:"abcabcabcabc"}},
+  {...base,receipt:{outcome:"mock_success",password:"LEAK"}},
+  {...base,status:"completed",finishedAt:200,receipt:{outcome:"mock_success",sitePublished:true,creditsDebited:false,proofSubmitted:false}}
+ ]){
+  await s.put(key,record);
+  const rows=await listMockManQueue(s,{actorId:OWNER,ownerId:OWNER});
+  assert.equal(rows.length,0);
+  assert.ok(!JSON.stringify(rows).includes("LEAK"));
+ }
+});
