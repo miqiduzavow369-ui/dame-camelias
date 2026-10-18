@@ -66,6 +66,47 @@ export async function handleAdminApi(request,env){
    }
    return respond({ok:true,clients:entries});
   }
+  if(action==="visitors"){
+   // Read-only visitor timeline from the existing bot activity keys; no new tracking or messages.
+   if(!env.VISITORS_KV)return bad("visitors_unavailable",503);
+   const now=Date.now(),msDay=86400000,slots=[];
+   for(let d=0;d<7;d++){
+    const day=new Date(now+3*3600000-d*msDay).toISOString().slice(0,10);
+    for(const hour of ["10","16","22"])slots.push(day+"_"+hour);
+   }
+   // 22:00–10:00 is stored under the following day's 10:00 slot.
+   slots.push(new Date(now+3*3600000+msDay).toISOString().slice(0,10)+"_10");
+   const unique=new Map();let partial=false,readCount=0;
+   for(let offset=0;offset<slots.length;offset+=4){
+    const batch=await Promise.all(slots.slice(offset,offset+4).map(async slot=>{
+     try{
+      const page=await env.VISITORS_KV.list({prefix:"visit:"+slot+":",limit:250});
+      return {keys:page.keys||[],complete:page.list_complete!==false};
+     }catch{return {keys:[],complete:false};}
+    }));
+    for(const page of batch){
+     if(!page.complete)partial=true;
+     for(const key of page.keys){
+      if(readCount>=600){partial=true;break;}
+      readCount++;
+      try{
+       const item=await env.VISITORS_KV.get(key.name,"json");
+       if(!item||!/^[1-9]\\d{4,15}$/.test(String(item.id||"")))continue;
+       const id=String(item.id),at=Date.parse(item.visitedAt||"");
+       if(!Number.isFinite(at)||at<now-7*msDay||at>now+60000)continue;
+       const previous=unique.get(id);
+       if(previous&&Date.parse(previous.lastAt)>=at)continue;
+       unique.set(id,{id,username:String(item.username||"").slice(0,32),
+        name:String(item.name||"").slice(0,100),firstSeen:item.firstSeen||null,
+        lastAt:item.visitedAt,interests:Array.isArray(item.interests)?item.interests.slice(0,8):[]});
+      }catch{partial=true;}
+     }
+    }
+    if(readCount>=600)break;
+   }
+   const visitors=[...unique.values()].map(x=>({...x,isNew:Number.isFinite(Date.parse(x.firstSeen))&&Date.parse(x.firstSeen)>=now-7*msDay})).sort((a,b)=>Date.parse(b.lastAt)-Date.parse(a.lastAt));
+   return respond({ok:true,visitors,partial,periodDays:7});
+  }
   if(action==="review_history"){
    const listed=await registry(env,{action:"list",actorId:OWNER_ID});
    if(!listed?.ok)return bad("registry_unavailable",503);
