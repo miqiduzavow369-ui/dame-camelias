@@ -184,3 +184,19 @@ test("staging cannot claim readiness with malformed Durable Object binding",asyn
   assert.equal(response.status,503);
  }
 });
+
+test("staging refuses unknown environment variables and aliased production bindings",async()=>{
+ const base={...env,MAN_STAGING_BOT_TOKEN:TOKEN,
+  MAN_STAGING_ACCOUNTS:{idFromName:name=>name,get:()=>({fetch:()=>{throw Error("should not reach storage")}})}};
+ for(const key of ["SOME_EXTRA_CONFIG","RENAMED_CUSTOMER_KV","PRODUCTION_DO_ALIAS","UNREVIEWED_TOKEN"]){
+  const unsafe={...base,[key]:"CANARY-DO-NOT-DISCLOSE"};
+  for(const pathname of ["/health","/test-admin"]){
+   const result=await worker.fetch(new Request("https://isolated.test"+pathname),unsafe);
+   assert.equal(result.status,503,key);
+   assert.equal((await result.json()).reason,"staging_unconfigured");
+  }
+  const result=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),unsafe);
+  assert.equal(result.status,503);
+  assert.ok(!(await result.text()).includes("CANARY-DO-NOT-DISCLOSE"));
+ }
+});
