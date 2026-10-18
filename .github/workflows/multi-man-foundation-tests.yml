@@ -39,13 +39,14 @@ jobs:
           node --experimental-default-type=module --check src/man_setup_store.js
           node --experimental-default-type=module --check src/man_global_locks.js
           node --experimental-default-type=module --check src/man_operation_route.js
+          node --experimental-default-type=module --check src/man_executor_contract.js
           node --experimental-default-type=module --check src/man_admin_registry.js
           node --experimental-default-type=module --check src/man_staging_worker.js
           node --experimental-default-type=module --check src/admin_app_api.js
           node --experimental-default-type=module --check src/cabinet_runtime.js
       - name: Run 30-man foundation regression suite
         run: |
-          node --experimental-default-type=module --test tests/man_accounts.test.js tests/man_account_isolation.test.js tests/man_admin_registry.test.js tests/man_setup_state.test.js tests/man_setup_store.test.js tests/man_integration_boundaries.test.js tests/man_admin_http_integration.test.js tests/man_staging_worker.test.js tests/man_admin_ui_races.test.js tests/man_global_locks.test.js tests/man_operation_route.test.js
+          node --experimental-default-type=module --test tests/man_accounts.test.js tests/man_account_isolation.test.js tests/man_admin_registry.test.js tests/man_setup_state.test.js tests/man_setup_store.test.js tests/man_integration_boundaries.test.js tests/man_admin_http_integration.test.js tests/man_staging_worker.test.js tests/man_admin_ui_races.test.js tests/man_global_locks.test.js tests/man_operation_route.test.js tests/man_executor_contract.test.js
       - name: Validate admin inline JavaScript syntax
         run: |
           node --input-type=module -e 'import fs from "node:fs"; import vm from "node:vm"; const html=fs.readFileSync("admin/preview-v3.html","utf8");const js=html.split("<script>")[1]?.split("</script>")[0];if(!js)throw Error("ADMIN inline script not found");new vm.Script(js);'
