@@ -44,7 +44,7 @@ if(web&&typeof web.ready==="function")web.ready();
 var auth=web&&web.initData||"";
 var select=document.getElementById("man"),list=document.getElementById("jobs"),empty=document.getElementById("empty");
 var notice=document.getElementById("notice"),refresh=document.getElementById("refresh"),seed=document.getElementById("seed");
-var busy=false;
+var busy=false,queueRequestVersion=0;
 function message(text,error){notice.textContent=text;notice.className=error?"error":"good";}
 async function api(action,payload){
  if(!auth)throw Error("Откройте экран через отдельного тестового Telegram-бота");
@@ -75,7 +75,11 @@ function jobRow(job){
  row.appendChild(details);row.appendChild(actions);return row;
 }
 async function load(){
- var data=await api("mock_queue",{accountId:select.value});
+ var requestVersion=++queueRequestVersion,accountId=select.value;
+ var data=await api("mock_queue",{accountId:accountId});
+ // Ignore responses for an account that is no longer selected, and older
+ // responses for the same account after a newer refresh was requested.
+ if(requestVersion!==queueRequestVersion||accountId!==select.value)return;
  list.replaceChildren();data.items.forEach(function(job){list.appendChild(jobRow(job))});
  empty.textContent=data.items.length?"":"Заданий пока нет. Создайте демонстрационную операцию.";
 }
