@@ -8,21 +8,23 @@ Source-only preparation on `feature/yan-multiaccount-foundation`. Not deployed a
 - Independent Worker name: `dame-camelias-man-staging`
 - Independent Durable Object class / binding: `ManStagingAccounts` / `MAN_STAGING_ACCOUNTS`
 - No existing KV ID, production Durable Object binding, routes, proxy, site, or GitHub workflow dispatch.
-- Only `GET /health` and owner-signed `POST /api/man-staging` are implemented.
-- `list`, `history`, `draft(plan/reset)` only; account credentials and account activation are not supported.
+- Staging-only routes: `GET /health`, `GET /test-admin` (static test dashboard shell) and owner-signed `POST /api/man-staging` (all data/actions authenticated).
+- Setup actions: `list`, `history`, `draft(plan/reset)`; no account credentials or real activation.
+- Mock executor actions: `mock_queue` (sanitized owner-only list), `mock_seed` (create inert fixture), and `mock_finish` (record mock success/rejection). Mock records never touch external sites, credits, customer data, or production Durable Objects.
+- The dashboard is accessible only through the separate staging Worker; opening the HTML without a staging Telegram signed `initData` cannot read or change queue data.
 - Stage operations are atomic and permanently unable to authorize website activity.
 
 ## Manual release prerequisites — not performed
-1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js` and `tests/man_staging_worker.test.js`.
+1. Verify the feature-branch GitHub Actions suite passes, including `tests/man_admin_http_integration.test.js`, `tests/man_staging_worker.test.js`, `tests/man_staging_queue.test.js`, and `tests/man_mock_queue_view.test.js`.
 2. Obtain a **separate staging bot token** in Cloudflare Worker secrets named `MAN_STAGING_BOT_TOKEN`. Do not copy production bot token, proxy details, GitHub Actions secrets, KV IDs or live data.
 3. Review deployment target and Cloudflare account permissions. Do not configure any production Worker name, route, KV or Durable Object.
 4. Explicitly approve a **manual staging-only deployment** before running `wrangler deploy --config wrangler.man-staging.toml`. This is a future manual step, not a CI step.
 5. Use Telegram Mini App signed `initData` from the staging bot only; never place a real token or signed initData in source or logs.
-6. Test: nonowner returns 403; owner sees exactly 30 registry entries; `yan_first` cannot be changed; 02–30 cannot publish; plan/reset persists and audit is isolated.
+6. Test: nonowner returns 403; owner sees exactly 30 registry entries; `yan_first` cannot be changed; 02–30 cannot publish; plan/reset persists and audit is isolated. Open `/test-admin` from the staging Telegram bot, create a simulated rating/review, inspect per-man history, and complete it with a simulated outcome. Confirm `sitePublished:false` and `creditsDebited:false` throughout.
 7. Staging rollback: disable/remove only `dame-camelias-man-staging`; preserve production resources.
 
 ## Explicit non-goals until final stage
 No real site logins, password collection, proxy IP or port entry, automatic account activation, credentials saved in KV or GitHub, publication, credit deduction, customer migration or production merge.
 
 ## Known limitations
-This staging worker validates server API behavior, not full original Mini App screens; UI verification needs an explicitly configured Telegram staging entry point and manual review. GitHub Actions success and Cloudflare integration testing must be observed rather than inferred from static checks.
+This staging Worker provides a separate lightweight queue test screen, not the original production ADMINISTRATION Mini App. UI verification needs an explicitly configured Telegram staging entry point and manual review. GitHub Actions success and Cloudflare integration testing must be observed rather than inferred from static checks.
