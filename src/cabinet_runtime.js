@@ -295,8 +295,20 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
    const drafts=await readManSetupDrafts(storage,event.actorId,uid,OWNER_ID,MAN_ACCOUNTS);
    const staged=new Map(drafts.map(x=>[x.id,x.setup]));
+   // Status comes only from private server storage. Do not expose credentials.
+   // New men's diagnostic flags remain false until a trusted executor verifies them.
+   const proxyEntries=await Promise.all(inventory.accounts.map(async x=>{
+     if(x.id==="yan_first")return [x.id,null]; // Legacy account is read-only and outside this vault.
+     try{
+       const status=await proxyStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id});
+       return [x.id,{configured:status.configured,proxyVerified:status.proxyVerified,
+         ipVerified:status.ipVerified,siteIdentityVerified:status.siteIdentityVerified,
+         expectedIp:status.expectedIp,updatedAt:status.updatedAt}];
+     }catch{return [x.id,null];}
+   }));
+   const proxyMap=new Map(proxyEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
-     ...x,setup:staged.get(x.id)??null,
+     ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }
