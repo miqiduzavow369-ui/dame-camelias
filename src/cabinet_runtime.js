@@ -9,6 +9,7 @@ import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
+import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -278,6 +279,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const queue=await storage.get("ledger_outbox")||{};delete queue[settlementKey(entry)];await storage.put("ledger_outbox",queue);
  };
  const event=input.event;
+ if(event.kind==="admin_man_proxy_status"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await proxyStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
+   catch{return {ok:false,status:400,reason:"invalid_account"};}
+ }
+ if(event.kind==="admin_man_proxy_save"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await saveProxy(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+     accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
+   catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
+ }
  if(event.kind==="admin_man_registry"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
