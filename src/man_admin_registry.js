@@ -1,6 +1,7 @@
 // Owner-only, read-only inventory for the staged 30-account rollout.
 // This module must never receive or serialize passwords, cookies or proxy credentials.
 import {MAN_ACCOUNTS} from "./man_accounts.js";
+import {newManSetup,publicManSetup} from "./man_setup_state.js";
 
 export function ownerManRegistry(actorId, cabinetUserId, ownerId) {
   if (typeof actorId !== "string" || typeof cabinetUserId !== "string" ||
@@ -17,7 +18,8 @@ export function ownerManRegistry(actorId, cabinetUserId, ownerId) {
       connection:enabledByDefault?"legacy_active":"not_configured",
       configurable:false,
       credentialStatus:"not_exposed",
-      proxyStatus:"not_exposed"
+      proxyStatus:"not_exposed",
+      setup: enabledByDefault ? null : publicManSetup(newManSetup(id), id)
     }))
   };
 }
