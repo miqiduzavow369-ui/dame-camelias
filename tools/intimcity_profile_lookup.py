@@ -667,30 +667,45 @@ def inspect(pid, mode='profile'):
                       total:actions.length,allMatched:entryChecks.every(Boolean)}};
                 }""",requested)
                 if extra_flag:
-                    # Find the exact site checkbox by associated visible text,
-                    # without assuming its CSS identifier or altering site state.
+                    # Identify the unique checkbox associated with the meeting-on-another-profile
+                    # question, using its accessible labels and nearby question text.
+                    # Stay within the submission form and fail closed if ambiguous/absent.
                     checkbox_result=profile_page.evaluate(r"""() => {
+                      const form=document.querySelector('#checked_form');
+                      if(!form)return {ok:false,count:0,inForm:false,serialized:false,reason:'form_missing'};
                       const clean=s=>String(s||'').toLowerCase().replace(/\\s+/g,' ').trim();
-                      const phrase='встречался по другой анкете';
-                      const matches=[...document.querySelectorAll('input[type="checkbox"]')]
-                        .filter(el=>!el.disabled).filter(el=>{
-                          const labels=[...el.labels||[]].map(x=>x.textContent);
-                          const row=el.closest('label,.checkbox,.form-check,.field,.row,tr');
-                          if(row)labels.push(row.textContent);
-                          if(el.id){
-                            const direct=document.querySelector('label[for="'+CSS.escape(el.id)+'"]');
-                            if(direct)labels.push(direct.textContent);
-                          }
-                          return labels.some(t=>clean(t).includes(phrase));
-                        });
-                      if(matches.length!==1)return {ok:false,count:matches.length};
+                      const isQuestion=s=>{
+                        const text=clean(s);
+                        return /(?:встречал|встреча|виделся|знаком)/i.test(text)
+                          && /друг(?:ой|ую|ими|их|ие|ая|ом|ого)?/i.test(text)
+                          && /анкет|профил/i.test(text);
+                      };
+                      const controls=[...form.querySelectorAll('input[type="checkbox"]')].filter(el=>!el.disabled);
+                      const matches=controls.filter(el=>{
+                        const texts=[el.getAttribute('aria-label'),el.getAttribute('title')];
+                        for(const label of el.labels||[])texts.push(label.textContent);
+                        if(el.id){
+                          const label=document.querySelector('label[for="'+CSS.escape(el.id)+'"]');
+                          if(label)texts.push(label.textContent);
+                        }
+                        if(el.closest('label'))texts.push(el.closest('label').textContent);
+                        // Only use nearby field/row text, not the whole form.
+                        const row=el.closest('.checkbox,.form-check,.field,.form-group,.row,tr,li,fieldset');
+                        if(row)texts.push(row.textContent);
+                        if(el.parentElement)texts.push(el.parentElement.textContent);
+                        if(el.nextElementSibling)texts.push(el.nextElementSibling.textContent);
+                        return texts.some(isQuestion);
+                      });
+                      if(matches.length!==1)return {ok:false,count:matches.length,
+                        inForm:false,serialized:false,formCheckboxes:controls.length,reason:'not_unique'};
                       const el=matches[0];
-                      // DOM-only assignment; no events, clicks or submission.
+                      if(!el.name||!el.value||!el.closest('form')||el.closest('form')!==form)
+                        return {ok:false,count:1,inForm:false,serialized:false,reason:'invalid_control'};
+                      // Temporary DOM assignment only. No events/clicks/network requests.
                       el.checked=true;
-                      const inside=!!el.closest('#checked_form');
-                      const values=inside?new FormData(el.closest('#checked_form')).getAll(el.name):[];
-                      return {ok:el.checked===true,count:1,inForm:inside,
-                        serialized:inside&&!!el.name&&values.includes(el.value)};
+                      const values=new FormData(form).getAll(el.name);
+                      return {ok:el.checked===true,count:1,inForm:true,
+                        serialized:values.includes(el.value)};
                     }""")
                     report["extraFlag"] = checkbox_result
                     if not checkbox_result.get("ok"):
