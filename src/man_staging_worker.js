@@ -1,6 +1,6 @@
 // Isolated manual integration sandbox. NOT the production bot.
 // Deliberately no GitHub workflows, Telegram send API, proxy, customer KV, or site calls.
-import {validWebApp} from "./telegram_auth.js";
+import {authenticatedStagingOwner} from "./man_staging_auth.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
@@ -42,11 +42,8 @@ export class ManStagingAccounts {
   if(request.method!=="POST")return json({ok:false,reason:"method_not_allowed"},405);
   const body=await request.json().catch(()=>null);
   if(!body||body.ownerId!==OWNER_ID||
-     !await validWebApp(body.initData,this.stagingBotToken,900))
+     !await authenticatedStagingOwner(body.initData,this.stagingBotToken))
    return json({ok:false,reason:"forbidden"},403);
-  let signedUser="";
-  try{signedUser=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"")}catch{}
-  if(signedUser!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
   try{
    if(body.action==="list"){
     const info=ownerManRegistry(OWNER_ID,OWNER_ID,OWNER_ID);
@@ -144,11 +141,8 @@ export default {
   const body=parsed.value;
   if(!body || !["list","draft","history","mock_queue","mock_seed","mock_finish"].includes(body.action))
    return json({ok:false,reason:"invalid_request"},400);
-  if(!await validWebApp(body.initData,env.MAN_STAGING_BOT_TOKEN,900))
+  if(!await authenticatedStagingOwner(body.initData,env.MAN_STAGING_BOT_TOKEN))
    return json({ok:false,reason:"forbidden"},403);
-  let uid="";
-  try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
-  if(uid!==OWNER_ID)return json({ok:false,reason:"forbidden"},403);
   const payload={ownerId:OWNER_ID,initData:body.initData,action:body.action,
     accountId:body.accountId,expectedVersion:body.expectedVersion,setupAction:body.setupAction,
     profileId:body.profileId,kind:body.kind,correlationKey:body.correlationKey,outcome:body.outcome};
