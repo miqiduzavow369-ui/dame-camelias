@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {createHmac} from "node:crypto";
 import worker,{ManStagingAccounts} from "../src/man_staging_worker.js";
 import {STAGING_DASHBOARD_HTML} from "../src/man_staging_dashboard.js";
+import {enqueueMockManTask} from "../src/man_mock_queue.js";
 
 const OWNER="5866034656",TOKEN="fixture-staging-auth", OTHER="5866034657";
 function signed(uid){
@@ -109,4 +110,20 @@ test("staging premium queue UI exists only at test route and carries no secrets"
  assert.ok(!html.includes("api.telegram.org"));
  const missing=await worker.fetch(new Request("https://isolated.example/admin"),h.env);
  assert.equal(missing.status,404);
+});
+
+test("owner may complete yesterday's simulated task without changing its quota day",async()=>{
+ const h=fixture();
+ const created=await enqueueMockManTask(h.stored,{
+  actorId:OWNER,ownerId:OWNER,
+  identity:{userId:OWNER,accountId:"yan_second",profileId:"652282",kind:"review",nonce:"abcdef123456"},
+  moscowDate:"2026-10-17",at:100,
+  serverActivation:{accountId:"yan_second",enabled:true,siteIdentityVerified:true,proxyVerified:true,version:1}
+ });
+ const done=await h.call("mock_finish",{correlationKey:created.correlationKey,outcome:"mock_success"});
+ assert.equal(done.status,200);
+ assert.equal(done.data.status,"completed");
+ const [record]=[...h.stored.snapshot().values()];
+ assert.equal(record.moscowDate,"2026-10-17");
+ assert.equal(done.data.sitePublished,false);
 });
