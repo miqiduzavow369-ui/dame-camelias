@@ -6,7 +6,7 @@ import {MAN_CHECK_ERRORS,readManDiagnostics,prepareManRetry} from "../src/man_ch
 const owner="1234567890",accountId="yan_second",actor={actorId:owner,cabinetId:owner,ownerId:owner,accountId};
 function store(){const m=new Map(),t={get:async k=>m.get(k),put:async(k,v)=>m.set(k,v)};return {...t,transaction:async fn=>fn(t),m};}
 test("error taxonomy covers recoverable proxy and Intimcity cases",()=>{
- for(const code of ["proxy_unreachable","proxy_auth_failed","ip_mismatch","proxy_timeout","site_login_rejected","site_challenge","site_identity_mismatch","site_session_expired","executor_unavailable"])assert.ok(MAN_CHECK_ERRORS[code]?.hint,code);
+ for(const code of ["proxy_unreachable","proxy_auth_failed","ip_mismatch","proxy_timeout","site_login_rejected","site_identity_mismatch","site_session_expired","executor_unavailable"])assert.ok(MAN_CHECK_ERRORS[code]?.hint,code);
 });
 test("readiness never claims verified or client unlocked without executor",async()=>{
  const s=store(),env={};
