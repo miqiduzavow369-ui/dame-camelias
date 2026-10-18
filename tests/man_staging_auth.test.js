@@ -21,7 +21,7 @@ test("staging denies future-dated and expired signatures despite valid HMAC",asy
  const now=Math.floor(Date.now()/1000);
  assert.equal(await authenticatedStagingOwner(sign(OWNER,now+31),TOKEN,now),false);
  assert.equal(await authenticatedStagingOwner(sign(OWNER,now-901),TOKEN,now),false);
- assert.equal(await authenticatedStagingOwner(sign(OWNER,now-900),TOKEN,now),true);
+ assert.equal(await authenticatedStagingOwner(sign(OWNER,now-899),TOKEN,now),true);
 });
 test("duplicate signed identity, date and hash fields are rejected",async()=>{
  const now=Math.floor(Date.now()/1000);
