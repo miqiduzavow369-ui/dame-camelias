@@ -30,13 +30,12 @@ export function createMockHandoff(identity,{moscowDate,serverActivation,stagingD
  });
  return task;
 }
-function validateTask(task){
+function validateTask(task,expectedMoscowDate){
  if(!task||typeof task!=="object"||Array.isArray(task)||
     task.schema!==SCHEMA||task.mode!=="simulation")throw Error("Invalid simulated handoff");
  // The plan is rebuilt from the supplied primitive fields, never accepted as
  // authority for dispatch or for selecting a new account.
- const date=typeof task.globalDailyLock==="string"?
-   task.globalDailyLock.split(":")[2]:undefined;
+ const date=expectedMoscowDate;
  const reconstructed=Object.freeze({
   userId:task.userId,accountId:task.accountId,
   profileId:task.profileId,kind:task.kind,nonce:task.nonce
@@ -62,8 +61,8 @@ function validateTask(task){
 import * as validationHelpers from "./man_account_isolation.js";
 import * as lockHelpers from "./man_global_locks.js";
 
-export function simulateManExecution(task,{result="mock_success"}={}){
- const identity=validateTask(task);
+export function simulateManExecution(task,{result="mock_success",moscowDate}={}){
+ const identity=validateTask(task,moscowDate);
  if(!OUTCOMES.has(result))throw Error("Unsupported mock outcome");
  // Never log or persist the passed object; response is a deliberately minimal
  // allowlisted immutable receipt. No network call, credits, or proofs.
