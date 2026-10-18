@@ -47,5 +47,5 @@ test("only the reviewed disabled staging vars can appear in configuration",()=>{
  for(const [key,value]of actual)assert.equal(allowedVars.get(key),value,"unapproved config variable "+key);
 });
 test("staging config rejects production credentials and customer storage bindings",()=>{
- assert.doesNotMatch(config,/BOT_TOKEN\s*=|INTIMCITY_|PROXY_|ORDER_REMINDERS|VISITORS_KV|\bsecrets\b|production|dame-camelias\.gptjjjgpt/);
+ assert.doesNotMatch(lines.join("\n"),/BOT_TOKEN\s*=|INTIMCITY_|PROXY_|ORDER_REMINDERS|VISITORS_KV|\bsecrets\b|production|dame-camelias\.gptjjjgpt/);
 });
