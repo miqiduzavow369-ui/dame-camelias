@@ -50,3 +50,11 @@ test("feature tests do not deploy Worker or access secrets",()=>{
  assert.ok(!/secrets\.[A-Z_]+/.test(ci));
  assert.ok(!ci.includes("INTIMCITY_LOGIN"));
 });
+
+// A cancelled second bot must never regain an automated or manual deploy path.
+test("retired standalone man staging deploy has no triggers or executable jobs",()=>{
+ const retired=read(".github/workflows/deploy-man-staging-approved.yml");
+ assert.match(retired,/^on:\s*\{\}\s*$/m);
+ assert.match(retired,/^jobs:\s*\{\}\s*$/m);
+ assert.doesNotMatch(retired,/workflow_dispatch|MAN_STAGING_BOT_TOKEN|wrangler@|secrets\.|deploy --config/);
+});
