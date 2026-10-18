@@ -6,6 +6,7 @@ on:
       - feature/yan-multiaccount-foundation
     paths:
       - 'src/man_*.js'
+      - 'wrangler.man-staging.toml'
       - 'src/admin_app_api.js'
       - 'src/cabinet_runtime.js'
       - 'admin/preview-v3.html'
@@ -37,11 +38,12 @@ jobs:
           node --check src/man_setup_state.js
           node --check src/man_setup_store.js
           node --check src/man_admin_registry.js
+          node --check src/man_staging_worker.js
           node --check src/admin_app_api.js
           node --check src/cabinet_runtime.js
       - name: Run 30-man foundation regression suite
         run: |
-          node --test tests/man_accounts.test.js tests/man_account_isolation.test.js tests/man_admin_registry.test.js tests/man_setup_state.test.js tests/man_setup_store.test.js tests/man_integration_boundaries.test.js tests/man_admin_http_integration.test.js
+          node --test tests/man_accounts.test.js tests/man_account_isolation.test.js tests/man_admin_registry.test.js tests/man_setup_state.test.js tests/man_setup_store.test.js tests/man_integration_boundaries.test.js tests/man_admin_http_integration.test.js tests/man_staging_worker.test.js
       - name: Validate admin inline JavaScript syntax
         run: |
           node --input-type=module -e 'import fs from "node:fs"; import vm from "node:vm"; const html=fs.readFileSync("admin/preview-v3.html","utf8");const js=html.split("<script>")[1]?.split("</script>")[0];if(!js)throw Error("ADMIN inline script not found");new vm.Script(js);'
