@@ -136,3 +136,28 @@ test("owner may complete yesterday's simulated task without changing its quota d
  assert.equal(record.moscowDate,"2026-10-17");
  assert.equal(done.data.sitePublished,false);
 });
+
+test("direct Durable Object calls cannot forge ownerId without signed Telegram data",async()=>{
+ const stored=storage(),object=new ManStagingAccounts({storage:stored},{MAN_STAGING_BOT_TOKEN:TOKEN});
+ const invoke=async body=>{
+  const response=await object.fetch(new Request("https://staging.internal/",{
+   method:"POST",body:JSON.stringify(body)
+  }));
+  return {status:response.status,data:await response.json()};
+ };
+ for(const data of [
+  {ownerId:OWNER,action:"list"},
+  {ownerId:OWNER,action:"mock_seed",accountId:"yan_second",profileId:"652282",kind:"review"},
+  {ownerId:OWNER,initData:"fake",action:"list"},
+  {ownerId:OWNER,initData:signed(OTHER),action:"list"},
+  {ownerId:OTHER,initData:signed(OWNER),action:"list"}
+ ]){
+  const response=await invoke(data);
+  assert.equal(response.status,403);
+  assert.equal(response.data.reason,"forbidden");
+ }
+ assert.equal(stored.snapshot().size,0);
+ const authorized=await invoke({ownerId:OWNER,initData:signed(OWNER),action:"list"});
+ assert.equal(authorized.status,200);
+ assert.equal(authorized.data.accounts.length,30);
+});
