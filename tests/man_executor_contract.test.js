@@ -18,7 +18,7 @@ test("allowlist strips site credentials and proxy information from mock task",()
   assert.ok(!body.includes(forbidden));
  assert.deepEqual(Object.keys(task).sort(),[
   "schema","mode","accountId","activationVersion","userId","profileId",
-  "kind","nonce","operationKey","callbackKey","proofKey","globalDailyLock",
+  "kind","nonce","correlationKey","operationKey","callbackKey","proofKey","globalDailyLock",
   "globalPublicationLock","globalReviewLock"
  ].sort());
 });
@@ -52,6 +52,6 @@ test("forged or cross-account callbacks are rejected at validation boundary",()=
   {nonce:"abcabcabcabc"}, {kind:"rating"}, {activationVersion:0},
   {globalDailyLock:"daily-profile:652282:2026-10-19"},
   {globalPublicationLock:"publication-claim:yan_03:review:652282"},
-  {callbackKey:"other"}, {mode:"production"}
+  {callbackKey:"other"}, {correlationKey:"other"}, {mode:"production"}
  ]) assert.throws(()=>simulateManExecution({...task,...changed}));
 });
