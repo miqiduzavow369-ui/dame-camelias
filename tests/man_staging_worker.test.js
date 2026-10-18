@@ -146,3 +146,41 @@ test("staging refuses nonstring token without reaching Durable Object",async()=>
  const response=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),bindings);
  assert.equal(response.status,503);
 });
+
+test("health and staging page fail closed until separate staging credentials exist",async()=>{
+ for(const pathname of ["/health","/test-admin"]){
+  const response=await worker.fetch(new Request("https://isolated.test"+pathname),env);
+  assert.equal(response.status,503);
+  assert.equal((await response.json()).reason,"staging_unconfigured");
+  assert.equal(response.headers.get("cache-control"),"no-store");
+ }
+});
+test("health is truthful when staging configuration is isolated and safe",async()=>{
+ const safe={...env,MAN_STAGING_BOT_TOKEN:TOKEN,
+  MAN_STAGING_ACCOUNTS:{idFromName:name=>name,get:()=>({fetch:()=>{throw Error("unexpected DO access")}})}};
+ const response=await worker.fetch(new Request("https://isolated.test/health"),safe);
+ assert.equal(response.status,200);
+ assert.deepEqual(await response.json(),{ok:true,environment:"man-staging",publicationEnabled:false});
+ assert.equal(response.headers.get("cache-control"),"no-store");
+});
+test("health, HTML and API refuse production resources without revealing secret values",async()=>{
+ const base={...env,MAN_STAGING_BOT_TOKEN:TOKEN,
+  MAN_STAGING_ACCOUNTS:{idFromName:name=>name,get:()=>({fetch:()=>{throw Error("DO must not run")}})}};
+ for(const forbidden of ["ORDER_REMINDERS","VISITORS_KV","BOT_TOKEN","INTIMCITY_PASSWORD","PROXY_PASSWORD"]){
+  const bindings={...base,[forbidden]:"CANARY-NEVER-DISCLOSE"};
+  for(const pathname of ["/health","/test-admin"]){
+   const response=await worker.fetch(new Request("https://isolated.test"+pathname),bindings);
+   assert.equal(response.status,503,pathname+" unsafe: "+forbidden);
+   assert.ok(!(await response.text()).includes("CANARY-NEVER-DISCLOSE"));
+  }
+  const response=await worker.fetch(makeRequest({action:"list",initData:sign(OWNER)}),bindings);
+  assert.equal(response.status,503);
+ }
+});
+test("staging cannot claim readiness with malformed Durable Object binding",async()=>{
+ const unsafe={...env,MAN_STAGING_BOT_TOKEN:TOKEN,MAN_STAGING_ACCOUNTS:{}};
+ for(const pathname of ["/health","/test-admin"]){
+  const response=await worker.fetch(new Request("https://isolated.test"+pathname),unsafe);
+  assert.equal(response.status,503);
+ }
+});
