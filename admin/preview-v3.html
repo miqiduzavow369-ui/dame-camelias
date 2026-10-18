@@ -214,7 +214,7 @@ function renderManConsole(){
  return back("go('men')")+'<div class="mini">МУЖСКИЕ АККАУНТЫ / КАРТОЧКА</div>'+
  '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+'</div><h1>'+esc(x.name)+'</h1></div><span class="pill">'+st.icon+' '+st.short+'</span></div>'+
  '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+
- '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
+ '<div class="section">Подключение · строго по этапам</div>'+(!legacy?'<div class="card"><div class="men-draft-actions"><div>01 · Прокси и ожидаемый IP <span class="pill">Настройка</span></div><div>02 · Проверить внешний IP <span class="pill">🔒</span></div><div>03 · Вход Intimcity <span class="pill">🔒</span></div><div>04 · Проверка сессии <span class="pill">🔒</span></div><div>05 · Разрешение на работу <span class="pill">🔒</span></div></div><div class="hint">Каждый следующий этап доступен только после проверенного результата предыдущего.</div></div>':'')+'<div class="section">Параметры и управление</div><div class="men-action-grid">'+
  tile('🔐','Авторизация',legacy?'Текущая · не изменяем':'Не настроена','','')+
  tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
  tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
