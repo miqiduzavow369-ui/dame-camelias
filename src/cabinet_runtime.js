@@ -293,8 +293,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   if(!["start","status","confirm"].includes(event.action))return {ok:false,status:400};
   return engine.miniAddProfile({env,action:event.action,url:event.url,nonce:event.nonce});
@@ -303,8 +302,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniDeleteProfile(env,String(event.profileId||""));
  }
@@ -312,8 +310,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniDomainRecovery(env,String(event.profileId||""),event.action,event.url);
  }
@@ -321,8 +318,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   if(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")return {ok:false,reason:"disabled"};
   return engine.miniReviewAction(env,String(event.profileId||""),event.action,event.text);
@@ -331,8 +327,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniReviewDraft(env,String(event.profileId||""),event.action,event.text);
  }
@@ -340,8 +335,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   if(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")return {ok:false,reason:"disabled"};
   return engine.miniRatingAction(env,String(event.profileId||""),event.action);
@@ -350,8 +344,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   if(rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")return {ok:false,reason:"disabled"};
   return engine.miniRatingOpen(env,String(event.profileId||""));
@@ -360,8 +353,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniRatingFormLoad(env,String(event.profileId||""));
  }
@@ -369,8 +361,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniRatingDraftSave(env,String(event.profileId||""),event.selected,event.metElsewhere);
  }
@@ -378,8 +369,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   const id=String(event.profileId||""),kind=String(event.publicationKind||""),account=String(event.account||"");
   if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!["yan_first","yan_second"].includes(account))return {ok:false,status:400};
@@ -391,8 +381,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
-   const session=await storage.get("client_session");
-   if(!session||session.version!==client.authVersion)return {ok:false,status:403};
+   // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   // The read-only summary uses the existing publication archive and credit ledger.
   // No additional mutable publication state is introduced for the Mini App.
