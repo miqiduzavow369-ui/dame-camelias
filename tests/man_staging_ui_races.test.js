@@ -24,7 +24,7 @@ function harness(api){
  vm.runInContext(source+";globalThis.loadQueue=load;",scope);
  return {scope,rendered,load:()=>scope.loadQueue()};
 }
-const fixtureRow=(accountId="yan_second",status="queued")=>({accountId,status,profileId:"652282",kind:"review",createdAt:100,correlationKey:"man-mock-v1:5866034656:"+accountId+":652282:review:abcdef123456",sitePublished:false,creditsDebited:false});
+const fixtureRow=(accountId="yan_second",status="queued")=>({accountId,status,profileId:"652282",kind:"review",nonce:"abcdef123456",createdAt:100,correlationKey:"man-mock-v1:5866034656:"+accountId+":652282:review:abcdef123456",sitePublished:false,creditsDebited:false});
 test("stale response from previously selected man never replaces current history",async()=>{
  const old=deferred(),fresh=deferred();
  const h=harness((_action,payload)=>payload.accountId==="yan_second"?old.promise:fresh.promise);
