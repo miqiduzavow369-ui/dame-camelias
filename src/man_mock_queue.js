@@ -44,6 +44,7 @@ export async function enqueueMockManTask(storage,{actorId,ownerId,identity,mosco
  owner(actorId,ownerId);boundedTime(at);atomic(storage);
  const task=safeTask(createMockHandoff(identity,{moscowDate,serverActivation,stagingDraft}),moscowDate);
  return storage.transaction(async tx=>{
+  if(typeof tx.list!=="function")throw Error("Atomic mock queue capacity check unavailable");
   const k=key(task);
   const existing=await tx.get(k);
   if(existing!==undefined){
@@ -51,6 +52,10 @@ export async function enqueueMockManTask(storage,{actorId,ownerId,identity,mosco
     throw Error("Conflicting mock task");
    return Object.freeze({created:false,...brief(existing)});
   }
+  // Count inside the SAME storage transaction as the put. A preflight count
+  // outside the transaction can be bypassed by concurrent owner requests.
+  const queued=await tx.list({prefix:PREFIX,limit:MAX_ITEMS});
+  if(queued.size>=MAX_ITEMS)throw Error("Mock queue at capacity");
   const item={task,moscowDate,status:"queued",createdAt:at,finishedAt:null,receipt:null};
   await tx.put(k,item);
   return Object.freeze({created:true,...brief(item)});
