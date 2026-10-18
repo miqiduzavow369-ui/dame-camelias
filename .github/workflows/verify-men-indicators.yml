@@ -1,0 +1,19 @@
+name: Validate mobile status indicators (temporary)
+on:
+  push:
+    branches: [feature/men-status-indicators-20261018]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --check src/cabinet_runtime.js
+          node --check src/man_proxy_vault.js
+          node --test tests/admin_man_indicators.test.mjs
+      - run: npx --yes wrangler@4 deploy --config wrangler.toml --dry-run --outdir /tmp/men-indicators
