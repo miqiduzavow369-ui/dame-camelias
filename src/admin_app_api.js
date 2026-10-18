@@ -91,7 +91,7 @@ export async function handleAdminApi(request,env){
       readCount++;
       try{
        const item=await env.VISITORS_KV.get(key.name,"json");
-       if(!item||!/^[1-9]\\d{4,15}$/.test(String(item.id||"")))continue;
+       if(!item||!/^[1-9]\d{4,15}$/.test(String(item.id||"")))continue;
        const id=String(item.id),at=Date.parse(item.visitedAt||"");
        if(!Number.isFinite(at)||at<now-7*msDay||at>now+60000)continue;
        const previous=unique.get(id);
