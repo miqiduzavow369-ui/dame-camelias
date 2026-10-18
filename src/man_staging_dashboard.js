@@ -95,8 +95,10 @@ async function load(){
       (job.kind==="rating"||job.kind==="review")&&
       (job.status==="queued"||job.status==="completed"||job.status==="rejected")&&
       Number.isSafeInteger(job.createdAt)&&job.createdAt>=0&&
+      typeof job.nonce==="string"&&/^[a-f0-9]{12}$/.test(job.nonce)&&
       typeof job.correlationKey==="string"&&
-      job.correlationKey.indexOf("man-mock-v1:")===0&&
+      /^man-mock-v1:[0-9]{5,16}:/.test(job.correlationKey)&&
+      job.correlationKey.endsWith(":"+accountId+":"+job.profileId+":"+job.kind+":"+job.nonce)&&
       job.sitePublished===false&&job.creditsDebited===false;
     }))throw Error("Некорректная история выбранного мужчины");
  list.replaceChildren();data.items.forEach(function(job){list.appendChild(jobRow(job))});
