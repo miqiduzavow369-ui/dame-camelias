@@ -63,6 +63,7 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
   if(!run||run.nonce!==nonce||run.status!=="running"||run.claimed||
     at<run.startedAt||at-run.startedAt>EXPIRY||run.siteVersion!==site?.version||
     run.proxyVersion!==proxy?.version||site.boundProxyVersion!==proxy.version||
+    site.accountId!==accountId||proxy.accountId!==accountId||
     !proxy.proxyVerified||!proxy.ipVerified)throw Error("Unavailable");
   await tx.put(PREFIX+accountId,{...run,claimed:true});return {site,proxy};
  });
