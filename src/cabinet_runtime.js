@@ -420,8 +420,29 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }catch{return [x.id,null];}
    }));
    const proxyMap=new Map(proxyEntries);
+   // Aggregate only safe status fields. Raw vault contents and secrets never leave the coordinator.
+   const readiness=await Promise.all(inventory.accounts.map(async x=>{
+     if(x.id==="yan_first")return [x.id,null];
+     const [browser,site]=await Promise.all([
+       browserCheckStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id}).catch(()=>null),
+       readSiteStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id}).catch(()=>null)
+     ]);
+     const network=proxyMap.get(x.id);
+     const browserVerified=browser?.status==="verified"&&browser?.ipVerified===true&&
+       browser?.siteReachable===true&&browser.version=== (await storage.get("man-proxy-sealed-v1:"+x.id))?.version;
+     return [x.id,{
+       proxyConfigured:network?.configured===true,
+       ipVerified:browserVerified&&network?.ipVerified===true,
+       browserStatus:browser?.status||"not_started",
+       browserCode:browser?.code||null,
+       siteCredentialsConfigured:site?.configured===true,
+       siteIdentityVerified:false,clientUnlocked:false,canPublish:false
+     }];
+   }));
+   const readinessMap=new Map(readiness);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
+     readiness:readinessMap.get(x.id)??null,
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }
