@@ -60,7 +60,7 @@ export async function startBrowserCheck(storage,env,{actorId,cabinetId,ownerId,a
  try{
   const outcome=await dispatch({accountId,nonce,host});
   dispatched=outcome===true||outcome?.ok===true;
-  const allowed=new Set(["github_token_missing","callback_config_missing","github_unauthorized","github_forbidden","workflow_not_found","github_validation_failed","github_rate_limited","github_network_error","github_dispatch_rejected"]);
+  const allowed=new Set(["github_token_missing","callback_config_missing","callback_token_missing","callback_url_missing","github_unauthorized","github_forbidden","workflow_not_found","github_validation_failed","github_rate_limited","github_network_error","github_dispatch_rejected"]);
   if(!dispatched&&allowed.has(outcome?.reason))dispatchCode=outcome.reason;
  }catch{dispatchCode="github_network_error";}
  if(!dispatched){
