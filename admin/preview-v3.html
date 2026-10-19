@@ -673,6 +673,7 @@ function renderManSiteForm(){
 function siteLoginStatusText(r){
  if(r.status==='running')return '⏳ Chromium проверяет вход через прокси. Нажмите «Обновить статус» через несколько минут.';
  if(r.code==='login_authenticated_identity_unconfirmed')return '✓ Вход в Intimcity подтверждён. Личность мужчины пока не проверена. Публикации закрыты.';
+ if(r.code==='login_challenge_required')return 'Сайт запросил дополнительную проверку CAPTCHA или код. Автоматическое подтверждение входа остановлено.';
  if(r.code==='login_rejected')return 'Не удалось подтвердить вход. Проверьте логин и пароль Intimcity.';
  if(r.code==='login_form_unavailable')return 'Форма входа на сайте не найдена. Проверьте доступность нужного домена.';
  if(r.code==='ip_mismatch')return 'Внешний IP не совпал. Проверьте настройки прокси.';
