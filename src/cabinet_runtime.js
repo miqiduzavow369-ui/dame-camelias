@@ -548,13 +548,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }catch{return [x.id,{version:0,approved:false,recorded:false,publicationAvailable:false}];}
    }));
    const approvalMap=new Map(approvalEntries);
-   const visibilityMap=await clientManVisibilityMap(storage,MAN_ACCOUNTS);
+   const visibilityEntries=await Promise.all(MAN_ACCOUNTS.map(async man=>{
+     try{return [man.id,await manVisibility(storage,man.id)];}
+     catch{return [man.id,{accountId:man.id,visible:false,version:null}];}
+   }));
+   const visibilityMap=new Map(visibilityEntries);
    const readinessMap=new Map(readinessEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
      approval:approvalMap.get(x.id)??null,
-     visibility:{visible:visibilityMap.get(x.id)===true},
+     visibility:visibilityMap.get(x.id)??{visible:false,version:null},
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }
