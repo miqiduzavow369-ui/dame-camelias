@@ -47,6 +47,6 @@ test("mobile form and JS parse, no synthetic confirmation button",()=>{
  const html=fs.readFileSync("admin/preview-v3.html","utf8");
  const script=html.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(script);new vm.Script(script[1]);
- for(const value of ["function renderManSiteForm()","function openManSite()","function saveManSite(event)","man_site_status","man_site_save","manSiteUrl","manSiteLogin","manSitePassword","MAN_SITE_ENCRYPTION_KEY"]){assert.ok(html.includes(value),value);}
- assert.match(html, /<button class="secondary" disabled>🔒 Проверить вход на Intimcity/);
+ for(const value of ["function renderManSiteForm()","function openManSite()","function saveManSite(event)","man_site_status","man_site_stage","manSiteUrl","manSiteLogin","manSitePassword","MAN_SITE_ENCRYPTION_KEY"]){assert.ok(html.includes(value),value);}
+ assert.match(html, /<button class="secondary" disabled>🔒 Автоматический вход — ожидает интеграции/);
 });
