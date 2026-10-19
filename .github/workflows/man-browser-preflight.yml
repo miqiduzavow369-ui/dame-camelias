@@ -34,7 +34,7 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Verify proxy IP and Intimcity read-only
         env:
-          ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
+          ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
           ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
           MAN_BROWSER_ACCOUNT_ID: ${{ inputs.account_id }}
           MAN_BROWSER_NONCE: ${{ inputs.nonce }}
