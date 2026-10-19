@@ -690,48 +690,121 @@ function selectManProxyProtocol(protocol){
  const config=privateDraft?.settings||{};
  if(field)field.value=protocol==='http'?(config.httpPort||''):(config.socksPort||'');
 }
+function parseDolphinHttpProxy(text){
+ const value=String(text||'').trim();
+ if(value.length>850||value.includes('://')||/[\r\n\s]/.test(value))throw Error('Используй формат логин:пароль@IP:порт, без пробелов и ссылок.');
+ const at=value.lastIndexOf('@');
+ if(at<=0||at===value.length-1)throw Error('Не хватает @ между паролем и адресом прокси.');
+ const auth=value.slice(0,at),target=value.slice(at+1);
+ const colon=auth.indexOf(':'),portSep=target.lastIndexOf(':');
+ if(colon<=0||portSep<=0||portSep===target.length-1)throw Error('Нужен формат логин:пароль@IP:порт.');
+ const username=auth.slice(0,colon),password=auth.slice(colon+1);
+ const host=target.slice(0,portSep),portStr=target.slice(portSep+1);
+ const parts=host.split('.').map(Number);
+ if(!/^[A-Za-z0-9_.@-]{1,256}$/.test(username)||password.length<1||password.length>512||
+    !/^\d{1,3}(\.\d{1,3}){3}$/.test(host)||parts.length!==4||parts.some(n=>n<1&&n!==0||n>255)||
+    !/^[0-9]{1,5}$/.test(portStr)||Number(portStr)<1||Number(portStr)>65535)
+  throw Error('Проверь логин, пароль, IPv4 и порт прокси.');
+ return {protocol:'http',host,port:Number(portStr),username,password,expectedIp:host};
+}
 function renderManProxyForm(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
- const st=proxyVaultState;
- return back("go('man-detail')")+'<div class="mini">ЗАЩИЩЁННЫЕ ПАРАМЕТРЫ / '+esc(x.id)+'</div><h1>🌐 Прокси · '+esc(x.name)+'</h1>'+
- '<p class="muted small">Только для этого мужчины. Без включения публикаций.</p>'+
- '<div class="men-detail-hero"><span class="pill">🔒 Неактивен</span><p class="hint">'+
- (st?.configured?'Реквизиты сохранены в зашифрованном хранилище. Версия '+Number(st.version)+'.':'Параметры ещё не сохранены.')+
- '</p><div class="hint">Ожидаемый IP: '+esc(st?.expectedIp||'не указан')+' · Проверка выхода: не выполнена</div></div>'+
- (proxyVaultError?'<div class="error" role="alert">'+esc(proxyVaultError)+'</div>':'')+
- '<form id="manProxyForm" class="card" onsubmit="saveManProxy(event)" autocomplete="off">'+
- '<label for="proxyProtocol">Протокол</label><select class="field" id="proxyProtocol" required onchange="selectManProxyProtocol(this.value)"><option value="http" '+(st?.protocol==='http'||!st?.protocol?'selected':'')+'>HTTP · Dolphin</option><option value="socks5" '+(st?.protocol==='socks5'?'selected':'')+'>SOCKS5</option></select>'+
- '<label for="proxyHost">Адрес прокси / хост</label><input id="proxyHost" class="field" maxlength="253" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="proxy.example.com" required autocapitalize="off" spellcheck="false">'+
- '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" value="'+esc((st?.protocol==='socks5'?privateDraft?.settings?.socksPort:privateDraft?.settings?.httpPort)||'')+'" placeholder="6408">'+
- '<label for="proxyUsername">Логин прокси (если есть)</label><input id="proxyUsername" class="field" maxlength="256" value="'+esc(privateDraft?.settings?.username||'')+'" autocapitalize="off" spellcheck="false">'+
- '<label for="proxyPassword">Индивидуальный пароль прокси</label><input id="proxyPassword" class="field" type="password" maxlength="512" required autocomplete="new-password">'+
- '<label for="proxyExpectedIp">Закреплённый внешний IPv4</label><input id="proxyExpectedIp" class="field" inputmode="decimal" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="203.x.x.x" required autocapitalize="off" spellcheck="false">'+
- '<div class="note">При сохранении текущие реквизиты будут полностью заменены. Пароль не возвращается обратно в приложение. Проверка IP и включение публикаций не выполняются.</div>'+
- '<button class="primary" type="submit" '+(proxySaving?'disabled':'')+'>'+(proxySaving?'Сохранение…':'🔐 Зашифровать и сохранить')+'</button></form>'+
- '<div class="watermark">Ян Первый не затрагивается · GitHub не хранит пароли</div>';
+ const st=proxyVaultState,configured=st?.configured===true;
+ return back("go('man-detail')")+'<div class="mini">ШАГ 01 · HTTP-ПРОКСИ DOLPHIN</div>'+
+ '<h1>🌐 Прокси · '+esc(x.name)+'</h1>'+
+ '<div class="card"><strong>Одна строка — все данные прокси</strong>'+
+ '<p class="hint">Скопируй в Dolphin формат <code>логин:пароль@IP:порт</code>. Пароль скрыт, не сохраняется в чате и не отображается повторно.</p>'+
+ (configured?'<p class="success">✓ Прокси сохранён зашифрованно. Для замены вставь новую строку.</p>':'')+
+ (proxyVaultError?'<p class="error" role="alert">'+esc(proxyVaultError)+'</p>':'')+
+ '<form id="manProxyForm" autocomplete="off" onsubmit="saveManProxy(event)">'+
+ '<label for="proxySingleLine">HTTP-прокси из Dolphin</label>'+
+ '<input class="field" id="proxySingleLine" type="password" autocomplete="new-password" required '+
+ 'placeholder="логин:пароль@IP:6408" autocapitalize="off" spellcheck="false">'+
+ '<label for="manSiteLink">Ссылка для проверки через прокси</label>'+
+ '<input class="field" id="manSiteLink" type="url" required value="'+esc(siteProbeUrl||'https://b.intimcity.rip/')+'" placeholder="https://b.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
+ '<button class="primary" type="submit" '+(proxySaving||siteProbing?'disabled':'')+'>'+
+ (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси и проверить сайт')+'</button>'+
+ '</form>'+
+ (configured?'<button class="secondary" style="margin-top:10px" type="button" '+(siteProbing?'disabled':'')+
+ ' onclick="checkSavedProxySite()">↻ Проверить сайт без повторного ввода пароля</button>':'')+
+ (siteProbing?'<p class="hint">Проверяем доступ к Intimcity через сохранённый HTTP-прокси…</p>':'')+
+ (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
+ (siteProbeResult?.reachable?'<p class="success">✓ Сайт ответил через HTTP-прокси. HTTP '+Number(siteProbeResult.httpStatus)+
+ '. Это не проверка фактического IP и не вход в кабинет.</p>':'')+
+ '</div><div class="note">Проверка сайта не разблокирует публикации. Ян Первый защищён.</div>';
 }
+
 async function openManProxy(){
  if(!selectedManId||selectedManId==='yan_first')return;
- proxyVaultState=null;proxyVaultError='';go('man-proxy');
+ proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;siteProbeUrl='https://b.intimcity.rip/';go('man-proxy');
  try{privateDraft=await callAdmin('man_private_status',{accountId:selectedManId});}catch{privateDraft=null;}
  try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
  if(selectedManId!==r.accountId)return;proxyVaultState=r;render();
  }catch(e){proxyVaultError='Не удалось прочитать статус: '+e.message;render();}
 }
+function proxySiteErrorMessage(result){
+ const reasons={http_proxy_auth_failed:'Неверный логин/пароль HTTP-прокси (407).',
+  http_connect_rejected:'HTTP-прокси отказал в подключении к Intimcity.',
+  http_connect_bad_status_line:'Непривычный HTTP-ответ прокси.',
+  http_connect_unexpected_payload:'Прокси прислал дополнительные данные после CONNECT.',
+  http_connect_invalid_response:'Прокси прислал некорректный HTTP CONNECT-ответ.',
+  http_connect_failed:'Не удалось создать HTTP CONNECT-туннель.',
+  tcp_connect_failed:'Нет соединения с IP и портом прокси.',
+  tls_tunnel_failed:'Не удалось установить защищённое соединение с сайтом через прокси.',
+  site_response_failed:'Нет корректного HTTP-ответа сайта.',
+  site_check_timeout:'Истекло время проверки.',
+  site_server_error:'Сайт ответил серверной ошибкой.',
+  unsupported_protocol:'Сохранён не HTTP-прокси. Вставь HTTP-строку Dolphin.'};
+ return (reasons[result?.code]||'Сайт через прокси не подтвердился.')+
+  (Number.isInteger(result?.httpProxyStatus)?' CONNECT '+result.httpProxyStatus+'.':'')+
+  ' Код: '+String(result?.code||'unknown')+'.';
+}
+async function runSavedProxySiteCheck(accountId,version,siteUrl){
+ if(siteProbing)return;
+ siteProbing=true;siteProbeError='';siteProbeResult=null;siteProbeUrl=siteUrl;render();
+ try{
+  const checked=await callAdmin('man_site_reachability',{accountId,expectedVersion:version,siteUrl});
+  if(selectedManId!==accountId)return;
+  siteProbeResult=checked;
+  if(checked.reachable)toast('✓ Intimcity доступен через HTTP-прокси. Вход пока не проверен.');
+  else siteProbeError=proxySiteErrorMessage(checked);
+ }catch(e){if(selectedManId===accountId)siteProbeError='Не удалось проверить сайт: '+String(e.message).slice(0,80);}
+ finally{siteProbing=false;if(selectedManId===accountId)render();}
+}
+async function checkSavedProxySite(){
+ const id=selectedManId,st=proxyVaultState;
+ if(!id||id==='yan_first'||!st?.configured||siteProbing)return;
+ const siteUrl=document.getElementById('manSiteLink')?.value.trim()||siteProbeUrl;
+ await runSavedProxySiteCheck(id,st.version,siteUrl);
+}
 async function saveManProxy(event){
  event.preventDefault();
- if(proxySaving||!selectedManId||selectedManId==='yan_first'||!proxyVaultState)return;
- const settings={protocol:document.getElementById('proxyProtocol').value,host:document.getElementById('proxyHost').value.trim(),
- port:Number(document.getElementById('proxyPort').value),username:document.getElementById('proxyUsername').value,
- password:document.getElementById('proxyPassword').value,expectedIp:document.getElementById('proxyExpectedIp').value.trim()};
- proxySaving=true;proxyVaultError='';
+ const id=selectedManId;
+ if(proxySaving||siteProbing||!id||id==='yan_first'||!proxyVaultState)return;
+ let settings;
+ try{settings=parseDolphinHttpProxy(document.getElementById('proxySingleLine').value);}
+ catch(e){proxyVaultError=e.message;render();return;}
+ const siteUrl=document.getElementById('manSiteLink').value.trim();
  try{
-  const result=await callAdmin('man_proxy_save',{accountId:selectedManId,expectedVersion:proxyVaultState.version,settings});
-  if(!result.ok||result.canPublish!==false||result.accountId!==selectedManId)throw Error('Некорректный ответ');
-  proxyVaultState=result;toast('🔒 Прокси сохранён. Проверка IP ещё требуется.');void refreshManWizard(selectedManId);
- }catch(e){proxyVaultError=e.message==='vault_key_missing'?'На сервере не задан ключ шифрования. Нужен Cloudflare Secret MAN_PROXY_ENCRYPTION_KEY.':'Не удалось сохранить. Проверьте реквизиты и повторите.';}
- finally{proxySaving=false;render();}
+  const url=new URL(siteUrl);
+  if(url.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip'].includes(url.hostname)||
+   url.username||url.password||url.port||url.search||url.hash)throw Error('bad');
+ }catch{proxyVaultError='Укажи HTTPS-ссылку на b.intimcity.rip или другой разрешённый домен Intimcity.';render();return;}
+ proxySaving=true;proxyVaultError='';siteProbeError='';siteProbeResult=null;siteProbeUrl=siteUrl;render();
+ try{
+  const result=await callAdmin('man_proxy_save',{accountId:id,expectedVersion:proxyVaultState.version,settings});
+  if(!result.ok||result.canPublish!==false||result.accountId!==id)throw Error('Некорректный ответ сервера');
+  if(selectedManId!==id)return;
+  proxyVaultState=result;
+  toast('🔒 HTTP-прокси зашифрован и сохранён.');
+  void refreshManWizard(id);
+  proxySaving=false;
+  await runSavedProxySiteCheck(id,result.version,siteUrl);
+ }catch(e){
+  if(selectedManId===id)proxyVaultError=e.message==='vault_key_missing'?
+   'На сервере отсутствует ключ шифрования прокси.':'Не удалось сохранить прокси. Проверь формат и повтори.';
+ }finally{proxySaving=false;if(selectedManId===id)render();}
 }
 
 function setMenFilter(filter){
