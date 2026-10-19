@@ -662,7 +662,9 @@ function renderManSiteForm(){
  (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form></div>'+
  '<div class="card"><strong>Проверка входа в кабинет</strong>'+
  '<p class="hint">Chromium попробует войти через подтверждённый прокси. Отправка формы входа не означает подтверждения личности: публикации остаются закрытыми.</p>'+
- '<button class="secondary" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy?'disabled':'')+'>🔐 Проверить вход через Chromium</button>'+
+ '<button class="secondary" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy||siteLoginState?.status==='running'?'disabled':'')+'>🔐 Проверить вход через Chromium</button>'+
+ (siteLoginState?.status==='running'&&siteLoginState?.retryAvailable===true?
+ '<button class="secondary" style="margin-top:8px" onclick="startManSiteLoginCheck(true)" '+(siteLoginBusy?'disabled':'')+'>↻ Повторить зависшую проверку без пароля</button>':'')+
  '<button class="secondary" style="margin-top:8px" onclick="refreshManSiteLoginCheck()" '+(siteLoginBusy?'disabled':'')+'>↻ Обновить статус входа</button>'+
  (siteLoginState?.accountId===x.id?'<p class="hint" role="status">'+esc(siteLoginStatusText(siteLoginState))+'</p>':'')+
  (siteLoginError?'<p class="error">'+esc(siteLoginError)+'</p>':'')+
@@ -671,7 +673,8 @@ function renderManSiteForm(){
 }
 
 function siteLoginStatusText(r){
- if(r.status==='running')return '⏳ Chromium проверяет вход через прокси. Нажмите «Обновить статус» через несколько минут.';
+ if(r.status==='running')return r.retryAvailable?'Предыдущая проверка не получила реквизиты вовремя. Можно безопасно повторить без ввода пароля.':'⏳ Проверка запущена. Нажмите «Обновить статус» через минуту; повторный вход пока заблокирован.';
+ if(r.status==='timed_out')return 'Прежняя проверка истекла. Нажмите «Проверить вход через Chromium» снова. Пароль сохранён.';
  if(r.code==='login_authenticated_identity_unconfirmed')return '✓ Вход в Intimcity подтверждён. Личность мужчины пока не проверена. Публикации закрыты.';
  if(r.code==='login_rejected')return 'Не удалось подтвердить вход. Проверьте логин и пароль Intimcity.';
  if(r.code==='login_form_unavailable')return 'Форма входа на сайте не найдена. Проверьте доступность нужного домена.';
@@ -688,14 +691,18 @@ async function refreshManSiteLoginCheck(){
    if(selectedManId===id){siteLoginState=r;siteLoginError='';render();}}
  catch(e){if(selectedManId===id){siteLoginError='Не удалось получить статус: '+e.message;render();}}
 }
-async function startManSiteLoginCheck(){
+async function startManSiteLoginCheck(retry=false){
  const id=selectedManId;
  if(!id||id==='yan_first'||!siteVaultState?.configured||siteLoginBusy)return;
  siteLoginBusy=true;siteLoginError='';render();
- try{await callAdmin('man_site_login_start',{accountId:id,expectedVersion:siteVaultState.version});
+ try{await callAdmin('man_site_login_start',{accountId:id,expectedVersion:siteVaultState.version,retry:retry===true});
    if(selectedManId===id){siteLoginState={accountId:id,status:'running'};
      toast('Проверка входа запущена. Личность мужчины пока не подтверждена.');}}
- catch(e){if(selectedManId===id)siteLoginError='Проверка входа: '+e.message;}
+ catch(e){if(selectedManId===id){
+   if(String(e.message).includes('already_running')){siteLoginError='Проверка уже запущена. Обновите статус; повтор доступен после безопасного ожидания.';}
+   else siteLoginError='Проверка входа: '+e.message;
+   void refreshManSiteLoginCheck();
+ }}
  finally{siteLoginBusy=false;if(selectedManId===id)render();}
 }
 async function openManSite(){
