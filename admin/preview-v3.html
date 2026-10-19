@@ -267,7 +267,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://a.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -478,6 +478,51 @@ async function saveManPrivateImport(event){
  finally{privateImportBusy=false;render()}
 }
 
+async function checkManSiteNow(event){
+ event.preventDefault();
+ const id=selectedManId;
+ if(!id||id==='yan_first'||siteProbing)return;
+ const proxy=wizardData?.id===id?wizardData.proxy:null;
+ if(!proxy?.configured||!Number.isSafeInteger(proxy.version))return;
+ const field=document.getElementById('manSiteProbeUrl');
+ if(!field)return;
+ const siteUrl=field.value.trim();
+ let parsed;
+ try{
+  parsed=new URL(siteUrl);
+  if(parsed.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip'].includes(parsed.hostname)||
+      parsed.username||parsed.password||parsed.port||parsed.hash||parsed.search)throw Error('invalid');
+ }catch{
+  siteProbeError='Разрешены только HTTPS-ссылки на intimcity.rip, a.intimcity.rip и b.intimcity.rip без параметров.';
+  render();return;
+ }
+ siteProbeUrl=siteUrl;siteProbeResult=null;siteProbeError='';siteProbing=true;render();
+ try{
+  const result=await callAdmin('man_site_reachability',{accountId:id,expectedVersion:proxy.version,siteUrl});
+  if(id!==selectedManId)return;
+  siteProbeResult=result;
+  if(result.reachable)toast('Сайт ответил через SOCKS5. IP и вход пока не подтверждены.');
+  else{
+   const reasons={
+    unsupported_protocol:'Для этого теста выбери протокол SOCKS5.',
+    tcp_connect_failed:'Невозможно соединиться с адресом и портом прокси.',
+    socks_handshake_failed:'Порт не ответил как SOCKS5.',
+    proxy_auth_failed:'Логин или пароль прокси отклонён.',
+    proxy_target_rejected:'SOCKS5 отказал в подключении к сайту Intimcity.',
+    tls_tunnel_failed:'Прокси ответил, но TLS-соединение с Intimcity не завершено.',
+    site_response_failed:'Сервер сайта не прислал корректный HTTP-ответ.',
+    site_server_error:'Сайт ответил серверной ошибкой HTTP 5xx.',
+    site_check_timeout:'Проверка превысила время ожидания.',
+    executor_unavailable:'Сетевой исполнитель Cloudflare недоступен.',
+    site_check_failed:'Не удалось выполнить проверку соединения.'
+   };
+   siteProbeError=(reasons[result.code]||'Не удалось проверить доступность сайта.')+
+    (Number.isInteger(result.socksReply)?' SOCKS5: '+result.socksReply+'.':'')+
+    ' Код: '+String(result.code||'unknown')+'.';
+  }
+ }catch(e){if(id===selectedManId)siteProbeError='Ошибка серверной проверки: '+String(e.message).slice(0,80);}
+ finally{siteProbing=false;if(id===selectedManId&&state.page==='man-detail')render();}
+}
 async function verifyManProxyNow(){
  const id=selectedManId;
  if(!id||id==='yan_first'||proxyVerifying)return;
@@ -556,6 +601,15 @@ function renderManConsole(){
  (wizardLoading?'<div class="note">Сверяем этапы с сервером…</div>':'')+
  (wizardError?'<div class="note" role="alert">'+esc(wizardError)+'</div>':'')+
  '<div class="man-step-list">'+steps.map(line).join('')+'</div>'+
+ (!legacy&&proxySaved?'<form class="card" onsubmit="checkManSiteNow(event)">'+
+ '<div class="section" style="margin-top:0">🌐 Проверка доступа к Intimcity через прокси</div>'+
+ '<p class="hint">Это отдельная проверка доступности сайта. Она не подтверждает внешний IP, не входит в аккаунт и не активирует публикации.</p>'+
+ '<label for="manSiteProbeUrl">HTTPS-ссылка на сайт</label>'+
+ '<input id="manSiteProbeUrl" class="field" type="url" autocomplete="off" required value="'+esc(siteProbeUrl)+'" placeholder="https://a.intimcity.rip/">'+
+ '<button type="submit" class="primary" '+(siteProbing?'disabled':'')+'>'+(siteProbing?'Проверяем…':'Проверить сайт через SOCKS5')+'</button>'+
+ (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
+ (siteProbeResult?.reachable?'<p class="success">✓ Intimcity ответил через прокси. HTTP '+Number(siteProbeResult.httpStatus)+'. IP и вход не подтверждены.</p>':'')+
+ '</form>':'')+
  (proxyVerifying?'<div class="note">⏳ Проверяем соединение и внешний IP. Подождите до 12 секунд…</div>':'')+
  (proxyVerifyError?'<div class="error" role="alert">'+esc(proxyVerifyError)+'</div>':'')+
  (proxyVerifyResult?.verified===false&&proxyVerifyResult?.observedIp?'<div class="note">Полученный IP: '+esc(proxyVerifyResult.observedIp)+' · ожидаемый: '+esc(proxyVerifyResult.expectedIp)+'</div>':'')+
@@ -748,7 +802,7 @@ function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(
 const auth=()=>window.Telegram?.WebApp?.initData||'';
 function openManDetail(id){
  if(!manAccounts.some(x=>x.id===id))return;
- selectedManId=id;wizardData=null;wizardError='';manCheckState=null;manCheckError='';
+ selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://a.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
  menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');
  void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);
 }
