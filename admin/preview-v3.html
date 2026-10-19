@@ -267,7 +267,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -478,6 +478,30 @@ async function saveManPrivateImport(event){
  finally{privateImportBusy=false;render()}
 }
 
+async function verifyManProxyNow(){
+ const id=selectedManId;
+ if(!id||id==='yan_first'||proxyVerifying)return;
+ const st=wizardData?.id===id?wizardData.proxy:null;
+ if(!st?.configured||!Number.isSafeInteger(st.version))return;
+ proxyVerifying=true;proxyVerifyError='';proxyVerifyResult=null;render();
+ try{
+  const result=await callAdmin('man_proxy_verify',{accountId:id,expectedVersion:st.version});
+  if(id!==selectedManId)return;
+  proxyVerifyResult=result;
+  if(result.verified===true)toast('✓ Внешний IP прокси подтверждён');
+  else{
+   const messages={unsupported_protocol:'Проверка сейчас поддерживает SOCKS5. Выбери SOCKS5 в параметрах прокси.',
+    proxy_auth_failed:'Прокси отклонил логин или пароль.',
+    proxy_unreachable:'Не удалось подключиться к прокси.',
+    proxy_timeout:'Прокси не ответил вовремя.',
+    ip_mismatch:'IP не совпадает с закреплённым. Проверь данные провайдера.',
+    unexpected_response:'Сервис проверки вернул неожиданный ответ.',
+    executor_unavailable:'Сервер не поддерживает сетевую проверку.'};
+   proxyVerifyError=messages[result.code]||'Не удалось подтвердить прокси.';
+  }
+ }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
+ finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}
+}
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
@@ -491,7 +515,7 @@ function renderManConsole(){
  ]:[
   ['Технические данные',drafted?'Email, логин Intimcity и параметры прокси сохранены':'Заполни технический email, логин Intimcity, IP, порты и логин прокси',drafted,true,"openManPrivate()"],
   ['Пароль прокси',proxySaved?'Реквизиты сохранены зашифрованными':'Проверь адрес и введи пароль прокси',proxySaved,drafted,"openManProxy()"],
-  ['Проверка IP',ipOK?'Внешний IP проверен':'Требуется реальная серверная проверка прокси. Исполнитель пока не подключён',ipOK,false,null],
+  ['Проверка IP',ipOK?'Внешний IP подтверждён через SOCKS5 и HTTPS':proxySaved?'Запусти реальную проверку. Система сравнит внешний IP с закреплённым':'Сначала сохрани пароль прокси',ipOK,proxySaved&&!proxyVerifying,"verifyManProxyNow()"],
   ['Пароль Intimcity',siteSaved?'Реквизиты входа сохранены':'После подтверждения прокси откроется форма с логином из черновика',siteSaved,ipOK,"openManSite()"],
   ['Проверка аккаунта',siteVerified?'Личность подтверждена':'Нужна проверка входа в кабинет через подтверждённый прокси',siteVerified,false,null],
   ['Разрешение публикаций','Только после всех проверок и отдельного разрешения владельца',false,false,null]
@@ -522,6 +546,9 @@ function renderManConsole(){
  (wizardLoading?'<div class="note">Сверяем этапы с сервером…</div>':'')+
  (wizardError?'<div class="note" role="alert">'+esc(wizardError)+'</div>':'')+
  '<div class="man-step-list">'+steps.map(line).join('')+'</div>'+
+ (proxyVerifying?'<div class="note">⏳ Проверяем соединение и внешний IP. Подождите до 12 секунд…</div>':'')+
+ (proxyVerifyError?'<div class="error" role="alert">'+esc(proxyVerifyError)+'</div>':'')+
+ (proxyVerifyResult?.verified===false&&proxyVerifyResult?.observedIp?'<div class="note">Полученный IP: '+esc(proxyVerifyResult.observedIp)+' · ожидаемый: '+esc(proxyVerifyResult.expectedIp)+'</div>':'')+
  '<button class="secondary man-step-refresh" onclick="refreshManWizard()">↻ Обновить этапы</button>'+
  (!legacy?'<details class="man-step-details"><summary>Диагностика и история настройки</summary>'+
  manChecks(x)+renderManDiagnostic(x)+'<div class="section">История</div>'+
