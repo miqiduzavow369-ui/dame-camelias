@@ -429,7 +429,7 @@ async function saveManPrivate(event){
  try{
   const r=await callAdmin('man_private_save',{accountId:id,expectedVersion:privateDraft.version,settings});
   if(r.accountId!==id||r.canPublish!==false)throw Error('Некорректный ответ');
-  privateDraft=r;toast('🔒 Защищённый черновик сохранён');
+  privateDraft=r;toast('🔒 Технические данные сохранены');void refreshManWizard(id);
  }catch(e){privateDraftError='Не удалось сохранить. Проверьте поля и версию записи.'}
  finally{privateDraftBusy=false;render();}
 }
@@ -577,7 +577,7 @@ async function saveManSite(event){
   const r=await callAdmin('man_site_save',{accountId:id,expectedVersion:siteVaultState.version,settings});
   if(selectedManId!==id)return;
   if(r?.accountId!==id||r?.canPublish!==false)throw Error('invalid_save');
-  siteVaultState=r;toast('🔒 Данные Intimcity сохранены. Проверка входа ещё обязательна.');
+  siteVaultState=r;toast('🔒 Данные Intimcity сохранены. Проверка входа ещё обязательна.');void refreshManWizard(id);
  }catch(e){
   if(selectedManId===id)siteVaultError=e.message==='site_vault_key_missing'?'Ключ шифрования MAN_SITE_ENCRYPTION_KEY ещё не установлен. Его подключим на заключительном этапе.':
    e.message==='proxy_not_verified'?'Сначала подтвердите прокси и IP.':'Не удалось сохранить. Проверьте реквизиты.';
@@ -623,7 +623,7 @@ async function saveManProxy(event){
  try{
   const result=await callAdmin('man_proxy_save',{accountId:selectedManId,expectedVersion:proxyVaultState.version,settings});
   if(!result.ok||result.canPublish!==false||result.accountId!==selectedManId)throw Error('Некорректный ответ');
-  proxyVaultState=result;toast('🔒 Индивидуальные настройки сохранены. Аккаунт отключён.');
+  proxyVaultState=result;toast('🔒 Прокси сохранён. Проверка IP ещё требуется.');void refreshManWizard(selectedManId);
  }catch(e){proxyVaultError=e.message==='vault_key_missing'?'На сервере не задан ключ шифрования. Нужен Cloudflare Secret MAN_PROXY_ENCRYPTION_KEY.':'Не удалось сохранить. Проверьте реквизиты и повторите.';}
  finally{proxySaving=false;render();}
 }
