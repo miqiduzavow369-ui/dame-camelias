@@ -30,10 +30,12 @@ async function probeSocks5(proxy,connectFn,signal){
  if(proxy.protocol!=="socks5")fail("unsupported_protocol");
  if(!connectFn)fail("executor_unavailable");
  // Only a public, validated proxy address and a fixed HTTPS echo service may be contacted.
- let socket,reader,writer;
+ let socket,reader,writer,stage="tcp_connect";
  try{
   socket=connectFn({hostname:proxy.host,port:proxy.port},{secureTransport:"starttls",allowHalfOpen:false});
   signal?.addEventListener("abort",()=>{try{socket?.close()}catch{}},{once:true});
+  await socket.opened;
+  stage="socks_greeting";
   writer=socket.writable.getWriter();reader=socket.readable.getReader();
   let buf=new Uint8Array(0);
   const send=async bytes=>{await writer.write(bytes)};
@@ -52,16 +54,18 @@ async function probeSocks5(proxy,connectFn,signal){
   const greeting=await take(2);
   if(greeting[0]!==5||greeting[1]===255)fail("proxy_auth_failed");
   if(greeting[1]===2){
+   stage="socks_auth";
    const username=enc.encode(proxy.username),password=enc.encode(proxy.password);
    if(username.length===0||username.length>255||password.length===0||password.length>255)fail("proxy_auth_failed");
    await send(Uint8Array.from([1,username.length,...username,password.length,...password]));
    const response=await take(2);
    if(response[0]!==1||response[1]!==0)fail("proxy_auth_failed");
   }else if(greeting[1]!==0)fail("proxy_auth_failed");
+  stage="socks_connect";
   const target=enc.encode(CHECK_HOST);
   await send(Uint8Array.from([5,1,0,3,target.length,...target,CHECK_PORT>>8,CHECK_PORT&255]));
   const connectReply=await take(4);
-  if(connectReply[0]!==5||connectReply[1]!==0)fail("proxy_unreachable");
+  if(connectReply[0]!==5||connectReply[1]!==0)fail("proxy_target_rejected");
   const atyp=connectReply[3];
   if(atyp===1)await take(4+2);
   else if(atyp===4)await take(16+2);
@@ -70,9 +74,12 @@ async function probeSocks5(proxy,connectFn,signal){
   if(buf.length!==0)fail("unexpected_response");
   reader.releaseLock();writer.releaseLock();reader=null;writer=null;
   // Upgrade the tunneled TCP stream to TLS, validating the fixed hostname.
+  stage="tls_handshake";
   socket=socket.startTls({expectedServerHostname:CHECK_HOST});
+  await socket.opened;
   writer=socket.writable.getWriter();reader=socket.readable.getReader();
   await writer.write(enc.encode("GET / HTTP/1.1\r\nHost: "+CHECK_HOST+"\r\nAccept: text/plain\r\nConnection: close\r\n\r\n"));
+  stage="ip_response";
   let response="",size=0;
   while(size<4096){
    const next=await reader.read();if(next.done)break;
@@ -90,6 +97,16 @@ async function probeSocks5(proxy,connectFn,signal){
   const observed=body.match(/^\d{1,3}(?:\.\d{1,3}){3}/)?.[0];
   if(!observed)fail("unexpected_response");
   return observed;
+ }catch(error){
+  if(error?.message==="proxy_timeout")throw error;
+  const known=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed",
+   "proxy_unreachable","proxy_target_rejected","unexpected_response"]);
+  const codes={tcp_connect:"tcp_connect_failed",socks_greeting:"socks_handshake_failed",
+   socks_auth:"proxy_auth_failed",socks_connect:"proxy_target_rejected",
+   tls_handshake:"tls_tunnel_failed",ip_response:"ip_echo_failed"};
+  const safe=new Error(known.has(error?.message)?error.message:codes[stage]||"unexpected_response");
+  safe.stage=stage;
+  throw safe;
  }finally{
   try{reader?.releaseLock()}catch{}
   try{writer?.releaseLock()}catch{}
@@ -102,7 +119,7 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
  const old=await storage.get(PREFIX+accountId);
  if(!old||old.version!==expectedVersion)throw Error("Version conflict");
  const settings=await decrypt(env,accountId,old);
- let code="verified",observedIp=null;
+ let code="verified",stage="completed",observedIp=null;
  const controller=new AbortController();
  let timeoutId;
  try{
@@ -113,8 +130,10 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
   if(observedIp!==settings.expectedIp)code="ip_mismatch";
  }catch(e){
   const known=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed",
-   "proxy_unreachable","proxy_timeout","unexpected_response"]);
-  code=known.has(e?.message)?e.message:"proxy_unreachable";
+   "proxy_unreachable","proxy_timeout","unexpected_response","tcp_connect_failed",
+   "socks_handshake_failed","proxy_target_rejected","tls_tunnel_failed","ip_echo_failed"]);
+  code=known.has(e?.message)?e.message:"unexpected_response";
+  stage=typeof e?.stage==="string"?e.stage:code==="proxy_timeout"?"timeout":"system";
  }finally{clearTimeout(timeoutId)}
  if(typeof storage.transaction!=="function")throw Error("Atomic storage unavailable");
  return storage.transaction(async tx=>{
@@ -125,6 +144,6 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
    proxyVerified:success,ipVerified:success,siteIdentityVerified:false,enabled:false,
    verifiedAt:success?at:null});
   return {ok:true,accountId,version:expectedVersion,verified:success,code,
-   observedIp:observedIp||null,expectedIp:settings.expectedIp,canPublish:false};
+   stage,observedIp:observedIp||null,expectedIp:settings.expectedIp,canPublish:false};
  });
 }
