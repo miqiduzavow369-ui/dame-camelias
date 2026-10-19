@@ -1,0 +1,42 @@
+name: Independent read-only man site login preflight
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: "Secondary man ID"
+        required: true
+        type: string
+      nonce:
+        description: "One-time claim token, no secrets"
+        required: true
+        type: string
+      site_host:
+        description: "Allowed Intimcity host"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: "man-site-login-${{ inputs.account_id }}"
+  cancel-in-progress: false
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Attempt credentialed login without identity certification
+        env:
+          ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+          MAN_SITE_ACCOUNT_ID: ${{ inputs.account_id }}
+          MAN_SITE_NONCE: ${{ inputs.nonce }}
+          MAN_SITE_HOST: ${{ inputs.site_host }}
+        run: python tools/man_site_login_preflight.py
