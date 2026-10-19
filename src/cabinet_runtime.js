@@ -12,6 +12,7 @@ import {clientMenAvailability} from "./man_client_parity.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
+import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
@@ -296,6 +297,52 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{return await prepareManRetry(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
       accountId:event.accountId,expectedVersion:event.expectedVersion,at:Date.now()});}
    catch{return {ok:false,status:409,reason:"retry_preparation_rejected"};}
+ }
+ if(event.kind==="admin_man_site_login_status"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{return await siteLoginStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
+  catch{return {ok:false,status:400,reason:"invalid_account"};}
+ }
+ if(event.kind==="admin_man_site_login_start"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{return await startSiteLoginCheck(storage,rawEnv,{
+    actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId,
+    expectedVersion:event.expectedVersion,at:Date.now()
+  },async ({accountId,nonce,siteHost})=>{
+    if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
+    if(!rawEnv.ANKETA_CALLBACK_TOKEN)return {ok:false,reason:"callback_token_missing"};
+    if(!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_url_missing"};
+    const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/man-site-login-preflight.yml/dispatches",{
+      method:"POST",
+      headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+       "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",
+       "Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
+      body:JSON.stringify({ref:"main",inputs:{account_id:accountId,nonce,site_host:siteHost}}),
+      signal:AbortSignal.timeout(15000)
+    });
+    return response.status===204?{ok:true}:{ok:false,reason:({
+      401:"github_unauthorized",403:"github_forbidden",404:"workflow_not_found",
+      422:"github_validation_failed",429:"github_rate_limited"
+    })[response.status]||"github_dispatch_rejected"};
+  });}
+  catch(e){const reason=String(e.message);
+    return {ok:false,status:409,reason:reason==="Already running"?"already_running":
+      reason==="Prerequisites not verified"?"prerequisites_missing":"site_login_start_rejected"};}
+ }
+ if(event.kind==="man_site_login_payload"||event.kind==="man_site_login_result"){
+  if(uid!==OWNER_ID)return {status:403,body:"Forbidden"};
+  try{
+    const src=event.kind==="man_site_login_payload"?new URL(event.url).searchParams:JSON.parse(event.body||"null");
+    const accountId=String(src?.get?src.get("account_id")||"":src?.account_id||"");
+    const nonce=String(src?.get?src.get("nonce")||"":src?.nonce||"");
+    const params={accountId,nonce,at:Date.now()};
+    const result=event.kind==="man_site_login_payload"?
+      await claimSiteLoginCheck(storage,rawEnv,params):
+      await completeSiteLoginCheck(storage,{...params,code:src?.code});
+    return {status:200,body:JSON.stringify(result),
+      headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_check"}),
+      headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
  if(event.kind==="admin_man_site_status"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
