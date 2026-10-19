@@ -49,7 +49,7 @@ export async function cabinetEndpoint(request,env,kind){
   if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
   try{uid=String(JSON.parse(new URLSearchParams(body?.initData).get("user"))?.id||"");}catch{}
  }else{
-  if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403});
+  if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"token_rejected","Cache-Control":"no-store"}});
   body=request.method==="POST"?await request.clone().json().catch(()=>null):null;
   uid=String(body?.user_id||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
  }
