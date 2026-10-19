@@ -328,6 +328,19 @@ function menStatus(x){
  if(x.setup?.stage==='awaiting_credentials')return {label:'Ожидает настройки',short:'Подготовка',cls:'planning',icon:'◷'};
  return {label:'Не подключён',short:'Отключён',cls:'disabled',icon:'🔒'};
 }
+let manVisibilityBusyId=null;
+async function toggleManClientVisibility(accountId){
+ const man=manAccounts.find(m=>m.id===accountId);
+ if(!man||!man.visibility||manVisibilityBusyId)return;
+ manVisibilityBusyId=accountId;
+ try{
+  const visible=man.visibility.visible!==true;
+  await callAdmin('man_visibility_set',{accountId,visible,expectedVersion:man.visibility.version});
+  await reloadMen();
+  toast(visible?'✓ Мужчина снова виден клиенткам':'✓ Мужчина скрыт от клиенток');
+ }catch(e){toast('Не удалось изменить видимость: '+e.message);}
+ finally{manVisibilityBusyId=null;render();}
+}
 function renderMenDashboard(){
  const total=manAccounts.length,active=manAccounts.filter(x=>x.connection==='legacy_active').length,
  ready=manAccounts.filter(x=>x.readiness?.technicalReady===true).length,
@@ -338,9 +351,16 @@ function renderMenDashboard(){
  const chip=(id,title)=>'<button type="button" class="'+(menFilter===id?'active':'')+'" onclick="setMenFilter(\''+id+'\')">'+title+'</button>';
  const items=list.map(x=>{
   const st=menStatus(x);
-  return '<button type="button" class="men-square '+st.cls+'" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
+  const shown=x.visibility?.visible!==false;
+  return '<div class="man-visibility-wrap" style="min-width:0">'+
+    '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\\''+esc(x.id)+'\\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
     '<span class="sq-top"><span class="sq-number">'+String(x.number).padStart(2,'0')+'</span><span class="sq-icon">'+st.icon+'</span></span>'+
-    '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>';
+    '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
+    '<button type="button" class="secondary" style="width:100%;padding:9px 3px;margin-top:5px;font-size:11px" '+
+    (manVisibilityBusyId?'disabled':'')+
+    ' onclick="toggleManClientVisibility(\\''+esc(x.id)+'\\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+
+    (shown?'◉ Видим · Скрыть':'◯ Скрыт · Показать')+'</button></div>';
+
  }).join('');
  return '<div class="men-topline"><div><div class="mini">👑 ADMINISTRATION · CONTROL CENTER</div><h1>Мужчины <span style="color:#e8c88e">✦</span></h1><p class="muted small">Управление аккаунтами</p></div>'+
  '<button class="men-refresh" type="button" onclick="reloadMen()" aria-label="Обновить список мужчин">↻ Обновить</button></div>'+
