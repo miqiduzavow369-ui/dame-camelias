@@ -105,8 +105,64 @@ async function checkSiteOverSocks(proxy,host,connectFn,signal){
   try{socket?.close()}catch{}
  }
 }
+
+async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
+ if(proxy.protocol!=="http")throw Error("unsupported_protocol");
+ let socket,reader,writer,stage="tcp",httpProxyStatus=null;
+ try{
+  socket=connectFn({hostname:proxy.host,port:proxy.port},{secureTransport:"starttls"});
+  signal?.addEventListener("abort",()=>{try{socket?.close()}catch{}},{once:true});
+  await socket.opened;
+  reader=socket.readable.getReader();writer=socket.writable.getWriter();
+  stage="connect";
+  const raw=te.encode(proxy.username+":"+proxy.password);
+  if(!proxy.username||raw.length>1024)throw Error("http_proxy_auth_failed");
+  const auth=btoa(String.fromCharCode(...raw));
+  await writer.write(te.encode("CONNECT "+host+":443 HTTP/1.1\r\nHost: "+host+
+   ":443\r\nProxy-Authorization: Basic "+auth+"\r\nProxy-Connection: keep-alive\r\n\r\n"));
+  let header=new Uint8Array(0),end=-1;
+  while(header.length<8192&&end<0){
+   const next=await reader.read();if(next.done)throw Error("http_connect_invalid_response");
+   const merged=new Uint8Array(header.length+next.value.length);
+   merged.set(header);merged.set(next.value,header.length);header=merged;
+   for(let i=3;i<header.length;i++)if(header[i-3]===13&&header[i-2]===10&&header[i-1]===13&&header[i]===10){end=i+1;break}
+  }
+  if(end<0||end!==header.length)throw Error("http_connect_invalid_response");
+  const match=/^HTTP\/1\.[01] (\d{3})(?:\s|$)/.exec(new TextDecoder().decode(header).split("\r\n")[0]);
+  if(!match)throw Error("http_connect_invalid_response");
+  httpProxyStatus=Number(match[1]);
+  if(httpProxyStatus===407)throw Error("http_proxy_auth_failed");
+  if(httpProxyStatus!==200)throw Error("http_connect_rejected");
+  stage="tls";
+  reader.releaseLock();writer.releaseLock();reader=null;writer=null;
+  socket=socket.startTls({expectedServerHostname:host});
+  await socket.opened;
+  reader=socket.readable.getReader();writer=socket.writable.getWriter();
+  stage="site";
+  await writer.write(te.encode("HEAD / HTTP/1.1\r\nHost: "+host+"\r\nConnection: close\r\n\r\n"));
+  let response="",length=0;
+  while(length<4096&&!response.includes("\r\n")){
+   const chunk=await reader.read();if(chunk.done)break;
+   length+=chunk.value.length;response+=new TextDecoder().decode(chunk.value);
+  }
+  const status=/^HTTP\/1\.[01] ([1-5]\d\d)(?:\s|$)/.exec(response.split("\r\n")[0]||"");
+  if(!status)throw Error("invalid_site_response");
+  return {httpStatus:Number(status[1])};
+ }catch(error){
+  const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","invalid_site_response"];
+  const codes={tcp:"tcp_connect_failed",connect:"http_connect_failed",tls:"tls_tunnel_failed",site:"site_response_failed"};
+  const out=new Error(known.includes(error?.message)?error.message:codes[stage]||"site_check_failed");
+  if(out.message==="http_connect_rejected")out.httpProxyStatus=httpProxyStatus;
+  throw out;
+ }finally{
+  try{reader?.releaseLock()}catch{}
+  try{writer?.releaseLock()}catch{}
+  try{socket?.close()}catch{}
+ }
+}
+
 export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,siteUrl},
- probe=checkSiteOverSocks,connectFn){
+ probe=null,connectFn){
  verifyOwner(actorId,cabinetId,ownerId,accountId);
  const cleanUrl=allowedSiteUrl(siteUrl);
  if(!cleanUrl||!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw Error("Invalid check request");
@@ -114,13 +170,13 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
  if(!record||record.version!==expectedVersion)throw Error("Version conflict");
  const settings=await readCredentials(env,accountId,record);
  const host=new URL(cleanUrl).hostname;
- let result,code="site_reachable",socksReply=null;
+ let result,code="site_reachable",socksReply=null,httpProxyStatus=null;
  const controller=new AbortController();
  let timeoutId;
  try{
   const socketConnect=connectFn??(await import("cloudflare:sockets")).connect;
   result=await Promise.race([
-   probe(settings,host,socketConnect,controller.signal),
+   (probe??(settings.protocol==='http'?checkSiteViaHttpConnect:checkSiteOverSocks))(settings,host,socketConnect,controller.signal),
    new Promise((_,reject)=>{timeoutId=setTimeout(()=>{controller.abort();reject(Error("site_check_timeout"))},12000)})
   ]);
   if(!Number.isInteger(result?.httpStatus)||result.httpStatus<100||result.httpStatus>599)throw Error("invalid_site_response");
@@ -128,14 +184,16 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
  }catch(error){
   const codes=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed","proxy_target_rejected",
    "invalid_proxy_response","invalid_site_response","tcp_connect_failed",
-   "socks_handshake_failed","tls_tunnel_failed","site_response_failed","site_check_timeout"]);
+   "socks_handshake_failed","tls_tunnel_failed","site_response_failed","site_check_timeout",
+   "http_proxy_auth_failed","http_connect_failed","http_connect_rejected","http_connect_invalid_response"]);
   code=codes.has(error?.message)?error.message:"site_check_failed";
   socksReply=Number.isInteger(error?.socksReply)?error.socksReply:null;
+  httpProxyStatus=Number.isInteger(error?.httpProxyStatus)?error.httpProxyStatus:null;
  }finally{clearTimeout(timeoutId);}
  // Read-only check; do not write to proxy/IP verification state or touch site credentials.
  const current=await storage.get(PREFIX+accountId);
  if(!current||current.version!==expectedVersion)throw Error("Version conflict");
  return {ok:true,accountId,siteUrl:cleanUrl,reachable:code==="site_reachable",
-  httpStatus:result?.httpStatus||null,code,socksReply,
+  httpStatus:result?.httpStatus||null,code,socksReply,httpProxyStatus,protocol:settings.protocol,
   ipVerified:false,identityVerified:false,canPublish:false};
 }
