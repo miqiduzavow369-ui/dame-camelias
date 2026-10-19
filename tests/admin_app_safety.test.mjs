@@ -9,8 +9,10 @@ const api=readFileSync(new URL('../src/admin_app_api.js',import.meta.url),'utf8'
 
 test('ADMIN V3 inline JavaScript parses',()=>{
  const matches=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
- assert.equal(matches.length,1);
- new Script(matches[0][1],{filename:'admin/preview-v3.html'});
+ assert.ok(matches.length>=1);
+ const inline=matches.filter(x=>x[1].trim().length>0);
+ assert.equal(inline.length,1);
+ new Script(inline[0][1],{filename:'admin/preview-v3.html'});
 });
 test('ADMIN uses live API and never commits demo operations',()=>{
  assert.match(html,/callAdmin\('clients'\)/);

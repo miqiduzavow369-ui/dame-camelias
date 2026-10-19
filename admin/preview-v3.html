@@ -214,7 +214,7 @@ function setAdminLayout(wide){
 function toggleAdminLayout(){setAdminLayout(!document.body.classList.contains('admin-wide'))}
 try{setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide')}catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -293,6 +293,7 @@ function renderMenDashboard(){
  (menError?'<p class="error" role="alert">'+esc(menError)+'</p>':'')+
  '<input class="search" id="men-search" type="search" autocomplete="off" placeholder="⌕ Поиск по имени или номеру" aria-label="Поиск мужчин" value="'+esc(menQuery)+'" oninput="searchMen(this.value)">'+
  '<div class="men-filters" role="group" aria-label="Статусы мужчин">'+chip('all','Все · '+total)+chip('active','Действующий')+chip('waiting','Отключены')+'</div>'+
+ '<button class="secondary" style="margin:12px 0" onclick="go(\'man-import\')">🔐 Импорт технических данных (30)</button>'+ 
  '<div class="section">АККАУНТЫ · '+list.length+'</div><div class="men-square-grid">'+(items||'<div class="empty">Аккаунты не найдены</div>')+'</div>'+
  '<div class="watermark">Настройка доступна при открытии карточки мужчины. Ключи и прокси не отображаются.</div>';
 }
@@ -332,6 +333,86 @@ async function prepareManCheckRetry(){
  finally{manCheckBusy=false;if(selectedManId===id&&state.page==='man-detail')render();}
 }
 
+
+function renderManPrivateForm(){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
+ const p=privateDraft?.accountId===x.id?privateDraft:null,v=p?.settings||{},legacy=x.id==='yan_first';
+ const f=(id,title,value,extra='')=>'<label for="'+id+'">'+title+'</label><input class="field" id="'+id+'" value="'+esc(value||'')+'" '+extra+'>';
+ return back("go('man-detail')")+'<div class="mini">OWNER ONLY / ЗАШИФРОВАННЫЙ ЧЕРНОВИК</div>'+
+ '<h1>⚙ Технические данные</h1><p class="muted small">'+esc(x.name)+'</p>'+
+ '<div class="note">Эти сведения доступны только владельцу. Это не рабочий прокси. Пароли здесь не сохраняются, публикации не активируются.</div>'+
+ (privateDraftError?'<div class="error">'+esc(privateDraftError)+'</div>':'')+
+ (!p?'<div class="hint">Загрузка защищённых данных…</div>':
+ '<form class="card" onsubmit="saveManPrivate(event)" autocomplete="off">'+
+ f('privateTechnical','Техническое имя / Email',v.technicalName,'type="email" maxlength="254" required autocapitalize="off"')+
+ (legacy?'<div class="note">Для Яна Первого изменяется только техническое имя. Прокси и работающий механизм не затрагиваются.</div>':
+ f('privateHost','Адрес прокси IPv4',v.host,'required inputmode="decimal"')+
+ f('privateHttp','Порт HTTP(S)',v.httpPort,'type="number" min="1" max="65535" required')+
+ f('privateSocks','Порт SOCKS5',v.socksPort,'type="number" min="1" max="65535" required')+
+ f('privateLogin','Логин прокси',v.username,'maxlength="256" required autocapitalize="off"')+
+ '<div class="hint">Пароль вводится отдельно в разделе «Прокси / IP». Изменение черновика не меняет действующий зашифрованный прокси.</div>')+
+ '<button class="primary" type="submit" '+(privateDraftBusy?'disabled':'')+'>🔐 Сохранить черновик</button></form>');
+}
+async function openManPrivate(){
+ if(!selectedManId)return;
+ const id=selectedManId;privateDraft=null;privateDraftError='';go('man-private');
+ try{const r=await callAdmin('man_private_status',{accountId:id});if(selectedManId===id){privateDraft=r;render();}}
+ catch(e){if(selectedManId===id){privateDraftError='Не удалось загрузить защищённые сведения';render();}}
+}
+async function saveManPrivate(event){
+ event.preventDefault();if(privateDraftBusy||!privateDraft||!selectedManId)return;
+ const id=selectedManId;
+ const settings={technicalName:document.getElementById('privateTechnical').value.trim()};
+ if(id!=='yan_first')Object.assign(settings,{
+  host:document.getElementById('privateHost').value.trim(),
+  httpPort:Number(document.getElementById('privateHttp').value),
+  socksPort:Number(document.getElementById('privateSocks').value),
+  username:document.getElementById('privateLogin').value.trim()
+ });
+ privateDraftBusy=true;privateDraftError='';
+ try{
+  const r=await callAdmin('man_private_save',{accountId:id,expectedVersion:privateDraft.version,settings});
+  if(r.accountId!==id||r.canPublish!==false)throw Error('Некорректный ответ');
+  privateDraft=r;toast('🔒 Защищённый черновик сохранён');
+ }catch(e){privateDraftError='Не удалось сохранить. Проверьте поля и версию записи.'}
+ finally{privateDraftBusy=false;render();}
+}
+function renderManPrivateImport(){
+ return back("go('men')")+'<div class="mini">OWNER ONLY / МАССОВЫЙ ВВОД</div>'+
+ '<h1>🔐 Импорт 30 аккаунтов</h1>'+
+ '<div class="note">Скопируйте из Excel все 30 строк вместе с заголовком: старое имя, новое имя, технический email, IP, порт HTTP(S), порт SOCKS5, логин. Пароли не включать. Сохранение атомарное, только если ранее черновики ещё не создавались.</div>'+
+ '<form class="card" onsubmit="saveManPrivateImport(event)">'+
+ '<label for="privateImportData">Таблица из Excel</label>'+
+ '<textarea class="field" id="privateImportData" rows="9" required placeholder="Выделите таблицу в Excel, скопируйте и вставьте сюда"></textarea>'+
+ '<button class="primary" type="submit" '+(privateImportBusy?'disabled':'')+'>🔐 Проверить и сохранить 30 записей</button></form>'+
+ '<div class="watermark">Таблица не включается в GitHub. Все записи шифруются до сохранения.</div>';
+}
+async function saveManPrivateImport(event){
+ event.preventDefault();if(privateImportBusy)return;
+ const value=document.getElementById('privateImportData').value;
+ const lines=value.trim().split(/\r?\n/).filter(Boolean);
+ if(lines[0]?.toLocaleLowerCase('ru').includes('старое имя'))lines.shift();
+ if(lines.length!==30){toast('Необходимо ровно 30 строк');return;}
+ const rows=[];
+ for(let i=0;i<30;i++){
+  const x=manAccounts.find(m=>m.number===i+1),cols=lines[i].split('\t').map(c=>c.trim());
+  if(!x||cols.length<7||cols[0].toLocaleLowerCase('ru')!=='ян '+['Первый','Второй','Третий','Четвёртый','Пятый','Шестой','Седьмой','Восьмой','Девятый','Десятый','Одиннадцатый','Двенадцатый','Тринадцатый','Четырнадцатый','Пятнадцатый','Шестнадцатый','Семнадцатый','Восемнадцатый','Девятнадцатый','Двадцатый','Двадцать первый','Двадцать второй','Двадцать третий','Двадцать четвёртый','Двадцать пятый','Двадцать шестой','Двадцать седьмой','Двадцать восьмой','Двадцать девятый','Тридцатый'][i].toLocaleLowerCase('ru')||cols[1]!==x.name){
+   toast('Проверьте соответствие строки '+(i+1)+' и имени мужчины');return;
+  }
+  rows.push({accountId:x.id,settings:i===0?{technicalName:cols[2]}:{
+   technicalName:cols[2],host:cols[3],httpPort:Number(cols[4]),socksPort:Number(cols[5]),username:cols[6]}});
+ }
+ privateImportBusy=true;
+ try{const r=await callAdmin('man_private_import',{rows});
+  if(r.imported!==30||r.canPublish!==false)throw Error('Некорректный ответ');
+  document.getElementById('privateImportData').value='';
+  toast('🔒 30 технических записей сохранены');
+  go('men');
+ }catch(e){toast('Импорт отклонён: записи уже существуют или данные некорректны')}
+ finally{privateImportBusy=false;render()}
+}
+
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("root('men')")+'<h1>Аккаунт не найден</h1>';
@@ -346,6 +427,7 @@ function renderManConsole(){
  '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+manChecks(x)+renderManDiagnostic(x)+
  (!legacy?'<div class="section">Обязательная последовательность</div><div class="card"><div class="men-draft-actions"><div>01 · Прокси и закреплённый IP</div><div>02 · Проверка фактического IP <span class="pill">🔒</span></div><div>03 · Логин и пароль Intimcity <span class="pill">🔒</span></div><div>04 · Проверка кабинета <span class="pill">🔒</span></div><div>05 · Разрешение на работу <span class="pill">🔒</span></div></div><p class="hint">Каждый следующий этап откроется только после подтверждённого результата предыдущего. Пароль не означает успешный вход.</p></div>':'')+
  '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
+ tile('✉','Техническое имя', 'Email и подготовка прокси',"openManPrivate()",true)+
  tile('🔐','Вход Intimcity',legacy?'Текущий механизм без изменений':'Только после проверки прокси/IP',"openManSite()",!legacy&&x.networkStatus?.proxyVerified===true&&x.networkStatus?.ipVerified===true)+
  tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
  tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
@@ -421,11 +503,11 @@ function renderManProxyForm(){
  (proxyVaultError?'<div class="error" role="alert">'+esc(proxyVaultError)+'</div>':'')+
  '<form id="manProxyForm" class="card" onsubmit="saveManProxy(event)" autocomplete="off">'+
  '<label for="proxyProtocol">Протокол</label><select class="field" id="proxyProtocol" required><option value="socks5">SOCKS5</option><option value="http">HTTP</option><option value="https">HTTPS</option></select>'+
- '<label for="proxyHost">Адрес прокси / хост</label><input id="proxyHost" class="field" maxlength="253" placeholder="proxy.example.com" required autocapitalize="off" spellcheck="false">'+
- '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" placeholder="1080">'+
- '<label for="proxyUsername">Логин прокси (если есть)</label><input id="proxyUsername" class="field" maxlength="256" autocapitalize="off" spellcheck="false">'+
+ '<label for="proxyHost">Адрес прокси / хост</label><input id="proxyHost" class="field" maxlength="253" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="proxy.example.com" required autocapitalize="off" spellcheck="false">'+
+ '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" value="'+esc(privateDraft?.settings?.socksPort||'')+'" placeholder="1080">'+
+ '<label for="proxyUsername">Логин прокси (если есть)</label><input id="proxyUsername" class="field" maxlength="256" value="'+esc(privateDraft?.settings?.username||'')+'" autocapitalize="off" spellcheck="false">'+
  '<label for="proxyPassword">Индивидуальный пароль прокси</label><input id="proxyPassword" class="field" type="password" maxlength="512" required autocomplete="new-password">'+
- '<label for="proxyExpectedIp">Закреплённый внешний IPv4</label><input id="proxyExpectedIp" class="field" inputmode="decimal" placeholder="203.x.x.x" required autocapitalize="off" spellcheck="false">'+
+ '<label for="proxyExpectedIp">Закреплённый внешний IPv4</label><input id="proxyExpectedIp" class="field" inputmode="decimal" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="203.x.x.x" required autocapitalize="off" spellcheck="false">'+
  '<div class="note">При сохранении текущие реквизиты будут полностью заменены. Пароль не возвращается обратно в приложение. Проверка IP и включение публикаций не выполняются.</div>'+
  '<button class="primary" type="submit" '+(proxySaving?'disabled':'')+'>'+(proxySaving?'Сохранение…':'🔐 Зашифровать и сохранить')+'</button></form>'+
  '<div class="watermark">Ян Первый не затрагивается · GitHub не хранит пароли</div>';
@@ -433,6 +515,7 @@ function renderManProxyForm(){
 async function openManProxy(){
  if(!selectedManId||selectedManId==='yan_first')return;
  proxyVaultState=null;proxyVaultError='';go('man-proxy');
+ try{privateDraft=await callAdmin('man_private_status',{accountId:selectedManId});}catch{privateDraft=null;}
  try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
  if(selectedManId!==r.accountId)return;proxyVaultState=r;render();
  }catch(e){proxyVaultError='Не удалось прочитать статус: '+e.message;render();}
@@ -473,6 +556,8 @@ if(p==='clients'){
  <div class="watermark">Данные из общей системы · Ник появится, когда Telegram его предоставит</div>`;
 }
 else if(p==='men'){h=renderMenDashboard();}
+else if(p==='man-private'){h=renderManPrivateForm();}
+else if(p==='man-import'){h=renderManPrivateImport();}
 else if(p==='man-detail'){h=renderManConsole();}
 else if(p==='man-proxy'){h=renderManProxyForm();}
 else if(p==='man-site'){h=renderManSiteForm();}
