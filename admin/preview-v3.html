@@ -661,22 +661,45 @@ function renderManSiteForm(){
  '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+
  (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form></div>'+
  '<div class="card"><strong>Проверка входа в кабинет</strong>'+
- '<p class="hint">После сохранения данных потребуется отдельный реальный вход через подтверждённый прокси с проверкой личности мужчины. Проверка ещё не подключена, поэтому нельзя отметить кабинет как подтверждённый.</p>'+
- '<button class="secondary" disabled>🔒 Автоматический вход — ожидает интеграции</button></div>'+
+ '<p class="hint">Chromium попробует войти через подтверждённый прокси. Отправка формы входа не означает подтверждения личности: публикации остаются закрытыми.</p>'+
+ '<button class="secondary" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy?'disabled':'')+'>🔐 Проверить вход через Chromium</button>'+
+ '<button class="secondary" style="margin-top:8px" onclick="refreshManSiteLoginCheck()" '+(siteLoginBusy?'disabled':'')+'>↻ Обновить статус входа</button>'+
+ (siteLoginState?.accountId===x.id?'<p class="hint">Статус: '+esc(siteLoginState.status||'не запускалась')+
+ ' · '+esc(siteLoginState.code||'нет результата')+'</p>':'')+
+ (siteLoginError?'<p class="error">'+esc(siteLoginError)+'</p>':'')+
+ '<p class="hint">Подтверждение личности мужчины пока не выполняется. Проверка не включает публикации.</p></div>'+
  '<div class="watermark">Без публикаций · Ян Первый не затронут · пароли не возвращаются в интерфейс</div>';
 }
 
+let siteLoginState=null,siteLoginBusy=false,siteLoginError='';
+async function refreshManSiteLoginCheck(){
+ const id=selectedManId;
+ if(!id||id==='yan_first')return;
+ try{const r=await callAdmin('man_site_login_status',{accountId:id});
+   if(selectedManId===id){siteLoginState=r;siteLoginError='';render();}}
+ catch(e){if(selectedManId===id){siteLoginError='Не удалось получить статус: '+e.message;render();}}
+}
+async function startManSiteLoginCheck(){
+ const id=selectedManId;
+ if(!id||id==='yan_first'||!siteVaultState?.configured||siteLoginBusy)return;
+ siteLoginBusy=true;siteLoginError='';render();
+ try{await callAdmin('man_site_login_start',{accountId:id,expectedVersion:siteVaultState.version});
+   if(selectedManId===id){siteLoginState={accountId:id,status:'running'};
+     toast('Проверка входа запущена. Личность мужчины пока не подтверждена.');}}
+ catch(e){if(selectedManId===id)siteLoginError='Проверка входа: '+e.message;}
+ finally{siteLoginBusy=false;if(selectedManId===id)render();}
+}
 async function openManSite(){
  const id=selectedManId;
  if(!id||id==='yan_first')return;
- siteVaultState=null;siteVaultError='';privateDraft=null;go('man-site');
+ siteVaultState=null;siteVaultError='';siteLoginState=null;siteLoginError='';privateDraft=null;go('man-site');
  try{
   const [r,draft]=await Promise.all([
    callAdmin('man_site_status',{accountId:id}),
    callAdmin('man_private_status',{accountId:id})
   ]);
   if(selectedManId!==id)return;
-  siteVaultState=r;privateDraft=draft?.accountId===id?draft:null;render();
+  siteVaultState=r;privateDraft=draft?.accountId===id?draft:null;render();void refreshManSiteLoginCheck();
  }catch{if(selectedManId===id){siteVaultError='Не удалось загрузить защищённую настройку';render();}}
 }
 async function saveManSite(event){
