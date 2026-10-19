@@ -34,7 +34,9 @@ export function validatePrivateDraft(accountId,settings){
   if(host||httpPort||socksPort||username)throw Error("Legacy proxy immutable");
   return {technicalName};
  }
- if(typeof siteLogin!=="string"||siteLogin.length>254|| (siteLogin!=="" && !/^[-\\w.+]+@[-\\w.]+\\.[A-Za-z]{2,}$/u.test(siteLogin)) ||\n    !validIP(host)||!validPort(httpPort)||!validPort(socksPort)||
+ if(typeof siteLogin!=="string"||siteLogin.length>254||
+    (siteLogin!==""&&!/^[-\w.+]+@[-\w.]+\.[A-Za-z]{2,}$/u.test(siteLogin)) ||
+    !validIP(host)||!validPort(httpPort)||!validPort(socksPort)||
     typeof username!=="string"||username.length>256||
     !/^[\w.@-]+$/.test(username))throw Error("Invalid proxy draft");
  return {technicalName,siteLogin,host,httpPort,socksPort,username};
