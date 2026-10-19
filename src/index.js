@@ -839,6 +839,8 @@ export default {
       return cabinetEndpoint(request,env,"review");
     if (request.method === "GET" && url.pathname === "/api/anketa/dryfill-payload")
       return cabinetEndpoint(request,env,"dryfill");
+    if (request.method === "GET" && url.pathname === "/api/secondary-profile-probe/payload") return cabinetEndpoint(request,env,"secondary_profile_probe_payload");
+    if (request.method === "POST" && url.pathname === "/api/secondary-profile-probe/result") return cabinetEndpoint(request,env,"secondary_profile_probe_result");
     if (request.method === "GET" && url.pathname === "/api/man-site-login/payload") return cabinetEndpoint(request,env,"man_site_login_payload");
     if (request.method === "POST" && url.pathname === "/api/man-site-login/result") return cabinetEndpoint(request,env,"man_site_login_result");
     if (request.method === "GET" && url.pathname === "/api/man-browser/payload") return cabinetEndpoint(request,env,"man_browser_payload");
