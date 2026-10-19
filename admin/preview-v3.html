@@ -752,7 +752,7 @@ async function startManBrowserCheck(){
  if(selectedManId!==id)return;
  if(result.ok){browserPreflight={status:'running'};toast('Запущена отдельная браузерная проверка.');}
  else browserPreflightError='Не удалось запустить Chromium: '+String(result.reason||'unavailable');}
- catch{if(selectedManId===id)browserPreflightError='Не удалось запустить браузерную проверку.';}
+ catch(e){if(selectedManId===id)browserPreflightError='Не удалось запустить Chromium: '+String(e?.message||'network_error');}
  finally{browserPreflightBusy=false;if(selectedManId===id)render();}
 }
 async function openManProxy(){
