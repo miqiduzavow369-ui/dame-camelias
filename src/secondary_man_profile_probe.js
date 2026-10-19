@@ -2,7 +2,7 @@
 // No publications, no credits, no Yan First fallback and no credential logging.
 import {requireManId} from "./man_account_isolation.js";
 import {approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
-const PREFIX="secondary-profile-probe-v1:",PROXY="man-proxy-sealed-v1:",SITE="man-intimcity-sealed-v1:";
+const PREFIX="secondary-profile-probe-v1:",PROXY="man-proxy-sealed-v1:",SITE="man-intimcity-sealed-v1:",APPROVAL="man-owner-approval-v1:";
 const te=new TextEncoder(),PROFILE=/^[0-9]{1,9}$/,NONCE=/^[a-f0-9]{32}$/;
 const MAX_AGE=8*60*1000;
 function secondary(accountId){
@@ -57,11 +57,12 @@ export async function claimProfileProbe(storage,env,{accountId,profileId,nonce,a
  if(typeof profileId!=="string"||!PROFILE.test(profileId)||!NONCE.test(nonce)||!Number.isSafeInteger(at))
   throw Error("Invalid claim");
  const result=await storage.transaction(async tx=>{
-  const [run,proxy,site]=await Promise.all([tx.get(PREFIX+accountId),tx.get(PROXY+accountId),tx.get(SITE+accountId)]);
+  const [run,proxy,site,approval]=await Promise.all([tx.get(PREFIX+accountId),tx.get(PROXY+accountId),tx.get(SITE+accountId),tx.get(APPROVAL+accountId)]);
   if(!run||run.accountId!==accountId||run.profileId!==profileId||run.nonce!==nonce||
      run.status!=="running"||run.claimed||at<run.startedAt||at-run.startedAt>MAX_AGE||
      proxy?.accountId!==accountId||site?.accountId!==accountId||
      run.proxyVersion!==proxy.version||run.siteVersion!==site.version||
+     !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)||
      site.boundProxyVersion!==proxy.version||!proxy.proxyVerified||!proxy.ipVerified)
    throw Error("Claim not authorized");
   await tx.put(PREFIX+accountId,{...run,claimed:true});
