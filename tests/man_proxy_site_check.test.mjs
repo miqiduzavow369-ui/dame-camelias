@@ -82,6 +82,8 @@ test("HTTP CONNECT via Dolphin proxy authenticates before TLS and never verifies
  assert.match(request,/^CONNECT a\.intimcity\.rip:443 HTTP\/1\.1/);
  assert.match(request,/Proxy-Authorization: Basic /);
  assert.doesNotMatch(siteRequest,/Proxy-Authorization/i);
+ assert.match(siteRequest,/^GET \/ HTTP\/1\.1/);
+ assert.match(siteRequest,/Host: a\.intimcity\.rip/);
  assert.equal(map.get("man-proxy-sealed-v1:yan_second").enabled,false);
 });
 test("HTTP CONNECT 407 fails closed without credential disclosure",async()=>{
@@ -139,4 +141,24 @@ test("HTTP CONNECT reports malformed reply and unexpected tunnel data separately
   assert.equal(out.reachable,false);
   assert.equal(out.canPublish,false);
  }
+});
+
+test("HTTP tunnel distinguishes an empty Intimcity response after GET",async()=>{
+ const {store}=storage();
+ await saveProxy(store,env,{...identity,expectedVersion:0,at:1,
+  settings:{...secrets,protocol:"http",port:6408}});
+ const textEncoder=new TextEncoder();
+ let requested=false;
+ const socket={opened:Promise.resolve(),close(){},
+  readable:{getReader(){return {async read(){return {done:false,value:textEncoder.encode("HTTP/1.1 200 Connection established\r\n\r\n")}},releaseLock(){}}}},
+  writable:{getWriter(){return {async write(){},releaseLock(){}}}},
+  startTls(){return {opened:Promise.resolve(),close(){},
+    writable:{getWriter(){return {async write(buf){requested=new TextDecoder().decode(buf).startsWith("GET /")},releaseLock(){}}}},
+    readable:{getReader(){return {async read(){return {done:true}},releaseLock(){}}}}
+  }}
+ };
+ const res=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://b.intimcity.rip/"},null,()=>socket);
+ assert.equal(requested,true);
+ assert.equal(res.code,"site_empty_response");
+ assert.equal(res.canPublish,false);
 });

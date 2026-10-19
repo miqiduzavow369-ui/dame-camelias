@@ -749,7 +749,11 @@ function proxySiteErrorMessage(result){
   http_connect_failed:'Не удалось создать HTTP CONNECT-туннель.',
   tcp_connect_failed:'Нет соединения с IP и портом прокси.',
   tls_tunnel_failed:'Не удалось установить защищённое соединение с сайтом через прокси.',
-  site_response_failed:'Нет корректного HTTP-ответа сайта.',
+  site_response_failed:'Не удалось получить HTTP-ответ сайта через прокси.',
+  site_write_failed:'HTTPS-туннель открыт, но сервер не принял запрос страницы Intimcity.',
+  site_read_failed:'Запрос страницы отправлен, но чтение ответа завершилось сетевой ошибкой.',
+  site_empty_response:'HTTPS-туннель открыт, но сайт закрыл соединение без HTTP-ответа.',
+  site_invalid_status_line:'Сайт ответил, но его первая строка не похожа на HTTP-статус.',
   site_check_timeout:'Истекло время проверки.',
   site_server_error:'Сайт ответил серверной ошибкой.',
   unsupported_protocol:'Сохранён не HTTP-прокси. Вставь HTTP-строку Dolphin.'};
