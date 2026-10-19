@@ -51,3 +51,18 @@ test("forbidden, legacy and stale versions never perform network checks",async()
  await assert.rejects(verifyManProxy(store,env,{...ctx,expectedVersion:2,at:2},probe,()=>{}),/Version conflict/);
  assert.equal(calls,0);
 });
+
+test("stage-safe TCP and TLS errors never verify and never expose credentials",async()=>{
+ const {store}=await setup();
+ const cases=["tcp_connect_failed","socks_handshake_failed","proxy_auth_failed","proxy_target_rejected","tls_tunnel_failed","ip_echo_failed"];
+ for(const code of cases){
+  const result=await verifyManProxy(store,env,{...ctx,expectedVersion:1,at:4},async()=>{
+   const error=new Error(code);error.stage=code;throw error;
+  },()=>{});
+  assert.equal(result.code,code);
+  assert.equal(result.verified,false);
+  assert.equal(result.canPublish,false);
+  assert.equal((await proxyStatus(store,ctx)).ipVerified,false);
+  assert.ok(!JSON.stringify(result).includes(settings.password));
+ }
+});
