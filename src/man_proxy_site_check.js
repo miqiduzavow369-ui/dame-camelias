@@ -147,19 +147,27 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
   socket=socket.startTls({expectedServerHostname:host});
   await socket.opened;
   reader=socket.readable.getReader();writer=socket.writable.getWriter();
-  stage="site";
-  await writer.write(te.encode("HEAD / HTTP/1.1\r\nHost: "+host+"\r\nConnection: close\r\n\r\n"));
+  // GET mirrors browser navigation better than HEAD. Never send site credentials.
+  stage="site_write";
+  await writer.write(te.encode("GET / HTTP/1.1\r\nHost: "+host+
+   "\r\nAccept: text/html\r\nUser-Agent: Mozilla/5.0 (compatible; ConnectionCheck/1.0)\r\nConnection: close\r\n\r\n"));
+  stage="site_read";
   let response="",length=0;
-  while(length<4096&&!response.includes("\r\n")){
-   const chunk=await reader.read();if(chunk.done)break;
-   length+=chunk.value.length;response+=new TextDecoder().decode(chunk.value);
+  const decoder=new TextDecoder();
+  while(length<4096&&!response.includes("\n")){
+   const chunk=await reader.read();
+   if(chunk.done)break;
+   length+=chunk.value.byteLength;
+   response+=decoder.decode(chunk.value,{stream:true});
   }
-  const status=/^HTTP\/1\.[01] ([1-5]\d\d)(?:\s|$)/.exec(response.split("\r\n")[0]||"");
-  if(!status)throw Error("invalid_site_response");
+  if(!response)throw Error("site_empty_response");
+  const firstLine=response.split(/\r?\n/)[0].trim();
+  const status=/^HTTP\/1\.[01]\s+([1-5]\d\d)(?:\s|$)/.exec(firstLine);
+  if(!status)throw Error("site_invalid_status_line");
   return {httpStatus:Number(status[1])};
  }catch(error){
-  const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line","invalid_site_response"];
-  const codes={tcp:"tcp_connect_failed",connect:"http_connect_failed",tls:"tls_tunnel_failed",site:"site_response_failed"};
+  const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line","invalid_site_response","site_empty_response","site_invalid_status_line"];
+  const codes={tcp:"tcp_connect_failed",connect:"http_connect_failed",tls:"tls_tunnel_failed",site_write:"site_write_failed",site_read:"site_read_failed"};
   const out=new Error(known.includes(error?.message)?error.message:codes[stage]||"site_check_failed");
   if(out.message==="http_connect_rejected")out.httpProxyStatus=httpProxyStatus;
   throw out;
@@ -194,7 +202,8 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
   const codes=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed","proxy_target_rejected",
    "invalid_proxy_response","invalid_site_response","tcp_connect_failed",
    "socks_handshake_failed","tls_tunnel_failed","site_response_failed","site_check_timeout",
-   "http_proxy_auth_failed","http_connect_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line"]);
+   "http_proxy_auth_failed","http_connect_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line",
+   "site_empty_response","site_invalid_status_line","site_write_failed","site_read_failed"]);
   code=codes.has(error?.message)?error.message:"site_check_failed";
   socksReply=Number.isInteger(error?.socksReply)?error.socksReply:null;
   httpProxyStatus=Number.isInteger(error?.httpProxyStatus)?error.httpProxyStatus:null;
