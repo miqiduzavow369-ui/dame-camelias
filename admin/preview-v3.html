@@ -830,9 +830,12 @@ function renderManProxyForm(){
  (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси')+'</button>'+
  '</form>'+
  (configured?'<button class="secondary" style="margin-top:10px" type="button" '+(siteProbing?'disabled':'')+
- ' onclick="startManBrowserCheck()">🌐 Проверить IP через Chromium</button>':'')+
+ ' onclick="startManBrowserCheck()" '+(browserPreflightBusy||browserPreflight?.status==='running'?'disabled':'')+'>🌐 Проверить IP через Chromium</button>':'')+
+ (configured&&browserPreflight?.accountId===x.id&&browserPreflight?.retryAvailable===true&&browserPreflight?.status==='running'?
+ '<button class="secondary" type="button" onclick="startManBrowserCheck(true)" '+(browserPreflightBusy?'disabled':'')+'>↻ Повторить зависшую проверку IP без ввода прокси</button>':'')+
  (configured?'<button class="secondary" type="button" onclick="refreshManBrowserCheck()">↻ Обновить статус Chromium</button>':'')+
- (browserPreflight?.accountId===x.id&&browserPreflight?.status==='running'?'<p class="hint">⏳ Проверка через Chromium выполняется. Статус можно обновить без повторного сохранения прокси.</p>':'')+
+ (browserPreflight?.accountId===x.id&&browserPreflight?.status==='running'?'<p class="hint">⏳ Проверка IP выполняется. Если задание не забрало данные, спустя 90 секунд появится безопасный повтор.</p>':'')+
+ (browserPreflight?.accountId===x.id&&browserPreflight?.status==='timed_out'?'<p class="hint">Время проверки IP истекло. Можно запустить её заново без повторного сохранения прокси.</p>':'')+
  (browserPreflight?.accountId===x.id&&browserPreflight?.status==='verified'?'<p class="success">✓ Внешний IP и сайт подтверждены Chromium. Вход не проверен.</p>':'')+
  (browserPreflight?.accountId===x.id&&(browserPreflight?.status==='failed'||browserPreflight?.status==='dispatch_failed')?'<p class="error">Chromium: '+esc(browserPreflight.code||'executor_error')+'</p>':'')+
  (browserPreflightError?'<p class="error">'+esc(browserPreflightError)+'</p>':'')+
@@ -849,14 +852,14 @@ async function refreshManBrowserCheck(){
  if(selectedManId===id){browserPreflight=result;render();}}
  catch{if(selectedManId===id){browserPreflightError='Не удалось обновить статус.';render();}}
 }
-async function startManBrowserCheck(){
+async function startManBrowserCheck(retry=false){
  const id=selectedManId,proxy=proxyVaultState;
  if(!id||id==='yan_first'||!proxy?.configured||browserPreflightBusy)return;
  const siteUrl=document.getElementById('manSiteLink')?.value.trim()||siteProbeUrl;
  browserPreflightBusy=true;browserPreflightError='';render();
- try{const result=await callAdmin('man_browser_start',{accountId:id,expectedVersion:proxy.version,siteUrl});
+ try{const result=await callAdmin('man_browser_start',{accountId:id,expectedVersion:proxy.version,siteUrl,retry:retry===true});
  if(selectedManId!==id)return;
- if(result.ok){browserPreflight={accountId:id,status:'running'};toast('Запущена отдельная браузерная проверка.');}
+ if(result.ok){browserPreflight={accountId:id,status:'running'};toast('Запущена отдельная браузерная проверка IP.');}
  else browserPreflightError='Не удалось запустить Chromium: '+String(result.reason||'unavailable');}
  catch(e){if(selectedManId===id)browserPreflightError='Не удалось запустить Chromium: '+String(e?.message||'network_error');}
  finally{browserPreflightBusy=false;if(selectedManId===id)render();}
