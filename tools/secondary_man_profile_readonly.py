@@ -21,9 +21,8 @@ def validated_readonly_grant(grant, account_id, profile_id):
         raise RuntimeError("Invalid profile")
     if grant.get("accountId") != account_id or grant.get("mode") != "profile":
         raise RuntimeError("Account-bound read-only grant required")
-    if grant.get("proxyPort") != 6408 or not isinstance(grant.get("proxyHost"), str):
-        # Legacy inspector currently hardcodes :6408. No silent port fallback.
-        raise RuntimeError("Unsupported proxy port")
+    if type(grant.get("proxyPort")) is not int or not 1 <= grant["proxyPort"] <= 65535 or not isinstance(grant.get("proxyHost"), str):
+        raise RuntimeError("Invalid pinned proxy port")
     if not grant.get("proxyVersion") or not grant.get("siteVersion"):
         raise RuntimeError("Pinned configuration versions required")
     url = urlsplit(grant.get("siteUrl", ""))
@@ -44,6 +43,7 @@ def run_readonly_profile_check(grant, account_id, profile_id):
     from intimcity_profile_lookup import inspect
     names = {
         "PROXY_HOST": grant["proxyHost"],
+        "PROXY_PORT": str(grant["proxyPort"]),
         "PROXY_USERNAME": grant["proxyUsername"],
         "PROXY_PASSWORD": grant["proxyPassword"],
         "EXPECTED_EGRESS_IP": grant["expectedIp"],
