@@ -575,7 +575,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          p?.proxyVerified===true&&p?.ipVerified===true&&
          browser.status==="verified"&&browser.ipVerified===true&&browser.siteReachable===true;
        return [x.id,{technicalReady:ready,loginCode:login.code,loginStatus:login.status,
-         loginVerifiedAt:ready?login.finishedAt:null,siteIdentityVerified:false,canPublish:false}];
+         loginVerifiedAt:ready?login.finishedAt:null,
+         siteIdentityVerified:ready&&login.siteIdentityVerified===true,canPublish:false}];
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
    const approvalEntries=await Promise.all(inventory.accounts.map(async x=>{
