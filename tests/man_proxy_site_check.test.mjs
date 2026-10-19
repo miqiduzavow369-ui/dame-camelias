@@ -49,3 +49,54 @@ test("failed or forbidden site request cannot perform a trusted check",async()=>
  assert.equal((await proxyStatus(store,identity)).proxyVerified,false);
  assert.equal(map.get("man-proxy-sealed-v1:yan_second").enabled,false);
 });
+
+test("HTTP CONNECT via Dolphin proxy authenticates before TLS and never verifies IP",async()=>{
+ const {store,map}=storage();
+ await saveProxy(store,env,{...identity,expectedVersion:0,at:1,
+  settings:{...secrets,protocol:"http",port:6408}});
+ let request="",siteRequest="";
+ const utf8=new TextEncoder();
+ const fakeResponse=bytes=>({getReader(){return {async read(){return {done:false,value:utf8.encode(bytes)}},releaseLock(){}}}});
+ const proxySocket={
+  opened:Promise.resolve(),
+  readable:fakeResponse("HTTP/1.1 200 Connection established\r\n\r\n"),
+  writable:{getWriter(){return {async write(data){request=new TextDecoder().decode(data)},releaseLock(){}}}},
+  startTls({expectedServerHostname}) {
+   assert.equal(expectedServerHostname,"a.intimcity.rip");
+   return {
+    opened:Promise.resolve(),
+    readable:fakeResponse("HTTP/1.1 200 OK\r\n"),
+    writable:{getWriter(){return {async write(data){siteRequest=new TextDecoder().decode(data)},releaseLock(){}}}},
+    close(){}
+   };
+  },close(){}
+ };
+ const result=await checkManSiteThroughProxy(store,env,
+  {...identity,expectedVersion:1,siteUrl:"https://a.intimcity.rip/"},
+  null,()=>proxySocket);
+ assert.equal(result.protocol,"http");
+ assert.equal(result.reachable,true);
+ assert.equal(result.ipVerified,false);
+ assert.equal(result.identityVerified,false);
+ assert.equal(result.canPublish,false);
+ assert.match(request,/^CONNECT a\.intimcity\.rip:443 HTTP\/1\.1/);
+ assert.match(request,/Proxy-Authorization: Basic /);
+ assert.doesNotMatch(siteRequest,/Proxy-Authorization/i);
+ assert.equal(map.get("man-proxy-sealed-v1:yan_second").enabled,false);
+});
+test("HTTP CONNECT 407 fails closed without credential disclosure",async()=>{
+ const {store}=storage();
+ await saveProxy(store,env,{...identity,expectedVersion:0,at:1,
+  settings:{...secrets,protocol:"http",port:6408}});
+ const fake={
+  opened:Promise.resolve(),close(){},
+  readable:{getReader(){return {async read(){return {done:false,value:new TextEncoder().encode("HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")}},releaseLock(){}}}},
+  writable:{getWriter(){return {async write(){},releaseLock(){}}}}
+ };
+ const result=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://a.intimcity.rip/"},
+  null,()=>fake);
+ assert.equal(result.code,"http_proxy_auth_failed");
+ assert.equal(result.reachable,false);
+ assert.equal(result.canPublish,false);
+ assert.ok(!JSON.stringify(result).includes(secrets.password));
+});
