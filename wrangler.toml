@@ -21,4 +21,6 @@ new_sqlite_classes = ["OrderReminder"]
 [vars]
 CABINET_CLIENTS_ENABLED = "true"
 CABINET_PUBLICATIONS_ENABLED = "true"
+# Public callback endpoint; authentication remains ANKETA_CALLBACK_TOKEN secret.
+ANKETA_CALLBACK_URL = "https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result"
 
