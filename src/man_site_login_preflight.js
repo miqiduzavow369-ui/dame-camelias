@@ -115,7 +115,7 @@ export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},e
    const credential=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
     accountId+":intimcity:"+proxy.version);
    const observed=String(credential.login||"").trim().toLowerCase();
-   if(!/^[a-z0-9][a-z0-9_.+-]{0,63}@[a-z0-9.-]{1,120}\\.[a-z]{2,24}$/.test(observed))
+   if(!/^[a-z0-9][a-z0-9_.+-]{0,63}@[a-z0-9.-]{1,120}\.[a-z]{2,24}$/.test(observed))
     throw Error("Identity evidence unavailable");
    await tx.put("secondary-site-identity-v1:"+accountId,{
     accountId,siteAccountId:observed,proxyVersion:proxy.version,
