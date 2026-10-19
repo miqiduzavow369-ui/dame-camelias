@@ -122,14 +122,23 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
    ":443\r\nProxy-Authorization: Basic "+auth+"\r\nProxy-Connection: keep-alive\r\n\r\n"));
   let header=new Uint8Array(0),end=-1;
   while(header.length<8192&&end<0){
-   const next=await reader.read();if(next.done)throw Error("http_connect_invalid_response");
+   const next=await reader.read();
+   if(next.done)throw Error(header.length?"http_connect_incomplete_headers":"http_connect_empty_response");
    const merged=new Uint8Array(header.length+next.value.length);
    merged.set(header);merged.set(next.value,header.length);header=merged;
-   for(let i=3;i<header.length;i++)if(header[i-3]===13&&header[i-2]===10&&header[i-1]===13&&header[i]===10){end=i+1;break}
+   // HTTP proxy responses may arrive split across TCP chunks. Accept CRLF or LF terminators.
+   for(let i=1;i<header.length;i++){
+    if(i>=3&&header[i-3]===13&&header[i-2]===10&&header[i-1]===13&&header[i]===10){end=i+1;break}
+    if(header[i-1]===10&&header[i]===10){end=i+1;break}
+   }
   }
-  if(end<0||end!==header.length)throw Error("http_connect_invalid_response");
-  const match=/^HTTP\/1\.[01] (\d{3})(?:\s|$)/.exec(new TextDecoder().decode(header).split("\r\n")[0]);
-  if(!match)throw Error("http_connect_invalid_response");
+  if(end<0)throw Error("http_connect_headers_too_large");
+  // Unexpected tunnel bytes cannot be pushed back into a Cloudflare TCP socket.
+  // Report distinctly instead of falsely classifying the proxy as unreachable.
+  if(end!==header.length)throw Error("http_connect_unexpected_payload");
+  const firstLine=new TextDecoder().decode(header.slice(0,end)).split(/\r?\n/)[0];
+  const match=/^HTTP\/1\.[01] +(\d{3})(?:\s|$)/.exec(firstLine);
+  if(!match)throw Error("http_connect_bad_status_line");
   httpProxyStatus=Number(match[1]);
   if(httpProxyStatus===407)throw Error("http_proxy_auth_failed");
   if(httpProxyStatus!==200)throw Error("http_connect_rejected");
@@ -149,7 +158,7 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
   if(!status)throw Error("invalid_site_response");
   return {httpStatus:Number(status[1])};
  }catch(error){
-  const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","invalid_site_response"];
+  const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line","invalid_site_response"];
   const codes={tcp:"tcp_connect_failed",connect:"http_connect_failed",tls:"tls_tunnel_failed",site:"site_response_failed"};
   const out=new Error(known.includes(error?.message)?error.message:codes[stage]||"site_check_failed");
   if(out.message==="http_connect_rejected")out.httpProxyStatus=httpProxyStatus;
@@ -185,7 +194,7 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
   const codes=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed","proxy_target_rejected",
    "invalid_proxy_response","invalid_site_response","tcp_connect_failed",
    "socks_handshake_failed","tls_tunnel_failed","site_response_failed","site_check_timeout",
-   "http_proxy_auth_failed","http_connect_failed","http_connect_rejected","http_connect_invalid_response"]);
+   "http_proxy_auth_failed","http_connect_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line"]);
   code=codes.has(error?.message)?error.message:"site_check_failed";
   socksReply=Number.isInteger(error?.socksReply)?error.socksReply:null;
   httpProxyStatus=Number.isInteger(error?.httpProxyStatus)?error.httpProxyStatus:null;

@@ -100,3 +100,43 @@ test("HTTP CONNECT 407 fails closed without credential disclosure",async()=>{
  assert.equal(result.canPublish,false);
  assert.ok(!JSON.stringify(result).includes(secrets.password));
 });
+
+test("HTTP CONNECT accepts split response headers and LF-only headers",async()=>{
+ const {store}=storage();
+ await saveProxy(store,env,{...identity,expectedVersion:0,at:1,settings:{...secrets,protocol:"http",port:6408}});
+ const enc=new TextEncoder();
+ for(const chunks of [
+  ["HTTP/1.1 200 Connection", " established\r\nProxy-Agent: safe\r\n", "\r\n"],
+  ["HTTP/1.0 200 OK\n\n"]
+ ]){
+  let index=0;
+  const response={opened:Promise.resolve(),close(){},
+   readable:{getReader(){return {async read(){return {done:false,value:enc.encode(chunks[Math.min(index++,chunks.length-1)])}},releaseLock(){}}}},
+   writable:{getWriter(){return {async write(){},releaseLock(){}}}},
+   startTls(){return {opened:Promise.resolve(),close(){},
+    readable:{getReader(){return {async read(){return {done:false,value:enc.encode("HTTP/1.1 200 OK\r\n")}},releaseLock(){}}}},
+    writable:{getWriter(){return {async write(){},releaseLock(){}}}}
+   }}
+  };
+  const out=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://b.intimcity.rip/"},null,()=>response);
+  assert.equal(out.reachable,true);
+  assert.equal(out.ipVerified,false);
+ }
+});
+test("HTTP CONNECT reports malformed reply and unexpected tunnel data separately",async()=>{
+ const {store}=storage();
+ await saveProxy(store,env,{...identity,expectedVersion:0,at:1,settings:{...secrets,protocol:"http",port:6408}});
+ for(const [raw,expected] of [
+  ["HELLO\r\n\r\n","http_connect_bad_status_line"],
+  ["HTTP/1.1 200 OK\r\n\r\nEXTRA","http_connect_unexpected_payload"]
+ ]){
+  const fake={opened:Promise.resolve(),close(){},
+   readable:{getReader(){return {async read(){return {done:false,value:new TextEncoder().encode(raw)}},releaseLock(){}}}},
+   writable:{getWriter(){return {async write(){},releaseLock(){}}}}
+  };
+  const out=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://b.intimcity.rip/"},null,()=>fake);
+  assert.equal(out.code,expected);
+  assert.equal(out.reachable,false);
+  assert.equal(out.canPublish,false);
+ }
+});
