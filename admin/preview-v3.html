@@ -372,6 +372,7 @@ function renderManPrivateForm(){
  (!p?'<div class="hint">Загрузка защищённых данных…</div>':
  '<form class="card" onsubmit="saveManPrivate(event)" autocomplete="off">'+
  f('privateTechnical','Техническое имя / Email',v.technicalName,'type="email" maxlength="254" required autocapitalize="off"')+
+ (legacy?'':f('privateSiteLogin','Логин Intimcity / Email',v.siteLogin,'type="email" maxlength="254" autocapitalize="off"'))+
  (legacy?'<div class="note">Для Яна Первого изменяется только техническое имя. Прокси и работающий механизм не затрагиваются.</div>':
  f('privateHost','Адрес прокси IPv4',v.host,'required inputmode="decimal"')+
  f('privateHttp','Порт HTTP(S)',v.httpPort,'type="number" min="1" max="65535" required')+
@@ -391,6 +392,7 @@ async function saveManPrivate(event){
  const id=selectedManId;
  const settings={technicalName:document.getElementById('privateTechnical').value.trim()};
  if(id!=='yan_first')Object.assign(settings,{
+  siteLogin:document.getElementById('privateSiteLogin').value.trim(),
   host:document.getElementById('privateHost').value.trim(),
   httpPort:Number(document.getElementById('privateHttp').value),
   socksPort:Number(document.getElementById('privateSocks').value),
@@ -407,35 +409,45 @@ async function saveManPrivate(event){
 function renderManPrivateImport(){
  return back("go('men')")+'<div class="mini">OWNER ONLY / МАССОВЫЙ ВВОД</div>'+
  '<h1>🔐 Импорт 30 аккаунтов</h1>'+
- '<div class="note">Скопируйте из Excel все 30 строк вместе с заголовком: старое имя, новое имя, технический email, IP, порт HTTP(S), порт SOCKS5, логин. Пароли не включать. Сохранение атомарное, только если ранее черновики ещё не создавались.</div>'+
+ '<div class="note">Скопируйте из Excel все 30 строк (можно с заголовком). Формат: старое имя, новое имя, технический email, логин Intimcity, пароль Intimcity (пусто), IP, HTTP(S), SOCKS5, логин прокси, пароль прокси (пусто). Пароли не вставляйте и не отправляйте в этот импорт. Если ранее черновики созданы, импорт будет отклонён.</div>'+
  '<form class="card" onsubmit="saveManPrivateImport(event)">'+
  '<label for="privateImportData">Таблица из Excel</label>'+
- '<textarea class="field" id="privateImportData" rows="9" required placeholder="Выделите таблицу в Excel, скопируйте и вставьте сюда"></textarea>'+
+ '<textarea class="field" id="privateImportData" rows="9" required placeholder="Вставьте 30 строк из Excel без паролей"></textarea>'+
  '<button class="primary" type="submit" '+(privateImportBusy?'disabled':'')+'>🔐 Проверить и сохранить 30 записей</button></form>'+
- '<div class="watermark">Таблица не включается в GitHub. Все записи шифруются до сохранения.</div>';
+ '<div class="watermark">Логины шифруются на сервере. Пароли отдельно, после проверки прокси.</div>';
 }
 async function saveManPrivateImport(event){
  event.preventDefault();if(privateImportBusy)return;
  const value=document.getElementById('privateImportData').value;
- const lines=value.trim().split(/\r?\n/).filter(Boolean);
+ const lines=value.replace(/\r/g,'').split('\n').filter(x=>x.trim().length>0);
  if(lines[0]?.toLocaleLowerCase('ru').includes('старое имя'))lines.shift();
  if(lines.length!==30){toast('Необходимо ровно 30 строк');return;}
+ const ordinals=['Первый','Второй','Третий','Четвёртый','Пятый','Шестой','Седьмой','Восьмой','Девятый','Десятый','Одиннадцатый','Двенадцатый','Тринадцатый','Четырнадцатый','Пятнадцатый','Шестнадцатый','Семнадцатый','Восемнадцатый','Девятнадцатый','Двадцатый','Двадцать первый','Двадцать второй','Двадцать третий','Двадцать четвёртый','Двадцать пятый','Двадцать шестой','Двадцать седьмой','Двадцать восьмой','Двадцать девятый','Тридцатый'];
  const rows=[];
  for(let i=0;i<30;i++){
   const x=manAccounts.find(m=>m.number===i+1),cols=lines[i].split('\t').map(c=>c.trim());
-  if(!x||cols.length<7||cols[0].toLocaleLowerCase('ru')!=='ян '+['Первый','Второй','Третий','Четвёртый','Пятый','Шестой','Седьмой','Восьмой','Девятый','Десятый','Одиннадцатый','Двенадцатый','Тринадцатый','Четырнадцатый','Пятнадцатый','Шестнадцатый','Семнадцатый','Восемнадцатый','Девятнадцатый','Двадцатый','Двадцать первый','Двадцать второй','Двадцать третий','Двадцать четвёртый','Двадцать пятый','Двадцать шестой','Двадцать седьмой','Двадцать восьмой','Двадцать девятый','Тридцатый'][i].toLocaleLowerCase('ru')||cols[1]!==x.name){
-   toast('Проверьте соответствие строки '+(i+1)+' и имени мужчины');return;
+  const tenCols=cols.length===10,sevenCols=cols.length===7;
+  if(!x||(!tenCols&&!sevenCols)||
+    cols[0].toLocaleLowerCase('ru')!=='ян '+ordinals[i].toLocaleLowerCase('ru')||
+    cols[1]!==x.name){toast('Неверное имя или число столбцов в строке '+(i+1));return;}
+  if(tenCols&&(cols[4]!==''||cols[9]!=='')){
+   toast('Удалите пароли из таблицы (строка '+(i+1)+')');return;
   }
-  rows.push({accountId:x.id,settings:i===0?{technicalName:cols[2]}:{
-   technicalName:cols[2],host:cols[3],httpPort:Number(cols[4]),socksPort:Number(cols[5]),username:cols[6]}});
+  const settings=i===0?{technicalName:cols[2]}:sevenCols?{
+   technicalName:cols[2],siteLogin:'',host:cols[3],
+   httpPort:Number(cols[4]),socksPort:Number(cols[5]),username:cols[6]
+  }:{
+   technicalName:cols[2],siteLogin:cols[3],host:cols[5],
+   httpPort:Number(cols[6]),socksPort:Number(cols[7]),username:cols[8]
+  };
+  rows.push({accountId:x.id,settings});
  }
  privateImportBusy=true;
- try{const r=await callAdmin('man_private_import',{rows});
+ try{
+  const r=await callAdmin('man_private_import',{rows});
   if(r.imported!==30||r.canPublish!==false)throw Error('Некорректный ответ');
-  document.getElementById('privateImportData').value='';
-  toast('🔒 30 технических записей сохранены');
-  go('men');
- }catch(e){toast('Импорт отклонён: записи уже существуют или данные некорректны')}
+  toast('🔒 30 записей сохранены');go('men');
+ }catch(e){toast('Импорт отклонён. Проверьте данные или существующие записи.')}
  finally{privateImportBusy=false;render()}
 }
 
@@ -481,7 +493,7 @@ function renderManSiteForm(){
  '<div class="men-detail-hero"><span class="pill">🔒 Публикации выключены</span><div class="hint">'+(st?.configured?'Логин и пароль сохранены зашифрованными; вход ещё не проверен.':'Данные Intimcity ещё не сохранены.')+'</div></div>'+
  '<form id="manSiteForm" class="card" autocomplete="off" onsubmit="saveManSite(event)">'+
  '<label for="manSiteUrl">Ссылка на сайт Intimcity</label><input class="field" id="manSiteUrl" type="url" required placeholder="https://a.intimcity.rip/" value="'+esc(st?.siteUrl||'https://a.intimcity.rip/')+'" autocapitalize="off" spellcheck="false">'+
- '<label for="manSiteLogin">Логин Intimcity (E-mail)</label><input class="field" id="manSiteLogin" maxlength="256" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Логин мужского аккаунта">'+
+ '<label for="manSiteLogin">Логин Intimcity (E-mail)</label><input class="field" id="manSiteLogin" maxlength="256" required autocomplete="off" autocapitalize="off" spellcheck="false" value="'+esc(privateDraft?.accountId===x.id?privateDraft?.settings?.siteLogin||'':'')+'" placeholder="Логин мужского аккаунта">'+
  '<label for="manSitePassword">Пароль Intimcity</label><input class="field" id="manSitePassword" type="password" maxlength="512" required autocomplete="new-password" placeholder="Пароль мужского аккаунта">'+
  '<div class="note">Пароль не будет показан повторно. Изменение логина, пароля или ссылки требует новой проверки входа.</div>'+
  '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+(siteSaving?'Сохранение…':'🔐 Зашифровать реквизиты')+'</button></form>')+
