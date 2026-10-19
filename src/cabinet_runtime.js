@@ -363,7 +363,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        method:"POST",
        headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,"Accept":"application/vnd.github+json",
         "X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
-       body:JSON.stringify({ref:rawEnv.CABINET_ACTIONS_REF||"main",
+       body:JSON.stringify({ref:"main",
         inputs:{account_id:accountId,nonce,site_host:host}}),
        signal:AbortSignal.timeout(15000)
       });
