@@ -13,18 +13,20 @@ function validate(x){
 function key(i){
  return manStorageKey({userId:i.userId,accountId:i.accountId,profileId:i.profileId,scope:"operation"})+":"+i.kind+":"+i.nonce+":ledger";
 }
-function uniqueNonce(i){
- // Ledger's existing claim dimensions exclude accountId. Preserve its atomic
- // idempotency by deriving a deterministic 12-hex claim ID from full identity.
- // Avoid hashing credentials, passwords, or personal data into public proof.
- return i.nonce; // safe only after checking for shared-claim collision below
+async function uniqueNonce(i){
+ // Ledger keys omit accountId. Namespace the idempotency nonce with a stable
+ // SHA-256 digest of full operation identity so two men never share one claim.
+ const encoded=new TextEncoder().encode(
+  ["secondary-ledger-v1",i.userId,i.accountId,i.profileId,i.kind,i.nonce].join(":"));
+ const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",encoded));
+ return Array.from(digest.slice(0,6),b=>b.toString(16).padStart(2,"0")).join("");
 }
 export async function reserveSecondaryFeedbackCredit(storage,env,source,{independentAuthorConfirmed,moderatorApproved}={}){
  const i=validate(source);
  if(independentAuthorConfirmed!==true||(i.kind==="review"&&moderatorApproved!==true))
   throw Error("Independent and moderated feedback required");
  if(typeof storage.transaction!=="function")throw Error("Atomic storage required");
- const claimKey=key(i),ledgerNonce=uniqueNonce(i);
+ const claimKey=key(i),ledgerNonce=await uniqueNonce(i);
  // DO ledger already partitions claims by client+kind+profile+nonce; different
  // men MUST NOT share that same tuple even if their callback nonce matches.
  await storage.transaction(async tx=>{
