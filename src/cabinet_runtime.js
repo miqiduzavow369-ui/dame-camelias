@@ -307,7 +307,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
   try{return await startSiteLoginCheck(storage,rawEnv,{
     actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId,
-    expectedVersion:event.expectedVersion,at:Date.now()
+    expectedVersion:event.expectedVersion,retry:event.retry===true,at:Date.now()
   },async ({accountId,nonce,siteHost})=>{
     if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
     if(!rawEnv.ANKETA_CALLBACK_TOKEN)return {ok:false,reason:"callback_token_missing"};
