@@ -121,6 +121,15 @@ export async function handleAdminApi(request,env){
      accountId:body.accountId,expectedVersion:body.expectedVersion,settings:body.settings});
    return respond(result,result?.ok?200:result?.status===403?403:409);
   }
+  if(action==="secondary_man_approval_status"||action==="secondary_man_approval_set"){
+   const result=await cabinetRPC(env,OWNER_ID,{
+     kind:"admin_secondary_man_approval",actorId:OWNER_ID,
+     action:action==="secondary_man_approval_set"?"set":"status",
+     accountId:body.accountId,expectedVersion:body.expectedVersion,
+     approved:body.approved
+   });
+   return respond(result,result?.ok?200:result?.status===403?403:result?.status===400?400:409);
+  }
   if(action==="man_accounts"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_registry",actorId:OWNER_ID});
    return respond(result,result?.ok?200:result?.status===403?403:503);
