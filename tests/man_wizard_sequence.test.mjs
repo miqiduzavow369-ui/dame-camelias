@@ -24,7 +24,8 @@ test("legacy Yan First is immutable and remains on its own screen",()=>{
  const block=html.slice(html.indexOf("function renderManConsole(){"),html.indexOf("function renderManSiteForm(){"));
  assert.match(block,/if\(legacy\)\{/);
  assert.match(block,/Настройки и публикации работают по прежнему маршруту/);
- assert.match(block,/const identityOK=false/);
+ assert.match(block,/login\?\.technicalReady===true/);
+ assert.match(block,/const legacy=x\.id==='yan_first'/);
 });
 test("wizard refresh loads browser status from authenticated endpoint",()=>{
  const refresh=html.slice(html.indexOf("async function refreshManWizard("),html.indexOf("async function reloadManHistory("));

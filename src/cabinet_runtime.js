@@ -466,9 +466,25 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          expectedIp:status.expectedIp,updatedAt:status.updatedAt}];
      }catch{return [x.id,null];}
    }));
+   const readinessEntries=await Promise.all(inventory.accounts.map(async x=>{
+     if(x.id==="yan_first")return [x.id,null];
+     try{
+       const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id};
+       const [login,site,browser]=await Promise.all([
+         siteLoginStatus(storage,params),readSiteStatus(storage,params),browserCheckStatus(storage,params)]);
+       const p=proxyMap.get(x.id);
+       const ready=login.technicalReady===true&&site.configured===true&&
+         p?.proxyVerified===true&&p?.ipVerified===true&&
+         browser.status==="verified"&&browser.ipVerified===true&&browser.siteReachable===true;
+       return [x.id,{technicalReady:ready,loginCode:login.code,loginStatus:login.status,
+         loginVerifiedAt:ready?login.finishedAt:null,siteIdentityVerified:false,canPublish:false}];
+     }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
+   }));
+   const readinessMap=new Map(readinessEntries);
    const proxyMap=new Map(proxyEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
+     readiness:readinessMap.get(x.id)??null,
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }

@@ -19,9 +19,13 @@ async function decrypt(hex,iv,sealed,aad){
 export async function siteLoginStatus(storage,p){
  auth(p);
  const [run,site,proxy]=await Promise.all([storage.get(PREFIX+p.accountId),storage.get(SITE+p.accountId),storage.get(PROXY+p.accountId)]);
- if(!run||run.siteVersion!==site?.version||run.proxyVersion!==proxy?.version)return safe({accountId:p.accountId});
- if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRY)return safe({...run,status:"timed_out",code:"check_expired",retryAvailable:true});
- return safe({...run,retryAvailable:run.status==="running"&&!run.claimed&&Date.now()-run.startedAt>=RESTART_AFTER});
+ if(!run||run.siteVersion!==site?.version||run.proxyVersion!==proxy?.version)return {...safe({accountId:p.accountId}),technicalReady:false,connectionVerified:false};
+ const verified=run.status==="completed"&&run.code==="login_authenticated_identity_unconfirmed"&&
+   run.accountId===p.accountId&&site?.accountId===p.accountId&&proxy?.accountId===p.accountId&&
+   site?.boundProxyVersion===proxy?.version&&proxy.proxyVerified===true&&proxy.ipVerified===true;
+ if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRY)return {...safe({...run,status:"timed_out",code:"check_expired",retryAvailable:true}),technicalReady:false};
+ return {...safe({...run,retryAvailable:run.status==="running"&&!run.claimed&&Date.now()-run.startedAt>=RESTART_AFTER}),
+  technicalReady:verified,connectionVerified:verified};
 }
 export async function startSiteLoginCheck(storage,env,p,dispatch){
  auth(p);
