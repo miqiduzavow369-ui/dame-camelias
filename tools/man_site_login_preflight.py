@@ -84,7 +84,9 @@ def main():
         # Show only a response status, not the URL, response body or credentials.
         response_type=(exc.headers.get("Content-Type","").split(";",1)[0].lower())
         response_kind="json" if response_type=="application/json" else ("html" if response_type=="text/html" else "other")
-        print(f"SITE_LOGIN_STAGE: secure_claim_http_{exc.code}; response_kind={response_kind}",flush=True)
+        marker=exc.headers.get("X-DC-Callback-Handler","")
+        handler="worker_token_rejected" if marker=="token_rejected" else "unconfirmed_origin"
+        print(f"SITE_LOGIN_STAGE: secure_claim_http_{exc.code}; response_kind={response_kind}; handler={handler}",flush=True)
         raise RuntimeError("Secure credential claim rejected") from None
     except urllib.error.URLError:
         print("SITE_LOGIN_STAGE: secure_claim_network_failure",flush=True)
