@@ -1,0 +1,25 @@
+name: Diagnose man login callback authentication
+on:
+  push:
+    branches:
+      - main
+      - diagnostics/callback-auth-handshake-oct19
+    paths:
+      - '.github/workflows/man-callback-auth-probe.yml'
+      - 'tools/man_callback_auth_probe.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auth-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compare callback authentication with dummy nonce
+        env:
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+        run: python tools/man_callback_auth_probe.py
