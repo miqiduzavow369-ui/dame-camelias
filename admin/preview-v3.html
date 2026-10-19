@@ -501,10 +501,14 @@ async function checkManSiteNow(event){
   const result=await callAdmin('man_site_reachability',{accountId:id,expectedVersion:proxy.version,siteUrl});
   if(id!==selectedManId)return;
   siteProbeResult=result;
-  if(result.reachable)toast('Сайт ответил через SOCKS5. IP и вход пока не подтверждены.');
+  if(result.reachable)toast('Сайт ответил через '+(result.protocol==='http'?'HTTP-прокси':'SOCKS5')+'. IP и вход пока не подтверждены.');
   else{
    const reasons={
-    unsupported_protocol:'Для этого теста выбери протокол SOCKS5.',
+    unsupported_protocol:'Поддерживаются HTTP CONNECT и SOCKS5. Для Dolphin выбери HTTP и порт 6408.',
+    http_proxy_auth_failed:'HTTP-прокси отклонил логин или пароль (407).',
+    http_connect_rejected:'HTTP-прокси отклонил CONNECT к Intimcity.',
+    http_connect_failed:'Не удалось открыть HTTPS-туннель через HTTP-прокси.',
+    http_connect_invalid_response:'HTTP-прокси вернул некорректный ответ CONNECT.',
     tcp_connect_failed:'Невозможно соединиться с адресом и портом прокси.',
     socks_handshake_failed:'Порт не ответил как SOCKS5.',
     proxy_auth_failed:'Логин или пароль прокси отклонён.',
@@ -518,6 +522,7 @@ async function checkManSiteNow(event){
    };
    siteProbeError=(reasons[result.code]||'Не удалось проверить доступность сайта.')+
     (Number.isInteger(result.socksReply)?' SOCKS5: '+result.socksReply+'.':'')+
+    (Number.isInteger(result.httpProxyStatus)?' HTTP CONNECT: '+result.httpProxyStatus+'.':'')+
     ' Код: '+String(result.code||'unknown')+'.';
   }
  }catch(e){if(id===selectedManId)siteProbeError='Ошибка серверной проверки: '+String(e.message).slice(0,80);}
@@ -606,7 +611,7 @@ function renderManConsole(){
  '<p class="hint">Это отдельная проверка доступности сайта. Она не подтверждает внешний IP, не входит в аккаунт и не активирует публикации.</p>'+
  '<label for="manSiteProbeUrl">HTTPS-ссылка на сайт</label>'+
  '<input id="manSiteProbeUrl" class="field" type="url" autocomplete="off" required value="'+esc(siteProbeUrl)+'" placeholder="https://a.intimcity.rip/">'+
- '<button type="submit" class="primary" '+(siteProbing?'disabled':'')+'>'+(siteProbing?'Проверяем…':'Проверить сайт через SOCKS5')+'</button>'+
+ '<button type="submit" class="primary" '+(siteProbing?'disabled':'')+'>'+(siteProbing?'Проверяем…':'Проверить сайт через сохранённый прокси')+'</button>'+
  (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
  (siteProbeResult?.reachable?'<p class="success">✓ Intimcity ответил через прокси. HTTP '+Number(siteProbeResult.httpStatus)+'. IP и вход не подтверждены.</p>':'')+
  '</form>':'')+
@@ -675,6 +680,11 @@ async function saveManSite(event){
  }finally{siteSaving=false;if(selectedManId===id)render();}
 }
 
+function selectManProxyProtocol(protocol){
+ const field=document.getElementById('proxyPort');
+ const config=privateDraft?.settings||{};
+ if(field)field.value=protocol==='http'?(config.httpPort||''):(config.socksPort||'');
+}
 function renderManProxyForm(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
@@ -686,9 +696,9 @@ function renderManProxyForm(){
  '</p><div class="hint">Ожидаемый IP: '+esc(st?.expectedIp||'не указан')+' · Проверка выхода: не выполнена</div></div>'+
  (proxyVaultError?'<div class="error" role="alert">'+esc(proxyVaultError)+'</div>':'')+
  '<form id="manProxyForm" class="card" onsubmit="saveManProxy(event)" autocomplete="off">'+
- '<label for="proxyProtocol">Протокол</label><select class="field" id="proxyProtocol" required><option value="socks5">SOCKS5</option><option value="http">HTTP</option><option value="https">HTTPS</option></select>'+
+ '<label for="proxyProtocol">Протокол</label><select class="field" id="proxyProtocol" required onchange="selectManProxyProtocol(this.value)"><option value="http" '+(st?.protocol==='http'||!st?.protocol?'selected':'')+'>HTTP · Dolphin</option><option value="socks5" '+(st?.protocol==='socks5'?'selected':'')+'>SOCKS5</option></select>'+
  '<label for="proxyHost">Адрес прокси / хост</label><input id="proxyHost" class="field" maxlength="253" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="proxy.example.com" required autocapitalize="off" spellcheck="false">'+
- '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" value="'+esc(privateDraft?.settings?.socksPort||'')+'" placeholder="1080">'+
+ '<label for="proxyPort">Порт</label><input id="proxyPort" class="field" type="number" min="1" max="65535" required inputmode="numeric" value="'+esc((st?.protocol==='socks5'?privateDraft?.settings?.socksPort:privateDraft?.settings?.httpPort)||'')+'" placeholder="6408">'+
  '<label for="proxyUsername">Логин прокси (если есть)</label><input id="proxyUsername" class="field" maxlength="256" value="'+esc(privateDraft?.settings?.username||'')+'" autocapitalize="off" spellcheck="false">'+
  '<label for="proxyPassword">Индивидуальный пароль прокси</label><input id="proxyPassword" class="field" type="password" maxlength="512" required autocomplete="new-password">'+
  '<label for="proxyExpectedIp">Закреплённый внешний IPv4</label><input id="proxyExpectedIp" class="field" inputmode="decimal" value="'+esc(privateDraft?.settings?.host||'')+'" placeholder="203.x.x.x" required autocapitalize="off" spellcheck="false">'+
