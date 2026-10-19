@@ -150,7 +150,7 @@ test("HTTP tunnel distinguishes an empty Intimcity response after GET",async()=>
  const textEncoder=new TextEncoder();
  let requested=false;
  const socket={opened:Promise.resolve(),close(){},
-  readable:{getReader(){return {async read(){return {done:false,value:textEncoder.encode("HTTP/1.1 200 Connection established\\r\\n\\r\\n".replaceAll("\\\\r","\\r").replaceAll("\\\\n","\\n"))}},releaseLock(){}}}},
+  readable:{getReader(){return {async read(){return {done:false,value:textEncoder.encode("HTTP/1.1 200 Connection established\r\n\r\n")}},releaseLock(){}}}},
   writable:{getWriter(){return {async write(){},releaseLock(){}}}},
   startTls(){return {opened:Promise.resolve(),close(){},
     writable:{getWriter(){return {async write(buf){requested=new TextDecoder().decode(buf).startsWith("GET /")},releaseLock(){}}}},
