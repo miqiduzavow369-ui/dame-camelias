@@ -21,5 +21,5 @@ test('ADMIN network indicator never trusts displayed connection status alone',()
  assert.match(html,/if\(x\?\.id==='yan_first'\)return \{proxy:'unknown',site:'unknown'\}/);
  assert.match(html,/if\(!n\|\|n\.configured!==true\)return \{proxy:'off',site:'off'\}/);
  assert.match(html,/n\.proxyVerified===true&&n\.ipVerified===true/);
- assert.match(html,/proxy==='ok'&&n\.siteIdentityVerified===true/);
+ assert.match(html,/proxy==='ok'&&x\.readiness\?\.technicalReady===true/);
 });
