@@ -404,7 +404,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{
     return await startBrowserCheck(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
       accountId:event.accountId,expectedVersion:event.expectedVersion,
-      siteUrl:event.siteUrl,at:Date.now()},async ({accountId,nonce,host})=>{
+      siteUrl:event.siteUrl,retry:event.retry===true,at:Date.now()},async ({accountId,nonce,host})=>{
       if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
       if(!rawEnv.ANKETA_CALLBACK_TOKEN)return {ok:false,reason:"callback_token_missing"};
       if(!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_url_missing"};
@@ -466,6 +466,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          expectedIp:status.expectedIp,updatedAt:status.updatedAt}];
      }catch{return [x.id,null];}
    }));
+   const proxyMap=new Map(proxyEntries);
    const readinessEntries=await Promise.all(inventory.accounts.map(async x=>{
      if(x.id==="yan_first")return [x.id,null];
      try{
@@ -481,7 +482,6 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
    const readinessMap=new Map(readinessEntries);
-   const proxyMap=new Map(proxyEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,

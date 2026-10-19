@@ -15,7 +15,8 @@ function sample(id,version=1,loginVersion=1){
   ["man-site-login-check-v1:"+id,{accountId:id,status:"completed",code:readyCode,
      proxyVersion:version,siteVersion:loginVersion,finishedAt:100}],
   ["man-intimcity-sealed-v1:"+id,{accountId:id,version:loginVersion,boundProxyVersion:version}],
-  ["man-proxy-sealed-v1:"+id,{accountId:id,version,proxyVerified:true,ipVerified:true}]
+  ["man-proxy-sealed-v1:"+id,{accountId:id,version,proxyVerified:true,ipVerified:true}],
+  ["man-browser-check-v1:"+id,{accountId:id,proxyVersion:version,status:"verified",siteReachable:true}]
  ]);
  return {storage:{get:async k=>values.get(k),put:async(k,v)=>values.set(k,v)},values};
 }
@@ -53,6 +54,9 @@ test("an incomplete or foreign identity never counts as a verified login",async(
  const z=sample(id);
  z.values.set("man-proxy-sealed-v1:"+id,{...z.values.get("man-proxy-sealed-v1:"+id),ipVerified:false});
  assert.equal((await siteLoginStatus(z.storage,p)).technicalReady,false);
+ const failedBrowser=sample(id);
+ failedBrowser.values.set("man-browser-check-v1:"+id,{...failedBrowser.values.get("man-browser-check-v1:"+id),status:"failed"});
+ assert.equal((await siteLoginStatus(failedBrowser.storage,p)).technicalReady,false);
  await assert.rejects(siteLoginStatus(z.storage,{...owner,accountId:"yan_first"}),/Legacy/);
 });
 test("ADMIN reflects owner-only individual verified login state, without enabling publication",()=>{

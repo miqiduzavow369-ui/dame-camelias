@@ -40,7 +40,8 @@ export async function readSiteStatus(storage,{actorId,cabinetId,ownerId,accountI
  auth(actorId,cabinetId,ownerId,accountId);
  const [raw,proxy]=await Promise.all([storage.get(PREFIX+accountId),storage.get(PROXY_PREFIX+accountId)]);
  const validProxy=proxy?.accountId===accountId&&proxy.proxyVerified===true&&proxy.ipVerified===true&&
-                   Number.isSafeInteger(proxy.version)&&proxy.version>0;
+                   Number.isSafeInteger(proxy.version)&&proxy.version>0&&
+                   raw?.accountId===accountId&&raw?.boundProxyVersion===proxy.version;
  return {ok:true,accountId,version:raw?.version||0,configured:!!raw,
    siteUrl:raw?.siteUrl||null,updatedAt:raw?.updatedAt||null,
    proxyReady:validProxy,stagedOnly:raw?.stagedOnly===true,siteIdentityVerified:false,canPublish:false,

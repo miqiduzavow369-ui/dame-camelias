@@ -299,7 +299,7 @@ function manDiagnostics(x){
  if(x?.id==='yan_first')return {proxy:'unknown',site:'unknown'};
  if(!n||n.configured!==true)return {proxy:'off',site:'off'};
  const proxy=(n.proxyVerified===true&&n.ipVerified===true)?'ok':n.proxyVerified===false||n.ipVerified===false?'unknown':'unknown';
- const site=proxy==='ok'&&n.siteIdentityVerified===true?'ok':'unknown';
+ const site=proxy==='ok'&&x.readiness?.technicalReady===true?'ok':'unknown';
  return {proxy,site};
 }
 function diagnosticMeta(kind,status,x){
@@ -655,6 +655,7 @@ function renderManSiteForm(){
  (siteVaultError?'<p class="error" role="alert">'+esc(siteVaultError)+'</p>':'')+
  '<div class="card"><div class="row"><strong>Учётная запись Intimcity</strong><span class="pill">'+
  (present?'✓ Сохранено':'Ожидает заполнения')+'</span></div>'+
+ (present?'<p class="hint">Данные сохранены. Для проверки входа повторно заполнять поля не нужно.</p><details><summary style="cursor:pointer;color:var(--gold)">Изменить логин или пароль (сбросит подтверждение входа)</summary>':'')+
  '<form id="manSiteForm" autocomplete="off" onsubmit="saveManSite(event)">'+
  '<label for="manSiteUrl">Ссылка Intimcity</label>'+
  '<input class="field" id="manSiteUrl" type="url" required value="'+esc(st?.siteUrl||siteProbeUrl||'https://b.intimcity.rip/')+
@@ -665,7 +666,8 @@ function renderManSiteForm(){
  '<label for="manSitePassword">Пароль Intimcity</label>'+
  '<input class="field" id="manSitePassword" type="password" autocomplete="new-password" required maxlength="512" placeholder="Пароль мужского кабинета">'+
  '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+
- (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form></div>'+
+ (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form>'+
+ (present?'</details>':'')+'</div>'+
  '<div class="card"><strong>Проверка входа в кабинет</strong>'+
  '<p class="hint">Chromium попробует войти через подтверждённый прокси. Отправка формы входа не означает подтверждения личности: публикации остаются закрытыми.</p>'+
  '<button class="secondary" type="button" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy||siteLoginRefreshing||siteLoginState?.status==='running'?'disabled':'')+'>'+(siteLoginBusy?'⏳ Запускаем…':'🔐 Проверить вход через Chromium')+'</button>'+
@@ -828,11 +830,14 @@ function renderManProxyForm(){
  (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси')+'</button>'+
  '</form>'+
  (configured?'<button class="secondary" style="margin-top:10px" type="button" '+(siteProbing?'disabled':'')+
- ' onclick="startManBrowserCheck()">🌐 Проверить IP через Chromium</button>':'')+
+ ' onclick="startManBrowserCheck()" '+(browserPreflightBusy||browserPreflight?.status==='running'?'disabled':'')+'>🌐 Проверить IP через Chromium</button>':'')+
+ (configured&&browserPreflight?.accountId===x.id&&browserPreflight?.retryAvailable===true&&browserPreflight?.status==='running'?
+ '<button class="secondary" type="button" onclick="startManBrowserCheck(true)" '+(browserPreflightBusy?'disabled':'')+'>↻ Повторить зависшую проверку IP без ввода прокси</button>':'')+
  (configured?'<button class="secondary" type="button" onclick="refreshManBrowserCheck()">↻ Обновить статус Chromium</button>':'')+
- (browserPreflight?.status==='running'?'<p class="hint">⏳ Проверка через Chromium выполняется…</p>':'')+
- (browserPreflight?.status==='verified'?'<p class="success">✓ Внешний IP и сайт подтверждены Chromium. Вход не проверен.</p>':'')+
- (browserPreflight?.status==='failed'||browserPreflight?.status==='dispatch_failed'?'<p class="error">Chromium: '+esc(browserPreflight.code||'executor_error')+'</p>':'')+
+ (browserPreflight?.accountId===x.id&&browserPreflight?.status==='running'?'<p class="hint">⏳ Проверка IP выполняется. Если задание не забрало данные, спустя 90 секунд появится безопасный повтор.</p>':'')+
+ (browserPreflight?.accountId===x.id&&browserPreflight?.status==='timed_out'?'<p class="hint">Время проверки IP истекло. Можно запустить её заново без повторного сохранения прокси.</p>':'')+
+ (browserPreflight?.accountId===x.id&&browserPreflight?.status==='verified'?'<p class="success">✓ Внешний IP и сайт подтверждены Chromium. Вход не проверен.</p>':'')+
+ (browserPreflight?.accountId===x.id&&(browserPreflight?.status==='failed'||browserPreflight?.status==='dispatch_failed')?'<p class="error">Chromium: '+esc(browserPreflight.code||'executor_error')+'</p>':'')+
  (browserPreflightError?'<p class="error">'+esc(browserPreflightError)+'</p>':'')+
  (siteProbing?'<p class="hint">Проверяем доступ к Intimcity через сохранённый HTTP-прокси…</p>':'')+
  (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
@@ -847,21 +852,21 @@ async function refreshManBrowserCheck(){
  if(selectedManId===id){browserPreflight=result;render();}}
  catch{if(selectedManId===id){browserPreflightError='Не удалось обновить статус.';render();}}
 }
-async function startManBrowserCheck(){
+async function startManBrowserCheck(retry=false){
  const id=selectedManId,proxy=proxyVaultState;
  if(!id||id==='yan_first'||!proxy?.configured||browserPreflightBusy)return;
  const siteUrl=document.getElementById('manSiteLink')?.value.trim()||siteProbeUrl;
  browserPreflightBusy=true;browserPreflightError='';render();
- try{const result=await callAdmin('man_browser_start',{accountId:id,expectedVersion:proxy.version,siteUrl});
+ try{const result=await callAdmin('man_browser_start',{accountId:id,expectedVersion:proxy.version,siteUrl,retry:retry===true});
  if(selectedManId!==id)return;
- if(result.ok){browserPreflight={status:'running'};toast('Запущена отдельная браузерная проверка.');}
+ if(result.ok){browserPreflight={accountId:id,status:'running'};toast('Запущена отдельная браузерная проверка IP.');}
  else browserPreflightError='Не удалось запустить Chromium: '+String(result.reason||'unavailable');}
  catch(e){if(selectedManId===id)browserPreflightError='Не удалось запустить Chromium: '+String(e?.message||'network_error');}
  finally{browserPreflightBusy=false;if(selectedManId===id)render();}
 }
 async function openManProxy(){
  if(!selectedManId||selectedManId==='yan_first')return;
- proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;siteProbeUrl='https://b.intimcity.rip/';go('man-proxy');
+ proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;browserPreflight=null;browserPreflightError='';siteProbeUrl='https://b.intimcity.rip/';go('man-proxy');
  try{privateDraft=await callAdmin('man_private_status',{accountId:selectedManId});}catch{privateDraft=null;}
  try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
  if(selectedManId!==r.accountId)return;proxyVaultState=r;render();void refreshManBrowserCheck();

@@ -5,7 +5,7 @@ import {allowedSiteUrl} from "./man_proxy_site_check.js";
 
 const PROXY="man-proxy-sealed-v1:", RUN="man-browser-check-v1:";
 const encoding=new TextEncoder();
-const EXPIRES_MS=15*60*1000;
+const EXPIRES_MS=15*60*1000, RESTART_AFTER=90*1000;
 const HEX=/^[a-f0-9]{32}$/;
 function auth(actorId,cabinetId,ownerId,accountId){
  requireManId(accountId);
@@ -29,6 +29,7 @@ function safeRun(row){
  return {ok:true,configured:true,accountId:row.accountId,version:row.proxyVersion,
   status:row.status,code:row.code||null,at:row.startedAt||null,finishedAt:row.finishedAt||null,
   ipVerified:row.status==="verified",siteReachable:row.status==="verified"&&row.siteReachable===true,
+  retryAvailable:row.status==="running"&&!row.payloadClaimed&&Date.now()-row.startedAt>=RESTART_AFTER,
   canPublish:false};
 }
 export async function browserCheckStatus(storage,{actorId,cabinetId,ownerId,accountId}){
@@ -36,9 +37,11 @@ export async function browserCheckStatus(storage,{actorId,cabinetId,ownerId,acco
  const run=await storage.get(RUN+accountId);
  const proxy=await storage.get(PROXY+accountId);
  if(!run||run.proxyVersion!==proxy?.version)return safeRun(null);
+ if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRES_MS)
+  return {...safeRun({...run,status:"timed_out",code:"check_expired"}),retryAvailable:true};
  return safeRun(run);
 }
-export async function startBrowserCheck(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,siteUrl,at},dispatch){
+export async function startBrowserCheck(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,siteUrl,at,retry=false},dispatch){
  auth(actorId,cabinetId,ownerId,accountId);
  const url=allowedSiteUrl(siteUrl);
  if(!url||!Number.isSafeInteger(expectedVersion)||expectedVersion<1||!Number.isSafeInteger(at))throw Error("Invalid request");
@@ -50,7 +53,9 @@ export async function startBrowserCheck(storage,env,{actorId,cabinetId,ownerId,a
   const proxy=await tx.get(PROXY+accountId);
   const previous=await tx.get(RUN+accountId);
   if(proxy?.version!==expectedVersion)throw Error("Version conflict");
-  if(previous?.status==="running"&&previous.startedAt+EXPIRES_MS>at)throw Error("Already running");
+  if(previous?.status==="running"&&previous.startedAt+EXPIRES_MS>at){
+   if(retry!==true||previous.payloadClaimed||at-previous.startedAt<RESTART_AFTER)throw Error("Already running");
+  }
   const value={accountId,proxyVersion:expectedVersion,nonce,host,status:"running",
    startedAt:at,finishedAt:null,code:null,payloadClaimed:false,siteReachable:false};
   await tx.put(RUN+accountId,value);
