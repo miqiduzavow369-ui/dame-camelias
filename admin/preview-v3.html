@@ -490,14 +490,21 @@ async function verifyManProxyNow(){
   proxyVerifyResult=result;
   if(result.verified===true)toast('✓ Внешний IP прокси подтверждён');
   else{
-   const messages={unsupported_protocol:'Проверка сейчас поддерживает SOCKS5. Выбери SOCKS5 в параметрах прокси.',
-    proxy_auth_failed:'Прокси отклонил логин или пароль.',
-    proxy_unreachable:'Не удалось подключиться к прокси.',
-    proxy_timeout:'Прокси не ответил вовремя.',
-    ip_mismatch:'IP не совпадает с закреплённым. Проверь данные провайдера.',
-    unexpected_response:'Сервис проверки вернул неожиданный ответ.',
-    executor_unavailable:'Сервер не поддерживает сетевую проверку.'};
-   proxyVerifyError=messages[result.code]||'Не удалось подтвердить прокси.';
+   const messages={
+    unsupported_protocol:'Для SOCKS5 выберите протокол SOCKS5 и порт 16408, если он указан в вашей таблице.',
+    tcp_connect_failed:'Сервер не установил TCP-соединение с адресом и портом прокси. Проверьте порт SOCKS5, доступность сервера и ограничения провайдера.',
+    socks_handshake_failed:'TCP-соединение есть, но сервер не ответил корректно на запрос SOCKS5. Проверьте протокол и порт.',
+    proxy_auth_failed:'Прокси отклонил логин или пароль SOCKS5.',
+    proxy_target_rejected:'SOCKS5 доступен, но отказал в подключении к сервису проверки IP.',
+    tls_tunnel_failed:'SOCKS5-туннель создан, но Cloudflare не смог завершить защищённое HTTPS-соединение внутри него. Прокси может быть исправным — проверка IP не подтверждена.',
+    ip_echo_failed:'HTTPS-туннель открыт, но сервис проверки IP вернул некорректный ответ.',
+    proxy_unreachable:'Сервер не смог связаться с прокси.',
+    proxy_timeout:'Время проверки истекло. Повторите позже или проверьте доступность прокси.',
+    ip_mismatch:'IP не совпадает с закреплённым. Проверьте данные провайдера.',
+    unexpected_response:'Неожиданный ответ в процессе проверки; IP не подтверждён.',
+    executor_unavailable:'Сервер не поддерживает сетевую проверку.'
+   };
+   proxyVerifyError=(messages[result.code]||'Не удалось подтвердить прокси.')+' Код: '+String(result.code||'unknown')+'.';
   }
  }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
  finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}
