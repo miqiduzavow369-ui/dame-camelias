@@ -102,17 +102,18 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
  if(!old||old.version!==expectedVersion)throw Error("Version conflict");
  const settings=await decrypt(env,accountId,old);
  let code="verified",observedIp=null;
+ let timeoutId;
  try{
   observedIp=await Promise.race([
    probe(settings,connectFn??(await import("cloudflare:sockets")).connect),
-   new Promise((_,reject)=>setTimeout(()=>reject(Error("proxy_timeout")),TIMEOUT))
+   new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(Error("proxy_timeout")),TIMEOUT)})
   ]);
   if(observedIp!==settings.expectedIp)code="ip_mismatch";
  }catch(e){
   const known=new Set(["unsupported_protocol","executor_unavailable","proxy_auth_failed",
    "proxy_unreachable","proxy_timeout","unexpected_response"]);
   code=known.has(e?.message)?e.message:"proxy_unreachable";
- }
+ }finally{clearTimeout(timeoutId)}
  if(typeof storage.transaction!=="function")throw Error("Atomic storage unavailable");
  return storage.transaction(async tx=>{
   const current=await tx.get(PREFIX+accountId);
