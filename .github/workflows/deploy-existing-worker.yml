@@ -23,8 +23,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Require existing Cloudflare deployment credentials
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::Existing CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are not available. No deployment attempted."
+          missing=0
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN was not provided to this workflow job (check repository/environment secret scope)."
+            missing=1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID was not provided to this workflow job (check repository/environment secret scope)."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Deployment stopped before authentication; no credentials were printed."
             exit 1
           fi
       - uses: actions/setup-node@v4
