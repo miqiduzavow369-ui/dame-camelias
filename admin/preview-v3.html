@@ -570,6 +570,21 @@ async function verifyManProxyNow(){
  }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
  finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}
 }
+let manApprovalBusy=false;
+async function updateManOwnerApproval(approved){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x||x.id==='yan_first'||manApprovalBusy)return;
+ const prior=x.approval;
+ if(!prior||!Number.isSafeInteger(prior.version))return;
+ if(approved&&!window.confirm('Подтвердить административное разрешение для '+x.name+'? Публикации останутся заблокированы до завершения интеграции.'))return;
+ manApprovalBusy=true;render();
+ try{
+  await callAdmin('secondary_man_approval_set',{accountId:x.id,expectedVersion:prior.version,approved});
+  await reloadMen();
+  toast(approved?'✓ Разрешение сохранено. Публикации ещё заблокированы.':'✓ Разрешение отозвано');
+ }catch(e){toast('Разрешение не изменено: '+e.message);}
+ finally{manApprovalBusy=false;render();}
+}
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
@@ -636,6 +651,11 @@ function renderManConsole(){
  (active===3?'<p class="note">Нужен подтверждённый браузером вход именно через личный прокси. Публикации не включаются.</p>':'')+
  '<button class="primary" onclick="'+focus.action+'">'+esc(focus.button)+' →</button></div>')+
  (soon?'<details class="card" style="margin-top:12px"><summary style="cursor:pointer">Что будет дальше · '+(steps.length-active-1)+' этапа</summary>'+soon+'</details>':''):'')+
+ '<div class="card" style="margin-top:14px"><strong>Разрешение владельца</strong>'+
+ '<p class="hint">'+(x.approval?.approved?'✓ Одобрение записано для текущих версий прокси и кабинета.':'Разрешение ещё не выдано либо настройки изменились.')+'</p>'+
+ '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
+ '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||(!identityOK&&!x.approval?.approved)?'disabled':'')+'>'+
+ (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
  '<details class="man-step-details"><summary>Диагностика и история</summary>'+
  manChecks(x)+renderManDiagnostic(x)+
