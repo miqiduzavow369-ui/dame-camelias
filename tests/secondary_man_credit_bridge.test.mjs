@@ -30,9 +30,10 @@ test("different men get independent ledger nonces, and no settlement without pro
   const result=await reserveSecondaryFeedbackCredit(db,env,x,{independentAuthorConfirmed:true,moderatorApproved:true});
   assert.equal(result.status,"reserved");
  }
- assert.equal(seen.length,2);
- assert.notEqual(seen[0].nonce,seen[1].nonce);
- assert.match(seen[0].nonce,/^[a-f0-9]{12}$/);
+ const reserves=seen.filter(v=>v.type==="credits_reserve");
+ assert.equal(reserves.length,2);
+ assert.notEqual(reserves[0].nonce,reserves[1].nonce);
+ assert.match(reserves[0].nonce,/^[a-f0-9]{12}$/);
  await assert.rejects(()=>settleSecondaryFeedbackCredit(db,env,a),/proof required/);
  await appendVerifiedFeedbackEvidence(db,{identity:a,sitePublicationId:"proof-12345",proofFileId:"file-123456",moderatorApproved:true,independentAuthorConfirmed:true,at:1000});
  assert.equal((await settleSecondaryFeedbackCredit(db,env,a)).status,"completed");
