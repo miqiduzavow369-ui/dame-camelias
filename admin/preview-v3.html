@@ -708,8 +708,20 @@ function renderManProxyForm(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
  const st=proxyVaultState,configured=st?.configured===true;
+ const imported=privateDraft?.accountId===x.id&&privateDraft?.configured===true?privateDraft.settings:null;
+ const importSummary=imported?
+  '<div class="card"><strong>📄 Уже сохранённые технические данные</strong>'+
+  '<p class="success">✓ Данные доступны из ранее загруженного списка. Повторно загружать Excel не нужно.</p>'+
+  '<p class="hint">IP: '+esc(imported.host)+' · HTTP-порт: '+esc(imported.httpPort)+
+  ' · SOCKS5-порт: '+esc(imported.socksPort)+'</p>'+
+  '<p class="hint">Имя пользователя: '+esc(imported.username)+
+  ' · Логин Intimcity: '+esc(imported.siteLogin||'не указан')+'</p>'+
+  '<p class="hint">Загруженная таблица не содержит паролей. HTTP-прокси: '+
+  (configured?'сохранён отдельно в защищённом хранилище.':'пароль ещё не сохранён.')+'</p></div>':
+  '<div class="note">Технический черновик не найден. Данные из Excel не подтверждены для этого мужчины.</div>';
  return back("go('man-detail')")+'<div class="mini">ШАГ 01 · HTTP-ПРОКСИ DOLPHIN</div>'+
  '<h1>🌐 Прокси · '+esc(x.name)+'</h1>'+
+ importSummary+
  '<div class="card"><strong>Одна строка — все данные прокси</strong>'+
  '<p class="hint">Скопируй в Dolphin формат <code>логин:пароль@IP:порт</code>. Пароль скрыт, не сохраняется в чате и не отображается повторно.</p>'+
  (configured?'<p class="success">✓ Прокси сохранён зашифрованно. Для замены вставь новую строку.</p>':'')+
