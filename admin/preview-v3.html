@@ -267,7 +267,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://a.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://b.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -576,14 +576,14 @@ function renderManConsole(){
  const ipOK=data?.proxy?.proxyVerified===true&&data?.proxy?.ipVerified===true;
  const siteSaved=data?.site?.configured===true,siteVerified=data?.site?.siteIdentityVerified===true;
  const steps=legacy?[
-  ['Техническое имя',drafted?'Дополнительный email сохранён':'Добавь дополнительный email без изменения рабочего аккаунта',drafted,true,"openManPrivate()"]
+  ['Техническое имя',drafted?'Дополнительный email сохранён':'Дополнительный email рабочего аккаунта',drafted,true,"openManPrivate()"]
  ]:[
-  ['Технические данные',drafted?'Email, логин Intimcity и параметры прокси сохранены':'Заполни технический email, логин Intimcity, IP, порты и логин прокси',drafted,true,"openManPrivate()"],
-  ['Пароль прокси',proxySaved?'Реквизиты сохранены зашифрованными':'Проверь адрес и введи пароль прокси',proxySaved,drafted,"openManProxy()"],
-  ['Проверка IP',ipOK?'Внешний IP подтверждён через SOCKS5 и HTTPS':proxySaved?'Запусти реальную проверку. Система сравнит внешний IP с закреплённым':'Сначала сохрани пароль прокси',ipOK,proxySaved&&!proxyVerifying,"verifyManProxyNow()"],
-  ['Пароль Intimcity',siteSaved?'Реквизиты входа сохранены':'После подтверждения прокси откроется форма с логином из черновика',siteSaved,ipOK,"openManSite()"],
-  ['Проверка аккаунта',siteVerified?'Личность подтверждена':'Нужна проверка входа в кабинет через подтверждённый прокси',siteVerified,false,null],
-  ['Разрешение публикаций','Только после всех проверок и отдельного разрешения владельца',false,false,null]
+  ['HTTP-прокси Dolphin',proxySaved?'Зашифрованные реквизиты сохранены':'Вставь одну строку: логин:пароль@IP:порт',proxySaved,true,"openManProxy()"],
+  ['Проверка Intimcity через прокси',siteProbeResult?.reachable?'Сайт ответил через прокси':'Проверить https://b.intimcity.rip/ через сохранённый HTTP-прокси',siteProbeResult?.reachable===true,proxySaved,"openManProxy()"],
+  ['Логин и пароль Intimcity',siteSaved?'Данные сохранены зашифрованно; вход не проверен':'Введи ссылку, логин и пароль мужского кабинета',siteSaved,proxySaved,"openManSite()"],
+  ['Проверка фактического IP',ipOK?'IP подтверждён сервером':'Отдельная подтверждённая проверка внешнего IP ещё необходима',ipOK,false,null],
+  ['Вход и идентификация кабинета',siteVerified?'Личность подтверждена':'Нужен проверяющий исполнитель входа через прокси. Пока не подключён',siteVerified,false,null],
+  ['Разрешение публикаций','Только после проверок и отдельного разрешения владельца',false,false,null]
  ];
  const done=steps.filter(r=>r[2]).length;
  const firstOpen=steps.findIndex(r=>!r[2]&&r[3]);
@@ -605,21 +605,12 @@ function renderManConsole(){
  '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+
  '</div><h1>'+esc(x.name)+'</h1></div><span class="pill">'+st.icon+' '+st.short+'</span></div>'+
  '<p class="hint">'+(legacy?'Действующий аккаунт. Можно добавить только техническое имя.':
- 'Иди по шагам сверху вниз. Пароли сохраняются отдельно, публикации отключены.')+'</p></div>'+
+ 'Сначала HTTP-прокси одной строкой, затем Intimcity. Проверки и публикации разделены.')+'</p></div>'+
  '<div class="man-step-progress"><div class="row"><strong>Прогресс настройки</strong><b>'+done+' / '+steps.length+'</b></div>'+
  '<div class="man-step-track"><span style="width:'+Math.round(100*done/steps.length)+'%"></span></div></div>'+
  (wizardLoading?'<div class="note">Сверяем этапы с сервером…</div>':'')+
  (wizardError?'<div class="note" role="alert">'+esc(wizardError)+'</div>':'')+
  '<div class="man-step-list">'+steps.map(line).join('')+'</div>'+
- (!legacy&&proxySaved?'<form class="card" onsubmit="checkManSiteNow(event)">'+
- '<div class="section" style="margin-top:0">🌐 Проверка доступа к Intimcity через прокси</div>'+
- '<p class="hint">Это отдельная проверка доступности сайта. Она не подтверждает внешний IP, не входит в аккаунт и не активирует публикации.</p>'+
- '<label for="manSiteProbeUrl">HTTPS-ссылка на сайт</label>'+
- '<input id="manSiteProbeUrl" class="field" type="url" autocomplete="off" required value="'+esc(siteProbeUrl)+'" placeholder="https://a.intimcity.rip/">'+
- '<button type="submit" class="primary" '+(siteProbing?'disabled':'')+'>'+(siteProbing?'Проверяем…':'Проверить сайт через сохранённый прокси')+'</button>'+
- (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
- (siteProbeResult?.reachable?'<p class="success">✓ Intimcity ответил через прокси. HTTP '+Number(siteProbeResult.httpStatus)+'. IP и вход не подтверждены.</p>':'')+
- '</form>':'')+
  (proxyVerifying?'<div class="note">⏳ Проверяем соединение и внешний IP. Подождите до 12 секунд…</div>':'')+
  (proxyVerifyError?'<div class="error" role="alert">'+esc(proxyVerifyError)+'</div>':'')+
  (proxyVerifyResult?.verified===false&&proxyVerifyResult?.observedIp?'<div class="note">Полученный IP: '+esc(proxyVerifyResult.observedIp)+' · ожидаемый: '+esc(proxyVerifyResult.expectedIp)+'</div>':'')+
@@ -635,24 +626,30 @@ function renderManConsole(){
 function renderManSiteForm(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x||x.id==='yan_first')return back("go('men')")+'<h1>Недоступно</h1>';
- const st=siteVaultState,ready=st?.proxyReady===true;
- return back("go('man-detail')")+'<div class="mini">ШАГ 03 / ПОДКЛЮЧЕНИЕ КАБИНЕТА</div>'+
- '<h1>🔐 Вход Intimcity</h1><p class="muted small">'+esc(x.name)+' · отдельная учётная запись</p>'+
- '<div class="man-checks"><div class="man-check '+(ready?'ok':'off')+'"><div class="man-check-head"><span class="man-check-dot"></span>Прокси / IP</div><div class="man-check-status">'+(ready?'Проверено':'Не проверено')+'</div></div>'+
- '<div class="man-check off"><div class="man-check-head"><span class="man-check-dot"></span>Кабинет</div><div class="man-check-status">Не подтверждён</div></div></div>'+
- '<div class="card"><strong>Используем проверенный вход Яна Первого</strong><p class="hint">На сайте автоматически определяется форма E-mail / пароль. Проверка кабинета выполняется только через прокси мужчины и не публикует отзывы или оценки.</p></div>'+
+ const st=siteVaultState,present=st?.configured===true;
+ return back("go('man-detail')")+'<div class="mini">ШАГ 03 · ДАННЫЕ КАБИНЕТА</div>'+
+ '<h1>🔐 Intimcity · '+esc(x.name)+'</h1>'+
+ '<div class="note">Данные принадлежат только этому мужчине. Пароль сохраняется зашифрованно. Это пока подготовка к проверке входа, а не успешная авторизация.</div>'+
  (siteVaultError?'<p class="error" role="alert">'+esc(siteVaultError)+'</p>':'')+
- (!ready?'<div class="note">🔒 Сначала необходимо подтвердить фактический IP через индивидуальный прокси. Пока этот этап не пройден, ввод и сохранение реквизитов Intimcity заблокированы.</div>':
- '<div class="men-detail-hero"><span class="pill">🔒 Публикации выключены</span><div class="hint">'+(st?.configured?'Логин и пароль сохранены зашифрованными; вход ещё не проверен.':'Данные Intimcity ещё не сохранены.')+'</div></div>'+
- '<form id="manSiteForm" class="card" autocomplete="off" onsubmit="saveManSite(event)">'+
- '<label for="manSiteUrl">Ссылка на сайт Intimcity</label><input class="field" id="manSiteUrl" type="url" required placeholder="https://a.intimcity.rip/" value="'+esc(st?.siteUrl||'https://a.intimcity.rip/')+'" autocapitalize="off" spellcheck="false">'+
- '<label for="manSiteLogin">Логин Intimcity (E-mail)</label><input class="field" id="manSiteLogin" maxlength="256" required autocomplete="off" autocapitalize="off" spellcheck="false" value="'+esc(privateDraft?.accountId===x.id?privateDraft?.settings?.siteLogin||'':'')+'" placeholder="Логин мужского аккаунта">'+
- '<label for="manSitePassword">Пароль Intimcity</label><input class="field" id="manSitePassword" type="password" maxlength="512" required autocomplete="new-password" placeholder="Пароль мужского аккаунта">'+
- '<div class="note">Пароль не будет показан повторно. Изменение логина, пароля или ссылки требует новой проверки входа.</div>'+
- '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+(siteSaving?'Сохранение…':'🔐 Зашифровать реквизиты')+'</button></form>')+
- '<div class="card"><strong>Проверка входа</strong><p class="hint">После серверного подтверждения IP и подключения проверяющего исполнителя появится запуск реальной проверки. До этого зелёный статус входа недоступен.</p><button class="secondary" disabled>🔒 Проверить вход на Intimcity</button></div>'+
- '<div class="watermark">Ян Первый защищён · доступы не сохраняются в GitHub или чате</div>';
+ '<div class="card"><div class="row"><strong>Учётная запись Intimcity</strong><span class="pill">'+
+ (present?'✓ Сохранено':'Ожидает заполнения')+'</span></div>'+
+ '<form id="manSiteForm" autocomplete="off" onsubmit="saveManSite(event)">'+
+ '<label for="manSiteUrl">Ссылка Intimcity</label>'+
+ '<input class="field" id="manSiteUrl" type="url" required value="'+esc(st?.siteUrl||siteProbeUrl||'https://b.intimcity.rip/')+
+ '" placeholder="https://b.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
+ '<label for="manSiteLogin">Логин / Email Intimcity</label>'+
+ '<input class="field" id="manSiteLogin" type="text" autocomplete="off" required maxlength="256" '+
+ 'value="'+esc(privateDraft?.accountId===x.id?privateDraft.settings?.siteLogin||'':'')+'" autocapitalize="off" spellcheck="false">'+
+ '<label for="manSitePassword">Пароль Intimcity</label>'+
+ '<input class="field" id="manSitePassword" type="password" autocomplete="new-password" required maxlength="512" placeholder="Пароль мужского кабинета">'+
+ '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+
+ (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form></div>'+
+ '<div class="card"><strong>Проверка входа в кабинет</strong>'+
+ '<p class="hint">После сохранения данных потребуется отдельный реальный вход через подтверждённый прокси с проверкой личности мужчины. Проверка ещё не подключена, поэтому нельзя отметить кабинет как подтверждённый.</p>'+
+ '<button class="secondary" disabled>🔒 Автоматический вход — ожидает интеграции</button></div>'+
+ '<div class="watermark">Без публикаций · Ян Первый не затронут · пароли не возвращаются в интерфейс</div>';
 }
+
 async function openManSite(){
  const id=selectedManId;
  if(!id||id==='yan_first')return;
@@ -669,19 +666,19 @@ async function openManSite(){
 async function saveManSite(event){
  event.preventDefault();
  const id=selectedManId;
- if(siteSaving||!siteVaultState?.proxyReady||!id||id==='yan_first')return;
+ if(siteSaving||!siteVaultState||!id||id==='yan_first')return;
  const settings={siteUrl:document.getElementById('manSiteUrl').value.trim(),
    login:document.getElementById('manSiteLogin').value.trim(),
    password:document.getElementById('manSitePassword').value};
  siteSaving=true;siteVaultError='';
  try{
-  const r=await callAdmin('man_site_save',{accountId:id,expectedVersion:siteVaultState.version,settings});
+  const r=await callAdmin('man_site_stage',{accountId:id,expectedVersion:siteVaultState.version,settings});
   if(selectedManId!==id)return;
   if(r?.accountId!==id||r?.canPublish!==false)throw Error('invalid_save');
-  siteVaultState=r;toast('🔒 Данные Intimcity сохранены. Проверка входа ещё обязательна.');void refreshManWizard(id);
+  siteVaultState=r;toast('🔒 Логин Intimcity сохранён. Реальный вход ещё не проверен.');void refreshManWizard(id);
  }catch(e){
   if(selectedManId===id)siteVaultError=e.message==='site_vault_key_missing'?'Ключ шифрования MAN_SITE_ENCRYPTION_KEY ещё не установлен. Его подключим на заключительном этапе.':
-   e.message==='proxy_not_verified'?'Сначала подтвердите прокси и IP.':'Не удалось сохранить. Проверьте реквизиты.';
+   e.message==='proxy_not_verified'?'Сначала сохрани HTTP-прокси мужчины.':'Не удалось сохранить. Проверьте реквизиты.';
  }finally{siteSaving=false;if(selectedManId===id)render();}
 }
 
@@ -890,7 +887,7 @@ function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(
 const auth=()=>window.Telegram?.WebApp?.initData||'';
 function openManDetail(id){
  if(!manAccounts.some(x=>x.id===id))return;
- selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://a.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
+ selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://b.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
  menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');
  void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);
 }
