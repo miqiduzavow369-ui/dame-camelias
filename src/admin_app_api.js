@@ -60,6 +60,12 @@ export async function handleAdminApi(request,env){
      accountId:body.accountId,expectedVersion:body.expectedVersion});
    return respond(result,result?.ok?200:result?.status===403?403:409);
   }
+  if(action==="man_site_login_status"||action==="man_site_login_start"){
+   const r=await cabinetRPC(env,OWNER_ID,{kind:action==="man_site_login_status"?
+     "admin_man_site_login_status":"admin_man_site_login_start",actorId:OWNER_ID,
+     accountId:body.accountId,expectedVersion:body.expectedVersion});
+   return respond(r,r?.ok?200:r?.status===403?403:409);
+  }
   if(action==="man_site_status"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_site_status",actorId:OWNER_ID,accountId:body.accountId});
    return respond(result,result?.ok?200:result?.status===403?403:400);
