@@ -25,19 +25,21 @@ export function validatePrivateDraft(accountId,settings){
  requireManId(accountId);
  if(!settings||typeof settings!=="object"||Array.isArray(settings))throw Error("Invalid draft");
  const allowed=accountId==="yan_first"?new Set(["technicalName"]):
-  new Set(["technicalName","host","httpPort","socksPort","username"]);
+  new Set(["technicalName","siteLogin","host","httpPort","socksPort","username"]);
  if(Object.keys(settings).some(key=>!allowed.has(key)))throw Error("Unexpected private draft field");
- const {technicalName,host,httpPort,socksPort,username}=settings;
+ const {technicalName,siteLogin="",host,httpPort,socksPort,username}=settings;
  if(typeof technicalName!=="string"||!/^[-\w.+]+@[-\w.]+\.[A-Za-z]{2,}$/u.test(technicalName)||
     technicalName.length>254)throw Error("Invalid technical name");
  if(accountId==="yan_first"){
   if(host||httpPort||socksPort||username)throw Error("Legacy proxy immutable");
   return {technicalName};
  }
- if(!validIP(host)||!validPort(httpPort)||!validPort(socksPort)||
+ if(typeof siteLogin!=="string"||siteLogin.length>254||
+    (siteLogin!==""&&!/^[-\w.+]+@[-\w.]+\.[A-Za-z]{2,}$/u.test(siteLogin)) ||
+    !validIP(host)||!validPort(httpPort)||!validPort(socksPort)||
     typeof username!=="string"||username.length>256||
     !/^[\w.@-]+$/.test(username))throw Error("Invalid proxy draft");
- return {technicalName,host,httpPort,socksPort,username};
+ return {technicalName,siteLogin,host,httpPort,socksPort,username};
 }
 async function getKey(env){
  const hex=env?.MAN_PROXY_ENCRYPTION_KEY;
