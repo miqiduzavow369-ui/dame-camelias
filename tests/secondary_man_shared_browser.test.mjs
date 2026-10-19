@@ -30,7 +30,7 @@ for account in d["ids"]:
     try:validated_readonly_grant(g,wrong,"2468")
     except RuntimeError:pass
     else:raise AssertionError("cross-account grant accepted")
-  for key,value in (("mode","publish"),("proxyPort",8080),("siteUrl","https://example.com/"),("proxyVersion",0)):
+  for key,value in (("mode","publish"),("proxyPort",0),("siteUrl","https://example.com/"),("proxyVersion",0)):
     x=dict(g,**{key:value})
     try:validated_readonly_grant(x,account,"2468")
     except (RuntimeError,ValueError):pass
