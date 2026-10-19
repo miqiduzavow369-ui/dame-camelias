@@ -353,12 +353,12 @@ function renderMenDashboard(){
   const st=menStatus(x);
   const shown=x.visibility?.visible!==false;
   return '<div class="man-visibility-wrap" style="min-width:0">'+
-    '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\\''+esc(x.id)+'\\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
+    '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\''+esc(x.id)+'\\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
     '<span class="sq-top"><span class="sq-number">'+String(x.number).padStart(2,'0')+'</span><span class="sq-icon">'+st.icon+'</span></span>'+
     '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
     '<button type="button" class="secondary" style="width:100%;padding:9px 3px;margin-top:5px;font-size:11px" '+
     (manVisibilityBusyId?'disabled':'')+
-    ' onclick="toggleManClientVisibility(\\''+esc(x.id)+'\\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+
+    ' onclick="toggleManClientVisibility(\''+esc(x.id)+'\\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+
     (shown?'◉ Видим · Скрыть':'◯ Скрыт · Показать')+'</button></div>';
 
  }).join('');
