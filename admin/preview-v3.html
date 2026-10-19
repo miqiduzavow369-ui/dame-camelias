@@ -757,9 +757,17 @@ function proxySiteErrorMessage(result){
   site_check_timeout:'Истекло время проверки.',
   site_server_error:'Сайт ответил серверной ошибкой.',
   unsupported_protocol:'Сохранён не HTTP-прокси. Вставь HTTP-строку Dolphin.'};
+ const p=result?.progress;
+ const checkpoints=p?[
+  (p.proxyConnected?'✓':'—')+' Соединение с прокси',
+  (p.tunnelEstablished?'✓':'—')+' HTTP CONNECT',
+  (p.tlsEstablished?'✓':'—')+' Защищённый TLS-туннель',
+  (p.requestSent?'✓':'—')+' Запрос к сайту отправлен'
+ ].join('; '):'';
  return (reasons[result?.code]||'Сайт через прокси не подтвердился.')+
   (Number.isInteger(result?.httpProxyStatus)?' CONNECT '+result.httpProxyStatus+'.':'')+
-  ' Код: '+String(result?.code||'unknown')+'.';
+  ' Код: '+String(result?.code||'unknown')+'.'+
+  (checkpoints?' Этапы: '+checkpoints+'.':'');
 }
 async function runSavedProxySiteCheck(accountId,version,siteUrl){
  if(siteProbing)return;

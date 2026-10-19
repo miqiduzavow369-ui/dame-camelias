@@ -109,10 +109,12 @@ async function checkSiteOverSocks(proxy,host,connectFn,signal){
 async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
  if(proxy.protocol!=="http")throw Error("unsupported_protocol");
  let socket,reader,writer,stage="tcp",httpProxyStatus=null;
+ const progress={proxyConnected:false,tunnelEstablished:false,tlsEstablished:false,requestSent:false};
  try{
   socket=connectFn({hostname:proxy.host,port:proxy.port},{secureTransport:"starttls"});
   signal?.addEventListener("abort",()=>{try{socket?.close()}catch{}},{once:true});
   await socket.opened;
+  progress.proxyConnected=true;
   reader=socket.readable.getReader();writer=socket.writable.getWriter();
   stage="connect";
   const raw=te.encode(proxy.username+":"+proxy.password);
@@ -142,15 +144,18 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
   httpProxyStatus=Number(match[1]);
   if(httpProxyStatus===407)throw Error("http_proxy_auth_failed");
   if(httpProxyStatus!==200)throw Error("http_connect_rejected");
+  progress.tunnelEstablished=true;
   stage="tls";
   reader.releaseLock();writer.releaseLock();reader=null;writer=null;
   socket=socket.startTls({expectedServerHostname:host});
   await socket.opened;
+  progress.tlsEstablished=true;
   reader=socket.readable.getReader();writer=socket.writable.getWriter();
   // GET mirrors browser navigation better than HEAD. Never send site credentials.
   stage="site_write";
   await writer.write(te.encode("GET / HTTP/1.1\r\nHost: "+host+
    "\r\nAccept: text/html\r\nUser-Agent: Mozilla/5.0 (compatible; ConnectionCheck/1.0)\r\nConnection: close\r\n\r\n"));
+  progress.requestSent=true;
   stage="site_read";
   let response="",length=0;
   const decoder=new TextDecoder();
@@ -164,12 +169,13 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
   const siteStatusLine=response.split(/\r?\n/)[0].trim();
   const status=/^HTTP\/1\.[01]\s+([1-5]\d\d)(?:\s|$)/.exec(siteStatusLine);
   if(!status)throw Error("site_invalid_status_line");
-  return {httpStatus:Number(status[1])};
+  return {httpStatus:Number(status[1]),progress};
  }catch(error){
   const known=["unsupported_protocol","http_proxy_auth_failed","http_connect_rejected","http_connect_invalid_response","http_connect_incomplete_headers","http_connect_empty_response","http_connect_headers_too_large","http_connect_unexpected_payload","http_connect_bad_status_line","invalid_site_response","site_empty_response","site_invalid_status_line"];
   const codes={tcp:"tcp_connect_failed",connect:"http_connect_failed",tls:"tls_tunnel_failed",site_write:"site_write_failed",site_read:"site_read_failed"};
   const out=new Error(known.includes(error?.message)?error.message:codes[stage]||"site_check_failed");
   if(out.message==="http_connect_rejected")out.httpProxyStatus=httpProxyStatus;
+  out.progress=progress;
   throw out;
  }finally{
   try{reader?.releaseLock()}catch{}
@@ -187,7 +193,7 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
  if(!record||record.version!==expectedVersion)throw Error("Version conflict");
  const settings=await readCredentials(env,accountId,record);
  const host=new URL(cleanUrl).hostname;
- let result,code="site_reachable",socksReply=null,httpProxyStatus=null;
+ let result,code="site_reachable",socksReply=null,httpProxyStatus=null,progress=null;
  const controller=new AbortController();
  let timeoutId;
  try{
@@ -207,11 +213,15 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
   code=codes.has(error?.message)?error.message:"site_check_failed";
   socksReply=Number.isInteger(error?.socksReply)?error.socksReply:null;
   httpProxyStatus=Number.isInteger(error?.httpProxyStatus)?error.httpProxyStatus:null;
+  progress=error?.progress??null;
  }finally{clearTimeout(timeoutId);}
+ if(result?.progress)progress=result.progress;
  // Read-only check; do not write to proxy/IP verification state or touch site credentials.
  const current=await storage.get(PREFIX+accountId);
  if(!current||current.version!==expectedVersion)throw Error("Version conflict");
  return {ok:true,accountId,siteUrl:cleanUrl,reachable:code==="site_reachable",
   httpStatus:result?.httpStatus||null,code,socksReply,httpProxyStatus,protocol:settings.protocol,
+  progress:progress?{proxyConnected:progress.proxyConnected===true,tunnelEstablished:progress.tunnelEstablished===true,
+   tlsEstablished:progress.tlsEstablished===true,requestSent:progress.requestSent===true}:null,
   ipVerified:false,identityVerified:false,canPublish:false};
 }
