@@ -5,7 +5,7 @@
 import {requireManId} from "./man_account_isolation.js";
 import {approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 const PREFIX="secondary-site-identity-v1:";
-const ACCOUNT=/^[A-Za-z0-9][A-Za-z0-9_.@-]{3,127}$/;
+const ACCOUNT=/^[A-Za-z0-9][A-Za-z0-9_.+@-]{3,127}$/;
 function secondary(id){
  requireManId(id);
  if(id==="yan_first")throw Error("Legacy identity immutable");
