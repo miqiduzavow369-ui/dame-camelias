@@ -41,7 +41,7 @@ export async function proxyStatus(storage,{actorId,cabinetId,ownerId,accountId})
  authorize(actorId,cabinetId,ownerId,accountId);
  const record=await storage.get(PREFIX+accountId);
  return {ok:true,accountId,configured:!!record,version:record?.version||0,
-  proxyVerified:false,ipVerified:false,siteIdentityVerified:false,
+  proxyVerified:record?.proxyVerified===true,ipVerified:record?.ipVerified===true,siteIdentityVerified:false,
   expectedIp:record?.expectedIp||null,protocol:record?.protocol||null,
   updatedAt:record?.updatedAt||null,canPublish:false,
   encryptionConfigured:false};
