@@ -664,13 +664,22 @@ function renderManSiteForm(){
  '<p class="hint">Chromium попробует войти через подтверждённый прокси. Отправка формы входа не означает подтверждения личности: публикации остаются закрытыми.</p>'+
  '<button class="secondary" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy?'disabled':'')+'>🔐 Проверить вход через Chromium</button>'+
  '<button class="secondary" style="margin-top:8px" onclick="refreshManSiteLoginCheck()" '+(siteLoginBusy?'disabled':'')+'>↻ Обновить статус входа</button>'+
- (siteLoginState?.accountId===x.id?'<p class="hint">Статус: '+esc(siteLoginState.status||'не запускалась')+
- ' · '+esc(siteLoginState.code||'нет результата')+'</p>':'')+
+ (siteLoginState?.accountId===x.id?'<p class="hint" role="status">'+esc(siteLoginStatusText(siteLoginState))+'</p>':'')+
  (siteLoginError?'<p class="error">'+esc(siteLoginError)+'</p>':'')+
  '<p class="hint">Подтверждение личности мужчины пока не выполняется. Проверка не включает публикации.</p></div>'+
  '<div class="watermark">Без публикаций · Ян Первый не затронут · пароли не возвращаются в интерфейс</div>';
 }
 
+function siteLoginStatusText(r){
+ if(r.status==='running')return '⏳ Chromium проверяет вход через прокси. Нажмите «Обновить статус» через несколько минут.';
+ if(r.code==='login_authenticated_identity_unconfirmed')return '✓ Вход в Intimcity подтверждён. Личность мужчины пока не проверена. Публикации закрыты.';
+ if(r.code==='login_rejected')return 'Не удалось подтвердить вход. Проверьте логин и пароль Intimcity.';
+ if(r.code==='login_form_unavailable')return 'Форма входа на сайте не найдена. Проверьте доступность нужного домена.';
+ if(r.code==='ip_mismatch')return 'Внешний IP не совпал. Проверьте настройки прокси.';
+ if(r.code==='proxy_error'||r.code==='site_error')return 'Сетевая проверка завершилась ошибкой. Можно повторить после проверки соединения.';
+ if(r.status==='not_started')return 'Проверка входа ещё не запускалась.';
+ return 'Статус: '+String(r.status||'неизвестен')+' · '+String(r.code||'нет результата');
+}
 let siteLoginState=null,siteLoginBusy=false,siteLoginError='';
 async function refreshManSiteLoginCheck(){
  const id=selectedManId;

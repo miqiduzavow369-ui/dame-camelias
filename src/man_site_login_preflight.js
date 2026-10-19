@@ -77,7 +77,7 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
 }
 export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
  account(accountId);
- const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_rejected",
+ const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_rejected",
    "ip_mismatch","proxy_error","site_error","executor_error"]);
  if(!/^[a-f0-9]{32}$/.test(nonce)||!Number.isSafeInteger(at)||!allowed.has(code))throw Error("Invalid result");
  return storage.transaction(async tx=>{
