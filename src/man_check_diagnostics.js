@@ -50,7 +50,7 @@ export async function readManDiagnostics(storage,env,{actorId,cabinetId,ownerId,
   retryNeedsExecutor:true,canPublish:false},
   prerequisites:{proxyConfigured:!!proxy,siteConfigured:!!site,
    proxyKeyConfigured:!!env?.MAN_PROXY_ENCRYPTION_KEY,siteKeyConfigured:!!env?.MAN_SITE_ENCRYPTION_KEY,
-   proxyVerified:false,ipVerified:false,siteIdentityVerified:false,clientUnlocked:false}};
+   proxyVerified:proxy?.proxyVerified===true,ipVerified:proxy?.ipVerified===true,siteIdentityVerified:false,clientUnlocked:false}};
 }
 // A retry request is a coordination marker, NOT execution or a successful check.
 // It is version-bound. A future executor will require a separate authenticated trigger.
