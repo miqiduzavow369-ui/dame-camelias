@@ -82,7 +82,9 @@ def main():
         details=request_json(endpoint("/api/man-site-login/payload")+"?"+query)
     except urllib.error.HTTPError as exc:
         # Show only a response status, not the URL, response body or credentials.
-        print(f"SITE_LOGIN_STAGE: secure_claim_http_{exc.code}",flush=True)
+        response_type=(exc.headers.get("Content-Type","").split(";",1)[0].lower())
+        response_kind="json" if response_type=="application/json" else ("html" if response_type=="text/html" else "other")
+        print(f"SITE_LOGIN_STAGE: secure_claim_http_{exc.code}; response_kind={response_kind}",flush=True)
         raise RuntimeError("Secure credential claim rejected") from None
     except urllib.error.URLError:
         print("SITE_LOGIN_STAGE: secure_claim_network_failure",flush=True)
