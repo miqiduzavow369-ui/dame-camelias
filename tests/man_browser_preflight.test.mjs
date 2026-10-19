@@ -98,3 +98,36 @@ test("successful structured dispatch still runs without verification",async()=>{
  assert.equal(result.canPublish,false);
  assert.equal((await proxyStatus(store,actor)).ipVerified,false);
 });
+
+test("unclaimed stalled IP verification safely retries without resaving proxy",async()=>{
+ const {store}=await setup();
+ let previous,current;
+ await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+   siteUrl:"https://b.intimcity.rip/",at:10000},async input=>(previous=input,true));
+ await assert.rejects(startBrowserCheck(store,env,{...actor,expectedVersion:1,
+   siteUrl:"https://b.intimcity.rip/",at:10000+1000,retry:true},async()=>true),/Already running/);
+ const again=await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+   siteUrl:"https://b.intimcity.rip/",at:10000+91000,retry:true},async input=>(current=input,true));
+ assert.equal(again.status,"running");
+ assert.notEqual(previous.nonce,current.nonce);
+ await assert.rejects(claimBrowserCheck(store,env,
+  {accountId:actor.accountId,nonce:previous.nonce,at:10000+91001}),/Unavailable/);
+ const claimed=await claimBrowserCheck(store,env,
+  {accountId:actor.accountId,nonce:current.nonce,at:10000+91002});
+ assert.equal(claimed.proxyPassword,settings.password);
+ assert.equal((await proxyStatus(store,actor)).version,1);
+ await assert.rejects(startBrowserCheck(store,env,{...actor,expectedVersion:1,
+   siteUrl:"https://b.intimcity.rip/",at:10000+181000,retry:true},async()=>true),/Already running/);
+});
+test("claimed IP verification can restart after expiry but never in parallel",async()=>{
+ const {store}=await setup();
+ let nonce;
+ await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+  siteUrl:"https://b.intimcity.rip/",at:10000},async input=>(nonce=input.nonce,true));
+ await claimBrowserCheck(store,env,{accountId:actor.accountId,nonce,at:10001});
+ await assert.rejects(startBrowserCheck(store,env,{...actor,expectedVersion:1,
+  siteUrl:"https://b.intimcity.rip/",at:10000+91000,retry:true},async()=>true),/Already running/);
+ const newRun=await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+  siteUrl:"https://b.intimcity.rip/",at:10000+900001},async()=>true);
+ assert.equal(newRun.status,"running");
+});
