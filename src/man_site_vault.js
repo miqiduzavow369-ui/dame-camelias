@@ -43,7 +43,7 @@ export async function readSiteStatus(storage,{actorId,cabinetId,ownerId,accountI
                    Number.isSafeInteger(proxy.version)&&proxy.version>0;
  return {ok:true,accountId,version:raw?.version||0,configured:!!raw,
    siteUrl:raw?.siteUrl||null,updatedAt:raw?.updatedAt||null,
-   proxyReady:validProxy,siteIdentityVerified:false,canPublish:false,
+   proxyReady:validProxy,stagedOnly:raw?.stagedOnly===true,siteIdentityVerified:false,canPublish:false,
    needsProxyVerification:!validProxy};
 }
 export async function saveSiteCredentials(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,settings,at}){
@@ -69,6 +69,29 @@ export async function saveSiteCredentials(storage,env,{actorId,cabinetId,ownerId
   await txn.put(PREFIX+accountId,next);
   return {ok:true,accountId,version:next.version,configured:true,siteUrl:clean.siteUrl,
     updatedAt:at,proxyReady:true,siteIdentityVerified:false,canPublish:false};
+ });
+}
+// Save encrypted credentials as inactive staging data, not as login verification.
+export async function saveSiteCredentialDraft(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,settings,at}){
+ auth(actorId,cabinetId,ownerId,accountId);
+ if(!Number.isSafeInteger(expectedVersion)||expectedVersion<0||!Number.isSafeInteger(at)||at<0)throw Error("Invalid version");
+ const clean=validateSiteCredentials(settings),key=await aesKey(env);
+ if(typeof storage.transaction!=="function")throw Error("Atomic storage unavailable");
+ return storage.transaction(async tx=>{
+  const proxy=await tx.get(PROXY_PREFIX+accountId);
+  if(!proxy||proxy.accountId!==accountId||!Number.isSafeInteger(proxy.version)||proxy.version<1)
+   throw Error("Configured proxy required");
+  const old=await tx.get(PREFIX+accountId);
+  if((old?.version||0)!==expectedVersion)throw Error("Version conflict");
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const sealed=await crypto.subtle.encrypt({name:"AES-GCM",iv,
+   additionalData:te.encode(accountId+":intimcity:"+proxy.version)},key,te.encode(JSON.stringify(clean)));
+  const record={schema:1,accountId,version:expectedVersion+1,boundProxyVersion:proxy.version,
+   siteUrl:clean.siteUrl,iv:Array.from(iv),sealed:Array.from(new Uint8Array(sealed)),updatedAt:at,
+   identityVerified:false,enabled:false,stagedOnly:true};
+  await tx.put(PREFIX+accountId,record);
+  return {ok:true,accountId,version:record.version,configured:true,siteUrl:clean.siteUrl,
+   updatedAt:at,proxyReady:false,siteIdentityVerified:false,canPublish:false,stagedOnly:true};
  });
 }
 export function requireSiteVerification({accountId,siteRecord,proxyRecord,verifiedIdentity}){
