@@ -130,6 +130,12 @@ export async function handleAdminApi(request,env){
    });
    return respond(result,result?.ok?200:result?.status===403?403:result?.status===400?400:409);
   }
+  if(action==="man_visibility_set"||action==="man_visibility_status"){
+   const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_visibility",actorId:OWNER_ID,
+    action:action==="man_visibility_set"?"set":"status",accountId:body.accountId,
+    visible:body.visible,expectedVersion:body.expectedVersion});
+   return respond(result,result?.ok?200:result?.status===403?403:result?.status===400?400:409);
+  }
   if(action==="man_accounts"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_registry",actorId:OWNER_ID});
    return respond(result,result?.ok?200:result?.status===403?403:503);
