@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 from playwright.sync_api import sync_playwright
 
-ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\\d|30))$")
+ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
 HOSTS = {"intimcity.rip","a.intimcity.rip","b.intimcity.rip"}
 
