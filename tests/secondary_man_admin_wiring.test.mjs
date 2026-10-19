@@ -26,3 +26,15 @@ test("ADMIN exposes approval state per account and never claims new publishers w
  assert.ok(js);
  assert.doesNotThrow(()=>new vm.Script(js[1]));
 });
+
+test("ADMIN revocation is independent of currently working proxy and site",()=>{
+ const start=runtime.indexOf('if(event.kind==="admin_secondary_man_approval")');
+ const end=runtime.indexOf('if(event.kind==="admin_man_registry")',start);
+ const code=runtime.slice(start,end);
+ const revoke=code.indexOf('if(event.approved===false)');
+ const check=code.indexOf('proxyStatus(storage,params)');
+ assert.ok(revoke>0&&check>revoke);
+ assert.match(code,/previous\.proxyVersion/);
+ assert.match(code,/previous\.siteVersion/);
+ assert.match(code,/setSecondaryManApproval\(storage/);
+});
