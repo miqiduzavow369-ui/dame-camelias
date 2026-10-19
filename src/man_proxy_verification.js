@@ -26,13 +26,14 @@ async function decrypt(env,id,record){
  return validateProxyInput(JSON.parse(new TextDecoder().decode(plain)));
 }
 function fail(code){throw Error(code);}
-async function probeSocks5(proxy,connectFn){
+async function probeSocks5(proxy,connectFn,signal){
  if(proxy.protocol!=="socks5")fail("unsupported_protocol");
  if(!connectFn)fail("executor_unavailable");
  // Only a public, validated proxy address and a fixed HTTPS echo service may be contacted.
  let socket,reader,writer;
  try{
   socket=connectFn({hostname:proxy.host,port:proxy.port},{secureTransport:"starttls",allowHalfOpen:false});
+  signal?.addEventListener("abort",()=>{try{socket?.close()}catch{}},{once:true});
   writer=socket.writable.getWriter();reader=socket.readable.getReader();
   let buf=new Uint8Array(0);
   const send=async bytes=>{await writer.write(bytes)};
@@ -102,11 +103,12 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
  if(!old||old.version!==expectedVersion)throw Error("Version conflict");
  const settings=await decrypt(env,accountId,old);
  let code="verified",observedIp=null;
+ const controller=new AbortController();
  let timeoutId;
  try{
   observedIp=await Promise.race([
-   probe(settings,connectFn??(await import("cloudflare:sockets")).connect),
-   new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(Error("proxy_timeout")),TIMEOUT)})
+   probe(settings,connectFn??(await import("cloudflare:sockets")).connect,controller.signal),
+   new Promise((_,reject)=>{timeoutId=setTimeout(()=>{controller.abort();reject(Error("proxy_timeout"))},TIMEOUT)})
   ]);
   if(observedIp!==settings.expectedIp)code="ip_mismatch";
  }catch(e){
