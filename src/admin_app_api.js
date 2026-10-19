@@ -97,6 +97,14 @@ export async function handleAdminApi(request,env){
       accountId:body.accountId,expectedVersion:body.expectedVersion});
     return respond(result,result?.ok?200:result?.status===403?403:409);
   }
+  if(action==="man_browser_status"){
+ const r=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_browser_status",actorId:OWNER_ID,accountId:body.accountId});
+ return respond(r,r?.ok?200:409);
+ }
+  if(action==="man_browser_start"){
+ const r=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_browser_start",actorId:OWNER_ID,accountId:body.accountId,expectedVersion:body.expectedVersion,siteUrl:body.siteUrl});
+ return respond(r,r?.ok?200:409);
+ }
   if(action==="man_proxy_status"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_proxy_status",actorId:OWNER_ID,accountId:body.accountId});
    return respond(result,result?.ok?200:result?.status===403?403:400);

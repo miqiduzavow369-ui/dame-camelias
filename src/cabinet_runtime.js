@@ -11,6 +11,7 @@ import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {clientMenAvailability} from "./man_client_parity.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
+import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
@@ -345,6 +346,46 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{return await verifyManProxy(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
       accountId:event.accountId,expectedVersion:event.expectedVersion,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Version conflict"?"version_conflict":"proxy_check_unavailable"};}
+ }
+ if(event.kind==="admin_man_browser_status"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await browserCheckStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
+   catch{return {ok:false,status:400,reason:"browser_status_unavailable"};}
+ }
+ if(event.kind==="admin_man_browser_start"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+    return await startBrowserCheck(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+      accountId:event.accountId,expectedVersion:event.expectedVersion,
+      siteUrl:event.siteUrl,at:Date.now()},async ({accountId,nonce,host})=>{
+      if(!rawEnv.DC_ACTIONS_TOKEN||!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)return false;
+      const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/man-browser-preflight.yml/dispatches",{
+       method:"POST",
+       headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,"Accept":"application/vnd.github+json",
+        "X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
+       body:JSON.stringify({ref:"main",
+        inputs:{account_id:accountId,nonce,site_host:host}}),
+       signal:AbortSignal.timeout(15000)
+      });
+      return response.status===204;
+    });
+   }catch(e){return {ok:false,status:409,reason:e.message==="Already running"?"already_running":"browser_start_rejected"};}
+ }
+ // GitHub Actions callback endpoints use existing server-verified bearer authentication.
+ if(event.kind==="man_browser_payload"||event.kind==="man_browser_result"){
+   if(uid!==OWNER_ID)return {status:403,body:"Forbidden"};
+   try{
+    const source=event.kind==="man_browser_payload"?new URL(event.url).searchParams:JSON.parse(event.body||"null");
+    const accountId=String(source?.get?source.get("account_id")||"":source?.account_id||"");
+    const nonce=String(source?.get?source.get("nonce")||"":source?.nonce||"");
+    const params={accountId,nonce,at:Date.now()};
+    const result=event.kind==="man_browser_payload"?
+      await claimBrowserCheck(storage,rawEnv,params):
+      await completeBrowserCheck(storage,{...params,code:source?.code,
+       observedIp:source?.observed_ip,siteReachable:source?.site_reachable===true});
+    return {status:200,body:JSON.stringify(result),headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_check"}),
+     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
  if(event.kind==="admin_man_proxy_status"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
