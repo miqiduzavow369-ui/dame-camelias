@@ -267,7 +267,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://b.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let browserPreflight=null,browserPreflightBusy=false,browserPreflightError='';let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://b.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -721,10 +721,15 @@ function renderManProxyForm(){
  '<label for="manSiteLink">Ссылка для проверки через прокси</label>'+
  '<input class="field" id="manSiteLink" type="url" required value="'+esc(siteProbeUrl||'https://b.intimcity.rip/')+'" placeholder="https://b.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
  '<button class="primary" type="submit" '+(proxySaving||siteProbing?'disabled':'')+'>'+
- (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси и проверить сайт')+'</button>'+
+ (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси')+'</button>'+
  '</form>'+
  (configured?'<button class="secondary" style="margin-top:10px" type="button" '+(siteProbing?'disabled':'')+
- ' onclick="checkSavedProxySite()">↻ Проверить сайт без повторного ввода пароля</button>':'')+
+ ' onclick="startManBrowserCheck()">🌐 Проверить IP через Chromium</button>':'')+
+ (configured?'<button class="secondary" type="button" onclick="refreshManBrowserCheck()">↻ Обновить статус Chromium</button>':'')+
+ (browserPreflight?.status==='running'?'<p class="hint">⏳ Проверка через Chromium выполняется…</p>':'')+
+ (browserPreflight?.status==='verified'?'<p class="success">✓ Внешний IP и сайт подтверждены Chromium. Вход не проверен.</p>':'')+
+ (browserPreflight?.status==='failed'||browserPreflight?.status==='dispatch_failed'?'<p class="error">Chromium: '+esc(browserPreflight.code||'executor_error')+'</p>':'')+
+ (browserPreflightError?'<p class="error">'+esc(browserPreflightError)+'</p>':'')+
  (siteProbing?'<p class="hint">Проверяем доступ к Intimcity через сохранённый HTTP-прокси…</p>':'')+
  (siteProbeError?'<p class="error" role="alert">'+esc(siteProbeError)+'</p>':'')+
  (siteProbeResult?.reachable?'<p class="success">✓ Сайт ответил через HTTP-прокси. HTTP '+Number(siteProbeResult.httpStatus)+
@@ -732,12 +737,30 @@ function renderManProxyForm(){
  '</div><div class="note">Проверка сайта не разблокирует публикации. Ян Первый защищён.</div>';
 }
 
+async function refreshManBrowserCheck(){
+ const id=selectedManId;if(!id||id==='yan_first')return;
+ try{const result=await callAdmin('man_browser_status',{accountId:id});
+ if(selectedManId===id){browserPreflight=result;render();}}
+ catch{if(selectedManId===id){browserPreflightError='Не удалось обновить статус.';render();}}
+}
+async function startManBrowserCheck(){
+ const id=selectedManId,proxy=proxyVaultState;
+ if(!id||id==='yan_first'||!proxy?.configured||browserPreflightBusy)return;
+ const siteUrl=document.getElementById('manSiteLink')?.value.trim()||siteProbeUrl;
+ browserPreflightBusy=true;browserPreflightError='';render();
+ try{const result=await callAdmin('man_browser_start',{accountId:id,expectedVersion:proxy.version,siteUrl});
+ if(selectedManId!==id)return;
+ if(result.ok){browserPreflight={status:'running'};toast('Запущена отдельная браузерная проверка.');}
+ else browserPreflightError='Не удалось запустить Chromium: '+String(result.reason||'unavailable');}
+ catch{if(selectedManId===id)browserPreflightError='Не удалось запустить браузерную проверку.';}
+ finally{browserPreflightBusy=false;if(selectedManId===id)render();}
+}
 async function openManProxy(){
  if(!selectedManId||selectedManId==='yan_first')return;
  proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;siteProbeUrl='https://b.intimcity.rip/';go('man-proxy');
  try{privateDraft=await callAdmin('man_private_status',{accountId:selectedManId});}catch{privateDraft=null;}
  try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
- if(selectedManId!==r.accountId)return;proxyVaultState=r;render();
+ if(selectedManId!==r.accountId)return;proxyVaultState=r;render();void refreshManBrowserCheck();
  }catch(e){proxyVaultError='Не удалось прочитать статус: '+e.message;render();}
 }
 function proxySiteErrorMessage(result){
@@ -809,7 +832,7 @@ async function saveManProxy(event){
   toast('🔒 HTTP-прокси зашифрован и сохранён.');
   void refreshManWizard(id);
   proxySaving=false;
-  await runSavedProxySiteCheck(id,result.version,siteUrl);
+  void refreshManBrowserCheck();
  }catch(e){
   if(selectedManId===id)proxyVaultError=e.message==='vault_key_missing'?
    'На сервере отсутствует ключ шифрования прокси.':'Не удалось сохранить прокси. Проверь формат и повтори.';
