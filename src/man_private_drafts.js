@@ -24,6 +24,9 @@ function validPort(v){return Number.isInteger(v)&&v>0&&v<=65535}
 export function validatePrivateDraft(accountId,settings){
  requireManId(accountId);
  if(!settings||typeof settings!=="object"||Array.isArray(settings))throw Error("Invalid draft");
+ const allowed=accountId==="yan_first"?new Set(["technicalName"]):
+  new Set(["technicalName","host","httpPort","socksPort","username"]);
+ if(Object.keys(settings).some(key=>!allowed.has(key)))throw Error("Unexpected private draft field");
  const {technicalName,host,httpPort,socksPort,username}=settings;
  if(typeof technicalName!=="string"||!/^[-\w.+]+@[-\w.]+\.[A-Za-z]{2,}$/u.test(technicalName)||
     technicalName.length>254)throw Error("Invalid technical name");
