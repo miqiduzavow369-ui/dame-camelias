@@ -495,7 +495,7 @@ async function verifyManProxyNow(){
     tcp_connect_failed:'Сервер не установил TCP-соединение с адресом и портом прокси. Проверьте порт SOCKS5, доступность сервера и ограничения провайдера.',
     socks_handshake_failed:'TCP-соединение есть, но сервер не ответил корректно на запрос SOCKS5. Проверьте протокол и порт.',
     proxy_auth_failed:'Прокси отклонил логин или пароль SOCKS5.',
-    proxy_target_rejected:'SOCKS5 доступен, но отказал в подключении к сервису проверки IP.',
+    proxy_target_rejected:'SOCKS5 отклонил подключение к обоим HTTPS-сервисам проверки IP. Проверьте разрешение исходящих соединений на порт 443 у провайдера прокси.',
     tls_tunnel_failed:'SOCKS5-туннель создан, но Cloudflare не смог завершить защищённое HTTPS-соединение внутри него. Прокси может быть исправным — проверка IP не подтверждена.',
     ip_echo_failed:'HTTPS-туннель открыт, но сервис проверки IP вернул некорректный ответ.',
     proxy_unreachable:'Сервер не смог связаться с прокси.',
@@ -504,7 +504,10 @@ async function verifyManProxyNow(){
     unexpected_response:'Неожиданный ответ в процессе проверки; IP не подтверждён.',
     executor_unavailable:'Сервер не поддерживает сетевую проверку.'
    };
-   proxyVerifyError=(messages[result.code]||'Не удалось подтвердить прокси.')+' Код: '+String(result.code||'unknown')+'.';
+   const repLabels={1:'общая ошибка SOCKS5',2:'запрещено правилами прокси',3:'сеть назначения недоступна',4:'узел назначения недоступен',5:'соединение отклонено',6:'истёк TTL',7:'команда не поддерживается',8:'тип адреса не поддерживается'};
+   const reply=Number.isInteger(result.socksReply)&&repLabels[result.socksReply]?
+      ' Ответ SOCKS5: '+result.socksReply+' ('+repLabels[result.socksReply]+').' : '';
+   proxyVerifyError=(messages[result.code]||'Не удалось подтвердить прокси.')+reply+' Код: '+String(result.code||'unknown')+'.';
   }
  }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
  finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}

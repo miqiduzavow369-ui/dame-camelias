@@ -66,3 +66,37 @@ test("stage-safe TCP and TLS errors never verify and never expose credentials",a
   assert.ok(!JSON.stringify(result).includes(settings.password));
  }
 });
+
+test("retry only fixed HTTPS echo endpoint following SOCKS5 target refusal",async()=>{
+ const {store}=await setup(),called=[];
+ const out=await verifyManProxy(store,env,{...ctx,expectedVersion:1,at:5},async(_settings,_connect,_signal,host)=>{
+  called.push(host);
+  if(called.length===1){const e=new Error("proxy_target_rejected");e.socksReply=2;e.stage="socks_connect";throw e;}
+  return settings.expectedIp;
+ },()=>{});
+ assert.deepEqual(called,["api.ipify.org","ipv4.icanhazip.com"]);
+ assert.equal(out.verified,true);
+ assert.equal(out.canPublish,false);
+ assert.equal(out.checkHost,"ipv4.icanhazip.com");
+});
+test("two SOCKS5 refusals expose numeric reply but never credentials",async()=>{
+ const {store}=await setup(),called=[];
+ const out=await verifyManProxy(store,env,{...ctx,expectedVersion:1,at:5},async(_settings,_connect,_signal,host)=>{
+  called.push(host);const e=new Error("proxy_target_rejected");e.socksReply=2;e.stage="socks_connect";throw e;
+ },()=>{});
+ assert.equal(called.length,2);
+ assert.equal(out.code,"proxy_target_rejected");
+ assert.equal(out.socksReply,2);
+ assert.equal(out.canPublish,false);
+ assert.equal(out.verified,false);
+ assert.ok(!JSON.stringify(out).includes(settings.password));
+});
+test("never retry auth rejection against alternate target",async()=>{
+ const {store}=await setup(),called=[];
+ const out=await verifyManProxy(store,env,{...ctx,expectedVersion:1,at:5},async(_settings,_connect,_signal,host)=>{
+  called.push(host);throw Error("proxy_auth_failed");
+ },()=>{});
+ assert.equal(called.length,1);
+ assert.equal(out.code,"proxy_auth_failed");
+ assert.equal(out.canPublish,false);
+});

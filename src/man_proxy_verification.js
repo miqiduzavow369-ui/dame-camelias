@@ -3,7 +3,7 @@
 import {requireManId} from "./man_account_isolation.js";
 import {validateProxyInput} from "./man_proxy_vault.js";
 const PREFIX="man-proxy-sealed-v1:";
-const CHECK_HOST="api.ipify.org";
+const CHECK_HOSTS=Object.freeze(["api.ipify.org","ipv4.icanhazip.com"]);
 const CHECK_PORT=443;
 const TIMEOUT=12000;
 const enc=new TextEncoder();
@@ -26,7 +26,8 @@ async function decrypt(env,id,record){
  return validateProxyInput(JSON.parse(new TextDecoder().decode(plain)));
 }
 function fail(code){throw Error(code);}
-async function probeSocks5(proxy,connectFn,signal){
+async function probeSocks5(proxy,connectFn,signal,checkHost=CHECK_HOSTS[0]){
+ if(!CHECK_HOSTS.includes(checkHost))fail("unexpected_response");
  if(proxy.protocol!=="socks5")fail("unsupported_protocol");
  if(!connectFn)fail("executor_unavailable");
  // Only a public, validated proxy address and a fixed HTTPS echo service may be contacted.
@@ -62,10 +63,14 @@ async function probeSocks5(proxy,connectFn,signal){
    if(response[0]!==1||response[1]!==0)fail("proxy_auth_failed");
   }else if(greeting[1]!==0)fail("proxy_auth_failed");
   stage="socks_connect";
-  const target=enc.encode(CHECK_HOST);
+  const target=enc.encode(checkHost);
   await send(Uint8Array.from([5,1,0,3,target.length,...target,CHECK_PORT>>8,CHECK_PORT&255]));
   const connectReply=await take(4);
-  if(connectReply[0]!==5||connectReply[1]!==0)fail("proxy_target_rejected");
+  if(connectReply[0]!==5||connectReply[1]!==0){
+   const error=new Error("proxy_target_rejected");
+   error.socksReply=connectReply[0]===5?connectReply[1]:null;
+   throw error;
+  }
   const atyp=connectReply[3];
   if(atyp===1)await take(4+2);
   else if(atyp===4)await take(16+2);
@@ -75,10 +80,10 @@ async function probeSocks5(proxy,connectFn,signal){
   reader.releaseLock();writer.releaseLock();reader=null;writer=null;
   // Upgrade the tunneled TCP stream to TLS, validating the fixed hostname.
   stage="tls_handshake";
-  socket=socket.startTls({expectedServerHostname:CHECK_HOST});
+  socket=socket.startTls({expectedServerHostname:checkHost});
   await socket.opened;
   writer=socket.writable.getWriter();reader=socket.readable.getReader();
-  await writer.write(enc.encode("GET / HTTP/1.1\r\nHost: "+CHECK_HOST+"\r\nAccept: text/plain\r\nConnection: close\r\n\r\n"));
+  await writer.write(enc.encode("GET / HTTP/1.1\r\nHost: "+checkHost+"\r\nAccept: text/plain\r\nConnection: close\r\n\r\n"));
   stage="ip_response";
   let response="",size=0;
   while(size<4096){
@@ -106,6 +111,7 @@ async function probeSocks5(proxy,connectFn,signal){
    tls_handshake:"tls_tunnel_failed",ip_response:"ip_echo_failed"};
   const safe=new Error(known.has(error?.message)?error.message:codes[stage]||"unexpected_response");
   safe.stage=stage;
+  if(Number.isInteger(error?.socksReply)&&error.socksReply>=1&&error.socksReply<=8)safe.socksReply=error.socksReply;
   throw safe;
  }finally{
   try{reader?.releaseLock()}catch{}
@@ -119,12 +125,24 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
  const old=await storage.get(PREFIX+accountId);
  if(!old||old.version!==expectedVersion)throw Error("Version conflict");
  const settings=await decrypt(env,accountId,old);
- let code="verified",stage="completed",observedIp=null;
+ let code="verified",stage="completed",observedIp=null,socksReply=null,checkHost=null;
  const controller=new AbortController();
  let timeoutId;
  try{
+  const connection=connectFn??(await import("cloudflare:sockets")).connect;
+  const safeProbe=async()=>{
+   for(let i=0;i<CHECK_HOSTS.length;i++){
+    const host=CHECK_HOSTS[i];checkHost=host;
+    try{return await probe(settings,connection,controller.signal,host)}
+    catch(error){
+     if(error?.message!=="proxy_target_rejected"||i===CHECK_HOSTS.length-1)throw error;
+     socksReply=Number.isInteger(error?.socksReply)?error.socksReply:null;
+    }
+   }
+   throw Error("unexpected_response");
+  };
   observedIp=await Promise.race([
-   probe(settings,connectFn??(await import("cloudflare:sockets")).connect,controller.signal),
+   safeProbe(),
    new Promise((_,reject)=>{timeoutId=setTimeout(()=>{controller.abort();reject(Error("proxy_timeout"))},TIMEOUT)})
   ]);
   if(observedIp!==settings.expectedIp)code="ip_mismatch";
@@ -134,6 +152,7 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
    "socks_handshake_failed","proxy_target_rejected","tls_tunnel_failed","ip_echo_failed"]);
   code=known.has(e?.message)?e.message:"unexpected_response";
   stage=typeof e?.stage==="string"?e.stage:code==="proxy_timeout"?"timeout":"system";
+  if(Number.isInteger(e?.socksReply))socksReply=e.socksReply;
  }finally{clearTimeout(timeoutId)}
  if(typeof storage.transaction!=="function")throw Error("Atomic storage unavailable");
  return storage.transaction(async tx=>{
@@ -144,6 +163,6 @@ export async function verifyManProxy(storage,env,{actorId,cabinetId,ownerId,acco
    proxyVerified:success,ipVerified:success,siteIdentityVerified:false,enabled:false,
    verifiedAt:success?at:null});
   return {ok:true,accountId,version:expectedVersion,verified:success,code,
-   stage,observedIp:observedIp||null,expectedIp:settings.expectedIp,canPublish:false};
+   stage,socksReply:code==="proxy_target_rejected"?socksReply:null,checkHost,observedIp:observedIp||null,expectedIp:settings.expectedIp,canPublish:false};
  });
 }
