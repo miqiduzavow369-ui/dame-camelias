@@ -78,3 +78,23 @@ test("dispatch failure is visible and never claims verification",async()=>{
  assert.equal((await browserCheckStatus(store,actor)).status,"dispatch_failed");
  assert.equal((await proxyStatus(store,actor)).ipVerified,false);
 });
+
+test("specific dispatch failure is persisted without enabling a man",async()=>{
+ const {store}=await setup();
+ const result=await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+  siteUrl:"https://b.intimcity.rip/",at:1000},async()=>({ok:false,reason:"github_forbidden"}));
+ assert.equal(result.reason,"github_forbidden");
+ const status=await browserCheckStatus(store,actor);
+ assert.equal(status.status,"dispatch_failed");
+ assert.equal(status.code,"github_forbidden");
+ assert.equal(status.canPublish,false);
+ assert.equal((await proxyStatus(store,actor)).ipVerified,false);
+});
+test("successful structured dispatch still runs without verification",async()=>{
+ const {store}=await setup();
+ const result=await startBrowserCheck(store,env,{...actor,expectedVersion:1,
+  siteUrl:"https://b.intimcity.rip/",at:1000},async()=>({ok:true}));
+ assert.equal(result.status,"running");
+ assert.equal(result.canPublish,false);
+ assert.equal((await proxyStatus(store,actor)).ipVerified,false);
+});

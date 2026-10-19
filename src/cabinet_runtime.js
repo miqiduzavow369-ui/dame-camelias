@@ -358,7 +358,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     return await startBrowserCheck(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
       accountId:event.accountId,expectedVersion:event.expectedVersion,
       siteUrl:event.siteUrl,at:Date.now()},async ({accountId,nonce,host})=>{
-      if(!rawEnv.DC_ACTIONS_TOKEN||!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)return false;
+      if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
+      if(!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_config_missing"};
       const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/man-browser-preflight.yml/dispatches",{
        method:"POST",
        headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,"Accept":"application/vnd.github+json",
@@ -367,7 +368,10 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
         inputs:{account_id:accountId,nonce,site_host:host}}),
        signal:AbortSignal.timeout(15000)
       });
-      return response.status===204;
+      return response.status===204?{ok:true}:{ok:false,reason:({
+       401:"github_unauthorized",403:"github_forbidden",404:"workflow_not_found",
+       422:"github_validation_failed",429:"github_rate_limited"
+      })[response.status]||"github_dispatch_rejected"};
     });
    }catch(e){return {ok:false,status:409,reason:e.message==="Already running"?"already_running":"browser_start_rejected"};}
  }

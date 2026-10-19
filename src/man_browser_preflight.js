@@ -56,14 +56,19 @@ export async function startBrowserCheck(storage,env,{actorId,cabinetId,ownerId,a
   await tx.put(RUN+accountId,value);
   return value;
  });
- let dispatched=false;
- try{dispatched=await dispatch({accountId,nonce,host});}catch{}
+ let dispatched=false,dispatchCode="executor_unavailable";
+ try{
+  const outcome=await dispatch({accountId,nonce,host});
+  dispatched=outcome===true||outcome?.ok===true;
+  const allowed=new Set(["github_token_missing","callback_config_missing","github_unauthorized","github_forbidden","workflow_not_found","github_validation_failed","github_rate_limited","github_network_error","github_dispatch_rejected"]);
+  if(!dispatched&&allowed.has(outcome?.reason))dispatchCode=outcome.reason;
+ }catch{dispatchCode="github_network_error";}
  if(!dispatched){
   await storage.transaction(async tx=>{
    const current=await tx.get(RUN+accountId);
-   if(current?.nonce===nonce)await tx.put(RUN+accountId,{...current,status:"dispatch_failed",code:"executor_unavailable",finishedAt:Date.now()});
+   if(current?.nonce===nonce)await tx.put(RUN+accountId,{...current,status:"dispatch_failed",code:dispatchCode,finishedAt:Date.now()});
   });
-  return {ok:false,reason:"executor_unavailable",canPublish:false};
+  return {ok:false,reason:dispatchCode,canPublish:false};
  }
  return {ok:true,accountId,status:"running",proxyVersion:expectedVersion,canPublish:false};
 }
