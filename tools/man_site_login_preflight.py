@@ -34,7 +34,9 @@ def request_json(url,body=None):
 
 def safe_host(url):
     p=urllib.parse.urlsplit(url)
-    return p.scheme=="https" and p.hostname in HOSTS and not p.username and not p.password
+    return (p.scheme=="https" and bool(p.hostname) and
+            (p.hostname=="intimcity.rip" or p.hostname.endswith(".intimcity.rip")) and
+            not p.username and not p.password and p.port is None)
 
 def inspect_login(page,site_url,login_value,password_value):
     """Reuse Yan First's site-specific login selectors and verification."""
