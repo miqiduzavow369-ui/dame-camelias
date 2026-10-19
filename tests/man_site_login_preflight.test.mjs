@@ -62,3 +62,22 @@ test("dispatch errors retain safe code and no stored secrets are returned",async
  assert.ok(!JSON.stringify(status).includes(credentials.password));
 });
 
+
+test("account must use its own verified HTTP proxy, never another man's proxy",async()=>{
+ const store=await fixture();
+ let dispatched;
+ const first=await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:15},async x=>(dispatched=x,{ok:true}));
+ assert.equal(first.status,"running");
+ const original=await store.get("man-proxy-sealed-v1:yan_second");
+ // Replacing the proxy with another account's record makes the one-time claim fail.
+ await store.put("man-proxy-sealed-v1:yan_second",{...original,accountId:"yan_03"});
+ await assert.rejects(claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:dispatched.nonce,at:16}),/Unavailable/);
+ assert.equal((await siteLoginStatus(store,owner)).canPublish,false);
+});
+test("an IP-check failure does not permit credentialed login",async()=>{
+ const store=await fixture();
+ const proxyRecord=await store.get("man-proxy-sealed-v1:yan_second");
+ await store.put("man-proxy-sealed-v1:yan_second",{...proxyRecord,ipVerified:false});
+ await assert.rejects(startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:20},
+   async()=>{throw Error("dispatch must not run")}),/Prerequisites not verified/);
+});
