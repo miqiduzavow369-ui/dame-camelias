@@ -23,6 +23,7 @@ async function readyStore(){
 }
 test("authenticated account header can confirm identity without enabling publication",async()=>{
  const tx=await readyStore();let nonce;
+ await tx.put("man-owner-approval-v1:yan_second",{accountId:"yan_second",version:1,approved:true,proxyVersion:1,siteVersion:1});
  await startSiteLoginCheck(tx,keys,{...owner,expectedVersion:1,at:10},async input=>(nonce=input.nonce,{ok:true}));
  await claimSiteLoginCheck(tx,keys,{accountId:owner.accountId,nonce,at:11});
  await completeSiteLoginCheck(tx,{accountId:owner.accountId,nonce,at:12,code:"login_authenticated_identity_verified"},keys);
@@ -30,7 +31,12 @@ test("authenticated account header can confirm identity without enabling publica
  assert.equal(result.technicalReady,true);
  assert.equal(result.siteIdentityVerified,true);
  assert.equal(result.canPublish,false);
- assert.equal((await currentVerifiedIdentity(tx,owner.accountId)).verified,false); // no ADMIN owner approval yet
+ assert.equal((await currentVerifiedIdentity(tx,owner.accountId)).verified,true);
+ const stored=await tx.get("secondary-site-identity-v1:yan_second");
+ assert.equal(stored.siteAccountId,"real@example.com");
+ assert.equal(stored.proxyVersion,1);
+ await tx.put("man-owner-approval-v1:yan_second",{...await tx.get("man-owner-approval-v1:yan_second"),approved:false});
+ assert.equal((await currentVerifiedIdentity(tx,owner.accountId)).verified,false);
  const site=await tx.get("man-intimcity-sealed-v1:yan_second");
  assert.equal(site.identityVerified,false);
 });
