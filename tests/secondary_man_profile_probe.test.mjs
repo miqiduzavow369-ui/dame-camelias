@@ -49,9 +49,13 @@ test("read-only claim consumes the exact account and nonce and protects credenti
   ...await seal(proxyKey,proxy,accountId)});
  m.set("man-intimcity-sealed-v1:"+accountId,{accountId,version:3,boundProxyVersion:2,siteUrl:site.siteUrl,
   ...await seal(siteKey,site,accountId+":intimcity:2")});
+ m.set("man-owner-approval-v1:"+accountId,{accountId,version:1,approved:true,proxyVersion:2,siteVersion:3});
  const env={MAN_PROXY_ENCRYPTION_KEY:proxyKey,MAN_SITE_ENCRYPTION_KEY:siteKey};
  const claim={accountId,profileId:"2468",nonce:saved.nonce,at:11000};
  await assert.rejects(()=>claimProfileProbe(tx,env,{...claim,accountId:"yan_03"}),/not authorized/);
+ m.set("man-owner-approval-v1:"+accountId,{accountId,version:2,approved:false,proxyVersion:2,siteVersion:3});
+ await assert.rejects(()=>claimProfileProbe(tx,env,claim),/not authorized/);
+ m.set("man-owner-approval-v1:"+accountId,{accountId,version:3,approved:true,proxyVersion:2,siteVersion:3});
  const grant=await claimProfileProbe(tx,env,claim);
  assert.equal(grant.accountId,accountId);
  assert.equal(grant.mode,"profile");
