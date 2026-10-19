@@ -324,11 +324,14 @@ function manChecks(x,mini=false){
 
 function menStatus(x){
  if(x.connection==='legacy_active')return {label:'Действующий',short:'Работает',cls:'legacy',icon:'✦'};
+ if(x.readiness?.ipVerified)return {label:'IP и сайт проверены; вход не проверен',short:'IP ✓ · вход закрыт',cls:'planning',icon:'◷'};
+ if(x.readiness?.browserStatus==='running')return {label:'Идёт проверка Chromium',short:'Проверка IP',cls:'planning',icon:'◷'};
+ if(x.readiness?.proxyConfigured)return {label:'Прокси сохранён, IP ещё не подтверждён',short:'Прокси сохранён',cls:'planning',icon:'◷'};
  if(x.setup?.stage==='awaiting_credentials')return {label:'Ожидает настройки',short:'Подготовка',cls:'planning',icon:'◷'};
  return {label:'Не подключён',short:'Отключён',cls:'disabled',icon:'🔒'};
 }
 function renderMenDashboard(){
- const total=manAccounts.length,active=manAccounts.filter(x=>x.connection==='legacy_active').length,planning=manAccounts.filter(x=>x.setup?.stage==='awaiting_credentials').length;
+ const total=manAccounts.length,active=manAccounts.filter(x=>x.connection==='legacy_active').length,planning=manAccounts.filter(x=>x.readiness?.proxyConfigured).length,verified=manAccounts.filter(x=>x.readiness?.ipVerified).length;
  const q=menQuery.toLocaleLowerCase('ru').trim();
  const list=manAccounts.filter(x=>(menFilter==='all'||(menFilter==='active'&&x.connection==='legacy_active')||(menFilter==='waiting'&&x.connection!=='legacy_active'))&&
  (x.name.toLocaleLowerCase('ru').includes(q)||x.id.includes(q)||String(x.number).includes(q)));
