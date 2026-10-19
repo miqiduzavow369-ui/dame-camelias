@@ -15,6 +15,7 @@ import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
 import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
+import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
@@ -451,6 +452,47 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{return await saveProxy(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
+ }
+ if(event.kind==="admin_secondary_profile_probe"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId};
+  try{
+    if(event.action==="status")return profileProbeStatus(storage,event.accountId);
+    if(event.action!=="start")return {ok:false,status:400,reason:"invalid_action"};
+    const [approval,proxy,site,login]=await Promise.all([
+      readSecondaryManApproval(storage,params),proxyStatus(storage,params),
+      readSiteStatus(storage,params),siteLoginStatus(storage,params)]);
+    return await startProfileProbe(storage,{accountId:event.accountId,profileId:String(event.profileId||""),
+      at:Date.now(),approval,proxy,site,login,dispatch:async ({accountId,profileId,nonce,siteHost})=>{
+       if(!rawEnv.DC_ACTIONS_TOKEN||!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)
+        return {ok:false};
+       const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-profile-probe.yml/dispatches",{
+        method:"POST",headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+         "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",
+         "Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
+        body:JSON.stringify({ref:"main",inputs:{account_id:accountId,profile_id:profileId,nonce,site_host:siteHost}}),
+        signal:AbortSignal.timeout(15000)
+       });
+       return {ok:response.status===204};
+      }});
+  }catch{return {ok:false,status:409,reason:"profile_probe_rejected"};}
+ }
+ if(event.kind==="secondary_profile_probe_payload"||event.kind==="secondary_profile_probe_result"){
+  if(uid!==OWNER_ID)return {status:403,body:"Forbidden"};
+  try{
+   const src=event.kind==="secondary_profile_probe_payload"?
+    new URL(event.url).searchParams:JSON.parse(event.body||"null");
+   const accountId=String(src?.get?src.get("account_id")||"":src?.account_id||"");
+   const profileId=String(src?.get?src.get("profile_id")||"":src?.profile_id||"");
+   const nonce=String(src?.get?src.get("nonce")||"":src?.nonce||"");
+   const params={accountId,profileId,nonce,at:Date.now()};
+   const result=event.kind==="secondary_profile_probe_payload"?
+    await claimProfileProbe(storage,rawEnv,params):
+    await completeProfileProbe(storage,{...params,code:src?.code});
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_profile_probe"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
  if(event.kind==="admin_secondary_man_approval"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
