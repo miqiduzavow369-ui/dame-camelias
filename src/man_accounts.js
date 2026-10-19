@@ -1,20 +1,43 @@
 // DAME CAMELIAS — multi-man account registry foundation.
 // Deliberately not wired into publication, moderation, or UI until isolation audits pass.
 // Compatibility: never rename the existing yan_first or yan_second identifiers.
-const NAMES = [
-  "Первый", "Второй", "Третий", "Четвёртый", "Пятый",
-  "Шестой", "Седьмой", "Восьмой", "Девятый", "Десятый",
-  "Одиннадцатый", "Двенадцатый", "Тринадцатый", "Четырнадцатый", "Пятнадцатый",
-  "Шестнадцатый", "Семнадцатый", "Восемнадцатый", "Девятнадцатый", "Двадцатый",
-  "Двадцать первый", "Двадцать второй", "Двадцать третий", "Двадцать четвёртый",
-  "Двадцать пятый", "Двадцать шестой", "Двадцать седьмой", "Двадцать восьмой",
-  "Двадцать девятый", "Тридцатый"
-];
+const DISPLAY_NAMES = Object.freeze([
+  "Ян Первый",
+  "Михаил Корсаков",
+  "Даниил Оболенский",
+  "Кирилл Бестужев",
+  "Никита Ланской",
+  "Матвей Зорин",
+  "Александр Верещагин",
+  "Роман Белозёров",
+  "Егор Ржевский",
+  "Тимофей Громовский",
+  "Владислав Касаткин",
+  "Глеб Тихомиров",
+  "Ярослав Одоевский",
+  "Фёдор Крестовский",
+  "Марк Серебряков",
+  "Илья Воронцов",
+  "Степан Лазаревский",
+  "Максим Чернышёв",
+  "Арсений Долгоруков",
+  "Константин Мирославский",
+  "Лев Барышников",
+  "Савелий Ростовцев",
+  "Павел Златоустов",
+  "Демьян Соколовский",
+  "Богдан Елагин",
+  "Всеволод Уваров",
+  "Григорий Трубецкой",
+  "Андрей Мещеряков",
+  "Руслан Заболоцкий",
+  "Платон Ратников"
+]);
 const idFor = number => number === 1 ? "yan_first" : number === 2 ? "yan_second" : "yan_" + String(number).padStart(2, "0");
-export const MAN_ACCOUNTS = Object.freeze(NAMES.map((ordinal, index) => Object.freeze({
+export const MAN_ACCOUNTS = Object.freeze(DISPLAY_NAMES.map((name, index) => Object.freeze({
   id: idFor(index + 1),
   number: index + 1,
-  name: "Ян " + ordinal,
+  name,
   // This list is NOT an authorization source for production activation.
   // Accounts 2..30 remain disabled even when displayed in the admin registry.
   enabledByDefault: index === 0
