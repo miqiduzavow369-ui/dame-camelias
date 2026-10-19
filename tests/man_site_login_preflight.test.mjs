@@ -39,8 +39,8 @@ test("site login preflight is owner-only and never activates secondary account",
  assert.equal(claimed.sitePassword,credentials.password);
  assert.equal(claimed.proxyPassword,proxy.password);
  await assert.rejects(claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:invocation.nonce,at:12}));
- const completed=await completeSiteLoginCheck(store,{accountId:owner.accountId,nonce:invocation.nonce,at:13,code:"login_attempted_unconfirmed"});
- assert.equal(completed.code,"login_attempted_unconfirmed");
+ const completed=await completeSiteLoginCheck(store,{accountId:owner.accountId,nonce:invocation.nonce,at:13,code:"login_authenticated_identity_unconfirmed"});
+ assert.equal(completed.code,"login_authenticated_identity_unconfirmed");
  assert.equal(completed.siteIdentityVerified,false);
  assert.equal(completed.canPublish,false);
  assert.equal((await store.get("man-intimcity-sealed-v1:yan_second")).identityVerified,false);
@@ -61,3 +61,4 @@ test("dispatch errors retain safe code and no stored secrets are returned",async
  assert.equal(status.siteIdentityVerified,false);
  assert.ok(!JSON.stringify(status).includes(credentials.password));
 });
+
