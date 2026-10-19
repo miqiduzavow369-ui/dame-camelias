@@ -70,7 +70,11 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
  const credentials=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
   accountId+":intimcity:"+proxy.version);
  const p=await decrypt(env.MAN_PROXY_ENCRYPTION_KEY,proxy.iv,proxy.sealed,accountId);
- if(credentials.siteUrl!==site.siteUrl||p.expectedIp!==proxy.expectedIp)throw Error("Vault mismatch");
+ // The credential grant is unusable unless this account's *own* sealed HTTP
+ // proxy matches the pinned record and was verified for this exact version.
+ if(p.protocol!=="http"||p.expectedIp!==proxy.expectedIp||
+    credentials.siteUrl!==site.siteUrl||!proxy.proxyVerified||!proxy.ipVerified||
+    site.boundProxyVersion!==proxy.version)throw Error("Proxy binding unavailable");
  return {ok:true,accountId,nonce,siteUrl:site.siteUrl,siteLogin:credentials.login,
   sitePassword:credentials.password,expectedIp:p.expectedIp,proxyHost:p.host,proxyPort:p.port,
   proxyUsername:p.username,proxyPassword:p.password};
