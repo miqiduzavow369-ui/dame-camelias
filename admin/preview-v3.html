@@ -590,6 +590,31 @@ async function verifyManProxyNow(){
  }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
  finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}
 }
+let secondaryProbeStatus=null,secondaryProbeBusy=false,secondaryProbeError="";
+async function refreshSecondaryProfileProbe(id=selectedManId){
+ if(!id||id==='yan_first')return;
+ try{
+  const result=await callAdmin('secondary_profile_probe_status',{accountId:id});
+  if(selectedManId===id){secondaryProbeStatus=result;secondaryProbeError='';}
+ }catch{if(selectedManId===id)secondaryProbeError='Не удалось обновить статус поиска';}
+ if(selectedManId===id&&state.page==='man-detail')render();
+}
+async function startSecondaryProfileProbe(event){
+ event.preventDefault();
+ const id=selectedManId;
+ if(!id||id==='yan_first'||secondaryProbeBusy)return;
+ const field=document.getElementById('secondaryProbeProfile');
+ const profileId=String(field?.value||'').trim();
+ if(!/^[0-9]{1,9}$/.test(profileId)){toast('Укажите номер анкеты');return;}
+ secondaryProbeBusy=true;secondaryProbeError='';render();
+ try{
+  const result=await callAdmin('secondary_profile_probe_start',{accountId:id,profileId});
+  if(result?.status!=='running')throw Error('Запуск не подтверждён');
+  toast('Проверка анкеты запущена. Публикации не выполняются.');
+  await refreshSecondaryProfileProbe(id);
+ }catch(e){if(selectedManId===id)secondaryProbeError='Проверка не запущена: '+e.message;}
+ finally{secondaryProbeBusy=false;render();}
+}
 let manApprovalBusy=false;
 async function updateManOwnerApproval(approved){
  const x=manAccounts.find(a=>a.id===selectedManId);
@@ -676,6 +701,18 @@ function renderManConsole(){
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
  '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||(!identityOK&&!x.approval?.approved)?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
+ '<div class="card" style="margin-top:14px"><strong>🔎 Проверка поиска анкеты</strong>'+
+ '<p class="hint">Поиск выполняется через личный прокси и кабинет этого мужчины по сценарию Яна Первого. Без оценок и отправки отзывов.</p>'+
+ '<p class="hint">'+esc(secondaryProbeError||(
+  secondaryProbeStatus?.status==='completed'
+   ?(secondaryProbeStatus.verified?'✅ Анкета найдена и проверена':'⚠️ Проверка завершилась без подтверждения')
+   :secondaryProbeStatus?.status==='running'?'⏳ Проверка выполняется'
+   :'Проверка пока не запускалась'))+'</p>'+
+ '<form onsubmit="startSecondaryProfileProbe(event)"><label for="secondaryProbeProfile">Номер анкеты</label>'+
+ '<input class="field" id="secondaryProbeProfile" type="text" inputmode="numeric" pattern="[0-9]{1,9}" maxlength="9" placeholder="Номер анкеты" required>'+
+ '<button type="submit" class="secondary" '+(secondaryProbeBusy||!identityOK||!x.approval?.approved?'disabled':'')+'>🔎 Проверить поиск через личный прокси</button></form>'+
+ '<button type="button" class="secondary" onclick="refreshSecondaryProfileProbe()">↻ Обновить результат</button></div>'+
+
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
  '<details class="man-step-details"><summary>Диагностика и история</summary>'+
  manChecks(x)+renderManDiagnostic(x)+
@@ -1072,8 +1109,8 @@ const auth=()=>window.Telegram?.WebApp?.initData||'';
 function openManDetail(id){
  if(!manAccounts.some(x=>x.id===id))return;
  selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://b.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
- menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');
- void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);
+ menHistory=[];menHistoryError='';secondaryProbeStatus=null;secondaryProbeError='';++menHistoryRequest;go('man-detail');
+ void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);if(id!=='yan_first')void refreshSecondaryProfileProbe(id);
 }
 async function refreshManWizard(id=selectedManId){
  if(!id)return;
