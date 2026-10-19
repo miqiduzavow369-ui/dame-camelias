@@ -1,0 +1,42 @@
+name: Independent man browser proxy and IP preflight
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: "Selected disabled male account"
+        required: true
+        type: string
+      nonce:
+        description: "One-time coordinator run token (no credentials)"
+        required: true
+        type: string
+      site_host:
+        description: "Allowed Intimcity hostname"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: "man-browser-${{ inputs.account_id }}"
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser executor
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Verify proxy IP and Intimcity read-only
+        env:
+          ANKETA_CALLBACK_URL: ${{ secrets.ANKETA_CALLBACK_URL }}
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+          MAN_BROWSER_ACCOUNT_ID: ${{ inputs.account_id }}
+          MAN_BROWSER_NONCE: ${{ inputs.nonce }}
+          MAN_BROWSER_SITE_HOST: ${{ inputs.site_host }}
+        run: python tools/man_browser_preflight.py
