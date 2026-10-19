@@ -202,6 +202,33 @@ body.admin-wide .footnav{max-width:1200px}
  body.admin-wide .action-tile{min-height:100px;padding:12px}
  body.admin-wide .card{padding:12px}
 }
+
+/* Sequential admin account setup */
+.man-step-progress{padding:18px;border:1px solid #98733d;border-radius:16px;background:#201b14;margin:17px 0}
+.man-step-progress .row{justify-content:space-between;align-items:center;gap:10px}
+.man-step-progress b{color:#e6c48b}
+.man-step-track{height:8px;border-radius:8px;background:#453728;overflow:hidden;margin-top:13px}
+.man-step-track span{display:block;height:100%;background:linear-gradient(90deg,#9a7640,#e1c58d)}
+.man-step-list{display:flex;flex-direction:column;gap:0}
+.man-step{position:relative;display:flex;align-items:stretch;gap:12px;padding:8px 0 18px}
+.man-step:not(:last-child):before{position:absolute;left:20px;top:44px;bottom:-5px;width:2px;content:"";background:#7c603d}
+.man-step-number{position:relative;z-index:1;flex:0 0 42px;height:42px;border-radius:50%;border:2px solid #b38e53;background:#211b14;color:#f3d59c;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
+.man-step-body{min-width:0;flex:1;border:1px solid #997748;border-radius:16px;background:#231d17;padding:16px}
+.man-step-heading{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.man-step-heading strong{font-size:16px;line-height:1.3}
+.man-step-heading small{color:#e4c68b;font-size:12px;font-weight:700}
+.man-step-body p{color:#cabba4;font-size:13px;line-height:1.5;margin:11px 0}
+.man-step-action{width:100%;min-height:44px}
+.man-step.complete .man-step-number{border-color:#85ac86;background:#314634;color:#d6edd7}
+.man-step.complete .man-step-body{border-color:#647f63;background:#1c291e}
+.man-step.complete .man-step-heading small{color:#bee4c0}
+.man-step.unavailable .man-step-number{border-color:#53483c;background:#22201c;color:#938677}
+.man-step.unavailable .man-step-body{border-color:#56493b;background:#191716}
+.man-step.unavailable .man-step-heading small{color:#a89d90}
+.man-step-lock{font-size:12px;color:#a39889}
+.man-step-refresh{width:100%;margin:3px 0 15px}
+.man-step-details{border:1px solid #665037;border-radius:14px;padding:14px}
+.man-step-details summary{color:#e7c58c;font-weight:700;cursor:pointer}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="head-actions"><button class="layout-toggle" id="admin-layout-toggle" type="button" onclick="toggleAdminLayout()" aria-label="Компьютерная версия" aria-pressed="false" title="Компьютерная версия">▣</button><div class="mark">✦</div></div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 const ADMIN_LAYOUT_PREF = 'dame_admin_wide_layout_v1';
 function setAdminLayout(wide){
@@ -240,7 +267,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -453,29 +480,54 @@ async function saveManPrivateImport(event){
 
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
- if(!x)return back("root('men')")+'<h1>Аккаунт не найден</h1>';
- const legacy=x.connection==='legacy_active',stage=x.setup?.stage||'not_configured',st=menStatus(x);
- const tile=(icon,title,detail,buttonCall,canClick)=>'<button type="button" class="men-action-tile'+(canClick?' actionable':'')+'" '+(canClick?'onclick="'+buttonCall+'"':'disabled')+'><span class="ico">'+icon+'</span><strong>'+title+'</strong><small>'+detail+'</small></button>';
- const planAvailable=!legacy&&!menChanging&&(stage==='not_configured'||stage==='awaiting_credentials');
- const action=stage==='awaiting_credentials'?'reset':'plan';
- const planTitle=stage==='awaiting_credentials'?'Сбросить подготовку':'Начать подготовку';
- const history=menHistory.length?menHistory.slice().reverse().map(log=>'<div class="men-history-entry"><span class="men-history-dot">✓</span><div><strong>'+(log.action==='plan'?'Подготовка начата':'Подготовка сброшена')+'</strong><small>Версия '+Number(log.version)+' · '+esc(new Date(log.at).toLocaleString('ru-RU'))+'</small></div></div>').join(''):'<div class="empty">Изменений пока нет</div>';
- return back("go('men')")+'<div class="mini">МУЖСКИЕ АККАУНТЫ / КАРТОЧКА</div>'+
- '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+'</div><h1>'+esc(x.name)+'</h1></div><span class="pill">'+st.icon+' '+st.short+'</span></div>'+
- '<div class="state">'+st.label+'</div><div class="hint">'+(legacy?'Существующий рабочий аккаунт · без изменений':'Рабочие публикации и активация недоступны')+'</div></div>'+manChecks(x)+renderManDiagnostic(x)+
- (!legacy?'<div class="section">Обязательная последовательность</div><div class="card"><div class="men-draft-actions"><div>01 · Прокси и закреплённый IP</div><div>02 · Проверка фактического IP <span class="pill">🔒</span></div><div>03 · Логин и пароль Intimcity <span class="pill">🔒</span></div><div>04 · Проверка кабинета <span class="pill">🔒</span></div><div>05 · Разрешение на работу <span class="pill">🔒</span></div></div><p class="hint">Каждый следующий этап откроется только после подтверждённого результата предыдущего. Пароль не означает успешный вход.</p></div>':'')+
- '<div class="section">Параметры и управление</div><div class="men-action-grid">'+
- tile('✉','Техническое имя', 'Email и подготовка прокси',"openManPrivate()",true)+
- tile('🔐','Вход Intimcity',legacy?'Текущий механизм без изменений':'Только после проверки прокси/IP',"openManSite()",!legacy&&x.networkStatus?.proxyVerified===true&&x.networkStatus?.ipVerified===true)+
- tile('🌐','Прокси / IP',legacy?'Существующие · не изменяем':'Индивидуальные реквизиты',"openManProxy()",!legacy)+
- tile('⚙','Подготовка',legacy?'Ян Первый защищён':stage==='awaiting_credentials'?'Ожидает ключи': 'Можно начать подготовку',"changeManPlanning('"+action+"')",planAvailable)+
- tile('🔒','Публикации',legacy?'Прежний рабочий механизм':'Отключены до активации','','')+
- '</div>'+
- (!legacy?'<div class="card"><div class="row"><strong>'+planTitle+'</strong><span class="pill">Без запуска</span></div><p class="hint">Изменяется только статус подготовки. Пароли, прокси, баланс и публикации не затрагиваются.</p>'+
- (planAvailable?'<button class="primary" onclick="changeManPlanning(\''+action+'\')">'+planTitle+'</button>':'<button class="secondary" disabled>Действие недоступно</button>')+'</div>':'<div class="note">Защищённый рабочий аккаунт. Его настройки и процесс публикации не изменяются.</div>')+
- '<div class="section">История настройки <button class="men-refresh" style="float:right;min-height:34px;padding:5px 10px;margin-top:-9px" onclick="reloadManHistory(selectedManId)">↻</button></div>'+
- '<div class="card">'+(menHistoryError?'<p class="error">'+esc(menHistoryError)+'</p>':'')+history+'</div>'+
- '<div class="watermark">Секреты скрыты · запуск публикаций отсутствует · изменения записываются сервером</div>';
+ if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
+ const legacy=x.id==='yan_first',st=menStatus(x);
+ const data=wizardData?.id===x.id?wizardData:null;
+ const drafted=data?.private?.configured===true,proxySaved=data?.proxy?.configured===true;
+ const ipOK=data?.proxy?.proxyVerified===true&&data?.proxy?.ipVerified===true;
+ const siteSaved=data?.site?.configured===true,siteVerified=data?.site?.siteIdentityVerified===true;
+ const steps=legacy?[
+  ['Техническое имя',drafted?'Дополнительный email сохранён':'Добавь дополнительный email без изменения рабочего аккаунта',drafted,true,"openManPrivate()"]
+ ]:[
+  ['Технические данные',drafted?'Email, логин Intimcity и параметры прокси сохранены':'Заполни технический email, логин Intimcity, IP, порты и логин прокси',drafted,true,"openManPrivate()"],
+  ['Пароль прокси',proxySaved?'Реквизиты сохранены зашифрованными':'Проверь адрес и введи пароль прокси',proxySaved,drafted,"openManProxy()"],
+  ['Проверка IP',ipOK?'Внешний IP проверен':'Требуется реальная серверная проверка прокси. Исполнитель пока не подключён',ipOK,false,null],
+  ['Пароль Intimcity',siteSaved?'Реквизиты входа сохранены':'После подтверждения прокси откроется форма с логином из черновика',siteSaved,ipOK,"openManSite()"],
+  ['Проверка аккаунта',siteVerified?'Личность подтверждена':'Нужна проверка входа в кабинет через подтверждённый прокси',siteVerified,false,null],
+  ['Разрешение публикаций','Только после всех проверок и отдельного разрешения владельца',false,false,null]
+ ];
+ const done=steps.filter(r=>r[2]).length;
+ const firstOpen=steps.findIndex(r=>!r[2]&&r[3]);
+ const line=(r,i)=>{
+  const [title,description,complete,available,action]=r;
+  const cls=complete?'complete':available?'available':'unavailable';
+  return '<div class="man-step '+cls+'"><span class="man-step-number">'+(complete?'✓':i+1)+'</span>'+
+   '<div class="man-step-body"><div class="man-step-heading"><strong>'+esc(title)+'</strong>'+
+   '<small>'+(complete?'✓ Готово':available?'● Заполнить':'🔒 Заблокировано')+'</small></div>'+
+   '<p>'+esc(description)+'</p>'+
+   (available?'<button class="'+(i===firstOpen?'primary':'secondary')+' man-step-action" onclick="'+action+'">'+
+    (complete?'Посмотреть / изменить':'Перейти к заполнению')+' →</button>':
+    '<div class="man-step-lock">Следующий шаг откроется после проверки предыдущих</div>')+'</div></div>';
+ };
+ const technicalHistory=menHistory.map(v=>'<div class="men-history-entry"><span class="men-history-dot">✓</span><div><strong>'+
+   (v.action==='plan'?'Подготовка начата':'Подготовка сброшена')+'</strong><small>Версия '+Number(v.version)+
+   ' · '+esc(new Date(v.at).toLocaleString('ru-RU'))+'</small></div></div>').join('');
+ return back("go('men')")+'<div class="mini">👑 ADMINISTRATION / МАСТЕР НАСТРОЙКИ</div>'+
+ '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+
+ '</div><h1>'+esc(x.name)+'</h1></div><span class="pill">'+st.icon+' '+st.short+'</span></div>'+
+ '<p class="hint">'+(legacy?'Действующий аккаунт. Можно добавить только техническое имя.':
+ 'Иди по шагам сверху вниз. Пароли сохраняются отдельно, публикации отключены.')+'</p></div>'+
+ '<div class="man-step-progress"><div class="row"><strong>Прогресс настройки</strong><b>'+done+' / '+steps.length+'</b></div>'+
+ '<div class="man-step-track"><span style="width:'+Math.round(100*done/steps.length)+'%"></span></div></div>'+
+ (wizardLoading?'<div class="note">Сверяем этапы с сервером…</div>':'')+
+ (wizardError?'<div class="note" role="alert">'+esc(wizardError)+'</div>':'')+
+ '<div class="man-step-list">'+steps.map(line).join('')+'</div>'+
+ '<button class="secondary man-step-refresh" onclick="refreshManWizard()">↻ Обновить этапы</button>'+
+ (!legacy?'<details class="man-step-details"><summary>Диагностика и история настройки</summary>'+
+ manChecks(x)+renderManDiagnostic(x)+'<div class="section">История</div>'+
+ '<div class="card">'+(menHistoryError?'<p class="error">'+esc(menHistoryError)+'</p>':'')+
+ (technicalHistory||'<div class="empty">История пуста</div>')+'</div></details>':'')+
+ '<div class="watermark">Без автоматической активации · Ян Первый не изменён · пароли скрыты</div>';
 }
 
 
@@ -657,7 +709,25 @@ function validateEdit(){let v=document.getElementById('entry').value.trim();if(v
 function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(y=>y.id===state.review);let intro='';if(t==='create')intro=`ID: ${state.wizard.id}<br>Начальный баланс: ${state.wizard.grant}<br>Код: ••••••`;if(t==='topup')intro=`${username(c)} · ID ${esc(c.id)}<br>Добавить: <b>${state.field}</b> публикаций<br>Остаток сейчас: ${available(c)}`;if(t==='balance')intro=`${username(c)} · ID ${esc(c.id)}<br>Сейчас: ${available(c)}<br>Установить: <b>${state.field}</b>`;if(t==='pin')intro=`${username(c)} · ID ${esc(c.id)}<br>Изменить код доступа`;if(t==='access')intro=`${username(c)} · ID ${esc(c.id)}<br>${c.active?'Приостановить доступ':'Восстановить доступ'}`;if(['approve','reject','edit'].includes(t))intro=`Анкета №${x.profile}<br>${x.account}<br>${t==='edit'?'Сохранить исправленный текст':t==='approve'?'Подтвердить публикацию':'Отклонить отзыв'}`;let returnTo=t==='create'?"root('clients')":['edit','approve','reject'].includes(t)?"go('review')":"go('client')";return `${back(returnTo)}<h1>Подтверждение</h1><p class="muted small">${actionTitle()}</p><div class="card" style="line-height:1.9">${intro}</div><div class="note">Операция будет записана в существующую систему после подтверждения.</div>${b('Подтвердить',"commitLive()",'primary')}<div style="height:9px"></div>${b('Отмена',returnTo)}`}
 
 const auth=()=>window.Telegram?.WebApp?.initData||'';
-function openManDetail(id){if(!manAccounts.some(x=>x.id===id))return;selectedManId=id;manCheckState=null;manCheckError='';menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');reloadManHistory(id);void reloadManChecks(id)}
+function openManDetail(id){
+ if(!manAccounts.some(x=>x.id===id))return;
+ selectedManId=id;wizardData=null;wizardError='';manCheckState=null;manCheckError='';
+ menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');
+ void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);
+}
+async function refreshManWizard(id=selectedManId){
+ if(!id)return;
+ const seq=++wizardSeq;wizardLoading=true;wizardError='';
+ const requests=[callAdmin('man_private_status',{accountId:id})];
+ if(id!=='yan_first')requests.push(callAdmin('man_proxy_status',{accountId:id}),callAdmin('man_site_status',{accountId:id}));
+ const results=await Promise.allSettled(requests);
+ if(seq!==wizardSeq||selectedManId!==id)return;
+ const get=i=>results[i]?.status==='fulfilled'?results[i].value:null;
+ wizardData={id,private:get(0),proxy:get(1),site:get(2)};
+ wizardLoading=false;
+ if(results.some(x=>x.status==='rejected'))wizardError='Не все статусы удалось загрузить. Нажмите «Обновить этапы».';
+ if(state.page==='man-detail')render();
+}
 async function reloadManHistory(id=selectedManId){
  const requestId=++menHistoryRequest;
  if(!id||id==='yan_first'){menHistory=[];return}
