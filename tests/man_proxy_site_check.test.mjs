@@ -98,6 +98,8 @@ test("HTTP CONNECT 407 fails closed without credential disclosure",async()=>{
  const result=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://a.intimcity.rip/"},
   null,()=>fake);
  assert.equal(result.code,"http_proxy_auth_failed");
+ assert.equal(result.progress?.proxyConnected,true);
+ assert.equal(result.progress?.tunnelEstablished,false);
  assert.equal(result.reachable,false);
  assert.equal(result.canPublish,false);
  assert.ok(!JSON.stringify(result).includes(secrets.password));
@@ -160,5 +162,8 @@ test("HTTP tunnel distinguishes an empty Intimcity response after GET",async()=>
  const res=await checkManSiteThroughProxy(store,env,{...identity,expectedVersion:1,siteUrl:"https://b.intimcity.rip/"},null,()=>socket);
  assert.equal(requested,true);
  assert.equal(res.code,"site_empty_response");
+ assert.deepEqual(res.progress,{proxyConnected:true,tunnelEstablished:true,tlsEstablished:true,requestSent:true});
+ assert.equal(res.reachable,false);
+ assert.equal(res.ipVerified,false);
  assert.equal(res.canPublish,false);
 });
