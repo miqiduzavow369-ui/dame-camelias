@@ -11,6 +11,7 @@ import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {clientMenAvailability} from "./man_client_parity.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
+import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
 import {readSiteStatus,saveSiteCredentials} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
@@ -305,6 +306,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    catch(e){const message=String(e.message);return {ok:false,status:409,
      reason:message==="Site vault key not configured"?"site_vault_key_missing":
       message==="Verified proxy required"?"proxy_not_verified":"site_save_rejected"};}
+ }
+ if(event.kind==="admin_man_private_status"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await privateDraftStatus(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
+   catch{return {ok:false,status:400,reason:"private_draft_unavailable"};}
+ }
+ if(event.kind==="admin_man_private_save"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await savePrivateDraft(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+      accountId:event.accountId,settings:event.settings,expectedVersion:event.expectedVersion,at:Date.now()});}
+   catch{return {ok:false,status:409,reason:"private_draft_save_rejected"};}
+ }
+ if(event.kind==="admin_man_private_import"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await importPrivateDrafts(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+     rows:event.rows,at:Date.now()});}
+   catch{return {ok:false,status:409,reason:"private_draft_import_rejected"};}
  }
  if(event.kind==="admin_man_proxy_status"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
