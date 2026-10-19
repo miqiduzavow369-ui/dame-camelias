@@ -161,8 +161,8 @@ async function checkSiteViaHttpConnect(proxy,host,connectFn,signal){
    response+=decoder.decode(chunk.value,{stream:true});
   }
   if(!response)throw Error("site_empty_response");
-  const firstLine=response.split(/\r?\n/)[0].trim();
-  const status=/^HTTP\/1\.[01]\s+([1-5]\d\d)(?:\s|$)/.exec(firstLine);
+  const siteStatusLine=response.split(/\r?\n/)[0].trim();
+  const status=/^HTTP\/1\.[01]\s+([1-5]\d\d)(?:\s|$)/.exec(siteStatusLine);
   if(!status)throw Error("site_invalid_status_line");
   return {httpStatus:Number(status[1])};
  }catch(error){
