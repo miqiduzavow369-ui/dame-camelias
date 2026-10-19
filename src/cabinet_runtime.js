@@ -14,7 +14,7 @@ import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
-import {readSiteStatus,saveSiteCredentials} from "./man_site_vault.js";
+import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
@@ -300,6 +300,14 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    try{return await readSiteStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
    catch{return {ok:false,status:400,reason:"invalid_account"};}
+ }
+ if(event.kind==="admin_man_site_stage"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await saveSiteCredentialDraft(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
+   catch(e){const message=String(e.message);return {ok:false,status:409,
+      reason:message==="Site vault key not configured"?"site_vault_key_missing":
+       message==="Configured proxy required"?"proxy_not_configured":"site_stage_rejected"};}
  }
  if(event.kind==="admin_man_site_save"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
