@@ -439,7 +439,7 @@ function applyServerMen(rows){
   const record=rows[i];
   const allowed=item.id==='yan_first'&&record.enabled===true&&record.route==='legacy_yan_first';
   return {...item,name:typeof record.name==='string'&&record.name.length<70?record.name:item.name,
-   enabled:allowed,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
+   enabled:allowed,visible:record.visible!==false,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
    readiness:record.readiness||'awaiting_isolated_executor'};
  });
  if(selectedAccount!=='yan_first')selectedAccount='yan_first';
@@ -455,10 +455,10 @@ b.disabled=!man.enabled;
 b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":" — пока отключён"));
 b.onclick=()=>{if(!man.enabled)return;selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
 function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
-for(const man of availableMen.slice(0,3))list.append(manTile(man));
-const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
+for(const man of availableMen.filter(m=>m.visible!==false).slice(0,3))list.append(manTile(man));
+const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.visible!==false&&m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
-$("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
+$("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.filter(m=>m.visible!==false).length+") ›";}
 $("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="Введите ссылку на вашу анкету, чтобы проверить её данные.";};
 const addProfileUrl=$("addProfileUrl");
 addProfileUrl.addEventListener("focus",()=>{
@@ -498,6 +498,7 @@ const label=s=>s==="published"?"🔒 Уже опубликовано · резу
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
 const accountName=account=>availableMen.find(man=>man.id===account)?.name||"Мужчина не указан";
 function selectAccount(account){
+ if(availableMen.find(m=>m.id===account)?.visible===false)return;
  if(account!=="yan_first")return; // All other accounts remain disabled.
  selectedAccount=account;
  $("firstSelected").textContent=account==="yan_first"?"✓":"○";
@@ -508,7 +509,7 @@ function selectAccount(account){
  renderHistory();
 }
 const restMen=$("remainingMenAccounts");
-for(const man of availableMen.slice(2)){const b=document.createElement("button");b.type="button";b.className="man-tile";b.disabled=true;b.textContent="🔒 "+man.name+" · не подключён";restMen.append(b);}
+for(const man of availableMen.slice(2)){const b=document.createElement("button");b.type="button";b.className="man-tile";b.disabled=true;b.textContent="🔒 "+man.name+" · не подключён";b.dataset.manVisibility=man.id;restMen.append(b);}
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
 function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));tg?.BackButton?.[name==="profiles"?"hide":"show"]?.();window.scrollTo({top:0,behavior:"smooth"});}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{showTab(b.dataset.tab);void refreshCabinetSnapshot();});
