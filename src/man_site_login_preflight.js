@@ -94,7 +94,7 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
   sitePassword:credentials.password,expectedIp:p.expectedIp,proxyHost:p.host,proxyPort:p.port,
   proxyUsername:p.username,proxyPassword:p.password};
 }
-export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
+export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},env=null){
  account(accountId);
  const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_authenticated_identity_verified","login_identity_mismatch","login_rejected",
    "ip_mismatch","proxy_error","site_error","executor_error"]);
@@ -104,9 +104,26 @@ export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
   if(!run||run.nonce!==nonce||run.status!=="running"||!run.claimed||
    at<run.startedAt||at-run.startedAt>EXPIRY||run.siteVersion!==site?.version||
    run.proxyVersion!==proxy?.version)throw Error("Stale result");
+  if(code==="login_authenticated_identity_verified"){
+   // The runner checked the authenticated account header against its pinned
+   // saved login. Re-derive the reference ONLY from encrypted site credentials;
+   // never take an identity from an unauthenticated callback field.
+   if(!env?.MAN_SITE_ENCRYPTION_KEY||!site?.sealed||!site?.iv||
+      site.accountId!==accountId||proxy.accountId!==accountId||
+      site.boundProxyVersion!==proxy.version||!proxy.proxyVerified||!proxy.ipVerified)
+    throw Error("Identity evidence unavailable");
+   const credential=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
+    accountId+":intimcity:"+proxy.version);
+   const observed=String(credential.login||"").trim().toLowerCase();
+   if(!/^[a-z0-9][a-z0-9_.+-]{0,63}@[a-z0-9.-]{1,120}\\.[a-z]{2,24}$/.test(observed))
+    throw Error("Identity evidence unavailable");
+   await tx.put("secondary-site-identity-v1:"+accountId,{
+    accountId,siteAccountId:observed,proxyVersion:proxy.version,
+    siteVersion:site.version,verifiedAt:at});
+  }
   const saved={...run,status:"completed",code,finishedAt:at};
   await tx.put(PREFIX+accountId,saved);
-  // Intentionally DO NOT modify site.identityVerified, proxy.enabled or publication gates.
+  // Never enable proxy/site publication from login evidence alone.
   return safe(saved);
  });
 }
