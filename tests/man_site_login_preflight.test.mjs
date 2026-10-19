@@ -81,3 +81,31 @@ test("an IP-check failure does not permit credentialed login",async()=>{
  await assert.rejects(startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:20},
    async()=>{throw Error("dispatch must not run")}),/Prerequisites not verified/);
 });
+
+test("explicit passwordless retry replaces only an old unclaimed run",async()=>{
+ const store=await fixture();let first,second;
+ await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000},
+   async request=>(first=request,{ok:true}));
+ await assert.rejects(startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10050,retry:true},
+   async()=>true),/Already running/);
+ await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000+91000,retry:true},
+   async request=>(second=request,{ok:true}));
+ assert.notEqual(first.nonce,second.nonce);
+ await assert.rejects(claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:first.nonce,at:10000+91001}),/Unavailable/);
+ const claimed=await claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:second.nonce,at:10000+91002});
+ assert.equal(claimed.sitePassword,credentials.password);
+ await assert.rejects(startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000+190000,retry:true},
+   async()=>true),/Already running/);
+});
+test("stale claimed checks can restart only after expiry without resaving login",async()=>{
+ const store=await fixture();let token;
+ await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000},
+   async request=>(token=request.nonce,{ok:true}));
+ await claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:token,at:10001});
+ await assert.rejects(startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000+120000,retry:true},
+   async()=>true),/Already running/);
+ const result=await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10000+900001},
+   async()=>({ok:true}));
+ assert.equal(result.status,"running");
+ assert.equal((await store.get("man-intimcity-sealed-v1:yan_second")).version,1);
+});

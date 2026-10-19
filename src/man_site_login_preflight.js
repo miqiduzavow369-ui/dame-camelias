@@ -3,11 +3,12 @@
 import {requireManId} from "./man_account_isolation.js";
 import {browserCheckStatus} from "./man_browser_preflight.js";
 const PREFIX="man-site-login-check-v1:", PROXY="man-proxy-sealed-v1:", SITE="man-intimcity-sealed-v1:";
-const EXPIRY=15*60*1000, te=new TextEncoder();
+const EXPIRY=15*60*1000, RESTART_AFTER=90*1000, te=new TextEncoder();
 function account(id){requireManId(id);if(id==="yan_first")throw Error("Legacy account immutable");}
 function auth(p){account(p.accountId);if(!p.ownerId||p.actorId!==p.ownerId||p.cabinetId!==p.ownerId)throw Error("Forbidden");}
 function safe(row){return {ok:true,accountId:row?.accountId||null,status:row?.status||"not_started",
  code:row?.code||null,startedAt:row?.startedAt||null,finishedAt:row?.finishedAt||null,
+ retryAvailable:row?.retryAvailable===true,
  siteIdentityVerified:false,canPublish:false};}
 async function decrypt(hex,iv,sealed,aad){
  if(typeof hex!=="string"||!/^[a-f0-9]{64}$/i.test(hex))throw Error("Vault unavailable");
@@ -19,7 +20,8 @@ export async function siteLoginStatus(storage,p){
  auth(p);
  const [run,site,proxy]=await Promise.all([storage.get(PREFIX+p.accountId),storage.get(SITE+p.accountId),storage.get(PROXY+p.accountId)]);
  if(!run||run.siteVersion!==site?.version||run.proxyVersion!==proxy?.version)return safe({accountId:p.accountId});
- return safe(run);
+ if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRY)return safe({...run,status:"timed_out",code:"check_expired",retryAvailable:true});
+ return safe({...run,retryAvailable:run.status==="running"&&!run.claimed&&Date.now()-run.startedAt>=RESTART_AFTER});
 }
 export async function startSiteLoginCheck(storage,env,p,dispatch){
  auth(p);
@@ -34,7 +36,11 @@ export async function startSiteLoginCheck(storage,env,p,dispatch){
  const nonce=crypto.randomUUID().replace(/-/g,"");
  const run=await storage.transaction(async tx=>{
   const old=await tx.get(PREFIX+p.accountId);
-  if(old?.status==="running"&&p.at-old.startedAt<EXPIRY)throw Error("Already running");
+  if(old?.status==="running"&&p.at-old.startedAt<EXPIRY){
+   // A job still executing (credentials already claimed) cannot be interrupted.
+   // Only an explicitly requested, unclaimed and old enough dispatch can be superseded.
+   if(p.retry!==true||old.claimed||p.at-old.startedAt<RESTART_AFTER)throw Error("Already running");
+  }
   if((await tx.get(SITE+p.accountId))?.version!==p.expectedVersion||
      (await tx.get(PROXY+p.accountId))?.version!==proxy.version)throw Error("Version conflict");
   const value={accountId:p.accountId,nonce,siteVersion:site.version,proxyVersion:proxy.version,

@@ -63,7 +63,7 @@ export async function handleAdminApi(request,env){
   if(action==="man_site_login_status"||action==="man_site_login_start"){
    const r=await cabinetRPC(env,OWNER_ID,{kind:action==="man_site_login_status"?
      "admin_man_site_login_status":"admin_man_site_login_start",actorId:OWNER_ID,
-     accountId:body.accountId,expectedVersion:body.expectedVersion});
+     accountId:body.accountId,expectedVersion:body.expectedVersion,retry:body.retry===true});
    return respond(r,r?.ok?200:r?.status===403?403:409);
   }
   if(action==="man_site_status"){
