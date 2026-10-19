@@ -136,6 +136,14 @@ export async function handleAdminApi(request,env){
     visible:body.visible,expectedVersion:body.expectedVersion});
    return respond(result,result?.ok?200:result?.status===403?403:result?.status===400?400:409);
   }
+  if(action==="secondary_profile_probe_start"||action==="secondary_profile_probe_status"){
+   const result=await cabinetRPC(env,OWNER_ID,{
+    kind:"admin_secondary_profile_probe",actorId:OWNER_ID,
+    action:action==="secondary_profile_probe_start"?"start":"status",
+    accountId:body.accountId,profileId:body.profileId
+   });
+   return respond(result,result?.ok?200:result?.status===403?403:409);
+  }
   if(action==="man_accounts"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_registry",actorId:OWNER_ID});
    return respond(result,result?.ok?200:result?.status===403?403:503);
