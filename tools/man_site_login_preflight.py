@@ -27,7 +27,8 @@ def endpoint(path):
 
 def request_json(url,body=None):
     data=None if body is None else json.dumps(body).encode()
-    headers={"Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),"Accept":"application/json"}
+    headers={"Authorization":"Bearer "+required("ANKETA_CALLBACK_TOKEN"),
+             "Accept":"application/json","User-Agent":"DameCameliasBot/1.0"}
     if data is not None: headers["Content-Type"]="application/json"
     req=urllib.request.Request(url,data=data,headers=headers,method="GET" if data is None else "POST")
     with urllib.request.urlopen(req,timeout=25) as response:
