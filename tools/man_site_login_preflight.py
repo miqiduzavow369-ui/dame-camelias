@@ -66,6 +66,9 @@ def inspect_login(page,site_url,login_value,password_value):
     if not safe_host(page.url): return "site_error"
     logout=page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count()>0
     account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
+    challenge=page.locator('iframe[src*="captcha"], input[name*="captcha"], input[name*="code"]').count()>0
+    if challenge:
+        return "login_challenge_required"
     password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
     if logout or (account and not password_visible):
         return "login_authenticated_identity_unconfirmed"
