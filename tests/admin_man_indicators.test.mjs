@@ -14,7 +14,7 @@ test('ADMIN HTML parses, has mobile indicators and no false verified status',()=
  assert.match(html,/Не проверено/);
  assert.match(html,/Ян Первый/);
  assert.match(html,/Не настроено/);
- assert.match(html,/05 · Разрешение на работу/);
+ assert.match(html,/Подтверждение личности мужчины пока не выполняется/);
 });
 test('ADMIN network indicator never trusts displayed connection status alone',()=>{
  const html=fs.readFileSync('admin/preview-v3.html','utf8');
