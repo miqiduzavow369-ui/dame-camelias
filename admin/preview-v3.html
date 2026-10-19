@@ -620,10 +620,10 @@ function renderManConsole(){
    'Последняя проверка не прошла: '+String(browser?.code||'ошибка')+'. Повторите после устранения причины.':'';
  return back("go('men')")+'<div class="mini">👑 ADMINISTRATION · ПОДКЛЮЧЕНИЕ</div>'+
  '<div class="men-detail-hero"><div class="row"><div><div class="num">'+String(x.number).padStart(2,'0')+'</div>'+
- '<h1>'+esc(x.name)+'</h1></div><span class="pill">🔒 Не активирован</span></div></div>'+
+ '<h1>'+esc(x.name)+'</h1></div><span class="pill">'+(identityOK?'✓ Вход подтверждён':'🔒 Настройка')+'</span></div></div>'+
  '<div class="man-step-progress"><div class="row"><strong>Подключение аккаунта</strong><b>'+progress+' / '+steps.length+'</b></div>'+
  '<div class="man-step-track"><span style="width:'+(progress*100/steps.length)+'%"></span></div>'+
- '<p class="hint" style="margin:10px 0 0">Далее показывается только тот этап, который требует действия.</p></div>'+
+ '<p class="hint" style="margin:10px 0 0">'+(identityOK?'Техническое подключение завершено. Публикации отдельно заблокированы.':'Далее показывается только тот этап, который требует действия.')+'</p></div>'+
  (wizardLoading||!data?'<div class="note">Получаем подтверждённые статусы с сервера…</div>':'')+
  (wizardError?'<p class="error" role="alert">'+esc(wizardError)+'</p>':'')+
  (loaded?summary+
@@ -633,7 +633,7 @@ function renderManConsole(){
  '<h2 style="margin-top:9px">'+esc(focus.title)+'</h2>'+
  '<p class="hint">'+esc(focus.desc)+'</p>'+
  (active===1&&status?'<p class="hint" role="status">'+esc(status)+'</p>':'')+
- (active===3?'<p class="note">Даже после проверки формы входа личность мужчины пока не подтверждена автоматически.</p>':'')+
+ (active===3?'<p class="note">Нужен подтверждённый браузером вход именно через личный прокси. Публикации не включаются.</p>':'')+
  '<button class="primary" onclick="'+focus.action+'">'+esc(focus.button)+' →</button></div>')+
  (soon?'<details class="card" style="margin-top:12px"><summary style="cursor:pointer">Что будет дальше · '+(steps.length-active-1)+' этапа</summary>'+soon+'</details>':''):'')+
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
@@ -651,7 +651,7 @@ function renderManSiteForm(){
  const st=siteVaultState,present=st?.configured===true;
  return back("go('man-detail')")+'<div class="mini">ШАГ 03 · ДАННЫЕ КАБИНЕТА</div>'+
  '<h1>🔐 Intimcity · '+esc(x.name)+'</h1>'+
- '<div class="note">Данные принадлежат только этому мужчине. Пароль сохраняется зашифрованно. Это пока подготовка к проверке входа, а не успешная авторизация.</div>'+
+ '<div class="note">Данные принадлежат только этому мужчине. Пароль хранится зашифрованно; для повторных проверок вводить его не нужно.</div>'+
  (siteVaultError?'<p class="error" role="alert">'+esc(siteVaultError)+'</p>':'')+
  '<div class="card"><div class="row"><strong>Учётная запись Intimcity</strong><span class="pill">'+
  (present?'✓ Сохранено':'Ожидает заполнения')+'</span></div>'+
