@@ -459,20 +459,30 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        return {ok:true,...await readSecondaryManApproval(storage,params)};
      }
      if(event.action!=="set")return {ok:false,status:400,reason:"invalid_approval_action"};
-     const [proxy,site]=await Promise.all([proxyStatus(storage,params),readSiteStatus(storage,params)]);
-     if(!proxy.configured||!site.configured||proxy.version<1||site.version<1||
-        site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
-       return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
-     if(event.approved===true){
+     let proxyVersion,siteVersion;
+     if(event.approved===false){
+       // Revocation must succeed even if proxy/site verification has since failed.
+       const previous=await readSecondaryManApproval(storage,params);
+       if(previous.version<1)return {ok:false,status:409,reason:"no_approval_to_revoke"};
+       proxyVersion=previous.proxyVersion;
+       siteVersion=previous.siteVersion;
+     }else{
+       if(event.approved!==true)return {ok:false,status:400,reason:"invalid_approval_request"};
+       const [proxy,site]=await Promise.all([proxyStatus(storage,params),readSiteStatus(storage,params)]);
+       if(!proxy.configured||!site.configured||proxy.version<1||site.version<1||
+          site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
+         return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
        const [login,browser]=await Promise.all([siteLoginStatus(storage,params),browserCheckStatus(storage,params)]);
        if(login.technicalReady!==true||browser.status!=="verified"||
           browser.ipVerified!==true||browser.siteReachable!==true||
           browser.version!==proxy.version)
          return {ok:false,status:409,reason:"technical_checks_incomplete"};
+       proxyVersion=proxy.version;
+       siteVersion=site.version;
      }
      const result=await setSecondaryManApproval(storage,{...params,
        expectedVersion:event.expectedVersion,approved:event.approved,
-       proxyVersion:proxy.version,siteVersion:site.version});
+       proxyVersion,siteVersion});
      // Owner approval alone never grants publication while site identity and
      // account-specific publishing, callback, ledger and proof remain unconnected.
      return {ok:true,...result,publicationAvailable:false,reason:"isolated_executor_not_connected"};
