@@ -7,6 +7,7 @@ import re
 import sys
 import urllib.parse
 import urllib.request
+import urllib.error
 from playwright.sync_api import sync_playwright
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
@@ -77,12 +78,26 @@ def main():
     if not ACCOUNT.fullmatch(account) or not NONCE.fullmatch(nonce) or site_host not in HOSTS:
         raise RuntimeError("Invalid identifiers")
     query=urllib.parse.urlencode({"account_id":account,"nonce":nonce})
-    details=request_json(endpoint("/api/man-site-login/payload")+"?"+query)
+    try:
+        details=request_json(endpoint("/api/man-site-login/payload")+"?"+query)
+    except urllib.error.HTTPError as exc:
+        # Show only a response status, not the URL, response body or credentials.
+        print(f"SITE_LOGIN_STAGE: secure_claim_http_{exc.code}",flush=True)
+        raise RuntimeError("Secure credential claim rejected") from None
+    except urllib.error.URLError:
+        print("SITE_LOGIN_STAGE: secure_claim_network_failure",flush=True)
+        raise RuntimeError("Secure credential claim unreachable") from None
+    except (ValueError,KeyError):
+        print("SITE_LOGIN_STAGE: secure_claim_invalid_response",flush=True)
+        raise RuntimeError("Secure credential claim invalid response") from None
     if not details.get("ok") or details.get("accountId")!=account or details.get("nonce")!=nonce:
+        print("SITE_LOGIN_STAGE: secure_claim_invalid_payload",flush=True)
         raise RuntimeError("Invalid claim")
+    print("SITE_LOGIN_STAGE: credentials_claimed",flush=True)
     if not safe_host(details["siteUrl"]) or urllib.parse.urlsplit(details["siteUrl"]).hostname!=site_host:
         raise RuntimeError("Invalid target")
     code="executor_error"
+    print("SITE_LOGIN_STAGE: chromium_start",flush=True)
     try:
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True,proxy={
@@ -94,18 +109,29 @@ def main():
                     page=context.new_page()
                     page.goto("https://api.ipify.org?format=json",wait_until="domcontentloaded",timeout=30000)
                     ip=ipaddress.ip_address(json.loads(page.locator("body").inner_text())["ip"])
+                    print("SITE_LOGIN_STAGE: proxy_ip_checked",flush=True)
                     if str(ip)!=details["expectedIp"]:
                         code="ip_mismatch"
                     else:
+                        print("SITE_LOGIN_STAGE: site_login_attempt",flush=True)
                         code=inspect_login(page,details["siteUrl"],
                             details["siteLogin"],details["sitePassword"])
                 finally: context.close()
             finally: browser.close()
     except Exception:
         # Never log raw exceptions; Playwright errors may contain form values/URLs.
+        print("SITE_LOGIN_STAGE: browser_or_site_error",flush=True)
         code="proxy_error" if code=="executor_error" else "site_error"
-    result=request_json(endpoint("/api/man-site-login/result"),{
-        "account_id":account,"nonce":nonce,"code":code})
+    print("SITE_LOGIN_STAGE: callback_result",flush=True)
+    try:
+        result=request_json(endpoint("/api/man-site-login/result"),{
+            "account_id":account,"nonce":nonce,"code":code})
+    except urllib.error.HTTPError as exc:
+        print(f"SITE_LOGIN_STAGE: callback_http_{exc.code}",flush=True)
+        raise RuntimeError("Result callback rejected") from None
+    except urllib.error.URLError:
+        print("SITE_LOGIN_STAGE: callback_network_failure",flush=True)
+        raise RuntimeError("Result callback unreachable") from None
     if not result.get("ok"): raise RuntimeError("Coordinator rejected result")
     print("SITE_LOGIN_PREFLIGHT: "+code)
     return 0 if code=="login_authenticated_identity_unconfirmed" else 1
