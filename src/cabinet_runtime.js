@@ -466,6 +466,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          expectedIp:status.expectedIp,updatedAt:status.updatedAt}];
      }catch{return [x.id,null];}
    }));
+   const proxyMap=new Map(proxyEntries);
    const readinessEntries=await Promise.all(inventory.accounts.map(async x=>{
      if(x.id==="yan_first")return [x.id,null];
      try{
@@ -481,7 +482,6 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
    const readinessMap=new Map(readinessEntries);
-   const proxyMap=new Map(proxyEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
