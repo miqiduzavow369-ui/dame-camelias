@@ -359,7 +359,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       accountId:event.accountId,expectedVersion:event.expectedVersion,
       siteUrl:event.siteUrl,at:Date.now()},async ({accountId,nonce,host})=>{
       if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
-      if(!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_config_missing"};
+      if(!rawEnv.ANKETA_CALLBACK_TOKEN)return {ok:false,reason:"callback_token_missing"};
+      if(!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_url_missing"};
       const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/man-browser-preflight.yml/dispatches",{
        method:"POST",
        headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,"Accept":"application/vnd.github+json",
