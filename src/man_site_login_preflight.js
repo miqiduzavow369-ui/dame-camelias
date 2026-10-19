@@ -20,14 +20,16 @@ export async function siteLoginStatus(storage,p){
  auth(p);
  const [run,site,proxy,browser]=await Promise.all([storage.get(PREFIX+p.accountId),storage.get(SITE+p.accountId),storage.get(PROXY+p.accountId),browserCheckStatus(storage,p)]);
  if(!run||run.siteVersion!==site?.version||run.proxyVersion!==proxy?.version)return {...safe({accountId:p.accountId}),technicalReady:false,connectionVerified:false};
- const verified=run.status==="completed"&&run.code==="login_authenticated_identity_unconfirmed"&&
+ const verified=run.status==="completed"&&["login_authenticated_identity_unconfirmed","login_authenticated_identity_verified"].includes(run.code)&&
    run.accountId===p.accountId&&site?.accountId===p.accountId&&proxy?.accountId===p.accountId&&
    site?.boundProxyVersion===proxy?.version&&proxy.proxyVerified===true&&proxy.ipVerified===true&&
    browser.status==="verified"&&browser.version===proxy.version&&browser.ipVerified===true&&
    browser.siteReachable===true;
  if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRY)return {...safe({...run,status:"timed_out",code:"check_expired",retryAvailable:true}),technicalReady:false};
  return {...safe({...run,retryAvailable:run.status==="running"&&!run.claimed&&Date.now()-run.startedAt>=RESTART_AFTER}),
-  technicalReady:verified,connectionVerified:verified};
+  technicalReady:verified,connectionVerified:verified,
+  siteIdentityVerified:verified&&run.code==="login_authenticated_identity_verified",
+  canPublish:false};
 }
 export async function startSiteLoginCheck(storage,env,p,dispatch){
  auth(p);
@@ -94,7 +96,7 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
 }
 export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
  account(accountId);
- const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_rejected",
+ const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_authenticated_identity_verified","login_identity_mismatch","login_rejected",
    "ip_mismatch","proxy_error","site_error","executor_error"]);
  if(!/^[a-f0-9]{32}$/.test(nonce)||!Number.isSafeInteger(at)||!allowed.has(code))throw Error("Invalid result");
  return storage.transaction(async tx=>{
