@@ -14,7 +14,8 @@ const ident=(accountId="yan_second")=>({actorId:"12345",cabinetId:"12345",ownerI
 const settings={technicalName:"member@example.com",host:"45.39.104.69",httpPort:6408,socksPort:16408,username:"myuser"};
 test("safe drafts reject passwords and legacy proxy modifications",()=>{
  assert.deepEqual(validatePrivateDraft("yan_first",{technicalName:"legacy@example.com"}),{technicalName:"legacy@example.com"});
- assert.throws(()=>validatePrivateDraft("yan_first",settings),/Legacy proxy/);
+ assert.throws(()=>validatePrivateDraft("yan_first",settings),/Unexpected private draft field/);
+ assert.throws(()=>validatePrivateDraft("yan_second",{...settings,password:"forbidden"}),/Unexpected private draft field/);
  assert.throws(()=>validatePrivateDraft("yan_second",{...settings,host:"127.0.0.1"}),/Invalid proxy/);
 });
 test("encrypted owner-only drafts and update revisions",async()=>{
