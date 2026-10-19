@@ -9,6 +9,7 @@ import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {clientMenAvailability} from "./man_client_parity.js";
+import {readSecondaryManApproval,setSecondaryManApproval,approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
@@ -450,6 +451,30 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
  }
+ if(event.kind==="admin_secondary_man_approval"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+     const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId};
+     if(event.action==="status"){
+       return {ok:true,...await readSecondaryManApproval(storage,params)};
+     }
+     if(event.action!=="set")return {ok:false,status:400,reason:"invalid_approval_action"};
+     const [proxy,site]=await Promise.all([proxyStatus(storage,params),readSiteStatus(storage,params)]);
+     if(!proxy.configured||!site.configured||proxy.version<1||site.version<1||
+        site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
+       return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
+     const result=await setSecondaryManApproval(storage,{...params,
+       expectedVersion:event.expectedVersion,approved:event.approved,
+       proxyVersion:proxy.version,siteVersion:site.version});
+     // Owner approval alone never grants publication while site identity and
+     // account-specific publishing, callback, ledger and proof remain unconnected.
+     return {ok:true,...result,publicationAvailable:false,reason:"isolated_executor_not_connected"};
+   }catch(e){
+     const message=String(e?.message||"");
+     return {ok:false,status:/Forbidden|immutable/.test(message)?403:409,reason:
+       message==="Approval version conflict"?"version_conflict":"approval_rejected"};
+   }
+ }
  if(event.kind==="admin_man_registry"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
@@ -481,10 +506,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          loginVerifiedAt:ready?login.finishedAt:null,siteIdentityVerified:false,canPublish:false}];
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
+   const approvalEntries=await Promise.all(inventory.accounts.map(async x=>{
+     if(x.id==="yan_first")return [x.id,null];
+     try{
+       const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id};
+       const [approval,proxy,site]=await Promise.all([
+         readSecondaryManApproval(storage,params),proxyStatus(storage,params),readSiteStatus(storage,params)]);
+       return [x.id,{version:approval.version,approved:
+         approvalMatchesConfiguration(approval,x.id,proxy.version,site.version),
+         recorded:approval.approved===true,publicationAvailable:false}];
+     }catch{return [x.id,{version:0,approved:false,recorded:false,publicationAvailable:false}];}
+   }));
+   const approvalMap=new Map(approvalEntries);
    const readinessMap=new Map(readinessEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
+     approval:approvalMap.get(x.id)??null,
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }
