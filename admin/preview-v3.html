@@ -178,7 +178,41 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .man-mini-check.off .man-check-dot{background:#817869}
 .men-square .sq-name{font-size:11px}
 @media(max-width:360px){.man-checks{gap:7px}.man-check{padding:11px 8px}}
-.man-recovery{border:1px solid #84693d;border-radius:15px;background:linear-gradient(130deg,#2b2015,#17130e);padding:15px;margin:14px 0}.man-recovery.error{border-color:#9b5259;background:linear-gradient(130deg,#331a1c,#191012)}.man-recovery strong{color:#f1d7a9}.man-recovery p{color:#d9c4a5;line-height:1.5;font-size:12px}.man-recovery small{color:#b6a285}.man-recovery button{width:100%;min-height:43px;background:#3d2a18;color:#f0d19b;border:1px solid #987548;border-radius:10px;margin-top:9px}.man-recovery button:disabled{opacity:.45}</style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="mark">✦</div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script>
+.man-recovery{border:1px solid #84693d;border-radius:15px;background:linear-gradient(130deg,#2b2015,#17130e);padding:15px;margin:14px 0}.man-recovery.error{border-color:#9b5259;background:linear-gradient(130deg,#331a1c,#191012)}.man-recovery strong{color:#f1d7a9}.man-recovery p{color:#d9c4a5;line-height:1.5;font-size:12px}.man-recovery small{color:#b6a285}.man-recovery button{width:100%;min-height:43px;background:#3d2a18;color:#f0d19b;border:1px solid #987548;border-radius:10px;margin-top:9px}.man-recovery button:disabled{opacity:.45}
+/* Opt-in Telegram ADMIN layout toggle. Does not modify API or business state. */
+.head-actions{display:flex;align-items:center;gap:9px}
+.layout-toggle{border:1px solid #80643a;background:#201a12;color:#e8cb91;border-radius:11px;min-height:36px;min-width:39px;padding:6px 9px;font-size:17px;line-height:1}
+.layout-toggle[aria-pressed="true"]{background:#b9975d;color:#15110b;border-color:#e2c48b}
+.layout-toggle:focus-visible{outline:2px solid #f1d194;outline-offset:3px}
+body.admin-wide .app{max-width:1200px}
+body.admin-wide .body{max-width:1150px;margin-inline:auto}
+body.admin-wide .footnav{max-width:1200px}
+@media(min-width:720px){
+ body.admin-wide .body{padding:24px 32px 56px}
+ body.admin-wide .head{padding-inline:32px}
+ body.admin-wide .action-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ body.admin-wide .split{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.admin-wide .list{width:100%}
+ body.admin-wide .card{padding:21px}
+ body.admin-wide .summary{padding:23px}
+}
+@media(max-width:719px){
+ body.admin-wide .body{padding-inline:12px}
+ body.admin-wide .action-grid{gap:7px}
+ body.admin-wide .action-tile{min-height:100px;padding:12px}
+ body.admin-wide .card{padding:12px}
+}
+</style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="head-actions"><button class="layout-toggle" id="admin-layout-toggle" type="button" onclick="toggleAdminLayout()" aria-label="Компьютерная версия" aria-pressed="false" title="Компьютерная версия">▣</button><div class="mark">✦</div></div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
+const ADMIN_LAYOUT_PREF = 'dame_admin_wide_layout_v1';
+function setAdminLayout(wide){
+ document.body.classList.toggle('admin-wide',!!wide);
+ const btn=document.getElementById('admin-layout-toggle');
+ if(btn){btn.setAttribute('aria-pressed',String(!!wide));btn.setAttribute('aria-label',wide?'Мобильная версия':'Компьютерная версия');btn.title=wide?'Мобильная версия':'Компьютерная версия';btn.textContent=wide?'▤':'▣'}
+ try{localStorage.setItem(ADMIN_LAYOUT_PREF,wide?'wide':'mobile')}catch(_){}
+ if(wide){try{window.Telegram?.WebApp?.expand?.()}catch(_){}}
+}
+function toggleAdminLayout(){setAdminLayout(!document.body.classList.contains('admin-wide'))}
+try{setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide')}catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
 const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
