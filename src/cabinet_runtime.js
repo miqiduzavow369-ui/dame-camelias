@@ -404,7 +404,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{
     return await startBrowserCheck(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
       accountId:event.accountId,expectedVersion:event.expectedVersion,
-      siteUrl:event.siteUrl,at:Date.now()},async ({accountId,nonce,host})=>{
+      siteUrl:event.siteUrl,retry:event.retry===true,at:Date.now()},async ({accountId,nonce,host})=>{
       if(!rawEnv.DC_ACTIONS_TOKEN)return {ok:false,reason:"github_token_missing"};
       if(!rawEnv.ANKETA_CALLBACK_TOKEN)return {ok:false,reason:"callback_token_missing"};
       if(!rawEnv.ANKETA_CALLBACK_URL)return {ok:false,reason:"callback_url_missing"};
