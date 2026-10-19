@@ -36,23 +36,37 @@ def safe_host(url):
     p=urllib.parse.urlsplit(url)
     return p.scheme=="https" and p.hostname in HOSTS and not p.username and not p.password
 
-def inspect_login(page,site_url):
-    # Unknown markup fails closed: never guess that a redirect certifies identity.
+def inspect_login(page,site_url,login_value,password_value):
+    """Reuse Yan First's site-specific login selectors and verification."""
     page.goto(site_url,wait_until="domcontentloaded",timeout=45000)
     if not safe_host(page.url): return "site_error"
-    password=page.locator('input[type="password"]').first
-    if password.count()==0:
-        links=page.locator('a[href*="login"],a[href*="auth"],a[href*="signin"]').first
-        if links.count():
-            candidate=links.get_attribute("href") or ""
-            target=urllib.parse.urljoin(page.url,candidate)
-            if safe_host(target): page.goto(target,wait_until="domcontentloaded",timeout=30000)
+    found=False
+    for form in page.locator("form").all():
+        email=form.locator('input[name="login"][placeholder="E-mail"]')
+        pw=form.locator('input[name="password"][type="password"]')
+        if form.is_visible() and email.count() and pw.count() and email.first.is_visible():
+            email.first.fill(login_value)
+            pw.first.fill(password_value)
+            submit=form.locator('input[type="submit"]')
+            if submit.count() and submit.first.is_visible():
+                submit.first.click(timeout=8000)
+            else:
+                pw.first.press("Enter")
+            found=True
+            break
+    if not found: return "login_form_unavailable"
+    try:
+        page.wait_for_load_state("networkidle",timeout=10000)
+    except Exception:
+        pass
+    page.wait_for_timeout(2500)
     if not safe_host(page.url): return "site_error"
-    password=page.locator('input[type="password"]').first
-    if password.count()==0: return "login_form_unavailable"
-    login=page.locator('input[type="email"],input[name="email"],input[name="login"],input[name="username"]').first
-    if login.count()==0: return "login_form_unavailable"
-    return "login_form_found"
+    logout=page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count()>0
+    account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
+    password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
+    if logout or (account and not password_visible):
+        return "login_authenticated_identity_unconfirmed"
+    return "login_rejected"
 
 def main():
     account=required("MAN_SITE_ACCOUNT_ID")
@@ -81,23 +95,8 @@ def main():
                     if str(ip)!=details["expectedIp"]:
                         code="ip_mismatch"
                     else:
-                        form=inspect_login(page,details["siteUrl"])
-                        if form!="login_form_found":
-                            code=form
-                        else:
-                            user=page.locator('input[type="email"],input[name="email"],input[name="login"],input[name="username"]').first
-                            password=page.locator('input[type="password"]').first
-                            user.fill(details["siteLogin"])
-                            password.fill(details["sitePassword"])
-                            submit=page.locator('button[type="submit"],input[type="submit"]').first
-                            if submit.count()==0: code="login_form_unavailable"
-                            else:
-                                submit.click(timeout=15000)
-                                page.wait_for_timeout(1500)
-                                if not safe_host(page.url): code="site_error"
-                                else:
-                                    # Submission is never treated as identity verification.
-                                    code="login_attempted_unconfirmed"
+                        code=inspect_login(page,details["siteUrl"],
+                            details["siteLogin"],details["sitePassword"])
                 finally: context.close()
             finally: browser.close()
     except Exception:
@@ -107,7 +106,7 @@ def main():
         "account_id":account,"nonce":nonce,"code":code})
     if not result.get("ok"): raise RuntimeError("Coordinator rejected result")
     print("SITE_LOGIN_PREFLIGHT: "+code)
-    return 0 if code=="login_attempted_unconfirmed" else 1
+    return 0 if code=="login_authenticated_identity_unconfirmed" else 1
 
 if __name__=="__main__":
     try: sys.exit(main())
