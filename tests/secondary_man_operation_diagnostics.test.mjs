@@ -111,3 +111,21 @@ test("divergent final proof, publication and credit states demand reconciliation
   assert.equal(state.canRetrySitePost,false);
  }
 });
+
+test("admin diagnostics remains available and flags inaccessible proof storage",async()=>{
+ const {storage}=source(),i=identity(),k=keys(i);
+ await storage.put(k.publication,{identity:createAccountOperation(i),status:"attempted",attempted:true});
+ await storage.put(k.credit,{...i,status:"reserved"});
+ await storage.put(k.result,{identity:createAccountOperation(i),status:"proof_saved",
+  sitePublicationId:"site-12345",proofFileId:"telegram-54321"});
+ const broken={get:async key=>{
+  if(key===k.evidence)throw Error("Evidence storage temporarily unavailable");
+  return storage.get(key);
+ }};
+ const status=await readSecondaryOperationDiagnostics(broken,i);
+ assert.equal(status.needsReview,true);
+ assert.equal(status.proofPresent,false);
+ assert.equal(status.canRetrySitePost,false);
+ assert.equal(status.publicationEnabled,false);
+ assert.ok(!JSON.stringify(status).includes("telegram-54321"));
+});
