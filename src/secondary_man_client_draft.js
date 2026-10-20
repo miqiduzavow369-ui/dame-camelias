@@ -19,6 +19,16 @@ export async function secondaryDraftAction(storage,{accountId,profileId,userId,k
   return {ok:true,accountId:i.accountId,profileId:i.profileId,kind:i.kind,
    saved:!!current,version:current?.version??0,publicationAvailable:false};
  }
+ if(action==="load"){
+  if(i.kind!=="review"||profileOwned!==true)throw Error("Saved profile required");
+  const current=await storage.get(key(i));
+  if(current&&(current.userId!==i.userId||
+     current.accountId!==i.accountId||current.profileId!==i.profileId||
+     current.kind!==i.kind))throw Error("Draft ownership mismatch");
+  return {ok:true,accountId:i.accountId,profileId:i.profileId,
+   kind:i.kind,text:typeof current?.text==="string"?current.text:"",
+   version:current?.version||0,saved:!!current,publicationAvailable:false};
+ }
  if(action!=="save"||profileOwned!==true||authorAttested!==true)
   throw Error("Profile and independent author consent required");
  const content=kind==="review"?
