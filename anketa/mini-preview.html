@@ -527,7 +527,7 @@ async function showOriginalProof(container,entry,note){
  if(!tg?.initData){note.textContent="⚠️ Откройте приложение из Telegram.";return;}
  try{
   const res=await fetch("/api/anketa/mini-proof",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:entry.id,kind:entry.kind,account:entry.account}),cache:"no-store"});
-  if(!res.ok)throw Error(res.status===404?"Файл подтверждения не найден.":"Ошибка получения фото ("+res.status+").");
+  if(!res.ok){const code=res.headers.get("X-Proof-Code");throw Error(res.status===404?"Файл подтверждения не найден.":res.status===502&&["TELEGRAM_GETFILE_FAILED","FILE_PATH_MISSING","FILE_PATH_REJECTED","IMAGE_DOWNLOAD_FAILED","IMAGE_TYPE_REJECTED"].includes(code)?"Ошибка получения фото (502). Код: "+code:"Ошибка получения фото ("+res.status+").");}
   const blob=await res.blob();if(!blob.type.startsWith("image/"))throw Error("Сервер вернул не изображение.");
   const url=URL.createObjectURL(blob),img=document.createElement("img");
   img.className="photo-large";img.alt="Подтверждение анкеты №"+entry.id;img.style.width="100%";
