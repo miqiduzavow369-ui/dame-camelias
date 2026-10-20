@@ -9,6 +9,8 @@ function operationKey(i){return manStorageKey({userId:i.userId,accountId:i.accou
  profileId:i.profileId,scope:"publication"})+":"+i.kind;}
 function ticketKey(i){return manStorageKey({userId:i.userId,accountId:i.accountId,
  profileId:i.profileId,scope:"callback"})+":"+i.kind+":"+i.nonce;}
+function creditKey(i){return manStorageKey({userId:i.userId,accountId:i.accountId,
+ profileId:i.profileId,scope:"operation"})+":"+i.kind+":"+i.nonce+":ledger";}
 function identityOf(original){
  const i=createAccountOperation(original);
  if(i.accountId==="yan_first")throw Error("Legacy publisher immutable");
@@ -25,8 +27,14 @@ export async function issueSecondaryCallbackTicket(storage,{
  const token=crypto.randomUUID().replace(/-/g,"");
  return storage.transaction(async tx=>{
   const publication=await tx.get(operationKey(i)),old=await tx.get(ticketKey(i));
+  const credit=await tx.get(creditKey(i));
   if(old||publication?.status!=="attempted"||publication.attempted!==true||
     !verifyAccountCallback(publication.identity,i)||
+    publication.independentAuthorConfirmed!==true||
+    (i.kind==="review"&&publication.moderatorApproved!==true)||
+    credit?.status!=="reserved"||credit.accountId!==i.accountId||
+    credit.userId!==i.userId||credit.profileId!==i.profileId||
+    credit.kind!==i.kind||credit.nonce!==i.nonce||
     publication.proxyVersion!==proxyVersion||publication.siteVersion!==siteVersion)
     throw Error("Publication attempt not eligible for a new ticket");
   await tx.put(ticketKey(i),{identity:i,token,proxyVersion,siteVersion,
