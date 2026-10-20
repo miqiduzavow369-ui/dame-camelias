@@ -1173,6 +1173,32 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    secondaryStatuses[pid][mid]={...secondaryStatuses[pid][mid],rating:"draft_saved",ratingCount:count};
    activities.push({id:pid,kind:"rating",account:mid,status:"draft_saved",count});
   }));
+  // Refresh claimed publication stages only for known per-man drafts.
+  // No account can inherit the publication status of Yan First.
+  const activePairs=Object.entries(secondaryStatuses).flatMap(([pid,byMan])=>
+   Object.entries(byMan).flatMap(([mid,state])=>
+    ["rating","review"].filter(kind=>state[kind]).map(kind=>({pid,mid,kind}))));
+  await Promise.all(activePairs.map(async ({pid,mid,kind})=>{
+   try{
+    const pubKey=manStorageKey({userId:uid,accountId:mid,
+     profileId:pid,scope:"publication"})+":"+kind;
+    const publication=await storage.get(pubKey);
+    const identity=publication?.identity;
+    if(identity?.userId!==uid||identity.accountId!==mid||
+       identity.profileId!==pid||identity.kind!==kind||
+       !/^[a-f0-9]{12}$/.test(identity.nonce||""))return;
+    const result=await secondaryPublicationOperationalStatus(storage,identity,{
+      proofKv:rawEnv.VISITORS_KV
+    });
+    const stage=({prepared:"prepared",attempted:"checking",published:"published",
+     reconciliation_required:"reconciliation_required"})[result.status];
+    if(!stage)return;
+    secondaryStatuses[pid][mid][kind]=stage;
+    for(const entry of activities)
+     if(entry.id===pid&&entry.account===mid&&
+        (entry.kind===kind||entry.kind===kind+"_draft"))entry.status=stage;
+   }catch{ /* A failed status read must never produce a success badge. */ }
+  }));
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
