@@ -7,6 +7,7 @@ import {claimPublication,publicationState} from "./publication_claim.js";
 import {reviewGuard} from "./review_publication_guard.js";
 import {credits} from "./publication_credits.js";
 import {dailyLimit,moscowDay} from "./daily_publication_limit.js";
+import {readSharedCriteria} from "./shared_rating_criteria.js";
 // Per-request lexical context: no shared mutable current-user variable.
 export function createCabinet(userId="5866034656") {
 if(!/^\d{5,16}$/.test(String(userId)))throw Error("Invalid cabinet identity");
@@ -2406,7 +2407,12 @@ async function miniRatingOpen(env,profileId){
   await chooseAccount(env,profileId);
   return miniRatingFormLoad(env,profileId);
  }
- const catalog=Array.isArray(record.catalog)?organizeCatalog(record.catalog):[];
+ // Only fill missing local criteria from a trusted, fresh secondary-man search.
+ // Never replace an existing Yan First catalog or publication state.
+ const shared=(!Array.isArray(record.catalog)||record.catalog.length===0)?
+  await readSharedCriteria(env.VISITORS_KV,profileId).catch(()=>null):null;
+ const catalog=Array.isArray(record.catalog)&&record.catalog.length?
+  organizeCatalog(record.catalog):Array.isArray(shared)?organizeCatalog(shared):[];
  if(!catalog.length||catalog.length>120){
   if(!await chooseAccount(env,profileId))return {ok:false,reason:"unavailable"};
   const nonce=crypto.randomUUID().replace(/-/g,"").slice(0,12);
