@@ -35,6 +35,17 @@ export async function secondaryDraftAction(storage,{accountId,profileId,userId,k
   const value={...i,...content,authorAttested:true,version:(old?.version??0)+1,
    publicationAvailable:false};
   await tx.put(k,value);
+  // Per-client/per-man draft indicator for the common Mini App home view.
+  // This is not a publication or moderator approval.
+  const progressKey=(i.kind==="review"?"secondary-review-progress-v1:":
+    "secondary-rating-progress-v1:")+i.userId;
+  const progress=await tx.get(progressKey)||{};
+  const slot=i.profileId+":"+i.accountId;
+  await tx.put(progressKey,{...progress,[slot]:{
+   accountId:i.accountId,profileId:i.profileId,kind:i.kind,
+   stage:"draft_saved",count:i.kind==="review"?1:value.ratings.length,
+   version:value.version
+  }});
   return {ok:true,accountId:i.accountId,profileId:i.profileId,
    kind:i.kind,version:value.version,saved:true,publicationAvailable:false};
  });
