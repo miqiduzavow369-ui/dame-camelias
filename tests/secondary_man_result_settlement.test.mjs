@@ -89,3 +89,27 @@ test("uncertain or changed publication cannot settle a verified screenshot",asyn
   assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"proof_saved");
  }
 });
+
+test("publication status changed while external credit completes cannot be falsely finalized",async()=>{
+ const {tx}=storage(),i=identity("yan_second","dddddddddddd");
+ const {env:reserveEnv}=fakeEnv();
+ await reserveSecondaryFeedbackCredit(tx,reserveEnv,i,{independentAuthorConfirmed:true,moderatorApproved:true});
+ await attempted(tx,i);
+ await recordSecondaryVerifiedResult(tx,proof(i));
+ const publicationKey=manStorageKey({userId:i.userId,accountId:i.accountId,
+  profileId:i.profileId,scope:"publication"})+":"+i.kind;
+ const {env}=fakeEnv();
+ env.ORDER_REMINDERS.get=()=>({fetch:async(_,request)=>{
+  const body=JSON.parse(request.body);
+  if(body.type==="credits_complete"){
+   const row=await tx.get(publicationKey);
+   await tx.put(publicationKey,{...row,status:"uncertain"});
+  }
+  return {ok:true,json:async()=>({ok:true})};
+ }});
+ const result=await settleSecondaryVerifiedResult(tx,env,{original:i,callback:i});
+ assert.equal(result.status,"reconciliation_required");
+ assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"reconciliation_required");
+ assert.equal((await tx.get(publicationKey)).status,"uncertain");
+ await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
+});
