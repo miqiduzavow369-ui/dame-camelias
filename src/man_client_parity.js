@@ -39,3 +39,21 @@ export function requireClientPublicationRoute(accountId){
  if(accountId!=="yan_first")throw Error("New male account publication route not connected");
  return {accountId,route:"legacy_yan_first"};
 }
+
+// Read-only cabinet entry is distinct from publication authorization.
+// The server must pass verified per-account 4/4 connection status, never
+// client flags or a bare registry enabledByDefault value.
+export function secondaryCabinetAvailability(verifiedById){
+ return MAN_ACCOUNTS.map(man=>{
+  const base={...clientMenAvailability().find(x=>x.id===man.id)};
+  if(man.id==="yan_first")return Object.freeze({...base,cabinetReady:true});
+  const verified=verifiedById instanceof Map?verifiedById.get(man.id):null;
+  const ready=verified?.accountId===man.id&&verified.proxyVerified===true&&
+   verified.ipVerified===true&&verified.siteConfigured===true&&
+   verified.proxyVersion===verified.boundProxyVersion&&
+   verified.loginVerified===true&&verified.browserVerified===true;
+  return Object.freeze({...base,cabinetReady:ready,
+   // Keep publication separate: a 4/4 connection does not grant a site POST.
+   enabled:false,route:"not_connected",readiness:ready?"cabinet_connected":"setup_incomplete"});
+ });
+}
