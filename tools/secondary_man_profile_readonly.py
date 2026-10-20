@@ -22,7 +22,7 @@ def validated_readonly_grant(grant, account_id, profile_id, *, expected_mode="pr
         raise RuntimeError("Invalid profile")
     if grant.get("accountId") != account_id or grant.get("mode") != expected_mode:
         raise RuntimeError("Account-bound read-only grant required")
-    if expected_mode not in ("profile", "dryfill") or (expected_mode == "dryfill" and grant.get("profileId") != str(profile_id)):
+    if expected_mode not in ("profile", "dryfill", "publish") or (expected_mode == "dryfill" and grant.get("profileId") != str(profile_id)):
         raise RuntimeError("Unsupported or unbound browser grant")
     if type(grant.get("proxyPort")) is not int or not 1 <= grant["proxyPort"] <= 65535 or not isinstance(grant.get("proxyHost"), str):
         raise RuntimeError("Invalid pinned proxy port")
