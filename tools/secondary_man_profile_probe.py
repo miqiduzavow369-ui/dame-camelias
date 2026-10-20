@@ -46,15 +46,25 @@ def main():
     if urllib.parse.urlsplit(grant["siteUrl"]).hostname!=site_host:
         raise RuntimeError("Approved site host mismatch")
     code="browser_failed"
+    catalog=[]
     try:
         outcome=run_readonly_profile_check(grant,account,profile)
         found=outcome.get("profile",outcome) if isinstance(outcome,dict) else None
         code="profile_verified" if isinstance(found,dict) and str(found.get("id"))==profile else "profile_unavailable"
+        catalog=outcome.get("catalog",[]) if isinstance(outcome,dict) else []
+        if not isinstance(catalog,list) or not 1<=len(catalog)<=120:
+            catalog=[]
+        else:
+            catalog=[{"label":str(x.get("label",""))[:110],"group":str(x.get("group",""))[:90],
+                      "subgroup":str(x.get("subgroup",""))[:90],
+                      "options":x.get("options",[])[:20],
+                      "control":x.get("control")} for x in catalog if isinstance(x,dict)]
     except Exception:
         # Playwright exceptions may contain URL or form data; never log details.
         print("PROFILE_PROBE_STAGE: read_only_browser_unavailable",flush=True)
     result=request_json(endpoint("/api/secondary-profile-probe/result"),{
-        "account_id":account,"profile_id":profile,"nonce":nonce,"code":code})
+        "account_id":account,"profile_id":profile,"nonce":nonce,"code":code,
+        "catalog":catalog if code=="profile_verified" else []})
     if result.get("ok") is not True:raise RuntimeError("Probe result was rejected")
     print("PROFILE_PROBE_RESULT: "+code,flush=True)
     return 0 if code=="profile_verified" else 1
