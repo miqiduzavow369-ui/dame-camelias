@@ -848,7 +848,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     return {ok:false,status:403,reason:"man_hidden_from_clients"};
    const list=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
    const profileOwned=Array.isArray(list)&&list.some(v=>String(v)===profileId);
-   if(event.action==="save"&&!profileOwned)return {ok:false,status:403,reason:"profile_not_saved"};
+   if(["save","load"].includes(event.action)&&!profileOwned)return {ok:false,status:403,reason:"profile_not_saved"};
    const result=await secondaryDraftAction(storage,{
     accountId:event.accountId,profileId,userId:uid,
     kind:event.draftKind,action:event.action,
