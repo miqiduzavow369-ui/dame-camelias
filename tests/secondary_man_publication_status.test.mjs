@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {secondaryPublicationOperationalStatus} from "../src/secondary_man_publication_status.js";
 import {manStorageKey} from "../src/man_account_isolation.js";
+import {validateSecondaryOriginalJpeg} from "../src/secondary_man_original_screenshot.js";
 
 const source=(accountId="yan_second")=>({
  userId:"123456789",accountId,profileId:"2468",kind:"rating",nonce:"abcdef123456"
@@ -30,11 +31,22 @@ test("dispatch acceptance and callback proof alone never establish publication",
   sitePublicationId:"site123456",proofFileId:"proof123456",ledgerStatus:"completed"});
  assert.equal((await secondaryPublicationOperationalStatus(f.store,f.i)).published,false);
  f.map.set(f.pub,{identity:{...f.i,version:1},status:"completed",attempted:true});
- const completed=await secondaryPublicationOperationalStatus(f.store,f.i);
+ const incomplete=await secondaryPublicationOperationalStatus(f.store,f.i);
+ assert.equal(incomplete.status,"reconciliation_required");
+ assert.equal(incomplete.published,false);
+ const jpeg=btoa(String.fromCharCode(255,216,255)+"x".repeat(200)+String.fromCharCode(255,217));
+ const verifiedImage=await validateSecondaryOriginalJpeg(jpeg);
+ f.map.set(f.proof,{...f.map.get(f.proof),proofFileId:verifiedImage.proofFileId});
+ f.map.set(f.archive,{...f.map.get(f.archive),proofFileId:verifiedImage.proofFileId});
+ const vault={get:async()=>JSON.stringify({...f.i,base64:jpeg,
+  digest:verifiedImage.digest,size:verifiedImage.size})};
+ // The private proof reader requests decoded JSON, like Cloudflare KV.
+ const kv={get:async(k,fmt)=>fmt==="json"?JSON.parse(await vault.get(k)):null};
+ const completed=await secondaryPublicationOperationalStatus(f.store,f.i,{proofKv:kv});
  assert.equal(completed.status,"published");
  assert.equal(completed.creditCompleted,true);
  f.map.delete(f.archive);
- const failed=await secondaryPublicationOperationalStatus(f.store,f.i);
+ const failed=await secondaryPublicationOperationalStatus(f.store,f.i,{proofKv:kv});
  assert.equal(failed.status,"reconciliation_required");
  assert.equal(failed.published,false);
 });
