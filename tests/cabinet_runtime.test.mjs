@@ -425,6 +425,7 @@ test("domain recovery preserves every workflow snapshot and never repeats accept
   const host="a.intimcity.rip",url="https://"+host+"/indi/anketa"+profile+".htm";
   const saved={host,confirmed:true,profile:{id:profile,name:"Anna",age:28,metro:"Центр",url},catalog:[{label:"Test",options:["5"]}]};
   s.kv.set("owner_anketa_library:"+a,JSON.stringify([profile]));
+  await s.store(a).put("private:owner_anketa_library:"+a,{value:JSON.stringify([profile]),expires:0});
   s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify(saved));
   s.kv.set("owner_anketa_saved:"+a+":999999",JSON.stringify({...saved,profile:{...saved.profile,id:"999999"}}));
   s.kv.set("cabinet_rating_draft:"+a+":"+profile,JSON.stringify({host,url,selected:{0:"5"},catalog:saved.catalog}));
