@@ -21,7 +21,11 @@ async function attempted(tx,identity=i(),proxyVersion=1){
  await tx.put(manStorageKey({userId:identity.userId,accountId:identity.accountId,
  profileId:identity.profileId,scope:"publication"})+":"+identity.kind,
  {identity:createAccountOperation(identity),status:"attempted",attempted:true,
-  proxyVersion,siteVersion:2});
+  proxyVersion,siteVersion:2,independentAuthorConfirmed:true,moderatorApproved:true});
+ await tx.put(manStorageKey({userId:identity.userId,accountId:identity.accountId,
+ profileId:identity.profileId,scope:"operation"})+":"+identity.kind+":"+identity.nonce+":ledger",
+ {accountId:identity.accountId,userId:identity.userId,profileId:identity.profileId,
+ kind:identity.kind,nonce:identity.nonce,status:"reserved"});
 }
 test("ticket is issued only for an attempted publication and consumed once after signed proof",async()=>{
  const {tx}=storage(),identity=i(),proof=input(identity);
@@ -68,4 +72,26 @@ test("ticketed callback records one proof and never accepts repeat delivery",asy
  assert.equal((await secondaryVerifiedResultStatus(tx,identity)).proofPresent,true);
  await assert.rejects(()=>recordTicketedSecondaryResult(tx,request),/consumed/);
  await assert.rejects(()=>recordTicketedSecondaryResult(tx,{...request,signature:"00".repeat(32)}),/invalid/);
+});
+
+test("callback ticket refuses missing credit, author consent and review moderation",async()=>{
+ const {tx,rows}=storage(),identity=i();
+ await attempted(tx,identity);
+ const publicationKey=manStorageKey({userId:identity.userId,accountId:identity.accountId,
+ profileId:identity.profileId,scope:"publication"})+":"+identity.kind;
+ const creditKey=manStorageKey({userId:identity.userId,accountId:identity.accountId,
+ profileId:identity.profileId,scope:"operation"})+":"+identity.kind+":"+identity.nonce+":ledger";
+ const issue=()=>issueSecondaryCallbackTicket(tx,{identity,proxyVersion:1,siteVersion:2,at:1000000});
+ const claim=rows.get(publicationKey),credit=rows.get(creditKey);
+ rows.delete(creditKey);
+ await assert.rejects(issue,/not eligible/);
+ rows.set(creditKey,{...credit,accountId:"yan_03"});
+ await assert.rejects(issue,/not eligible/);
+ rows.set(creditKey,credit);
+ rows.set(publicationKey,{...claim,independentAuthorConfirmed:false});
+ await assert.rejects(issue,/not eligible/);
+ rows.set(publicationKey,{...claim,moderatorApproved:false});
+ await assert.rejects(issue,/not eligible/);
+ rows.set(publicationKey,claim);
+ assert.equal((await issue()).identity.accountId,"yan_second");
 });
