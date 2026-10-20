@@ -11,7 +11,7 @@ const base={
 };
 test("shared secondary browser adapter uses original Yan profile search in read-only mode",()=>{
  assert.match(adapter,/from intimcity_profile_lookup import inspect/);
- assert.match(adapter,/return inspect\(str\(profile_id\), "profile"\)/);
+ assert.match(adapter,/return inspect\(str\(profile_id\), "ratings"\)/);
  assert.doesNotMatch(adapter,/inspect\([^\n]+,\s*["'](?:publish|review_publish)["']/);
  assert.match(adapter,/legacy\.OWNER_HOST = host/);
  assert.match(adapter,/finally:/);
