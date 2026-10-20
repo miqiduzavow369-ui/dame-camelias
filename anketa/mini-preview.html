@@ -397,7 +397,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 </nav>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
-const $=id=>document.getElementById(id);let profiles=[],history=[],activities=[],selected=null,lastTab="profiles",selectedAccount="yan_first";
+const $=id=>document.getElementById(id);let profiles=[],history=[],activities=[],secondaryStatuses={},selected=null,lastTab="profiles",selectedAccount="yan_first";
 async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
  if(!tg?.initData)return false;
  const api=async(action,url)=>{
@@ -445,7 +445,16 @@ function applyServerMen(rows){
  if(!availableMen.some(m=>m.id===selectedAccount&&m.visible!==false))selectedAccount='yan_first';
 }
 let workProfile=null,allMenOpen=false;
-function manStatus(man,kind){if(!man.enabled)return man.cabinetReady?"✓ Кабинет подключён · подготовка":"🔒 Ожидает подключения";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
+function manStatus(man,kind){
+ if(man.id!=="yan_first"){
+  const row=secondaryStatuses[String(workProfile?.id||"")]?.[man.id];
+  const stage=kind==="rating"?row?.rating:row?.review;
+  return ({draft_saved:"📝 Оценки сохранены",prepared:"🔎 Проверка перед публикацией",
+   checking:"⏳ Проверяется результат",published:"✅ Опубликовано",
+   reconciliation_required:"⚠️ Требуется проверка",moderation:"⏳ На модерации"})[stage]||
+   (man.cabinetReady?"⭐ Ожидает заполнения":"🔒 Ожидает подключения");
+ }
+ if(!man.enabled)return man.cabinetReady?"✓ Кабинет подключён · подготовка":"🔒 Ожидает подключения";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const slot=document.createElement("div");slot.className="man-photo-slot";const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;slot.append(img);b.append(slot);}
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
@@ -647,7 +656,7 @@ document.querySelectorAll("[data-finance]").forEach(button=>button.addEventListe
  renderFinance();
 }));
 
-function render(data){applyServerMen(data.men);latestFinanceBalance=data.balance||null;financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
+function render(data){applyServerMen(data.men);secondaryStatuses=data.secondaryStatuses&&typeof data.secondaryStatuses==="object"?data.secondaryStatuses:{};latestFinanceBalance=data.balance||null;financialData=data.finance||null;legacyWorkflow=data.workflow||null;profiles=data.profiles||[];availableBalance=Number.isSafeInteger(data.balance?.available)?data.balance.available:null;history=Array.isArray(data.history)?data.history:[];activities=Array.isArray(data.activities)?data.activities:[];renderFinance();const b=data.balance;$("balance").textContent=b?.available??"—";$("balanceTwo").textContent=b?.available??"—";$("spentTotal").textContent=Number.isSafeInteger(b?.spent)?String(b.spent):"—";$("reservedTotal").textContent=Number.isSafeInteger(b?.reserved)?String(b.reserved):"—";$("reserve").textContent=b?.reserved?"В резерве: "+b.reserved:"По данным рабочего кабинета";$("totalProfiles").textContent=profiles.length+" шт.";const list=$("profiles"),published=$("publishedCards");list.replaceChildren();published.replaceChildren();let rating=0,review=0;
 for(const p of profiles){rating+=p.counts?.rating||0;review+=p.counts?.review||0;list.append(card(p));if(p.counts?.total)published.append(card(p));}
 $("publishedRatings").textContent=rating;$("publishedReviews").textContent=review;$("publishedTotal").textContent=rating+review;
 if(!profiles.length)list.textContent="Пока нет сохранённых анкет.";const previousId=workProfile?.id;const kept=profiles.find(p=>p.id===previousId);if(kept||profiles.length===1){workProfile=kept||profiles[0];renderMen();}else{$("menWorkspace").hidden=true;workProfile=null;}renderHistory();
@@ -666,13 +675,19 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
- const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
+ const selectedProgress=selectedAccount!=="yan_first"?
+   secondaryStatuses[String(p.id)]?.[selectedAccount]||{}:{};
+ const messages={draft_saved:"📝 Оценки сохранены",prepared:"🔎 Подготовка публикации",
+   reconciliation_required:"⚠️ Требуется проверка",published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
   const connected=availableMen.some(m=>m.id===selectedAccount&&m.cabinetReady===true);
-  const state=selectedAccount!=="yan_first"?(connected&&kind==="rating"?"check_in_bot":"account_disabled"):p.capabilities?.[kind]?.state||"unknown";
+  const state=selectedAccount!=="yan_first"?
+   (kind==="rating"?(selectedProgress.rating||(connected?"check_in_bot":"account_disabled")):
+    selectedProgress.review||(connected?"check_in_bot":"account_disabled")):
+   p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
-  button.hidden=!["published","check_in_bot"].includes(state);
+  button.hidden=!["published","check_in_bot","draft_saved","prepared","checking","reconciliation_required","moderation"].includes(state);
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
@@ -968,15 +983,6 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";details.append(extra);}
       const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;progress.hidden=false;hint.hidden=false;elsewhere.hidden=false;reset.hidden=true;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       back.textContent="✏️ Изменить оценки";
-      if(selectedAccount!=="yan_first"){
-       // Same rating UI and confirmation, isolated draft. Never display a
-       // "publish" action until the separate per-man Chromium runner exists.
-       const note=document.createElement("p");note.className="muted";
-       note.textContent="✓ Оценки для "+accountName(selectedAccount)+
-        " сохранены. Публикация на сайте пока не подключена; кредиты не списаны.";
-       review.append(back,note);editor.append(review);
-       review.scrollIntoView({block:"nearest",behavior:"smooth"});return;
-      }
       const actionStatus=document.createElement("p");actionStatus.setAttribute("aria-live","polite");
       const waitingClock=document.createElement("section");
       waitingClock.className="rating-countdown";waitingClock.hidden=true;
@@ -1056,7 +1062,24 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       publish.onclick=async()=>{publish.disabled=true;actionStatus.textContent="⏳ Запускаем проверку…";try{const x=await requestAction("prepare");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{publish.disabled=false;}};
       check.onclick=async()=>{check.disabled=true;try{const x=await requestAction("status");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
       send.onclick=async()=>{send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
-      review.append(publish,check,actionStatus,waitingClock,back,send);reflect({stage:"draft"});editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
+      review.append(publish,check,actionStatus,waitingClock,back,send);
+      if(selectedAccount!=="yan_first"&&saved.publicationAvailable!==true){
+       // Same Yan First review/confirmation controls. Disallow external POST
+       // until a separate, account-pinned production executor is actually wired.
+       reflect({stage:"ready"});
+       publish.hidden=false;
+       publish.textContent="🔎 Подготовить публикацию";
+       publish.disabled=true;
+       send.hidden=false;
+       send.textContent="✅ Опубликовать оценки";
+       send.disabled=true;
+       back.hidden=false;
+       check.hidden=true;
+       actionStatus.textContent="🔒 Оценки сохранены за "+accountName(selectedAccount)+
+        ". Отдельный исполнитель публикации ещё не подключён. "+
+        "Отправка заблокирована во избежание публикации под Яном Первым.";
+      }else reflect({stage:"draft"});
+      editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;
    }catch(e){panel.replaceChildren();const error=document.createElement("p");error.textContent="⚠️ "+(e instanceof TypeError||/load failed|failed to fetch|networkerror/i.test(String(e.message||""))?"Не удалось связаться с сервером. Проверьте подключение и повторите попытку.":e.message);const retry=document.createElement("button");retry.type="button";retry.className="ghost";retry.textContent="Попробовать ещё раз";retry.onclick=()=>loadForm.click();panel.append(error,retry);panel.hidden=false;}
