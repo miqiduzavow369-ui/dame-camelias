@@ -121,6 +121,14 @@ export async function handleAdminApi(request,env){
      accountId:body.accountId,expectedVersion:body.expectedVersion,settings:body.settings});
    return respond(result,result?.ok?200:result?.status===403?403:409);
   }
+  if(action==="secondary_rating_readiness"){
+    // Valid Telegram owner signature is required above; never allow an
+    // unauthenticated client to infer account configuration or grant publication.
+    const result=await cabinetRPC(env,OWNER_ID,{
+      kind:"admin_secondary_rating_readiness",actorId:OWNER_ID,accountId:body.accountId
+    });
+    return respond(result,result?.ok?200:result?.status===403?403:409);
+  }
   if(action==="secondary_man_approval_status"||action==="secondary_man_approval_set"){
    const result=await cabinetRPC(env,OWNER_ID,{
      kind:"admin_secondary_man_approval",actorId:OWNER_ID,

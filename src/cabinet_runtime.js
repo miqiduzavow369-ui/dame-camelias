@@ -25,6 +25,8 @@ import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_pri
 import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
+import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
+import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -530,6 +532,27 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_profile_probe"}),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
+ if(event.kind==="admin_secondary_rating_readiness"){
+   // Owner-only read of server-owned per-man configuration. No credentials,
+   // callbacks, grants or publications are returned or triggered.
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+     const id=event.accountId;
+     const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:id};
+     const [proxy,site,approval,login,identity,siteRecord]=await Promise.all([
+       proxyStatus(storage,params),readSiteStatus(storage,params),
+       readSecondaryManApproval(storage,params),siteLoginStatus(storage,params),
+       currentVerifiedIdentity(storage,id),storage.get("man-intimcity-sealed-v1:"+id)
+     ]);
+     // Explicitly use server records, not user-supplied capability flags.
+     const readiness=secondaryRatingReadiness(id,{
+       proxy,site:{...site,boundProxyVersion:siteRecord?.boundProxyVersion},
+       approval,login,identity,
+       executorConnected:false,callbackConnected:false,proofAndLedgerConnected:false
+     });
+     return {ok:true,...readiness};
+   }catch{return {ok:false,status:409,reason:"secondary_readiness_unavailable"};}
  }
  if(event.kind==="admin_secondary_man_approval"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};

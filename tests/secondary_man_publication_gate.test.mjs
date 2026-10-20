@@ -11,7 +11,7 @@ function request(accountId,kind="rating"){
  const identity={userId:owner,accountId,profileId:"2468",kind,nonce:"abcdef123456"};
  return {identity,approval:{accountId,approved:true,version:1,proxyVersion:2,siteVersion:3},
  proxyVersion:2,siteVersion:3,verifiedSiteIdentity:true,ownerConfirmed:true,
- creditReserved:true,moderationApproved:true,executorConnected:true,
+ creditReserved:true,independentAuthorConfirmed:true,moderationApproved:true,executorConnected:true,
  callbackConnected:true,proofAndLedgerConnected:true};
 }
 test("all 29 men use per-account claims and Yan First cannot enter this route",async()=>{
@@ -22,6 +22,7 @@ test("all 29 men use per-account claims and Yan First cannot enter this route",a
   const op=await prepareSecondaryPublication(tx,p);
   assert.equal(op.identity.accountId,id);
   assert.equal(op.status,"prepared");
+  assert.equal(op.independentAuthorConfirmed,true);
   await assert.rejects(()=>prepareSecondaryPublication(tx,p),/already claimed/);
   await claimSecondaryPublication(tx,{original:op.identity,callback:p.identity});
   await assert.rejects(()=>claimSecondaryPublication(tx,{original:op.identity,callback:p.identity}),/already attempted/);
@@ -40,7 +41,7 @@ test("cross-account callbacks and missing approvals never claim a publication",a
  await claimSecondaryPublication(tx,{original:op.identity,callback:p.identity});
  const bads=[
   {verifiedSiteIdentity:false},{ownerConfirmed:false},{creditReserved:false},
-  {moderationApproved:false},{executorConnected:false},{callbackConnected:false},
+  {moderationApproved:false},{independentAuthorConfirmed:false},{executorConnected:false},{callbackConnected:false},
   {proofAndLedgerConnected:false},{proxyVersion:4}
  ];
  for(const item of bads){
