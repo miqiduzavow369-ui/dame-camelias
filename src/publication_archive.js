@@ -78,7 +78,7 @@ export async function readPublicationArchive(storage,kv,userId,now=Date.now()){
   do{
    const page=await storage.list({prefix:secondaryPrefix,limit:1000,...(cursor?{startAfter:cursor}:{})});
    for(const [key,value] of page){
-    const match=/^man-account-v1:(\\d{5,16}):(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):proof:(\\d{1,9}):(rating|review):([a-f0-9]{12}):settlement$/.exec(key);
+    const match=/^man-account-v1:(\d{5,16}):(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):proof:(\d{1,9}):(rating|review):([a-f0-9]{12}):settlement$/.exec(key);
     if(!match||match[1]!==uid||value?.status!=="completed"||value?.ledgerStatus!=="completed"||
        value?.identity?.userId!==uid||value.identity.accountId!==match[2]||
        value.identity.profileId!==match[3]||value.identity.kind!==match[4]||
