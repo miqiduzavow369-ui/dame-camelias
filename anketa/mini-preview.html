@@ -439,20 +439,20 @@ function applyServerMen(rows){
   const record=rows[i];
   const allowed=item.id==='yan_first'&&record.enabled===true&&record.route==='legacy_yan_first';
   return {...item,name:typeof record.name==='string'&&record.name.length<70?record.name:item.name,
-   enabled:allowed,visible:record.visible!==false,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
+   enabled:allowed,cabinetReady:record.cabinetReady===true,visible:record.visible!==false,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
    readiness:record.readiness||'awaiting_isolated_executor'};
  });
  if(!availableMen.some(m=>m.id===selectedAccount&&m.visible!==false))selectedAccount='yan_first';
 }
 let workProfile=null,allMenOpen=false;
-function manStatus(man,kind){if(!man.enabled)return "🔒 Ожидает подключения исполнителя";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
+function manStatus(man,kind){if(!man.enabled)return man.cabinetReady?"✓ Кабинет подключён · подготовка":"🔒 Ожидает подключения";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
 if(man.image){const slot=document.createElement("div");slot.className="man-photo-slot";const img=document.createElement("img");img.src=man.image;img.alt="Карточка "+man.name;slot.append(img);b.append(slot);}
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
 const name=document.createElement("strong");name.textContent=man.name;b.append(name);
 for(const [kind,label] of [["rating","⭐ Оценка"],["review","✍️ Отзыв"]]){const line=document.createElement("small");line.textContent=label+" — "+manStatus(man,kind);b.append(line);}
-const draftReady=man.id!=="yan_first"&&man.visible!==false;b.disabled=!(man.enabled||draftReady);
-b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":draftReady?" — подготовка черновика":" — отключён"));
+const draftReady=man.id!=="yan_first"&&man.visible!==false&&man.cabinetReady===true;b.disabled=!(man.enabled||draftReady);
+b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":draftReady?" — кабинет подключён, подготовка":" — отключён"));
 b.onclick=()=>{if(!(man.enabled||draftReady))return;selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
 function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
 for(const man of availableMen.filter(m=>m.visible!==false).slice(0,3))list.append(manTile(man));
@@ -505,7 +505,7 @@ function selectAccount(account){
  $("secondSelected").textContent=account==="yan_second"?"✓":"🔒";
  $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
  $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
- $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+".";
+ $("selectedAccountNote").textContent="Выбран: "+accountName(account)+".";
  renderHistory();
 }
 const restMen=$("remainingMenAccounts");
