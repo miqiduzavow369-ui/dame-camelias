@@ -72,7 +72,14 @@ export async function settleSecondaryFeedbackCredit(storage,env,source){
   });
   return {ok:true,accountId:i.accountId,status:"completed"};
  }catch{
-  // No double settlement retry while external ledger outcome is unknown.
+  // Preserve the ambiguous ledger outcome in the operation record. Never
+  // auto-retry the external completion: it may already have succeeded.
+  await storage.transaction(async tx=>{
+   const row=await tx.get(claimKey);
+   if(row?.status==="settling")await tx.put(claimKey,{
+    ...row,status:"reconciliation_required"
+   });
+  });
   return {ok:false,accountId:i.accountId,status:"reconciliation_required"};
  }
 }
