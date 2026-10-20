@@ -26,7 +26,8 @@ test("all 29 men keep independent review and rating drafts for the same client a
    assert.equal((await secondaryDraftAction(tx,p)).version,2);
   }
  }
- assert.equal(rows.size,58);
+ assert.equal(rows.size,60);
+ assert.equal(rows.get("secondary-review-progress-v1:123456789")["2468:yan_second"].stage,"draft_saved");
  const other=params("yan_second","review","987654321");
  assert.equal((await secondaryDraftAction(tx,{...other,action:"status"})).saved,false);
  await assert.rejects(()=>secondaryDraftAction(tx,params("yan_first")),/Legacy route/);
