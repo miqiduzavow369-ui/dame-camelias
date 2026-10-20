@@ -78,6 +78,8 @@ export async function claimSecondaryCallbackTicket(storage,{
 }
 export async function secondaryCallbackTicketStatus(storage,identity){
  const i=identityOf(identity),ticket=await storage.get(ticketKey(i));
+ if(ticket&&!verifyAccountCallback(ticket.identity,i))
+  return {accountId:i.accountId,status:"identity_mismatch",expiresAt:null};
  return {accountId:i.accountId,status:ticket?.status||"not_issued",
   expiresAt:ticket?.expiresAt||null};
 }
