@@ -751,7 +751,7 @@ function renderManConsole(){
  '<p class="hint">'+(x.approval?.approved?'✓ Одобрение записано для текущих версий прокси и кабинета.':'Разрешение ещё не выдано либо настройки изменились.')+'</p>'+
  '<p class="hint">Личность: '+(identityOK?'✓ Подтверждена в кабинете':'◷ Не подтверждена · требуется проверка авторизованного аккаунта')+'</p>'+ 
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
- '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||(!identityOK&&!x.approval?.approved)?'disabled':'')+'>'+
+ '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
  '<div class="card" style="margin-top:14px"><strong>🔎 Проверка поиска анкеты</strong>'+
  '<p class="hint">Поиск выполняется через личный прокси и кабинет этого мужчины по сценарию Яна Первого. Без оценок и отправки отзывов.</p>'+
