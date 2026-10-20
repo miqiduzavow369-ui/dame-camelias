@@ -31,6 +31,7 @@ export async function readSecondaryOperationDiagnostics(storage,source){
   creditStatus==="completed"&&proofPresent;
  const needsReview=publicationStatus==="uncertain"||
   publicationStatus==="identity_mismatch"||creditStatus==="identity_mismatch"||
+  ticketStatus==="identity_mismatch"||
   resultStatus==="reconciliation_required"||creditStatus==="reconciliation_required"||
   resultStatus==="proof_pending"||result.proofReadFailed===true||
   (publicationStatus==="completed"&&!completed)||
