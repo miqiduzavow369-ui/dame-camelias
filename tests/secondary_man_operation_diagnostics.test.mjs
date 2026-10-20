@@ -54,6 +54,7 @@ test("only matching completed proof and credit marks the operation finished",asy
  status=await readSecondaryOperationDiagnostics(storage,i);
  assert.equal(status.completed,false);
  assert.equal(status.proofPresent,false);
+ assert.equal(status.needsReview,true);
 });
 test("uncertain attempted post with consumed token needs human reconciliation",async()=>{
  const {storage}=source(),i=identity(),k=keys(i);
@@ -93,5 +94,20 @@ test("interrupted proof archive and ambiguous credit debit require admin review"
   assert.equal(status.needsReview,true);
   assert.equal(status.completed,false);
   assert.equal(status.canRetrySitePost,false);
+ }
+});
+
+test("divergent final proof, publication and credit states demand reconciliation",async()=>{
+ for(const changed of ["publication","credit","result"]){
+  const {storage}=source(),i=identity(),k=keys(i);
+  await storage.put(k.publication,{identity:createAccountOperation(i),status:changed==="publication"?"attempted":"completed"});
+  await storage.put(k.credit,{...i,status:changed==="credit"?"reserved":"completed"});
+  await storage.put(k.result,{identity:createAccountOperation(i),status:changed==="result"?"proof_saved":"completed",
+   sitePublicationId:"site-12345",proofFileId:"telegram-54321"});
+  await storage.put(k.evidence,{...i,sitePublicationId:"site-12345",proofFileId:"telegram-54321"});
+  const state=await readSecondaryOperationDiagnostics(storage,i);
+  assert.equal(state.completed,false);
+  assert.equal(state.needsReview,true);
+  assert.equal(state.canRetrySitePost,false);
  }
 });
