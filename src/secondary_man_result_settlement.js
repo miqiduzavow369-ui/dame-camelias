@@ -119,14 +119,16 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
 export async function secondaryVerifiedResultStatus(storage,identity){
  const i=createAccountOperation(identity);
  if(i.accountId==="yan_first")throw Error("Legacy publisher immutable");
- const [result,evidence]=await Promise.all([
-  storage.get(resultKey(i)),readVerifiedFeedbackEvidence(storage,i)]);
+ const result=await storage.get(resultKey(i));
  if(!result)return {ok:true,accountId:i.accountId,status:"not_started",proofPresent:false};
+ let evidence=null,proofReadFailed=false;
+ try{evidence=await readVerifiedFeedbackEvidence(storage,i);}
+ catch{proofReadFailed=true;}
  if(!verifyAccountCallback(result.identity,i))throw Error("Result identity mismatch");
  return {ok:true,accountId:i.accountId,status:result.status,
-  proofPresent:!!evidence&&evidence.sitePublicationId===result.sitePublicationId&&
+  proofPresent:!proofReadFailed&&!!evidence&&evidence.sitePublicationId===result.sitePublicationId&&
    evidence.proofFileId===result.proofFileId,
-  creditStatus:result.ledgerStatus};
+  proofReadFailed,creditStatus:result.ledgerStatus};
 }
 
 // Entrypoint for a FUTURE authenticated Chromium receiver, not exposed to
