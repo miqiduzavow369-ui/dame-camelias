@@ -724,9 +724,9 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  const stageNames={ratings_loading:"Загружаются услуги",ratings:"Заполнение оценок",ratings_agreed:"Выбор оценок проверяется",audit_loading:"Проверяются поля сайта",dryfill_loading:"Подготовка публикации",prepublish_ready:"Ожидается подтверждение",publishing:"Публикация выполняется",proof_loading:"Проверяется результат",review_input:"Ввод текста отзыва",review_preview:"Проверка черновика",review_moderation:"Отзыв на модерации",review_dispatch:"Отзыв отправляется",review_recheck:"Проверка размещения",review_result:"Результат отзыва",publication_result:"Результат публикации"};
  const stageIndex={rating:{ratings_loading:0,ratings:0,ratings_agreed:1,audit_loading:1,dryfill_loading:1,prepublish_ready:2,publishing:3,proof_loading:3,publication_result:4},review:{review_input:0,review_preview:1,review_moderation:1,review_dispatch:3,review_recheck:3,review_result:4}};
  const stage=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
- const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");if(false)body.append(status);
+ const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");body.append(status);
  const stageRows=[];
- [].forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
+ (legacySteps[kind]||[]).forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
  function syncStage(){
   const active=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
   const i=stageIndex[kind]?.[active];
