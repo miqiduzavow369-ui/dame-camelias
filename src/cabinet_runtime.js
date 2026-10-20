@@ -26,6 +26,7 @@ import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
+import {saveSharedCriteria} from "./shared_rating_criteria.js";
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -544,6 +545,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const result=event.kind==="secondary_profile_probe_payload"?
     await claimProfileProbe(storage,rawEnv,params):
     await completeProfileProbe(storage,{...params,code:src?.code});
+   if(event.kind==="secondary_profile_probe_result"){
+    // This completion can only occur once, after an account-specific runner
+    // claimed a live nonce with matching proxy/site versions and owner approval.
+    if(result.verified===true&&Array.isArray(src.catalog)&&src.catalog.length){
+     try{
+      await saveSharedCriteria(rawEnv.VISITORS_KV,{accountId,profileId,
+       siteHost:result.verifiedSiteHost,catalog:src.catalog});
+      result.criteriaCached=true;
+     }catch{result.criteriaCached=false;}
+    }
+    delete result.verifiedSiteHost;
+   }
    return {status:200,body:JSON.stringify(result),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_profile_probe"}),
