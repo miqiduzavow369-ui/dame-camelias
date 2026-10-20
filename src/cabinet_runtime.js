@@ -17,6 +17,7 @@ import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCh
 import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
 import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
 import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "./secondary_man_result_settlement.js";
+import {readSecondaryOperationDiagnostics} from "./secondary_man_operation_diagnostics.js";
 import {manStorageKey,requirePublicationIdentity} from "./man_account_isolation.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
@@ -716,6 +717,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    });
    return result;
   }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
+ }
+ if(event.kind==="admin_secondary_operation_status"){
+  // The actor is the ADMIN owner, while uid is the selected CLIENT's DO.
+  // No balance adjustment, proof download, dispatch or publication is possible.
+  if(event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   return await readSecondaryOperationDiagnostics(storage,{
+    userId:uid,accountId:event.accountId,
+    profileId:String(event.profileId||""),
+    kind:event.publicationKind,nonce:event.nonce
+   });
+  }catch{return {ok:false,status:400,reason:"operation_status_unavailable"};}
  }
  if(event.kind==="mini_review_action"){
   if(uid!==OWNER_ID){
