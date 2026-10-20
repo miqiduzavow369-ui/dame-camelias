@@ -442,7 +442,7 @@ function applyServerMen(rows){
    enabled:allowed,visible:record.visible!==false,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
    readiness:record.readiness||'awaiting_isolated_executor'};
  });
- if(selectedAccount!=='yan_first')selectedAccount='yan_first';
+ if(!availableMen.some(m=>m.id===selectedAccount&&m.visible!==false))selectedAccount='yan_first';
 }
 let workProfile=null,allMenOpen=false;
 function manStatus(man,kind){if(!man.enabled)return "🔒 Ожидает подключения исполнителя";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
