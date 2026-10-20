@@ -32,7 +32,10 @@ test('ADMIN writes reuse existing atomic providers',()=>{
  assert.match(api,/adjustCredits\(env,uid/);
  assert.match(api,/cabinetRPC\(env,uid/);
  assert.match(api,/validOp\(body\.operation\)/);
- assert.doesNotMatch(api,/env\.VISITORS_KV\.put\(/);
+ const visitorAck=api.match(/if\(action==="visitor_seen"\)\{[\s\S]*?if\(action==="visitors"\)/)?.[0];
+ assert.ok(visitorAck,'visitor acknowledgement is isolated');
+ assert.match(visitorAck,/admin_visitor_seen_v1:/);
+ assert.equal((api.match(/env\.VISITORS_KV\.put\(/g)||[]).length,1,'only visitor acknowledgement may write visitor KV');
 });
 
 test('ADMIN archive proofs are owner protected and agreement is status-only',()=>{
