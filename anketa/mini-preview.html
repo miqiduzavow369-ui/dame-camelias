@@ -452,7 +452,7 @@ function manStatus(man,kind){
   return ({draft_saved:kind==="rating"?"✅ Оценки подготовлены":"✅ Отзыв подготовлен",prepared:"🔎 Проверка перед публикацией",
    checking:"⏳ Проверяется результат",published:"✅ Опубликовано",
    reconciliation_required:"⚠️ Требуется проверка",moderation:"⏳ На модерации"})[stage]||
-   (man.cabinetReady?"⭐ Ожидает заполнения":"🔒 Ожидает подключения");
+   (man.cabinetReady?(kind==="rating"?"⭐ Ждёт проставления":"✍️ Ждёт написания"):"🔒 Ожидает подключения");
  }
  if(!man.enabled)return man.cabinetReady?"✓ Кабинет подключён · подготовка":"🔒 Ожидает подключения";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
 function manTile(man){const b=document.createElement("button");b.type="button";b.className="man-tile"+(selectedAccount===man.id?" selected-man":"");
@@ -686,18 +686,18 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
    (kind==="rating"?(selectedProgress.rating||(connected?"check_in_bot":"account_disabled")):
     selectedProgress.review||(connected?"check_in_bot":"account_disabled")):
    p.capabilities?.[kind]?.state||"unknown";
-  $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
+  $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=state==="draft_saved"&&kind==="review"?"✅ Отзыв подготовлен":messages[state]||messages.unknown;
   button.hidden=!["published","check_in_bot","draft_saved","prepared","checking","reconciliation_required","moderation"].includes(state);
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
- $("secondaryDraftCard").hidden=selectedAccount==="yan_first"||availableMen.some(m=>m.id===selectedAccount&&m.cabinetReady===true);if(selectedAccount!=="yan_first"&&!$("secondaryDraftCard").hidden){secondaryDraftKind="review";$("secondaryDraftTitle").textContent="Черновик для "+accountName(selectedAccount);$("secondaryDraftInput").value="";$("secondaryDraftAttest").checked=false;updateSecondaryDraftForm();void checkSecondaryDraftStatus();}
+ $("secondaryDraftCard").hidden=true;
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
 // The step labels mirror the legacy flow; this read-only screen never commits a publication.
 const legacySteps={
  rating:["Выбрать услуги и оценки","Проверить подготовленные оценки","Подтвердить публикацию","Дождаться результата проверки","Посмотреть подтверждение"],
- review:["Написать отзыв или открыть черновик","Проверить текст и отправить на модерацию","Подтвердить публикацию после проверки","Дождаться проверки размещения","Посмотреть подтверждение"]
+ review:["Написать отзыв","Проверить текст и отправить на модерацию","Подтвердить публикацию после проверки","Дождаться проверки размещения","Посмотреть подтверждение"]
 };
 document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  if(!selected)return;
