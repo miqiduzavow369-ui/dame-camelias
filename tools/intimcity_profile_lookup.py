@@ -284,6 +284,16 @@ def inspect(pid, mode='profile'):
                   (str(logout).lower(),str(account).lower(),str(password_visible).lower()),flush=True)
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
+            # Additional men: never accept merely being logged in. Bind the
+            # live authenticated header to the exact account that owns the
+            # selected private proxy/credentials. Legacy Yan First sets no
+            # SECONDARY_EXPECTED_SITE_LOGIN and retains its original behavior.
+            secondary_expected = os.environ.get("SECONDARY_EXPECTED_SITE_LOGIN", "")
+            if secondary_expected:
+                from intimcity_authenticated_identity import authenticated_identity_status
+                if authenticated_identity_status(page, secondary_expected) != "identity_verified":
+                    raise RuntimeError("Secondary authenticated site identity mismatch")
+
             if mode=="domain_probe":
                 # The user supplied an exact working profile URL. Domain
                 # recovery must not depend on the site's flaky search field.
