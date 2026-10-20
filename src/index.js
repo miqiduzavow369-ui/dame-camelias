@@ -806,7 +806,7 @@ export default {
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["prepare","status","publish"].includes(body?.action))return new Response("Invalid request",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_rating_action",accountId:body?.accountId??"yan_first",profileId:String(body.profileId),action:body.action});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_action",accountId:body?.accountId??"yan_first",profileId:String(body.profileId),action:body.action,nonce:body?.nonce});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-open"){
