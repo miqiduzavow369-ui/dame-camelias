@@ -59,6 +59,7 @@ def run_secondary_rating_publish(grant,account_id,profile_id):
         "PROXY_PASSWORD":grant["proxyPassword"],
         "EXPECTED_EGRESS_IP":grant["expectedIp"],
         "INTIMCITY_LOGIN":grant["siteLogin"],
+        "SECONDARY_EXPECTED_SITE_LOGIN": grant["siteLogin"],
         "INTIMCITY_PASSWORD":grant["sitePassword"],
         "INTIMCITY_SITE_HOST":host,
         "ANKETA_DRYFILL_SELECTIONS":json.dumps(grant["selections"],ensure_ascii=False)
