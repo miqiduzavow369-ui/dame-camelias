@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readSecondaryOperationDiagnostics} from "../src/secondary_man_operation_diagnostics.js";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
+import fs from "node:fs";
 const identity=(accountId="yan_second",userId="123456789")=>
  ({accountId,userId,profileId:"2468",kind:"review",nonce:"abcdef123456"});
 function source(){const map=new Map();return {map,storage:{get:async k=>map.get(k),put:async(k,v)=>map.set(k,v)}};}
@@ -61,4 +62,22 @@ test("uncertain attempted post with consumed token needs human reconciliation",a
  const status=await readSecondaryOperationDiagnostics(storage,i);
  assert.equal(status.needsReview,true);
  assert.equal(status.canRetrySitePost,false);
+});
+
+test("ADMIN diagnostics are read-only, authenticated and scoped to client",()=>{
+ const admin=fs.readFileSync("src/admin_app_api.js","utf8");
+ const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
+ const start=admin.indexOf('if(action==="secondary_operation_status")');
+ const end=admin.indexOf('if(!validId(uid)||uid===OWNER_ID)',start+15);
+ const block=admin.slice(start,end);
+ assert.ok(block.includes('cabinetRPC(env,uid,'));
+ assert.ok(block.includes('admin_secondary_operation_status'));
+ assert.ok(block.includes('registry(env,{action:"get",userId:uid})'));
+ assert.ok(block.includes('actorId:OWNER_ID'));
+ assert.ok(!block.includes('credits(env')&&!block.includes('adjustCredits('));
+ const event=runtime.slice(runtime.indexOf('if(event.kind==="admin_secondary_operation_status")'),runtime.indexOf('if(event.kind==="mini_review_action")'));
+ assert.ok(event.includes('event.actorId!==OWNER_ID'));
+ assert.ok(event.includes('readSecondaryOperationDiagnostics(storage,'));
+ assert.ok(event.includes('userId:uid'));
+ assert.ok(!event.includes('dispatch(')&&!event.includes('settleSecondaryVerifiedResult('));
 });
