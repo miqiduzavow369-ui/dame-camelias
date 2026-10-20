@@ -762,7 +762,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const proofFeedback=document.createElement("p");proofFeedback.className="muted";proofFeedback.setAttribute("aria-live","polite");
   proofButton.onclick=async()=>{if(!proofContainer.hidden){proofContainer.hidden=true;proofButton.textContent="📸 Посмотреть результат";return;}proofButton.disabled=true;await showOriginalProof(proofContainer,{id:selected.id,kind:"review",account:selectedAccount},proofFeedback);proofButton.disabled=false;if(!proofContainer.hidden)proofButton.textContent="📸 Скрыть подтверждение";};
   const request=async(action,text)=>{
-    const response=await fetch(["load","save"].includes(action)?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
+    const response=await fetch(["load","save"].includes(action)?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,accountId:selectedAccount,profileId:selected.id,action,text}),cache:"no-store"});
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok)throw Error(response.status===403?"Сессия Telegram истекла. Откройте приложение заново.":({credits:"Недостаточно кредитов.",invalid_text:"Отзыв должен содержать от 10 до 3000 символов.",already_published_or_pending:"Отзыв уже отправлен.",busy:"⏳ Пожалуйста, подождите. Ваше последнее действие ещё выполняется. Попробуйте повторить немного позже.",account_not_selected:"Не выбран аккаунт мужчины. Вернитесь к карточке и выберите Яна Первого.",not_saved:"Анкета не сохранена в кабинете.",invalid_request:"Ошибка данных запроса.",unavailable:"Сервис временно недоступен."})[result.reason]||("Ошибка запроса: HTTP "+response.status+(result.reason?", причина: "+String(result.reason).slice(0,80):". Сервис не вернул пояснение.") ));
     return result;
@@ -803,7 +803,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
    loadForm.disabled=true;loadForm.textContent="⏳ Загружаю форму…";
    try{
     if(!tg?.initData)throw Error("Откройте приложение из Telegram.");
-    const res=await fetch(checkOnly?"/api/anketa/mini-rating-form":"/api/anketa/mini-rating-open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id}),cache:"no-store"});
+    const res=await fetch(checkOnly?"/api/anketa/mini-rating-form":"/api/anketa/mini-rating-open",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:selected.id}),cache:"no-store"});
     const data=await res.json().catch(()=>({}));
     const showWaiting=message=>{
       panel.replaceChildren();
@@ -951,7 +951,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     const save=document.createElement("button");save.type="button";save.className="primary";save.textContent="✅ Проверить оценки";save.hidden=true;editor.append(save,reset);
     const result=document.createElement("p");result.setAttribute("aria-live","polite");editor.append(result);
     save.onclick=async()=>{save.disabled=true;result.textContent="⏳ Сохраняю…";try{
-      const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
+      const response=await fetch("/api/anketa/mini-rating-save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:selected.id,selected:draft,metElsewhere:checkbox.checked}),cache:"no-store"});
       const saved=await response.json().catch(()=>({}));if(!response.ok||!saved.ok)throw Error(saved.reason==="incomplete_ratings"?"❗ Заполните обязательные оценки и не менее 20% остальных услуг.":"Не удалось сохранить выбор. Проверьте доступность анкеты и попробуйте ещё раз.");
       result.textContent="";
       const previous=editor.querySelector(".draft-review");if(previous)previous.remove();
@@ -991,7 +991,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const requestAction=async action=>{
        // Retry only read-only status requests after a transient connection error.
        // Never automatically repeat prepare or publish; they may have reached the server.
-       const getResponse=()=>fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,profileId:selected.id,action}),cache:"no-store"});
+       const getResponse=()=>fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:selected.id,action}),cache:"no-store"});
        let response;
        try{response=await getResponse();}
        catch(error){
