@@ -13,7 +13,7 @@ test("client proof route supports all 30 account IDs through private archive aut
  assert.match(block,/agreementStatus\(env,uid\)/);
  assert.match(block,/readPublicationArchive\(storage,rawEnv\.VISITORS_KV,uid\)/);
  assert.match(block,/item\.account===account/);
- assert.match(index,/url\.pathname==="/api\/anketa\/mini-proof"/);
- assert.match(index,/validWebApp\(body\?\.initData,env\.BOT_TOKEN,3600\)/);
+ assert.ok(index.includes('url.pathname==="/api/anketa/mini-proof"'));
+ assert.ok(index.includes('validWebApp(body?.initData,env.BOT_TOKEN,3600)'));
  assert.equal(MAN_ACCOUNTS.length,30);
 });
