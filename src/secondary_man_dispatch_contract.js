@@ -48,3 +48,32 @@ export function validateSecondaryDispatchContract({
    proxyVersion:proxy.version,siteVersion:site.version,
    dispatchRoute:"isolated_secondary_only",maySubmit:false});
 }
+
+/**
+ * Server-side adapter for the existing sealed-man records and publication gate.
+ * Call only from an authenticated, account-pinned coordinator.
+ * All configuration is read from trusted storage, not from the client request.
+ *
+ * Readiness is a snapshot, NOT a publication grant: no external POST is enabled.
+ */
+export async function readSecondaryDispatchPreflight(storage,{
+ identity,ownerOperationConfirmed,independentAuthorConfirmed
+}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first")throw Error("Legacy Yan First must never use secondary dispatch");
+ if(!storage||typeof storage.get!=="function")throw Error("Trusted storage required");
+ const prefix=["man-account-v1",i.userId,i.accountId];
+ const [publication,credit,proxy,site,approval,verifiedIdentity]=await Promise.all([
+  storage.get(prefix.join(":")+":publication:"+i.profileId+":"+i.kind),
+  storage.get(prefix.join(":")+":operation:"+i.profileId+":"+i.kind+":"+i.nonce+":ledger"),
+  storage.get("man-proxy-sealed-v1:"+i.accountId),
+  storage.get("man-intimcity-sealed-v1:"+i.accountId),
+  storage.get("man-owner-approval-v1:"+i.accountId),
+  storage.get("secondary-site-identity-v1:"+i.accountId)
+ ]);
+ let selectedHost;
+ try{selectedHost=new URL(site?.siteUrl).hostname;}
+ catch{throw Error("Approved site URL unavailable");}
+ return validateSecondaryDispatchContract({identity:i,publication,credit,proxy,site,
+  approval,verifiedIdentity,selectedHost,ownerOperationConfirmed,independentAuthorConfirmed});
+}
