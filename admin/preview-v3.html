@@ -663,6 +663,39 @@ async function checkSecondaryOperation(event){
  }catch(e){if(man===selectedManId)secondaryOperationError="Не удалось проверить операцию: "+e.message;}
  finally{secondaryOperationBusy=false;if(man===selectedManId&&state.page==="man-detail")render();}
 }
+let secondaryRatingState=null,secondaryRatingLoading=false,secondaryRatingError='';
+const ratingBlockerLabels={
+ proxy_unverified:'Проверка индивидуального IP',
+ site_credentials_unverified:'Доступ Intimcity',
+ site_login_unverified:'Подтверждение входа',
+ owner_approval_required:'Разрешение ADMIN',
+ site_identity_unverified:'Проверка личности на сайте',
+ isolated_executor_not_connected:'Изолированный Chromium-исполнитель',
+ callback_not_connected:'Защищённый callback',
+ proof_and_credit_not_connected:'Скриншот, архив и кредиты'
+};
+function renderSecondaryRatingReadiness(man){
+ const r=secondaryRatingState?.accountId===man.id?secondaryRatingState:null;
+ const msg=secondaryRatingError?'<p class="error" role="alert">'+esc(secondaryRatingError)+'</p>':'';
+ return '<div class="card" style="margin-top:14px"><div class="section">⭐ Готовность оценок</div>'+
+ '<p class="hint">Индивидуальная проверка '+esc(man.name)+' без публикации и повторного ввода реквизитов.</p>'+
+ (r?'<p class="hint" role="status">'+(r.ready?'✓ Все соединения подтверждены':'Ожидается: '+r.blockers.length+' этапов')+'</p>'+
+ r.blockers.map(code=>'<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)"><span>'+esc(ratingBlockerLabels[code]||code)+'</span><strong>◷</strong></div>').join(''):
+ '<p class="hint">Нажмите, чтобы прочитать актуальное состояние сервера.</p>')+msg+
+ '<button type="button" class="secondary" onclick="refreshSecondaryRatingReadiness()" '+
+ (secondaryRatingLoading?'disabled':'')+'>'+(secondaryRatingLoading?'Проверяем…':'↻ Проверить оценки')+'</button>'+
+ '<p class="hint">Диагностика не включает публикации и не списывает кредиты.</p></div>';
+}
+async function refreshSecondaryRatingReadiness(){
+ const id=selectedManId;
+ if(!id||id==='yan_first'||secondaryRatingLoading)return;
+ secondaryRatingLoading=true;secondaryRatingError='';render();
+ try{
+  const r=await callAdmin('secondary_rating_readiness',{accountId:id});
+  if(selectedManId===id)secondaryRatingState=r;
+ }catch(e){if(selectedManId===id)secondaryRatingError='Не удалось проверить: '+String(e.message||'ошибка');}
+ finally{secondaryRatingLoading=false;if(selectedManId===id)render();}
+}
 let manApprovalBusy=false;
 async function updateManOwnerApproval(approved){
  const x=manAccounts.find(a=>a.id===selectedManId);
@@ -751,6 +784,7 @@ function renderManConsole(){
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
  '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
+ renderSecondaryRatingReadiness(x)+
  '<details class="man-step-details" style="margin-top:14px"><summary>Техническая диагностика · только ADMIN</summary>'+ 
  renderSecondaryOperationDiagnostic(x)+
  '<p class="hint">Поиск анкет и проверку клиентского маршрута выполняем в кабинете клиентки. Публикации пока заблокированы.</p></details>'+ 
