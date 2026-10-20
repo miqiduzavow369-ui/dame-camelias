@@ -740,7 +740,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   const id=String(event.profileId||""),kind=String(event.publicationKind||""),account=String(event.account||"");
-  if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!["yan_first","yan_second"].includes(account))return {ok:false,status:400};
+  if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!MAN_ACCOUNTS.some(man=>man.id===account))return {ok:false,status:400};
   const archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);
   const entry=archive.items.find(item=>String(item.profileId)===id&&item.kind===kind&&item.account===account);
   return entry?.fileId?{ok:true,fileId:entry.fileId}:{ok:false,status:404};
