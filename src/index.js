@@ -733,10 +733,12 @@ export default {
       if(!result?.ok)return new Response("Proof unavailable",{status:result?.status===403?403:404});
       const file=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(result.fileId),{signal:AbortSignal.timeout(10000)}).then(r=>r.json()).catch(()=>null);
       const path=file?.ok&&file?.result?.file_path;
-      if(typeof path!=="string"||!/^(?:photos|documents)\/[a-zA-Z0-9_\/-]+\.(?:jpg|jpeg|png|webp)$/.test(path)){console.error("Proof getFile unavailable",{reason:!file?.ok?"telegram_getfile_failed":"unexpected_file_path",account:String(body?.account||""),kind:String(body?.kind||"")});return new Response("Proof temporarily unavailable",{status:502,headers:{"X-Proof-Stage":"get-file"}});}
+      if(typeof path!=="string"||(!/^[A-Za-z0-9_./-]{1,240}$/.test(path)||path.split("/").some(part=>!part||part==="."||part===".."))){console.error("Proof getFile unavailable",{reason:!file?.ok?"telegram_getfile_failed":"unexpected_file_path",account:String(body?.account||""),kind:String(body?.kind||"")});return new Response("Proof temporarily unavailable",{status:502,headers:{"X-Proof-Stage":"get-file"}});}
       const image=await fetch("https://api.telegram.org/file/bot"+env.BOT_TOKEN+"/"+path,{signal:AbortSignal.timeout(15000)}).catch(()=>null);
       if(!image?.ok){console.error("Proof image download unavailable",{httpStatus:image?.status||null,account:String(body?.account||""),kind:String(body?.kind||"")});return new Response("Proof temporarily unavailable",{status:502,headers:{"X-Proof-Stage":"download"}});}
-      return new Response(image.body,{headers:{"Content-Type":path.endsWith(".png")?"image/png":path.endsWith(".webp")?"image/webp":"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'"}});
+      const mime=(image.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+      if(!["image/jpeg","image/png","image/webp"].includes(mime)){console.error("Proof image type unavailable",{reason:"unexpected_image_type",account:String(body?.account||""),kind:String(body?.kind||"")});return new Response("Proof temporarily unavailable",{status:502,headers:{"X-Proof-Stage":"image-type"}});}
+      return new Response(image.body,{headers:{"Content-Type":mime,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-review-action"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
