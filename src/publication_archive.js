@@ -69,6 +69,33 @@ export async function readPublicationArchive(storage,kv,userId,now=Date.now()){
    entries.set(account+":"+id+":"+kind,{profileId:id,account,kind,...date,fileId});
   }
  }
+ // Secondary men's independent archive is populated only by trusted executor
+ // proof AND successful credit settlement, not by draft saves or caller flags.
+ // Entries reside in this client's own Durable Object namespace.
+ const secondaryPrefix="man-account-v1:"+uid+":";
+ if(storage?.list){
+  let cursor;
+  do{
+   const page=await storage.list({prefix:secondaryPrefix,limit:1000,...(cursor?{startAfter:cursor}:{})});
+   for(const [key,value] of page){
+    const match=/^man-account-v1:(\\d{5,16}):(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):proof:(\\d{1,9}):(rating|review):([a-f0-9]{12}):settlement$/.exec(key);
+    if(!match||match[1]!==uid||value?.status!=="completed"||value?.ledgerStatus!=="completed"||
+       value?.identity?.userId!==uid||value.identity.accountId!==match[2]||
+       value.identity.profileId!==match[3]||value.identity.kind!==match[4]||
+       value.identity.nonce!==match[5]||!Number.isSafeInteger(value.at))continue;
+    const id=match[3],account=match[2],kind=match[4];
+    const fileId=typeof value.proofFileId==="string"&&/^[A-Za-z0-9_-]{6,300}$/.test(value.proofFileId)?
+     value.proofFileId:null;
+    const dt=dated({at:new Date(value.at).toISOString()},null);
+    if(!dt)continue;
+    const identity=account+":"+id+":"+kind;
+    // Keep immutable original proof: no second completed operation overwrites
+    // an earlier one in the legacy single-card catalog.
+    if(!entries.has(identity))entries.set(identity,{profileId:id,account,kind,...dt,fileId});
+   }
+   cursor=page.size===1000?[...page.keys()].at(-1):null;
+  }while(cursor);
+ }
  // A confirmed action can outlive its Telegram file. Do not invent a screenshot.
  for(const [key,record] of publications){
   const [kind,id,...extra]=key.slice(publicationPrefix.length).split(":");
