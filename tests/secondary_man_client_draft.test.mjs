@@ -53,3 +53,15 @@ test("new route uses signed Telegram initData, checks saved profile and never pu
  assert.match(endpoint,/validWebApp\(body\?\.initData,env\.BOT_TOKEN,3600\)/);
  assert.doesNotMatch(endpoint,/engine\.miniReviewAction|engine\.miniRatingAction|credits\(/);
 });
+
+test("server rejects a hidden man and numeric validators work with normal IDs",()=>{
+ const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
+ const entry=fs.readFileSync("src/index.js","utf8");
+ const a=runtime.slice(runtime.indexOf('if(event.kind==="mini_secondary_draft")'),runtime.indexOf('if(event.kind==="mini_review_action")'));
+ const b=entry.slice(entry.indexOf('url.pathname==="/api/anketa/mini-secondary-draft"'),entry.indexOf('url.pathname==="/api/anketa/mini-rating-action"'));
+ assert.match(a,/manVisibility\\(storage,event.accountId\\/);
+ assert.match(a,/man_hidden_from_clients/);
+ assert.match(a,/\/\\^\\d\\{1,9\\}\\$\//);
+ assert.match(b,/\/\\^\\d\\{1,9\\}\\$\//);
+ assert.doesNotMatch(a,/\/\\^\\\\\\\\d/);
+});
