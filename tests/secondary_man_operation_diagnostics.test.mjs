@@ -68,7 +68,7 @@ test("ADMIN diagnostics are read-only, authenticated and scoped to client",()=>{
  const admin=fs.readFileSync("src/admin_app_api.js","utf8");
  const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
  const start=admin.indexOf('if(action==="secondary_operation_status")');
- const end=admin.indexOf('if(!validId(uid)||uid===OWNER_ID)',start+15);
+ const end=admin.indexOf('  if(action==="client"){',start);
  const block=admin.slice(start,end);
  assert.ok(block.includes('cabinetRPC(env,uid,'));
  assert.ok(block.includes('admin_secondary_operation_status'));
