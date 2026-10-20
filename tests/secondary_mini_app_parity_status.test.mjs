@@ -4,15 +4,17 @@ import {readFileSync} from "node:fs";
 import {secondaryDraftAction} from "../src/secondary_man_client_draft.js";
 
 const source=()=>readFileSync("anketa/mini-preview.html","utf8");
-test("all male accounts share the five rating and review progress rows",()=>{
+test("Yan First's original compact interface stays free of visible stage rows and extra secondary drafts",()=>{
  const html=source();
- assert.match(html,/\(legacySteps\[kind\]\|\|\[\]\)\.forEach\(\(step,i\)=>/);
- assert.match(html,/body\.append\(status\)/);
- assert.doesNotMatch(html,/if\(false\)body\.append\(status\)/);
- assert.doesNotMatch(html,/Same rating UI and confirmation, isolated draft\. Never display a/);
+ assert.match(html,/if\(false\)body\.append\(status\)/);
+ assert.match(html,/\[\]\.forEach\(\(step,i\)=>/);
+ assert.doesNotMatch(html,/\(legacySteps\[kind\]\|\|\[\]\)\.forEach\(\(step,i\)=>/);
+ assert.match(html,/\$\("secondaryDraftCard"\)\.hidden=true/);
  assert.match(html,/send\.textContent="✅ Опубликовать оценки"/);
  assert.match(html,/send\.disabled=true/);
  assert.match(html,/secondaryStatuses\[String\(p\.id\)\]/);
+ assert.doesNotMatch(html,/publish\.textContent="🔎 Подготовить публикацию"/);
+ assert.match(html,/draft_saved:kind==="rating"\?"✅ Оценки подготовлены":"✅ Отзыв подготовлен"/);
 });
 test("secondary review drafts are indexed independently for home progress",async()=>{
  const map=new Map();
