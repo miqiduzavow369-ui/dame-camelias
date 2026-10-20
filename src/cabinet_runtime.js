@@ -880,8 +880,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(!await secondaryRatingCabinetConnected(storage,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
     return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
-   }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
-     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
+   }catch(e){
+    if(String(e?.message)==="Rating catalog not ready"){
+     if(event.kind==="mini_rating_form")return {ok:false,status:409,reason:"not_ready"};
+     const result=await cabinetRPC(rawEnv,OWNER_ID,{
+      kind:"secondary_catalog_lookup_start",userId:uid,
+      accountId:event.accountId,profileId:String(event.profileId||"")
+     }).catch(()=>({ok:false,reason:"catalog_lookup_unavailable"}));
+     return result.ok?{ok:true,stage:"loading"}:
+      {ok:false,status:409,reason:result.reason||"catalog_lookup_unavailable"};
+    }
+    return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
+     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};
+   }
   }
 
   // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
@@ -904,8 +915,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(!await secondaryRatingCabinetConnected(storage,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
     return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
-   }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
-     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
+   }catch(e){
+    if(String(e?.message)==="Rating catalog not ready"){
+     if(event.kind==="mini_rating_form")return {ok:false,status:409,reason:"not_ready"};
+     const result=await cabinetRPC(rawEnv,OWNER_ID,{
+      kind:"secondary_catalog_lookup_start",userId:uid,
+      accountId:event.accountId,profileId:String(event.profileId||"")
+     }).catch(()=>({ok:false,reason:"catalog_lookup_unavailable"}));
+     return result.ok?{ok:true,stage:"loading"}:
+      {ok:false,status:409,reason:result.reason||"catalog_lookup_unavailable"};
+    }
+    return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
+     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};
+   }
   }
 
   // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
