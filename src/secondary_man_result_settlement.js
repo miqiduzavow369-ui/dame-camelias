@@ -82,7 +82,9 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
   await tx.put(resultKey(i),{...current,status:"settling"});
   return current;
  });
- const evidence=await readVerifiedFeedbackEvidence(storage,i);
+ let evidence;
+ try{evidence=await readVerifiedFeedbackEvidence(storage,i);}
+ catch{evidence=null;}
  if(!evidence||evidence.sitePublicationId!==record.sitePublicationId||
     evidence.proofFileId!==record.proofFileId){
   await storage.transaction(async tx=>{
