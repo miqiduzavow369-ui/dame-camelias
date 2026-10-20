@@ -26,7 +26,7 @@ import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
-import {saveSharedCriteria} from "./shared_rating_criteria.js";
+import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js";
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -475,6 +475,62 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{return await saveProxy(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
+ }
+ if(event.kind==="secondary_catalog_lookup_start"){
+  // Internal request from a signed and authorized client Mini App.
+  // Owner coordinator is the single authority for one global profile lookup.
+  if(uid!==OWNER_ID)return {ok:false,status:403};
+  const userId=String(event.userId||""),profileId=String(event.profileId||"");
+  const accountId=String(event.accountId||"");
+  if(!/^\\d{5,16}$/.test(userId)||!/^\\d{1,9}$/.test(profileId)||
+     accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))
+    return {ok:false,status:400,reason:"invalid_catalog_request"};
+  try{
+   const record=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+userId+":"+profileId,"json");
+   if(record?.confirmed!==true||String(record.profile?.id)!==profileId)
+    return {ok:false,status:403,reason:"profile_not_saved"};
+   if(Array.isArray(record.catalog)&&record.catalog.length)
+    return {ok:true,stage:"available"};
+   if(await readSharedCriteria(rawEnv.VISITORS_KV,profileId))
+    return {ok:true,stage:"available"};
+   if(!await secondaryRatingCabinetConnected(storage,accountId))
+    return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
+   const key="secondary-auto-rating-lookup-v1:"+profileId,now=Date.now();
+   const reserved=await storage.transaction(async tx=>{
+    const prev=await tx.get(key);
+    if(prev?.expiresAt>now)return false;
+    await tx.put(key,{accountId,profileId,expiresAt:now+8*60*1000});
+    return true;
+   });
+   if(!reserved)return {ok:true,stage:"loading"};
+   const params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId};
+   const [proxy,site,login]=await Promise.all([
+    proxyStatus(storage,params),readSiteStatus(storage,params),siteLoginStatus(storage,params)
+   ]);
+   const dispatched=await startProfileProbe(storage,{accountId,profileId,at:now,
+    proxy,site,login,catalogReadOnly:true,
+    dispatch:async ({accountId,profileId,nonce,siteHost})=>{
+     if(!rawEnv.DC_ACTIONS_TOKEN||!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)
+      return {ok:false};
+     const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-profile-probe.yml/dispatches",{
+      method:"POST",headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+       "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",
+       "Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
+      body:JSON.stringify({ref:"main",inputs:{account_id:accountId,profile_id:profileId,nonce,site_host:siteHost}}),
+      signal:AbortSignal.timeout(15000)
+     });
+     return {ok:response.status===204};
+    }});
+   if(dispatched.ok!==true){
+    await storage.delete(key);
+    return {ok:false,status:409,reason:"catalog_lookup_unavailable"};
+   }
+   return {ok:true,stage:"loading"};
+  }catch{
+   // Retry can be attempted; no secondary publication action is possible here.
+   await storage.delete("secondary-auto-rating-lookup-v1:"+profileId).catch(()=>{});
+   return {ok:false,status:409,reason:"catalog_lookup_unavailable"};
+  }
  }
  if(event.kind==="admin_secondary_profile_probe"){
   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
