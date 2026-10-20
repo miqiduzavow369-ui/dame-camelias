@@ -63,3 +63,12 @@ test("automated rating open triggers owner coordinator on missing catalog; norma
  assert.ok(editor.includes('if(checkOnly&&!data.ok&&data.reason==="not_ready")'));
  assert.ok(!source.includes('kind:"mini_rating_open",accountId:"yan_first"'));
 });
+
+test("client Mini Apps use owner-controlled verified readiness, never local client secrets",()=>{
+ const code=fs.readFileSync("src/cabinet_runtime.js","utf8");
+ assert.ok(code.includes('kind:"secondary_catalog_cabinet_ready",accountId'));
+ assert.ok(code.includes('kind:"secondary_catalog_cabinet_list"'));
+ assert.ok(code.includes('if(uid!==OWNER_ID){'));
+ assert.ok(code.includes("isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId)"));
+ assert.ok(code.includes("cabinetReady:man.id===\"yan_first\"||allowed.has(man.id)"));
+});
