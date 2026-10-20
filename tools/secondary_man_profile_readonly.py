@@ -65,6 +65,7 @@ def run_readonly_profile_check(grant, account_id, profile_id, *, mode="ratings",
         "PROXY_PASSWORD": grant["proxyPassword"],
         "EXPECTED_EGRESS_IP": grant["expectedIp"],
         "INTIMCITY_LOGIN": grant["siteLogin"],
+        "SECONDARY_EXPECTED_SITE_LOGIN": grant["siteLogin"],
         "INTIMCITY_PASSWORD": grant["sitePassword"],
         "INTIMCITY_SITE_HOST": host
     }
