@@ -16,7 +16,15 @@ export function validateSharedCriteria({accountId,profileId,siteHost,catalog}){
    throw Error("Invalid rating criterion");
   return {label:item.label.trim(),group:String(item.group||"").slice(0,90),
    subgroup:String(item.subgroup||"").slice(0,90),
-   options:item.options.map(v=>v.trim()),...(item.control?{control:item.control}: {})};
+   options:item.options.map(v=>v.trim()),
+   ...(item.control&&typeof item.control==="object"?
+    {control:{
+      type:["select","radio"].includes(item.control.type)?item.control.type:"",
+      name:String(item.control.name||"").slice(0,100),
+      id:String(item.control.id||"").slice(0,100),
+      values:Array.isArray(item.control.values)?
+       item.control.values.filter(v=>typeof v==="string").slice(0,20).map(v=>v.slice(0,100)):[]
+    }}:{})};
  });
  if(JSON.stringify(fields).length>40000)throw Error("Rating criteria too large");
  return fields;
