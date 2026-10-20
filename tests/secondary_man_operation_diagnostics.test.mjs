@@ -129,3 +129,16 @@ test("admin diagnostics remains available and flags inaccessible proof storage",
  assert.equal(status.publicationEnabled,false);
  assert.ok(!JSON.stringify(status).includes("telegram-54321"));
 });
+
+test("a foreign callback ticket is reported as identity mismatch without leaking it",async()=>{
+ const {storage}=source(),i=identity(),k=keys(i);
+ await storage.put(k.publication,{identity:createAccountOperation(i),status:"attempted",attempted:true});
+ await storage.put(k.ticket,{identity:createAccountOperation(identity("yan_03")),status:"issued",
+  token:"foreign-private-token",expiresAt:1234567});
+ const state=await readSecondaryOperationDiagnostics(storage,i);
+ assert.equal(state.ticketStatus,"identity_mismatch");
+ assert.equal(state.needsReview,true);
+ assert.equal(state.completed,false);
+ assert.equal(state.canRetrySitePost,false);
+ assert.ok(!JSON.stringify(state).includes("foreign-private-token"));
+});
