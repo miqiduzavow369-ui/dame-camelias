@@ -616,6 +616,53 @@ async function startSecondaryProfileProbe(event){
  }catch(e){if(selectedManId===id)secondaryProbeError='Проверка не запущена: '+e.message;}
  finally{secondaryProbeBusy=false;render();}
 }
+let secondaryOperationBusy=false,secondaryOperationError="",secondaryOperationState=null;
+let secondaryOperationQuery={userId:"",profileId:"",kind:"review",nonce:""};
+function renderSecondaryOperationDiagnostic(man){
+ if(man.id==="yan_first")return "";
+ const d=secondaryOperationState?.accountId===man.id?secondaryOperationState:null;
+ const options=clients.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===secondaryOperationQuery.userId?'selected':'')+'>'+esc(normalizeUsername(c.username)?'@'+normalizeUsername(c.username)+' · '+c.id:c.id)+'</option>').join('');
+ const line=(name,value)=>'<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)"><span>'+name+'</span><strong>'+esc(value)+'</strong></div>';
+ return '<div class="card" style="margin-top:14px"><div class="section">Состояние оценки или отзыва</div>'+
+ '<p class="hint">Только диагностика выбранной операции. Без повторной отправки, списания кредитов или раскрытия скриншота.</p>'+
+ '<form onsubmit="checkSecondaryOperation(event)">'+
+ '<label for="secOperationClient">Клиентка</label><select class="field" id="secOperationClient" required><option value="">Выберите клиентку</option>'+options+'</select>'+
+ '<label for="secOperationProfile">Номер анкеты</label><input class="field" id="secOperationProfile" required inputmode="numeric" pattern="[0-9]{1,9}" maxlength="9" value="'+esc(secondaryOperationQuery.profileId)+'">'+
+ '<label for="secOperationKind">Вид операции</label><select class="field" id="secOperationKind">'+
+ '<option value="review" '+(secondaryOperationQuery.kind==="review"?'selected':'')+'>✍️ Отзыв</option>'+
+ '<option value="rating" '+(secondaryOperationQuery.kind==="rating"?'selected':'')+'>⭐ Оценка</option></select>'+
+ '<label for="secOperationNonce">Номер операции (nonce, 12 символов)</label>'+
+ '<input class="field" id="secOperationNonce" required maxlength="12" pattern="[a-f0-9]{12}" autocomplete="off" value="'+esc(secondaryOperationQuery.nonce)+'" placeholder="12 символов">'+
+ '<button type="submit" class="secondary" '+(secondaryOperationBusy?'disabled':'')+'>🔎 '+(secondaryOperationBusy?'Проверяем…':'Проверить состояние')+'</button></form>'+
+ (secondaryOperationError?'<p class="error" role="alert">'+esc(secondaryOperationError)+'</p>':'')+
+ (d?'<div class="note" role="status"><strong>'+(d.completed?'✓ Операция завершена':d.needsReview?'⚠ Требуется сверка':'◷ Публикация не завершена')+'</strong>'+
+ line('Отправка',d.publicationStatus)+line('Билет подтверждения',d.ticketStatus)+
+ line('Доказательство',d.proofPresent?'✓ Подтверждено':'Не подтверждено')+
+ line('Списание кредита',d.creditStatus)+line('Результат',d.resultStatus)+
+ '<p class="hint">Повторная отправка на сайт запрещена. Публикации новых мужчин остаются закрытыми.</p></div>':'')+'</div>';
+}
+async function checkSecondaryOperation(event){
+ event.preventDefault();
+ if(secondaryOperationBusy||!selectedManId||selectedManId==="yan_first")return;
+ const man=selectedManId;
+ const q={userId:String(document.getElementById("secOperationClient")?.value||""),
+  profileId:String(document.getElementById("secOperationProfile")?.value||"").trim(),
+  kind:String(document.getElementById("secOperationKind")?.value||""),
+  nonce:String(document.getElementById("secOperationNonce")?.value||"").trim()};
+ secondaryOperationQuery=q;
+ secondaryOperationError="";secondaryOperationState=null;
+ if(!/^[1-9][0-9]{4,15}$/.test(q.userId)||!/^[0-9]{1,9}$/.test(q.profileId)||
+    !["review","rating"].includes(q.kind)||!/^[a-f0-9]{12}$/.test(q.nonce)){
+  secondaryOperationError="Укажите клиентку, анкету и корректный номер операции";render();return;
+ }
+ secondaryOperationBusy=true;render();
+ try{
+  const result=await callAdmin("secondary_operation_status",{accountId:man,userId:q.userId,
+   profileId:q.profileId,kind:q.kind,nonce:q.nonce});
+  if(man===selectedManId){secondaryOperationState=result;secondaryOperationError="";}
+ }catch(e){if(man===selectedManId)secondaryOperationError="Не удалось проверить операцию: "+e.message;}
+ finally{secondaryOperationBusy=false;if(man===selectedManId&&state.page==="man-detail")render();}
+}
 let manApprovalBusy=false;
 async function updateManOwnerApproval(approved){
  const x=manAccounts.find(a=>a.id===selectedManId);
@@ -718,6 +765,7 @@ function renderManConsole(){
  '<button type="submit" class="secondary" '+(secondaryProbeBusy||!identityOK||!x.approval?.approved?'disabled':'')+'>🔎 Проверить поиск через личный прокси</button></form>'+
  '<button type="button" class="secondary" onclick="refreshSecondaryProfileProbe()">↻ Обновить результат</button></div>'+
 
+ renderSecondaryOperationDiagnostic(x)+
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
  '<details class="man-step-details"><summary>Диагностика и история</summary>'+
  manChecks(x)+renderManDiagnostic(x)+
