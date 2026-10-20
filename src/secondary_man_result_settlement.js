@@ -9,6 +9,7 @@ import {createAccountOperation,verifyAccountCallback,manStorageKey} from "./man_
 import {appendVerifiedFeedbackEvidence,readVerifiedFeedbackEvidence} from "./secondary_man_feedback_evidence.js";
 import {settleSecondaryFeedbackCredit} from "./secondary_man_credit_bridge.js";
 import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
+import {claimSecondaryCallbackTicket} from "./secondary_man_callback_ticket.js";
 
 const IDENTIFIER=/^[A-Za-z0-9_-]{6,300}$/;
 function validated(original,callback){
@@ -83,8 +84,15 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
  });
  const evidence=await readVerifiedFeedbackEvidence(storage,i);
  if(!evidence||evidence.sitePublicationId!==record.sitePublicationId||
-    evidence.proofFileId!==record.proofFileId)
+    evidence.proofFileId!==record.proofFileId){
+  await storage.transaction(async tx=>{
+   const row=await tx.get(resultKey(i));
+   if(row?.status==="settling")
+    await tx.put(resultKey(i),{...row,status:"reconciliation_required",
+     ledgerStatus:"requires_reconciliation"});
+  });
   return {ok:false,accountId:i.accountId,status:"reconciliation_required"};
+ }
  let outcome;
  try{outcome=await settleSecondaryFeedbackCredit(storage,env,i);}
  catch{outcome={ok:false,status:"reconciliation_required"};}
@@ -135,5 +143,24 @@ export async function recordAttestedSecondaryResult(storage,{
   moderatorApproved,independentAuthorConfirmed,
   verifiedByTrustedExecutor:verified.verifiedByTrustedExecutor,
   at:verified.at
+ });
+}
+
+// Trusted receiver adapter: atomically consume the one-use callback ticket
+// before saving proof. The moderator and original-author confirmation must
+// come from server records, NOT request fields. This is still not an HTTP route.
+export async function recordTicketedSecondaryResult(storage,{
+ identity,token,secret,input,signature,at,moderatorApproved,independentAuthorConfirmed
+}){
+ if(moderatorApproved!==true||independentAuthorConfirmed!==true)
+  throw Error("Trusted author and moderation confirmation missing");
+ const verified=await claimSecondaryCallbackTicket(storage,{
+  identity,token,secret,input,signature,at
+ });
+ return recordSecondaryVerifiedResult(storage,{
+  original:verified.identity,callback:verified.identity,
+  sitePublicationId:verified.sitePublicationId,
+  proofFileId:verified.proofFileId,moderatorApproved,independentAuthorConfirmed,
+  verifiedByTrustedExecutor:true,at:verified.at
  });
 }
