@@ -71,6 +71,9 @@ test("failed credit completion remains locked for reconciliation without another
  assert.equal(done.status,"reconciliation_required");
  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
  assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"reconciliation_required");
+ const ledgerKey=manStorageKey({userId:i.userId,accountId:i.accountId,
+  profileId:i.profileId,scope:"operation"})+":"+i.kind+":"+i.nonce+":ledger";
+ assert.equal((await tx.get(ledgerKey)).status,"reconciliation_required");
 });
 
 test("uncertain or changed publication cannot settle a verified screenshot",async()=>{
