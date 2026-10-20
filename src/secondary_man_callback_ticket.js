@@ -54,13 +54,21 @@ export async function claimSecondaryCallbackTicket(storage,{
  await storage.transaction(async tx=>{
   const key=ticketKey(i),ticket=await tx.get(key);
   const publication=await tx.get(operationKey(i));
+  const credit=await tx.get(creditKey(i));
   if(ticket?.status!=="issued"||ticket.token!==token||
     ticket.issuedAt>at||ticket.expiresAt<at||
     !verifyAccountCallback(ticket.identity,i)||
     ticket.proxyVersion!==input.proxyVersion||
     ticket.siteVersion!==input.siteVersion||
     publication?.status!=="attempted"||publication.attempted!==true||
-    !verifyAccountCallback(publication.identity,i))
+    !verifyAccountCallback(publication.identity,i)||
+    publication.independentAuthorConfirmed!==true||
+    (i.kind==="review"&&publication.moderatorApproved!==true)||
+    publication.proxyVersion!==ticket.proxyVersion||
+    publication.siteVersion!==ticket.siteVersion||
+    credit?.status!=="reserved"||credit.userId!==i.userId||
+    credit.accountId!==i.accountId||credit.profileId!==i.profileId||
+    credit.kind!==i.kind||credit.nonce!==i.nonce)
     throw Error("Callback ticket expired, consumed or mismatched");
   // Consume BEFORE any external evidence/ledger call. A partial result must
   // be reconciled by an administrator, never retried with the same ticket.
