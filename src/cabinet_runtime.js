@@ -731,6 +731,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }catch{return {ok:false,status:400,reason:"operation_status_unavailable"};}
  }
  if(event.kind==="mini_review_action"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
@@ -740,6 +742,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniReviewAction(env,String(event.profileId||""),event.action,event.text);
  }
  if(event.kind==="mini_review_draft"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
@@ -748,6 +752,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniReviewDraft(env,String(event.profileId||""),event.action,event.text);
  }
  if(event.kind==="mini_rating_action"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
@@ -757,6 +763,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingAction(env,String(event.profileId||""),event.action);
  }
  if(event.kind==="mini_rating_open"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
@@ -766,6 +774,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingOpen(env,String(event.profileId||""));
  }
  if(event.kind==="mini_rating_form"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
@@ -774,6 +784,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingFormLoad(env,String(event.profileId||""));
  }
  if(event.kind==="mini_rating_save"){
+  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
+  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
