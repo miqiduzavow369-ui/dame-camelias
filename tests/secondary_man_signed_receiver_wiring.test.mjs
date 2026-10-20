@@ -36,6 +36,9 @@ test("signed callback proof cannot be replayed or redirected to another user",as
  const key=manStorageKey({...identity,scope:"publication"})+":"+identity.kind;
  await storage.put(key,{identity:createAccountOperation(identity),status:"attempted",attempted:true,
   proxyVersion:1,siteVersion:2,independentAuthorConfirmed:true,moderatorApproved:true});
+ await storage.put(manStorageKey({...identity,scope:"operation"})+":"+identity.kind+":"+identity.nonce+":ledger",
+  {userId:identity.userId,accountId:identity.accountId,profileId:identity.profileId,
+   kind:identity.kind,nonce:identity.nonce,status:"reserved"});
  const ticket=await issueSecondaryCallbackTicket(storage,{identity,proxyVersion:1,siteVersion:2,at:1000000});
  const signature=await signSecondaryResultAttestation(secret,signed);
  const opts={identity,token:ticket.token,secret,input:signed,signature,at:1000001,
