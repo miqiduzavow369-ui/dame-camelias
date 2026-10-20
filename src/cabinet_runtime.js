@@ -767,6 +767,20 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          recorded:approval.approved===true,publicationAvailable:false}];
      }catch{return [x.id,{version:0,approved:false,recorded:false,publicationAvailable:false}];}
    }));
+   // Owner-only: decrypt the existing planning *technicalName* for the
+   // catalogue. Do not include the website login, passwords, proxy or IP.
+   // The privateDraftStatus function enforces actor/cabinet/owner identity.
+   const technicalEntries=await Promise.all(inventory.accounts.map(async x=>{
+     try{
+       const row=await privateDraftStatus(storage,rawEnv,{
+         actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id
+       });
+       const email=row?.settings?.technicalName;
+       return [x.id,typeof email==="string"&&
+         /^[^\s@]{1,64}@[^\s@]{1,189}$/.test(email)?email:null];
+     }catch{return [x.id,null];}
+   }));
+   const technicalMap=new Map(technicalEntries);
    const approvalMap=new Map(approvalEntries);
    const visibilityEntries=await Promise.all(MAN_ACCOUNTS.map(async man=>{
      try{return [man.id,await manVisibility(storage,man.id)];}
@@ -775,7 +789,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const visibilityMap=new Map(visibilityEntries);
    const readinessMap=new Map(readinessEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
-     ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
+     ...x,technicalName:technicalMap.get(x.id)??null,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
      approval:approvalMap.get(x.id)??null,
      visibility:visibilityMap.get(x.id)??{visible:false,version:null},
