@@ -113,3 +113,23 @@ test("publication status changed while external credit completes cannot be false
  assert.equal((await tx.get(publicationKey)).status,"uncertain");
  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
 });
+
+test("proof storage read failure is reconciled without debit or site repost",async()=>{
+ const {tx}=storage(),i=identity("yan_second","eeeeeeeeeeee"),{env,seen}=fakeEnv();
+ await reserveSecondaryFeedbackCredit(tx,env,i,{independentAuthorConfirmed:true,moderatorApproved:true});
+ await attempted(tx,i);
+ await recordSecondaryVerifiedResult(tx,proof(i));
+ const evidenceKey=manStorageKey({userId:i.userId,accountId:i.accountId,
+  profileId:i.profileId,scope:"history"})+":"+i.kind+":"+i.nonce;
+ const failing={...tx,get:async key=>{
+  if(key===evidenceKey)throw Error("Temporary evidence read failure");
+  return tx.get(key);
+ },transaction:tx.transaction};
+ const result=await settleSecondaryVerifiedResult(failing,env,{original:i,callback:i});
+ assert.equal(result.status,"reconciliation_required");
+ const resultKey=manStorageKey({userId:i.userId,accountId:i.accountId,
+  profileId:i.profileId,scope:"proof"})+":"+i.kind+":"+i.nonce+":settlement";
+ assert.equal((await tx.get(resultKey)).status,"reconciliation_required");
+ assert.equal(seen.filter(x=>x.type==="credits_complete").length,0);
+ await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
+});
