@@ -1128,39 +1128,42 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(status==="checking")activities.push({id:pid,kind,account:"yan_first",status:"checking"});
    }
   }
-  // Trust the current client's private per-man records, never a legacy Yan
-  // status or browser-supplied publication claim.
+  // Fast per-client status index, written alongside drafts. Legacy Михаил
+  // records are also read directly until touched in the new index.
   const secondaryStatuses={};
+  const indexed=await storage.get("secondary-rating-progress-v1:"+uid)||{};
+  const candidates=[];
   for(const p of profiles){
    const pid=String(p.id);
    secondaryStatuses[pid]={};
    for(const man of MAN_ACCOUNTS.slice(1)){
     const mid=man.id;
-    const draftKey=manStorageKey({userId:uid,accountId:mid,
-     profileId:pid,scope:"rating-draft"})+":rating";
-    const pubKey=manStorageKey({userId:uid,accountId:mid,
-     profileId:pid,scope:"publication"})+":rating";
-    const [draft,publication]=await Promise.all([storage.get(draftKey),storage.get(pubKey)]);
-    const count=draft?.userId===uid&&draft?.accountId===mid&&
-      draft?.profileId===pid&&draft?.kind==="rating"&&
-      draft?.selected&&typeof draft.selected==="object"?
-      Object.keys(draft.selected).length:0;
-    let stage=count?"draft_saved":"not_started";
-    if(publication?.identity?.userId===uid&&
-       publication.identity.accountId===mid&&
-       publication.identity.profileId===pid&&
-       publication.identity.kind==="rating"){
-     stage=publication.status==="prepared"?"prepared":
-      publication.status==="attempted"?"checking":
-      publication.status==="uncertain"?"reconciliation_required":
-      publication.status==="completed"?"checking":stage;
-    }
-    if(stage!=="not_started"){
-     secondaryStatuses[pid][mid]={rating:stage,ratingCount:count};
-     activities.push({id:pid,kind:"rating",account:mid,status:stage,count});
-    }
+    const row=indexed[pid+":"+mid];
+    if(row?.accountId!==mid||row?.profileId!==pid||
+       !Number.isSafeInteger(row.count)||row.count<0)continue;
+    const stage=row.stage==="draft_saved"?"draft_saved":"not_started";
+    if(stage==="not_started")continue;
+    secondaryStatuses[pid][mid]={rating:stage,ratingCount:row.count};
+    activities.push({id:pid,kind:"rating",account:mid,status:stage,count:row.count});
+   }
+   // Backwards-compatible read of Михаил's already-saved draft, without
+   // scanning all 29 accounts × 80 profiles on every cabinet refresh.
+   if(!secondaryStatuses[pid].yan_second){
+    const mid="yan_second",draftKey=manStorageKey({userId:uid,
+      accountId:mid,profileId:pid,scope:"rating-draft"})+":rating";
+    candidates.push({pid,mid,draftKey});
    }
   }
+  await Promise.all(candidates.map(async ({pid,mid,draftKey})=>{
+   const draft=await storage.get(draftKey);
+   if(draft?.userId!==uid||draft?.accountId!==mid||
+      draft?.profileId!==pid||draft?.kind!=="rating"||
+      !draft.selected||typeof draft.selected!=="object")return;
+   const count=Object.keys(draft.selected).length;
+   if(!count)return;
+   secondaryStatuses[pid][mid]={rating:"draft_saved",ratingCount:count};
+   activities.push({id:pid,kind:"rating",account:mid,status:"draft_saved",count});
+  }));
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
