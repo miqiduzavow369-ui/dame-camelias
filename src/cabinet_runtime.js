@@ -99,6 +99,11 @@ async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
   }
 }
 
+async function isSecondaryCabinetReady(storage,rawEnv,uid,accountId){
+ if(uid===OWNER_ID)return secondaryRatingCabinetConnected(storage,accountId);
+ const check=await cabinetRPC(rawEnv,OWNER_ID,{kind:"secondary_catalog_cabinet_ready",accountId});
+ return check?.ok===true&&check.ready===true;
+}
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -531,6 +536,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
  }
+ if(event.kind==="secondary_catalog_cabinet_ready"){
+  if(uid!==OWNER_ID)return {ok:false,status:403};
+  const ready=await secondaryRatingCabinetConnected(storage,event.accountId).catch(()=>false);
+  return {ok:true,ready};
+ }
+ if(event.kind==="secondary_catalog_cabinet_list"){
+  if(uid!==OWNER_ID)return {ok:false,status:403};
+  const all=await Promise.all(MAN_ACCOUNTS.slice(1).map(async man=>
+   await secondaryRatingCabinetConnected(storage,man.id).catch(()=>false)?man.id:null));
+  return {ok:true,readyIds:all.filter(Boolean)};
+ }
  if(event.kind==="secondary_catalog_lookup_start"){
   if(uid!==OWNER_ID)return {ok:false,status:403};
   return autoStartSecondaryCatalogLookup(storage,rawEnv,event);
@@ -880,7 +896,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
    try{
-    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+    if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
     return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
    }catch(e){
@@ -917,7 +933,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
    try{
-    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+    if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
     return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
    }catch(e){
@@ -953,7 +969,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
    try{
-    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+    if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
     return await saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||""),selected:event.selected,metElsewhere:event.metElsewhere});
    }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
@@ -1128,7 +1144,14 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      browserVerified:browser.status==="verified"&&browser.siteReachable===true}];
    }catch{return [id,null];}
   })));
-  return {ok:true,men:secondaryCabinetAvailability(connected).map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  let catalog=secondaryCabinetAvailability(connected);
+  if(uid!==OWNER_ID){
+   const remote=await cabinetRPC(rawEnv,OWNER_ID,{kind:"secondary_catalog_cabinet_list"})
+    .catch(()=>({ok:false}));
+   const allowed=new Set(remote?.ok===true&&Array.isArray(remote.readyIds)?remote.readyIds:[]);
+   catalog=catalog.map(man=>({...man,cabinetReady:man.id==="yan_first"||allowed.has(man.id)}));
+  }
+  return {ok:true,men:catalog.map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
