@@ -38,7 +38,8 @@ test("men's selected ratings persist separately; Yan First legacy state untouche
   assert.equal(result.publicationAvailable,false);
   assert.deepEqual(result.selected,{"0":"Фото соответствует","1":"5","2":"Да"});
  }
- assert.equal(values.size,2);
+ assert.equal(values.size,3);
+ assert.equal(values.get("secondary-rating-progress-v1:"+userId)[profileId+":yan_second"].count,3);
  const second=await openSecondaryRatingForm(storage,kv,{userId,profileId,accountId:"yan_second"});
  assert.deepEqual(second.selected,{"0":"Фото соответствует","1":"5","2":"Да"});
  await assert.rejects(()=>openSecondaryRatingForm(storage,kv,{userId,profileId,accountId:"yan_first"}),/immutable/);
@@ -61,6 +62,6 @@ test("signed rating API never drops selected man; secondary saves cannot reach l
   assert.ok(index.includes('kind:"'+kind+'",accountId:body?.accountId??"yan_first"'));
  assert.ok(runtime.includes("openSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
  assert.ok(runtime.includes("saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
- assert.ok(html.includes('selectedAccount!=="yan_first"?(connected&&kind==="rating"'));
- assert.ok(html.includes('if(selectedAccount!=="yan_first"){'));
+ assert.ok(html.includes('selectedProgress.rating'));
+ assert.ok(html.includes('if(selectedAccount!=="yan_first"&&saved.publicationAvailable!==true){'));
 });
