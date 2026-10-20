@@ -162,10 +162,22 @@ export async function recordTicketedSecondaryResult(storage,{
  const verified=await claimSecondaryCallbackTicket(storage,{
   identity,token,secret,input,signature,at
  });
- return recordSecondaryVerifiedResult(storage,{
-  original:verified.identity,callback:verified.identity,
-  sitePublicationId:verified.sitePublicationId,
-  proofFileId:verified.proofFileId,moderatorApproved,independentAuthorConfirmed,
-  verifiedByTrustedExecutor:true,at:verified.at
- });
+ try{
+  return await recordSecondaryVerifiedResult(storage,{
+   original:verified.identity,callback:verified.identity,
+   sitePublicationId:verified.sitePublicationId,
+   proofFileId:verified.proofFileId,moderatorApproved,independentAuthorConfirmed,
+   verifiedByTrustedExecutor:true,at:verified.at
+  });
+ }catch(error){
+  // Ticket was already consumed: if proof persistence aborts before a result
+  // is recorded, prohibit further settlement without human reconciliation.
+  await storage.transaction(async tx=>{
+   const key=publicationKey(verified.identity),row=await tx.get(key);
+   if(row?.status==="attempted"&&row.attempted===true&&
+      verifyAccountCallback(row.identity,verified.identity))
+    await tx.put(key,{...row,status:"uncertain"});
+  });
+  throw error;
+ }
 }
