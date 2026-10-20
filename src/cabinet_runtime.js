@@ -1128,6 +1128,77 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(status==="checking")activities.push({id:pid,kind,account:"yan_first",status:"checking"});
    }
   }
+  // Fast per-client status index, written alongside drafts. Legacy Михаил
+  // records are also read directly until touched in the new index.
+  const secondaryStatuses={};
+  const [indexed,reviewIndexed]=await Promise.all([
+   storage.get("secondary-rating-progress-v1:"+uid),
+   storage.get("secondary-review-progress-v1:"+uid)
+  ]);
+  const candidates=[];
+  for(const p of profiles){
+   const pid=String(p.id);
+   secondaryStatuses[pid]={};
+   for(const man of MAN_ACCOUNTS.slice(1)){
+    const mid=man.id;
+    const row=indexed?.[pid+":"+mid];
+    const reviewRow=reviewIndexed?.[pid+":"+mid];
+    if(reviewRow?.accountId===mid&&reviewRow?.profileId===pid&&
+       reviewRow.kind==="review"&&reviewRow.stage==="draft_saved"){
+     secondaryStatuses[pid][mid]={review:"draft_saved"};
+     activities.push({id:pid,kind:"review",account:mid,status:"draft_saved"});
+    }
+    if(row?.accountId!==mid||row?.profileId!==pid||
+       !Number.isSafeInteger(row.count)||row.count<0)continue;
+    const stage=row.stage==="draft_saved"?"draft_saved":"not_started";
+    if(stage==="not_started")continue;
+    secondaryStatuses[pid][mid]={...secondaryStatuses[pid][mid],rating:stage,ratingCount:row.count};
+    activities.push({id:pid,kind:"rating",account:mid,status:stage,count:row.count});
+   }
+   // Backwards-compatible read of Михаил's already-saved draft, without
+   // scanning all 29 accounts × 80 profiles on every cabinet refresh.
+   if(!secondaryStatuses[pid].yan_second){
+    const mid="yan_second",draftKey=manStorageKey({userId:uid,
+      accountId:mid,profileId:pid,scope:"rating-draft"})+":rating";
+    candidates.push({pid,mid,draftKey});
+   }
+  }
+  await Promise.all(candidates.map(async ({pid,mid,draftKey})=>{
+   const draft=await storage.get(draftKey);
+   if(draft?.userId!==uid||draft?.accountId!==mid||
+      draft?.profileId!==pid||draft?.kind!=="rating"||
+      !draft.selected||typeof draft.selected!=="object")return;
+   const count=Object.keys(draft.selected).length;
+   if(!count)return;
+   secondaryStatuses[pid][mid]={...secondaryStatuses[pid][mid],rating:"draft_saved",ratingCount:count};
+   activities.push({id:pid,kind:"rating",account:mid,status:"draft_saved",count});
+  }));
+  // Refresh claimed publication stages only for known per-man drafts.
+  // No account can inherit the publication status of Yan First.
+  const activePairs=Object.entries(secondaryStatuses).flatMap(([pid,byMan])=>
+   Object.entries(byMan).flatMap(([mid,state])=>
+    ["rating","review"].filter(kind=>state[kind]).map(kind=>({pid,mid,kind}))));
+  await Promise.all(activePairs.map(async ({pid,mid,kind})=>{
+   try{
+    const pubKey=manStorageKey({userId:uid,accountId:mid,
+     profileId:pid,scope:"publication"})+":"+kind;
+    const publication=await storage.get(pubKey);
+    const identity=publication?.identity;
+    if(identity?.userId!==uid||identity.accountId!==mid||
+       identity.profileId!==pid||identity.kind!==kind||
+       !/^[a-f0-9]{12}$/.test(identity.nonce||""))return;
+    const result=await secondaryPublicationOperationalStatus(storage,identity,{
+      proofKv:rawEnv.VISITORS_KV
+    });
+    const stage=({prepared:"prepared",attempted:"checking",published:"published",
+     reconciliation_required:"reconciliation_required"})[result.status];
+    if(!stage)return;
+    secondaryStatuses[pid][mid][kind]=stage;
+    for(const entry of activities)
+     if(entry.id===pid&&entry.account===mid&&
+        (entry.kind===kind||entry.kind===kind+"_draft"))entry.status=stage;
+   }catch{ /* A failed status read must never produce a success badge. */ }
+  }));
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
@@ -1179,7 +1250,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const allowed=new Set(remote?.ok===true&&Array.isArray(remote.readyIds)?remote.readyIds:[]);
    catalog=catalog.map(man=>({...man,cabinetReady:man.id==="yan_first"||allowed.has(man.id)}));
   }
-  return {ok:true,men:catalog.map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  return {ok:true,men:catalog.map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,secondaryStatuses,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};

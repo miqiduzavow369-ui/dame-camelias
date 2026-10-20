@@ -102,6 +102,15 @@ export async function saveSecondaryRatingForm(storage,kv,source){
    catalogSignature:JSON.stringify(catalog),version:(old?.version??0)+1,
    publicationAvailable:false};
   await tx.put(k,record);
+  // Single, private per-client status index for the Mini App. Only an
+  // authenticated server transaction writes it; never trust browser status.
+  const indexKey="secondary-rating-progress-v1:"+x.userId;
+  const index=await tx.get(indexKey)||{};
+  const safe={...index,[x.profileId+":"+x.accountId]:{
+   accountId:x.accountId,profileId:x.profileId,kind:"rating",
+   stage:"draft_saved",count:Object.keys(selected).length,version:record.version
+  }};
+  await tx.put(indexKey,safe);
   return {ok:true,selected:{...selected},metElsewhere:record.metElsewhere,
    publicationAvailable:false,version:record.version};
  });
