@@ -17,6 +17,8 @@ import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCh
 import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
 import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
 import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "./secondary_man_result_settlement.js";
+import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
+import {saveSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
 import {readSecondaryOperationDiagnostics} from "./secondary_man_operation_diagnostics.js";
 import {manStorageKey,requirePublicationIdentity} from "./man_account_isolation.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
@@ -595,6 +597,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(publication?.independentAuthorConfirmed!==true||
       (identity.kind==="review"&&publication?.moderatorApproved!==true))
     throw Error("Publisher consent or moderation missing");
+   // Never mistake screenshot metadata for a real original file.
+   // Authenticate the callback, then archive the unmodified image bytes.
+   await verifySecondaryResultAttestation(storage,{
+    secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,input:body.input,
+    signature:body.signature,at:Date.now()
+   });
+   await saveSecondaryOriginalJpeg(rawEnv.VISITORS_KV,identity,{
+    base64:body.originalJpegBase64,
+    expectedProofFileId:body.input?.proofFileId,at:Date.now()
+   });
    const result=await recordTicketedSecondaryResult(storage,{
     identity,token:body.token,secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,
     input:body.input,signature:body.signature,at:Date.now(),
