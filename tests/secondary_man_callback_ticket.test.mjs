@@ -95,3 +95,22 @@ test("callback ticket refuses missing credit, author consent and review moderati
  rows.set(publicationKey,claim);
  assert.equal((await issue()).identity.accountId,"yan_second");
 });
+
+test("issued callback ticket is rejected if ledger or authorization changes before receipt",async()=>{
+ for(const mutation of ["credit_missing","credit_changed","author_revoked","moderation_revoked","proxy_rotated"]){
+  const {tx,rows}=storage(),identity=i(),proof=input(identity);
+  await attempted(tx,identity);
+  const ticket=await issueSecondaryCallbackTicket(tx,{identity,proxyVersion:1,siteVersion:2,at:1000000});
+  const pubKey=manStorageKey({...identity,scope:"publication"})+":"+identity.kind;
+  const creditKey=manStorageKey({...identity,scope:"operation"})+":"+identity.kind+":"+identity.nonce+":ledger";
+  if(mutation==="credit_missing")rows.delete(creditKey);
+  if(mutation==="credit_changed")rows.set(creditKey,{...rows.get(creditKey),status:"settling"});
+  if(mutation==="author_revoked")rows.set(pubKey,{...rows.get(pubKey),independentAuthorConfirmed:false});
+  if(mutation==="moderation_revoked")rows.set(pubKey,{...rows.get(pubKey),moderatorApproved:false});
+  if(mutation==="proxy_rotated")rows.set(pubKey,{...rows.get(pubKey),proxyVersion:3});
+  const signature=await signSecondaryResultAttestation(secret,proof);
+  await assert.rejects(()=>claimSecondaryCallbackTicket(tx,{identity,token:ticket.token,
+   secret,input:proof,signature,at:1000001}),/invalid|expired|mismatched/);
+  assert.equal((await secondaryCallbackTicketStatus(tx,identity)).status,"issued",mutation);
+ }
+});
