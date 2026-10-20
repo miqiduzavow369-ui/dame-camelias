@@ -8,7 +8,7 @@ import {readPublicationArchive,accountLabel,displayArchiveDate} from "./publicat
 import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
-import {clientMenAvailability} from "./man_client_parity.js";
+import {clientMenAvailability,secondaryCabinetAvailability} from "./man_client_parity.js";
 import {manVisibility,changeManVisibility,clientManVisibilityMap} from "./man_client_visibility.js";
 import {readSecondaryManApproval,setSecondaryManApproval,approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
@@ -959,7 +959,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
   }catch{}
   const visibility=await clientManVisibilityMap(storage,MAN_ACCOUNTS);
-  return {ok:true,men:clientMenAvailability().map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  // Verified 4/4 connection grants cabinet entry, NOT publication.
+  // Read only private owner-controlled records; unavailable data fails closed.
+  const connected=new Map(await Promise.all(MAN_ACCOUNTS.slice(1).map(async man=>{
+   const id=man.id,params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId:id};
+   try{
+    const [proxy,site,login,browser,siteRecord]=await Promise.all([
+     proxyStatus(storage,params),readSiteStatus(storage,params),siteLoginStatus(storage,params),
+     browserCheckStatus(storage,params),storage.get("man-intimcity-sealed-v1:"+id)
+    ]);
+    return [id,{accountId:id,proxyVerified:proxy.proxyVerified,ipVerified:proxy.ipVerified,
+     proxyVersion:proxy.version,siteConfigured:site.configured,
+     boundProxyVersion:siteRecord?.boundProxyVersion,
+     loginVerified:login.technicalReady===true,
+     browserVerified:browser.status==="verified"&&browser.siteReachable===true}];
+   }catch{return [id,null];}
+  })));
+  return {ok:true,men:secondaryCabinetAvailability(connected).map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
