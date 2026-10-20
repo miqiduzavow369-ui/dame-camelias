@@ -133,3 +133,22 @@ test("proof storage read failure is reconciled without debit or site repost",asy
  assert.equal(seen.filter(x=>x.type==="credits_complete").length,0);
  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
 });
+
+test("publication changed while proof evidence is saved never becomes proof_saved",async()=>{
+ const {tx}=storage(),i=identity("yan_second","ffffffffffff"),pubKey=manStorageKey({
+  userId:i.userId,accountId:i.accountId,profileId:i.profileId,scope:"publication"})+":"+i.kind;
+ const historyKey=manStorageKey({userId:i.userId,accountId:i.accountId,
+  profileId:i.profileId,scope:"history"})+":"+i.kind+":"+i.nonce;
+ await attempted(tx,i);
+ const racing={...tx,transaction:async fn=>fn({...tx,put:async(key,value)=>{
+  await tx.put(key,value);
+  if(key===historyKey){
+   const pub=await tx.get(pubKey);
+   await tx.put(pubKey,{...pub,status:"uncertain"});
+  }
+ }})};
+ const result=await recordSecondaryVerifiedResult(racing,proof(i));
+ assert.equal(result.status,"reconciliation_required");
+ assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"reconciliation_required");
+ assert.equal((await tx.get(pubKey)).status,"uncertain");
+});
