@@ -32,5 +32,6 @@ test("client reads a server-provided cabinet readiness flag, not publisher permi
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
  assert.ok(html.includes("cabinetReady:record.cabinetReady===true"));
  assert.ok(html.includes("man.cabinetReady===true"));
- assert.ok(html.includes('selectedAccount!=="yan_first"?(connected&&kind==="rating"?"check_in_bot":"account_disabled")'));
+ assert.ok(html.includes('selectedProgress.rating'));
+ assert.ok(html.includes('connected?"check_in_bot":"account_disabled"'));
 });
