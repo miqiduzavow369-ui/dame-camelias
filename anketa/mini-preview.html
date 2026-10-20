@@ -760,7 +760,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const proofButton=document.createElement("button");proofButton.type="button";proofButton.className="primary";proofButton.textContent="📸 Посмотреть результат";proofButton.hidden=true;
   const proofContainer=document.createElement("div");proofContainer.className="proof-image";proofContainer.hidden=true;
   const proofFeedback=document.createElement("p");proofFeedback.className="muted";proofFeedback.setAttribute("aria-live","polite");
-  proofButton.onclick=async()=>{if(!proofContainer.hidden){proofContainer.hidden=true;proofButton.textContent="📸 Посмотреть результат";return;}proofButton.disabled=true;await showOriginalProof(proofContainer,{id:selected.id,kind:"review",account:"yan_first"},proofFeedback);proofButton.disabled=false;if(!proofContainer.hidden)proofButton.textContent="📸 Скрыть подтверждение";};
+  proofButton.onclick=async()=>{if(!proofContainer.hidden){proofContainer.hidden=true;proofButton.textContent="📸 Посмотреть результат";return;}proofButton.disabled=true;await showOriginalProof(proofContainer,{id:selected.id,kind:"review",account:selectedAccount},proofFeedback);proofButton.disabled=false;if(!proofContainer.hidden)proofButton.textContent="📸 Скрыть подтверждение";};
   const request=async(action,text)=>{
     const response=await fetch(["load","save"].includes(action)?"/api/anketa/mini-review-draft":"/api/anketa/mini-review-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg?.initData,profileId:selected.id,action,text}),cache:"no-store"});
     const result=await response.json().catch(()=>({}));
