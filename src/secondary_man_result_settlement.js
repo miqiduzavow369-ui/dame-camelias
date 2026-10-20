@@ -8,6 +8,7 @@
 import {createAccountOperation,verifyAccountCallback,manStorageKey} from "./man_account_isolation.js";
 import {appendVerifiedFeedbackEvidence,readVerifiedFeedbackEvidence} from "./secondary_man_feedback_evidence.js";
 import {settleSecondaryFeedbackCredit} from "./secondary_man_credit_bridge.js";
+import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
 
 const IDENTIFIER=/^[A-Za-z0-9_-]{6,300}$/;
 function validated(original,callback){
@@ -113,4 +114,26 @@ export async function secondaryVerifiedResultStatus(storage,identity){
   proofPresent:!!evidence&&evidence.sitePublicationId===result.sitePublicationId&&
    evidence.proofFileId===result.proofFileId,
   creditStatus:result.ledgerStatus};
+}
+
+// Entrypoint for a FUTURE authenticated Chromium receiver, not exposed to
+// clients. Its proof fields are cryptographically bound to the stored attempt.
+// Moderation/author confirmation MUST come from trusted server-owned records,
+// not from the runner or a user-submitted callback.
+export async function recordAttestedSecondaryResult(storage,{
+ secret,input,signature,at,moderatorApproved,independentAuthorConfirmed
+}){
+ if(moderatorApproved!==true||independentAuthorConfirmed!==true)
+  throw Error("Independent author and moderation records required");
+ const verified=await verifySecondaryResultAttestation(storage,{
+  secret,input,signature,at
+ });
+ return recordSecondaryVerifiedResult(storage,{
+  original:verified.identity,callback:verified.identity,
+  sitePublicationId:verified.sitePublicationId,
+  proofFileId:verified.proofFileId,
+  moderatorApproved,independentAuthorConfirmed,
+  verifiedByTrustedExecutor:verified.verifiedByTrustedExecutor,
+  at:verified.at
+ });
 }
