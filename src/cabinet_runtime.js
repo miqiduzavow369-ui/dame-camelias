@@ -1128,6 +1128,39 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(status==="checking")activities.push({id:pid,kind,account:"yan_first",status:"checking"});
    }
   }
+  // Trust the current client's private per-man records, never a legacy Yan
+  // status or browser-supplied publication claim.
+  const secondaryStatuses={};
+  for(const p of profiles){
+   const pid=String(p.id);
+   secondaryStatuses[pid]={};
+   for(const man of MAN_ACCOUNTS.slice(1)){
+    const mid=man.id;
+    const draftKey=manStorageKey({userId:uid,accountId:mid,
+     profileId:pid,scope:"rating-draft"})+":rating";
+    const pubKey=manStorageKey({userId:uid,accountId:mid,
+     profileId:pid,scope:"publication"})+":rating";
+    const [draft,publication]=await Promise.all([storage.get(draftKey),storage.get(pubKey)]);
+    const count=draft?.userId===uid&&draft?.accountId===mid&&
+      draft?.profileId===pid&&draft?.kind==="rating"&&
+      draft?.selected&&typeof draft.selected==="object"?
+      Object.keys(draft.selected).length:0;
+    let stage=count?"draft_saved":"not_started";
+    if(publication?.identity?.userId===uid&&
+       publication.identity.accountId===mid&&
+       publication.identity.profileId===pid&&
+       publication.identity.kind==="rating"){
+     stage=publication.status==="prepared"?"prepared":
+      publication.status==="attempted"?"checking":
+      publication.status==="uncertain"?"reconciliation_required":
+      publication.status==="completed"?"checking":stage;
+    }
+    if(stage!=="not_started"){
+     secondaryStatuses[pid][mid]={rating:stage,ratingCount:count};
+     activities.push({id:pid,kind:"rating",account:mid,status:stage,count});
+    }
+   }
+  }
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,
    date:item.date,hasProof:!!item.fileId
@@ -1179,7 +1212,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const allowed=new Set(remote?.ok===true&&Array.isArray(remote.readyIds)?remote.readyIds:[]);
    catalog=catalog.map(man=>({...man,cabinetReady:man.id==="yan_first"||allowed.has(man.id)}));
   }
-  return {ok:true,men:catalog.map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  return {ok:true,men:catalog.map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,secondaryStatuses,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};
