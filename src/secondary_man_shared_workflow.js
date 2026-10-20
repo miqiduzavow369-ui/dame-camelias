@@ -69,13 +69,10 @@ export async function advanceSecondaryWorkflow(storage,identity,{step,callback,d
   }else if(step==="dryfill_on_site"&&siteIdentityVerified!==true){
    throw Error("Verified site identity missing");
   }else if(step==="submit_once"){
-   // Site submission is NEVER performed by this pure coordinator. Its stage
-   // can be recorded only after a trusted runner is connected and checked.
-   if(executorConnected!==true||callbackConnected!==true||
-      proofAndLedgerConnected!==true||siteIdentityVerified!==true||
-      record.creditReserved!==true||record.ownerConfirmed!==true||
-      (i.kind==="review"&&record.moderated!==true))
-    throw Error("Publication executor not connected");
+   // Never trust client-supplied readiness flags as execution evidence.
+   // A verified account-bound server claim and an authenticated runner
+   // must first be wired. No site POST is possible through this module.
+   throw Error("Publication executor not connected");
   }else if(step==="verify_result"||step==="save_original_proof"||step==="archive_and_settle"){
    // External publication proof must first be verified and stored by the
    // protected callback/ledger adapters. This route never invents evidence.
