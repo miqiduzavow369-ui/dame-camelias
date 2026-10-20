@@ -24,10 +24,10 @@ export async function profileProbeStatus(storage,accountId){
  return {ok:true,accountId,status:run.status,profileId:run.profileId,startedAt:run.startedAt,
   code:run.code||null,verified:run.status==="completed"&&run.code==="profile_verified"};
 }
-export async function startProfileProbe(storage,{accountId,profileId,at,approval,proxy,site,login,dispatch}){
+export async function startProfileProbe(storage,{accountId,profileId,at,approval,proxy,site,login,dispatch,catalogReadOnly=false}){
  secondary(accountId);
  if(typeof profileId!=="string"||!PROFILE.test(profileId)||!Number.isSafeInteger(at)||
-   !approvalMatchesConfiguration(approval,accountId,proxy?.version,site?.version)||
+   (catalogReadOnly!==true&&!approvalMatchesConfiguration(approval,accountId,proxy?.version,site?.version))||
    !proxy?.proxyVerified||!proxy?.ipVerified||site?.proxyReady!==true||
    login?.technicalReady!==true||typeof dispatch!=="function")
   throw Error("Profile probe prerequisites unavailable");
@@ -38,7 +38,7 @@ export async function startProfileProbe(storage,{accountId,profileId,at,approval
   if(previous?.status==="running"&&at-previous.startedAt<MAX_AGE)
    throw Error("Probe already running");
   await tx.put(PREFIX+accountId,{accountId,profileId,nonce,startedAt:at,status:"running",
-   claimed:false,proxyVersion:proxy.version,siteVersion:site.version});
+   claimed:false,proxyVersion:proxy.version,siteVersion:site.version,catalogReadOnly:catalogReadOnly===true});
  });
  let outcome;
  try{outcome=await dispatch({accountId,profileId,nonce,siteHost:new URL(site.siteUrl).hostname});}
@@ -62,7 +62,7 @@ export async function claimProfileProbe(storage,env,{accountId,profileId,nonce,a
      run.status!=="running"||run.claimed||at<run.startedAt||at-run.startedAt>MAX_AGE||
      proxy?.accountId!==accountId||site?.accountId!==accountId||
      run.proxyVersion!==proxy.version||run.siteVersion!==site.version||
-     !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)||
+     (run.catalogReadOnly!==true&&!approvalMatchesConfiguration(approval,accountId,proxy.version,site.version))||
      site.boundProxyVersion!==proxy.version||!proxy.proxyVerified||!proxy.ipVerified)
    throw Error("Claim not authorized");
   await tx.put(PREFIX+accountId,{...run,claimed:true});
@@ -93,7 +93,7 @@ export async function completeProfileProbe(storage,{accountId,profileId,nonce,at
      run.proxyVersion!==proxy.version||run.siteVersion!==site.version||
      site.boundProxyVersion!==proxy.version||proxy.proxyVerified!==true||
      proxy.ipVerified!==true||
-     !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version))
+     (run.catalogReadOnly!==true&&!approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)))
    throw Error("Stale profile result");
   const next={...run,status:"completed",code,finishedAt:at};
   await tx.put(PREFIX+accountId,next);
