@@ -76,7 +76,7 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
   const publication=await tx.get(publicationKey(i));
   const current=await tx.get(resultKey(i));
   if(!current||current.status!=="proof_saved"||
-     !publication||publication.attempted!==true||
+     !publication||publication.status!=="attempted"||publication.attempted!==true||
      !verifyAccountCallback(publication.identity,callback))
    throw Error("Verified result not ready for settlement");
   await tx.put(resultKey(i),{...current,status:"settling"});
