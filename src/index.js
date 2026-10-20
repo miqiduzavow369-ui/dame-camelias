@@ -700,7 +700,7 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
       if(!result?.ok)return new Response("Forbidden",{status:403});
-      return Response.json({profiles:result.profiles,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      return Response.json({men:result.men,profiles:result.profiles,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-add"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
@@ -768,6 +768,29 @@ export default {
       if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["start","status"].includes(body?.action))return new Response("Invalid request",{status:400});
       const result=await cabinetRPC(env,uid,{kind:"mini_domain_recovery",profileId:String(body.profileId),action:body.action,url:body.url});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store"}});
+    }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-secondary-draft"){
+      if(Number(request.headers.get("content-length")||0)>16000)
+       return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))
+       return new Response("Forbidden",{status:403});
+      let uid;
+      try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      if(!["status","save"].includes(body?.action)||
+         !["rating","review"].includes(body?.draftKind)||
+         !/^\d{1,9}$/.test(String(body?.profileId||""))||
+         typeof body?.accountId!=="string")
+       return new Response("Invalid request",{status:400});
+      const result=await cabinetRPC(env,uid,{
+       kind:"mini_secondary_draft",accountId:body.accountId,
+       profileId:String(body.profileId),draftKind:body.draftKind,
+       action:body.action,text:body.text,ratings:body.ratings,
+       authorAttested:body.authorAttested===true
+      });
+      return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,
+       headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-action"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
@@ -839,6 +862,9 @@ export default {
       return cabinetEndpoint(request,env,"review");
     if (request.method === "GET" && url.pathname === "/api/anketa/dryfill-payload")
       return cabinetEndpoint(request,env,"dryfill");
+    if (request.method === "GET" && url.pathname === "/api/secondary-profile-probe/payload") return cabinetEndpoint(request,env,"secondary_profile_probe_payload");
+    if (request.method === "POST" && url.pathname === "/api/secondary-profile-probe/result") return cabinetEndpoint(request,env,"secondary_profile_probe_result");
+    if (request.method === "POST" && url.pathname === "/api/secondary-man/result") return cabinetEndpoint(request,env,"secondary_man_signed_result");
     if (request.method === "GET" && url.pathname === "/api/man-site-login/payload") return cabinetEndpoint(request,env,"man_site_login_payload");
     if (request.method === "POST" && url.pathname === "/api/man-site-login/result") return cabinetEndpoint(request,env,"man_site_login_result");
     if (request.method === "GET" && url.pathname === "/api/man-browser/payload") return cabinetEndpoint(request,env,"man_browser_payload");

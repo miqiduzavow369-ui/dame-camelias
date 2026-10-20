@@ -387,7 +387,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <div class="card"><h2>⭐ Оценки</h2><div id="ratingStatus" class="muted"></div><button class="action" data-sub="rating">⭐ Оставить оценки ›</button></div>
 <div class="card"><h2>✍️ Отзыв</h2><div id="reviewStatus" class="muted"></div><button class="action" data-sub="review">✍️ Оставить отзыв ›</button></div>
 
-<div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
+<div id="secondaryDraftCard" class="card" hidden><h2 id="secondaryDraftTitle">Подготовка для мужчины</h2><p class="muted">Индивидуальный черновик. Публикации и списания кредитов нет.</p><div style="display:flex;gap:8px"><button class="ghost" type="button" id="secondaryRatingTab">⭐ Оценки</button><button class="ghost" type="button" id="secondaryReviewTab">✍️ Отзыв</button></div><label class="muted" id="secondaryDraftLabel" for="secondaryDraftInput">Текст отзыва</label><textarea id="secondaryDraftInput" rows="5" maxlength="4000" style="width:100%;padding:12px;border-radius:12px"></textarea><label style="display:block;margin:12px 0"><input id="secondaryDraftAttest" type="checkbox"> Подтверждаю, что материал основан на личном опыте автора и требует его согласования</label><div class="muted" id="secondaryDraftNote" aria-live="polite">Черновик</div><button class="action" type="button" id="secondaryDraftSave">💾 Сохранить черновик</button></div><div hidden><img id="detailImage" alt=""><div id="detailPhotoFallback"></div><span id="detailTitle"></span><span id="ratingCount"></span><span id="reviewCount"></span><span id="totalCount"></span></div>
 </section>
 <section id="subview" hidden><div class="detailbar subview-back"><button id="subBack">← К карточке мужчины</button></div><div class="subview-context"><span class="subview-context-label">ВЫБРАННАЯ АНКЕТА</span><span id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
 </div><nav class="nav">
@@ -439,10 +439,10 @@ function applyServerMen(rows){
   const record=rows[i];
   const allowed=item.id==='yan_first'&&record.enabled===true&&record.route==='legacy_yan_first';
   return {...item,name:typeof record.name==='string'&&record.name.length<70?record.name:item.name,
-   enabled:allowed,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
+   enabled:allowed,visible:record.visible!==false,route:record.route==='legacy_yan_first'?'legacy_yan_first':'not_connected',
    readiness:record.readiness||'awaiting_isolated_executor'};
  });
- if(selectedAccount!=='yan_first')selectedAccount='yan_first';
+ if(!availableMen.some(m=>m.id===selectedAccount&&m.visible!==false))selectedAccount='yan_first';
 }
 let workProfile=null,allMenOpen=false;
 function manStatus(man,kind){if(!man.enabled)return "🔒 Ожидает подключения исполнителя";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
@@ -451,14 +451,14 @@ if(man.image){const slot=document.createElement("div");slot.className="man-photo
 else{const icon=document.createElement("div");icon.className="thumb";icon.textContent="👨‍💻";b.append(icon);}
 const name=document.createElement("strong");name.textContent=man.name;b.append(name);
 for(const [kind,label] of [["rating","⭐ Оценка"],["review","✍️ Отзыв"]]){const line=document.createElement("small");line.textContent=label+" — "+manStatus(man,kind);b.append(line);}
-b.disabled=!man.enabled;
-b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":" — пока отключён"));
-b.onclick=()=>{if(!man.enabled)return;selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
+const draftReady=man.id!=="yan_first"&&man.visible!==false;b.disabled=!(man.enabled||draftReady);
+b.setAttribute("aria-label",man.name+(man.enabled?" — доступен":draftReady?" — подготовка черновика":" — отключён"));
+b.onclick=()=>{if(!(man.enabled||draftReady))return;selectAccount(man.id);if(workProfile)openDetail(workProfile);};return b;}
 function renderMen(){if(!workProfile)return;const list=$("manShortlist"),full=$("menFullList");list.replaceChildren();full.replaceChildren();
-for(const man of availableMen.slice(0,3))list.append(manTile(man));
-const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
+for(const man of availableMen.filter(m=>m.visible!==false).slice(0,3))list.append(manTile(man));
+const q=$("manSearch").value.trim().toLocaleLowerCase("ru");for(const man of availableMen.filter(m=>m.visible!==false&&m.name.toLocaleLowerCase("ru").includes(q)))full.append(manTile(man));
 $("menWorkspace").hidden=false;$("menProfileLabel").textContent="Анкета №"+workProfile.id+" · "+workProfile.name;
-$("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.length+") ›";}
+$("menCatalog").hidden=!allMenOpen;$("showAllMen").textContent=allMenOpen?"Скрыть каталог":"Все аккаунты мужчин ("+availableMen.filter(m=>m.visible!==false).length+") ›";}
 $("beginAddProfile").onclick=()=>{showTab("add");$("addProfileNotice").textContent="Введите ссылку на вашу анкету, чтобы проверить её данные.";};
 const addProfileUrl=$("addProfileUrl");
 addProfileUrl.addEventListener("focus",()=>{
@@ -498,17 +498,18 @@ const label=s=>s==="published"?"🔒 Уже опубликовано · резу
 const safePhoto=(img,url)=>{const fallback=$("detailPhotoFallback");img.hidden=true;img.removeAttribute("src");fallback.hidden=!!url;if(url){img.onload=()=>{img.hidden=false;fallback.hidden=true;};img.onerror=()=>{img.hidden=true;fallback.hidden=false;};img.src=url;}};
 const accountName=account=>availableMen.find(man=>man.id===account)?.name||"Мужчина не указан";
 function selectAccount(account){
- if(account!=="yan_first")return; // All other accounts remain disabled.
+ if(availableMen.find(m=>m.id===account)?.visible===false)return;
+ if(!availableMen.some(m=>m.id===account&&m.visible!==false))return;
  selectedAccount=account;
  $("firstSelected").textContent=account==="yan_first"?"✓":"○";
- $("secondSelected").textContent="🔒";
+ $("secondSelected").textContent=account==="yan_second"?"✓":"🔒";
  $("workFirst")&&($("workFirst").textContent=account==="yan_first"?"✓":"○");
  $("workSecond")&&($("workSecond").textContent=account==="yan_second"?"✓":"○");
  $("selectedAccountNote").textContent="Выбран для просмотра: "+accountName(account)+".";
  renderHistory();
 }
 const restMen=$("remainingMenAccounts");
-for(const man of availableMen.slice(2)){const b=document.createElement("button");b.type="button";b.className="man-tile";b.disabled=true;b.textContent="🔒 "+man.name+" · не подключён";restMen.append(b);}
+for(const man of availableMen.slice(2)){const b=document.createElement("button");b.type="button";b.className="man-tile";b.disabled=true;b.textContent="🔒 "+man.name+" · не подключён";b.dataset.manVisibility=man.id;restMen.append(b);}
 document.querySelectorAll("[data-account]").forEach(button=>button.onclick=()=>selectAccount(button.dataset.account));
 function showTab(name){lastTab=name;document.querySelectorAll('section[id^="tab-"]').forEach(el=>el.hidden=el.id!=="tab-"+name);$("detail").hidden=true;$("subview").hidden=true;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));tg?.BackButton?.[name==="profiles"?"hide":"show"]?.();window.scrollTo({top:0,behavior:"smooth"});}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{showTab(b.dataset.tab);void refreshCabinetSnapshot();});
@@ -654,6 +655,13 @@ if(!profiles.length)list.textContent="Пока нет сохранённых а�
 let availableBalance=null,legacyWorkflow=null;
 function refreshManButtons(){const man=availableMen.find(m=>m.id===selectedAccount);$("detailAccount").textContent=man?.name||accountName(selectedAccount);const src=man?.image||"";for(const key of ["detailManImage","fullManImage"]){const im=$(key);im.hidden=!src;if(src)im.src=src;}$("fullManCard").hidden=true;$("aboutMan").textContent="👤 О мужчине ▾";}
 $("aboutMan").onclick=()=>{const el=$("fullManCard");el.hidden=!el.hidden;$("aboutMan").textContent=el.hidden?"👤 О мужчине ▾":"👤 Свернуть карточку ▴";};
+let secondaryDraftKind="review",secondaryDraftBusy=false;
+function updateSecondaryDraftForm(){const rating=secondaryDraftKind==="rating";$("secondaryDraftLabel").textContent=rating?"Оценки 1–5 через запятую":"Оригинальный текст отзыва";$("secondaryDraftInput").placeholder=rating?"Например: 5,4,5,5":"Текст на основе личного опыта мужчины";$("secondaryDraftInput").maxLength=rating?150:4000;$("secondaryDraftNote").textContent="Черновик без публикации";}
+async function secondaryDraftRequest(action,extra={}){if(!tg?.initData)throw Error("Откройте Mini App в Telegram");const response=await fetch("/api/anketa/mini-secondary-draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:String(selected?.id||""),draftKind:secondaryDraftKind,action,...extra}),cache:"no-store"});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw Error(data.reason==="man_hidden_from_clients"?"Мужчина скрыт в ADMIN":"Черновик недоступен");return data;}
+async function checkSecondaryDraftStatus(){const id=selectedAccount,profile=String(selected?.id||""),kind=secondaryDraftKind;try{const result=await secondaryDraftRequest("status");if(id===selectedAccount&&profile===String(selected?.id||"")&&kind===secondaryDraftKind)$("secondaryDraftNote").textContent=result.saved?"Сохранён · версия "+result.version:"Черновик ещё не сохранён";}catch(e){if(id===selectedAccount&&kind===secondaryDraftKind)$("secondaryDraftNote").textContent=e.message;}}
+$("secondaryRatingTab").onclick=()=>{secondaryDraftKind="rating";$("secondaryDraftInput").value="";updateSecondaryDraftForm();void checkSecondaryDraftStatus();};
+$("secondaryReviewTab").onclick=()=>{secondaryDraftKind="review";$("secondaryDraftInput").value="";updateSecondaryDraftForm();void checkSecondaryDraftStatus();};
+$("secondaryDraftSave").onclick=async()=>{if(secondaryDraftBusy||selectedAccount==="yan_first")return;if(!$("secondaryDraftAttest").checked){$("secondaryDraftNote").textContent="Подтвердите происхождение материала";return;}const value=$("secondaryDraftInput").value.trim(),extra=secondaryDraftKind==="rating"?{ratings:value.split(",").map(v=>Number(v.trim()))}:{text:value};secondaryDraftBusy=true;$("secondaryDraftSave").disabled=true;try{const result=await secondaryDraftRequest("save",{...extra,authorAttested:true});$("secondaryDraftNote").textContent="✓ Черновик сохранён · версия "+result.version+". Публикация закрыта.";}catch(e){$("secondaryDraftNote").textContent=e.message;}finally{secondaryDraftBusy=false;$("secondaryDraftSave").disabled=false;}};
 function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEach(el=>el.remove());tg?.BackButton?.show?.();selected=p;document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true);$("detail").hidden=false;$("subview").hidden=true;$("detailTitle").textContent="Анкета №"+p.id;$("detailMeta").textContent=["🌹 Был по анкете №"+p.id,p.name,p.age?p.age+" лет":"",p.metro?"м. "+p.metro:""].filter(Boolean).join(" · ");safePhoto($("detailImage"),p.photo);refreshManButtons();
  $("cardBank").textContent=Number.isSafeInteger(availableBalance) ? String(availableBalance) : "—";
  $("cardDaily").textContent=Number.isSafeInteger(p.daily?.remaining)?String(p.daily.remaining):"—";
@@ -667,6 +675,7 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
+ $("secondaryDraftCard").hidden=selectedAccount==="yan_first";if(selectedAccount!=="yan_first"){secondaryDraftKind="review";$("secondaryDraftTitle").textContent="Черновик для "+accountName(selectedAccount);$("secondaryDraftInput").value="";$("secondaryDraftAttest").checked=false;updateSecondaryDraftForm();void checkSecondaryDraftStatus();}
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
 // The step labels mirror the legacy flow; this read-only screen never commits a publication.

@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from playwright.sync_api import sync_playwright
+from intimcity_authenticated_identity import authenticated_identity_status
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
@@ -69,6 +70,11 @@ def inspect_login(page,site_url,login_value,password_value):
     account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
     password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
     if logout or (account and not password_visible):
+        identity=authenticated_identity_status(page,login_value)
+        if identity=="identity_verified":
+            return "login_authenticated_identity_verified"
+        if identity=="identity_mismatch":
+            return "login_identity_mismatch"
         return "login_authenticated_identity_unconfirmed"
     return "login_rejected"
 
@@ -139,7 +145,7 @@ def main():
         raise RuntimeError("Result callback unreachable") from None
     if not result.get("ok"): raise RuntimeError("Coordinator rejected result")
     print("SITE_LOGIN_PREFLIGHT: "+code)
-    return 0 if code=="login_authenticated_identity_unconfirmed" else 1
+    return 0 if code in ("login_authenticated_identity_verified","login_authenticated_identity_unconfirmed") else 1
 
 if __name__=="__main__":
     try: sys.exit(main())

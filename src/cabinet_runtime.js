@@ -9,15 +9,22 @@ import {dailyLimit} from "./daily_publication_limit.js";
 import {ownerManRegistry} from "./man_admin_registry.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {clientMenAvailability} from "./man_client_parity.js";
+import {manVisibility,changeManVisibility,clientManVisibilityMap} from "./man_client_visibility.js";
+import {readSecondaryManApproval,setSecondaryManApproval,approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
 import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
+import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
+import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "./secondary_man_result_settlement.js";
+import {readSecondaryOperationDiagnostics} from "./secondary_man_operation_diagnostics.js";
+import {manStorageKey,requirePublicationIdentity} from "./man_account_isolation.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
 import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
+import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -338,7 +345,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const params={accountId,nonce,at:Date.now()};
     const result=event.kind==="man_site_login_payload"?
       await claimSiteLoginCheck(storage,rawEnv,params):
-      await completeSiteLoginCheck(storage,{...params,code:src?.code});
+      await completeSiteLoginCheck(storage,{...params,code:src?.code},rawEnv);
     return {status:200,body:JSON.stringify(result),
       headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_check"}),
@@ -450,6 +457,133 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
  }
+ if(event.kind==="admin_secondary_profile_probe"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId};
+  try{
+    if(event.action==="status")return profileProbeStatus(storage,event.accountId);
+    if(event.action!=="start")return {ok:false,status:400,reason:"invalid_action"};
+    const [approval,proxy,site,login]=await Promise.all([
+      readSecondaryManApproval(storage,params),proxyStatus(storage,params),
+      readSiteStatus(storage,params),siteLoginStatus(storage,params)]);
+    return await startProfileProbe(storage,{accountId:event.accountId,profileId:String(event.profileId||""),
+      at:Date.now(),approval,proxy,site,login,dispatch:async ({accountId,profileId,nonce,siteHost})=>{
+       if(!rawEnv.DC_ACTIONS_TOKEN||!rawEnv.ANKETA_CALLBACK_TOKEN||!rawEnv.ANKETA_CALLBACK_URL)
+        return {ok:false};
+       const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-profile-probe.yml/dispatches",{
+        method:"POST",headers:{"Authorization":"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+         "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28",
+         "Content-Type":"application/json","User-Agent":"dame-camelias-worker"},
+        body:JSON.stringify({ref:"main",inputs:{account_id:accountId,profile_id:profileId,nonce,site_host:siteHost}}),
+        signal:AbortSignal.timeout(15000)
+       });
+       return {ok:response.status===204};
+      }});
+  }catch{return {ok:false,status:409,reason:"profile_probe_rejected"};}
+ }
+ // The future runner may send its signed completion here using the existing
+ // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
+ // previously issued single-use ticket. Never honor callback-supplied
+ // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_signed_result"){
+  try{
+   if(!rawEnv.SECONDARY_CALLBACK_HMAC_KEY)return {status:503,body:"Receiver not configured"};
+   const body=JSON.parse(event.body||"null");
+   if(!body||typeof body!=="object"||Array.isArray(body))throw Error("Bad payload");
+   const identity=requirePublicationIdentity(body.identity);
+   if(identity.accountId==="yan_first"||identity.userId!==uid)
+    throw Error("Wrong account or client");
+   const publicationKey=manStorageKey({userId:uid,accountId:identity.accountId,
+    profileId:identity.profileId,scope:"publication"})+":"+identity.kind;
+   const publication=await storage.get(publicationKey);
+   // Only trusted server-owned approvals may authorize storing the result.
+   // Older prepared attempts without these recorded attestations fail closed.
+   if(publication?.independentAuthorConfirmed!==true||
+      (identity.kind==="review"&&publication?.moderatorApproved!==true))
+    throw Error("Publisher consent or moderation missing");
+   const result=await recordTicketedSecondaryResult(storage,{
+    identity,token:body.token,secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,
+    input:body.input,signature:body.signature,at:Date.now(),
+    independentAuthorConfirmed:publication.independentAuthorConfirmed===true,
+    moderatorApproved:identity.kind!=="review"||publication.moderatorApproved===true
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{
+   return {status:409,body:JSON.stringify({ok:false,reason:"untrusted_or_duplicate_result"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }
+ }
+ if(event.kind==="secondary_profile_probe_payload"||event.kind==="secondary_profile_probe_result"){
+  if(uid!==OWNER_ID)return {status:403,body:"Forbidden"};
+  try{
+   const src=event.kind==="secondary_profile_probe_payload"?
+    new URL(event.url).searchParams:JSON.parse(event.body||"null");
+   const accountId=String(src?.get?src.get("account_id")||"":src?.account_id||"");
+   const profileId=String(src?.get?src.get("profile_id")||"":src?.profile_id||"");
+   const nonce=String(src?.get?src.get("nonce")||"":src?.nonce||"");
+   const params={accountId,profileId,nonce,at:Date.now()};
+   const result=event.kind==="secondary_profile_probe_payload"?
+    await claimProfileProbe(storage,rawEnv,params):
+    await completeProfileProbe(storage,{...params,code:src?.code});
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_profile_probe"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
+ if(event.kind==="admin_secondary_man_approval"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{
+     const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId};
+     if(event.action==="status"){
+       return {ok:true,...await readSecondaryManApproval(storage,params)};
+     }
+     if(event.action!=="set")return {ok:false,status:400,reason:"invalid_approval_action"};
+     let proxyVersion,siteVersion;
+     if(event.approved===false){
+       // Revocation must succeed even if proxy/site verification has since failed.
+       const previous=await readSecondaryManApproval(storage,params);
+       if(previous.version<1)return {ok:false,status:409,reason:"no_approval_to_revoke"};
+       proxyVersion=previous.proxyVersion;
+       siteVersion=previous.siteVersion;
+     }else{
+       if(event.approved!==true)return {ok:false,status:400,reason:"invalid_approval_request"};
+       const [proxy,site]=await Promise.all([proxyStatus(storage,params),readSiteStatus(storage,params)]);
+       if(!proxy.configured||!site.configured||proxy.version<1||site.version<1||
+          site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
+         return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
+       const [login,browser]=await Promise.all([siteLoginStatus(storage,params),browserCheckStatus(storage,params)]);
+       if(login.technicalReady!==true||login.siteIdentityVerified!==true||browser.status!=="verified"||
+          browser.ipVerified!==true||browser.siteReachable!==true||
+          browser.version!==proxy.version)
+         return {ok:false,status:409,reason:"technical_checks_incomplete"};
+       proxyVersion=proxy.version;
+       siteVersion=site.version;
+     }
+     const result=await setSecondaryManApproval(storage,{...params,
+       expectedVersion:event.expectedVersion,approved:event.approved,
+       proxyVersion,siteVersion});
+     // Owner approval alone never grants publication while site identity and
+     // account-specific publishing, callback, ledger and proof remain unconnected.
+     return {ok:true,...result,publicationAvailable:false,reason:"isolated_executor_not_connected"};
+   }catch(e){
+     const message=String(e?.message||"");
+     return {ok:false,status:/Forbidden|immutable/.test(message)?403:409,reason:
+       message==="Approval version conflict"?"version_conflict":"approval_rejected"};
+   }
+ }
+ if(event.kind==="admin_man_visibility"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   if(event.action==="set")return {ok:true,...await changeManVisibility(storage,{
+    actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId,
+    visible:event.visible,expectedVersion:event.expectedVersion})};
+   if(event.action==="status")return {ok:true,...await manVisibility(storage,event.accountId)};
+   return {ok:false,status:400,reason:"invalid_action"};
+  }catch(e){
+   return {ok:false,status:409,reason:String(e?.message)==="Visibility version conflict"?"version_conflict":"visibility_change_rejected"};
+  }
+ }
  if(event.kind==="admin_man_registry"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
@@ -478,13 +612,33 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
          p?.proxyVerified===true&&p?.ipVerified===true&&
          browser.status==="verified"&&browser.ipVerified===true&&browser.siteReachable===true;
        return [x.id,{technicalReady:ready,loginCode:login.code,loginStatus:login.status,
-         loginVerifiedAt:ready?login.finishedAt:null,siteIdentityVerified:false,canPublish:false}];
+         loginVerifiedAt:ready?login.finishedAt:null,
+         siteIdentityVerified:ready&&login.siteIdentityVerified===true,canPublish:false}];
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
+   const approvalEntries=await Promise.all(inventory.accounts.map(async x=>{
+     if(x.id==="yan_first")return [x.id,null];
+     try{
+       const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id};
+       const [approval,proxy,site]=await Promise.all([
+         readSecondaryManApproval(storage,params),proxyStatus(storage,params),readSiteStatus(storage,params)]);
+       return [x.id,{version:approval.version,approved:
+         approvalMatchesConfiguration(approval,x.id,proxy.version,site.version),
+         recorded:approval.approved===true,publicationAvailable:false}];
+     }catch{return [x.id,{version:0,approved:false,recorded:false,publicationAvailable:false}];}
+   }));
+   const approvalMap=new Map(approvalEntries);
+   const visibilityEntries=await Promise.all(MAN_ACCOUNTS.map(async man=>{
+     try{return [man.id,await manVisibility(storage,man.id)];}
+     catch{return [man.id,{accountId:man.id,visible:false,version:null}];}
+   }));
+   const visibilityMap=new Map(visibilityEntries);
    const readinessMap=new Map(readinessEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
      ...x,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
+     approval:approvalMap.get(x.id)??null,
+     visibility:visibilityMap.get(x.id)??{visible:false,version:null},
      connection:x.id==="yan_first"?"legacy_active":(staged.get(x.id)?.stage||"not_configured")
    }))};
  }
@@ -541,6 +695,40 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniDomainRecovery(env,String(event.profileId||""),event.action,event.url);
+ }
+ if(event.kind==="mini_secondary_draft"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+  }
+  try{
+   const profileId=String(event.profileId||"");
+   if(!/^\d{1,9}$/.test(profileId))return {ok:false,status:400,reason:"invalid_profile"};
+   if((await manVisibility(storage,event.accountId)).visible!==true)
+    return {ok:false,status:403,reason:"man_hidden_from_clients"};
+   const list=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+   const profileOwned=Array.isArray(list)&&list.some(v=>String(v)===profileId);
+   if(event.action==="save"&&!profileOwned)return {ok:false,status:403,reason:"profile_not_saved"};
+   const result=await secondaryDraftAction(storage,{
+    accountId:event.accountId,profileId,userId:uid,
+    kind:event.draftKind,action:event.action,
+    text:event.text,ratings:event.ratings,
+    profileOwned,authorAttested:event.authorAttested===true
+   });
+   return result;
+  }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
+ }
+ if(event.kind==="admin_secondary_operation_status"){
+  // The actor is the ADMIN owner, while uid is the selected CLIENT's DO.
+  // No balance adjustment, proof download, dispatch or publication is possible.
+  if(event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   return await readSecondaryOperationDiagnostics(storage,{
+    userId:uid,accountId:event.accountId,
+    profileId:String(event.profileId||""),
+    kind:event.publicationKind,nonce:event.nonce
+   });
+  }catch{return {ok:false,status:400,reason:"operation_status_unavailable"};}
  }
  if(event.kind==="mini_review_action"){
   if(uid!==OWNER_ID){
@@ -600,7 +788,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   const id=String(event.profileId||""),kind=String(event.publicationKind||""),account=String(event.account||"");
-  if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!["yan_first","yan_second"].includes(account))return {ok:false,status:400};
+  if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!MAN_ACCOUNTS.some(man=>man.id===account))return {ok:false,status:400};
   const archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);
   const entry=archive.items.find(item=>String(item.profileId)===id&&item.kind===kind&&item.account===account);
   return entry?.fileId?{ok:true,fileId:entry.fileId}:{ok:false,status:404};
@@ -735,7 +923,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     }
    }
   }catch{}
-  return {ok:true,men:clientMenAvailability(),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
+  const visibility=await clientManVisibilityMap(storage,MAN_ACCOUNTS);
+  return {ok:true,men:clientMenAvailability().map(man=>({...man,visible:visibility.get(man.id)===true})),profiles,history,activities,workflow,finance:finance?.ok?finance:null,financeStatus:finance?.ok?"ready":financeError||"ledger_unavailable",balance:balance?{available:balance.available,reserved:balance.reserved,spent:balance.spent,remaining:balance.remaining}:null};
  }
  if(event.kind==="update"){
   let update=event.update;if(privateActor(update)!==uid)return {handled:true};

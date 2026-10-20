@@ -1,0 +1,26 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+test("personal profile probe is wired end-to-end, without changes to Yan publishing",()=>{
+ const worker=fs.readFileSync("src/index.js","utf8");
+ const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
+ const admin=fs.readFileSync("src/admin_app_api.js","utf8");
+ const html=fs.readFileSync("admin/preview-v3.html","utf8");
+ const flow=fs.readFileSync(".github/workflows/secondary-man-profile-probe.yml","utf8");
+ assert.match(worker,/\/api\/secondary-profile-probe\/payload/);
+ assert.match(worker,/\/api\/secondary-profile-probe\/result/);
+ assert.match(runtime,/kind==="admin_secondary_profile_probe"|event.kind==="admin_secondary_profile_probe"/);
+ assert.match(runtime,/claimProfileProbe\(storage,rawEnv,params\)/);
+ assert.match(runtime,/completeProfileProbe\(storage/);
+ assert.match(runtime,/siteLoginStatus\(storage,params\)/);
+ assert.match(admin,/secondary_profile_probe_start/);
+ assert.match(html,/startSecondaryProfileProbe/);
+ assert.match(html,/refreshSecondaryProfileProbe/);
+ assert.match(flow,/python tools\/secondary_man_profile_probe.py/);
+ assert.doesNotMatch(flow,/secrets\.PROXY_PASSWORD/);
+ assert.doesNotMatch(flow,/secrets\.INTIMCITY_PASSWORD/);
+ const script=html.match(/<script>([\s\S]*?)<\/script>/);
+ assert.ok(script);
+ assert.doesNotThrow(()=>new vm.Script(script[1]));
+});

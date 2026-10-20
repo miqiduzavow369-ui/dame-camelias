@@ -224,7 +224,10 @@ def capture_verified_proof(ctx, pid, expected_date=None):
 
 def inspect(pid, mode='profile'):
     host = required("PROXY_HOST")
-    server = "http://" + host + ":6408"
+    proxy_port = int(os.environ.get("PROXY_PORT", "6408"))
+    if not 1 <= proxy_port <= 65535:
+        raise RuntimeError("Invalid proxy port")
+    server = "http://" + host + ":" + str(proxy_port)
     with sync_playwright() as p:
         browser=p.chromium.launch(headless=True,proxy={
             "server":server,"username":required("PROXY_USERNAME"),

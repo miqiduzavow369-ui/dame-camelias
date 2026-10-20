@@ -324,9 +324,23 @@ function manChecks(x,mini=false){
 
 function menStatus(x){
  if(x.connection==='legacy_active')return {label:'Действующий',short:'Работает',cls:'legacy',icon:'✦'};
- if(x.readiness?.technicalReady===true)return {label:'Подключён · Вход подтверждён',short:'✓ Подключён',cls:'legacy',icon:'✓'};
+ if(x.readiness?.siteIdentityVerified===true)return {label:'Личность подтверждена · Публикации ещё закрыты',short:'✓ Личность проверена',cls:'planning',icon:'✓'};
+ if(x.readiness?.technicalReady===true)return {label:'Вход выполнен · Личность не подтверждена',short:'◷ Проверка личности',cls:'planning',icon:'◷'};
  if(x.setup?.stage==='awaiting_credentials')return {label:'Ожидает настройки',short:'Подготовка',cls:'planning',icon:'◷'};
  return {label:'Не подключён',short:'Отключён',cls:'disabled',icon:'🔒'};
+}
+let manVisibilityBusyId=null;
+async function toggleManClientVisibility(accountId){
+ const man=manAccounts.find(m=>m.id===accountId);
+ if(!man||!man.visibility||manVisibilityBusyId)return;
+ manVisibilityBusyId=accountId;
+ try{
+  const visible=man.visibility.visible!==true;
+  await callAdmin('man_visibility_set',{accountId,visible,expectedVersion:man.visibility.version});
+  await reloadMen();
+  toast(visible?'✓ Мужчина снова виден клиенткам':'✓ Мужчина скрыт от клиенток');
+ }catch(e){toast('Не удалось изменить видимость: '+e.message);}
+ finally{manVisibilityBusyId=null;render();}
 }
 function renderMenDashboard(){
  const total=manAccounts.length,active=manAccounts.filter(x=>x.connection==='legacy_active').length,
@@ -338,9 +352,16 @@ function renderMenDashboard(){
  const chip=(id,title)=>'<button type="button" class="'+(menFilter===id?'active':'')+'" onclick="setMenFilter(\''+id+'\')">'+title+'</button>';
  const items=list.map(x=>{
   const st=menStatus(x);
-  return '<button type="button" class="men-square '+st.cls+'" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
+  const shown=x.visibility?.visible!==false;
+  return '<div class="man-visibility-wrap" style="min-width:0">'+
+    '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
     '<span class="sq-top"><span class="sq-number">'+String(x.number).padStart(2,'0')+'</span><span class="sq-icon">'+st.icon+'</span></span>'+
-    '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>';
+    '<span class="sq-name">'+esc(x.name)+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
+    '<button type="button" class="secondary" style="width:100%;padding:9px 3px;margin-top:5px;font-size:11px" '+
+    (manVisibilityBusyId?'disabled':'')+
+    ' onclick="toggleManClientVisibility(\''+esc(x.id)+'\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+
+    (shown?'◉ Видим · Скрыть':'◯ Скрыт · Показать')+'</button></div>';
+
  }).join('');
  return '<div class="men-topline"><div><div class="mini">👑 ADMINISTRATION · CONTROL CENTER</div><h1>Мужчины <span style="color:#e8c88e">✦</span></h1><p class="muted small">Управление аккаунтами</p></div>'+
  '<button class="men-refresh" type="button" onclick="reloadMen()" aria-label="Обновить список мужчин">↻ Обновить</button></div>'+
@@ -570,6 +591,93 @@ async function verifyManProxyNow(){
  }catch(e){if(id===selectedManId)proxyVerifyError='Серверная проверка не выполнена: '+String(e.message).slice(0,80);}
  finally{proxyVerifying=false;if(id===selectedManId){await refreshManWizard(id);if(state.page==='man-detail')render();}}
 }
+let secondaryProbeStatus=null,secondaryProbeBusy=false,secondaryProbeError="";
+async function refreshSecondaryProfileProbe(id=selectedManId){
+ if(!id||id==='yan_first')return;
+ try{
+  const result=await callAdmin('secondary_profile_probe_status',{accountId:id});
+  if(selectedManId===id){secondaryProbeStatus=result;secondaryProbeError='';}
+ }catch{if(selectedManId===id)secondaryProbeError='Не удалось обновить статус поиска';}
+ if(selectedManId===id&&state.page==='man-detail')render();
+}
+async function startSecondaryProfileProbe(event){
+ event.preventDefault();
+ const id=selectedManId;
+ if(!id||id==='yan_first'||secondaryProbeBusy)return;
+ const field=document.getElementById('secondaryProbeProfile');
+ const profileId=String(field?.value||'').trim();
+ if(!/^[0-9]{1,9}$/.test(profileId)){toast('Укажите номер анкеты');return;}
+ secondaryProbeBusy=true;secondaryProbeError='';render();
+ try{
+  const result=await callAdmin('secondary_profile_probe_start',{accountId:id,profileId});
+  if(result?.status!=='running')throw Error('Запуск не подтверждён');
+  toast('Проверка анкеты запущена. Публикации не выполняются.');
+  await refreshSecondaryProfileProbe(id);
+ }catch(e){if(selectedManId===id)secondaryProbeError='Проверка не запущена: '+e.message;}
+ finally{secondaryProbeBusy=false;render();}
+}
+let secondaryOperationBusy=false,secondaryOperationError="",secondaryOperationState=null;
+let secondaryOperationQuery={userId:"",profileId:"",kind:"review",nonce:""};
+function renderSecondaryOperationDiagnostic(man){
+ if(man.id==="yan_first")return "";
+ const d=secondaryOperationState?.accountId===man.id?secondaryOperationState:null;
+ const options=clients.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===secondaryOperationQuery.userId?'selected':'')+'>'+esc(normalizeUsername(c.username)?'@'+normalizeUsername(c.username)+' · '+c.id:c.id)+'</option>').join('');
+ const line=(name,value)=>'<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)"><span>'+name+'</span><strong>'+esc(value)+'</strong></div>';
+ return '<div class="card" style="margin-top:14px"><div class="section">Состояние оценки или отзыва</div>'+
+ '<p class="hint">Только диагностика выбранной операции. Без повторной отправки, списания кредитов или раскрытия скриншота.</p>'+
+ '<form onsubmit="checkSecondaryOperation(event)">'+
+ '<label for="secOperationClient">Клиентка</label><select class="field" id="secOperationClient" required><option value="">Выберите клиентку</option>'+options+'</select>'+
+ '<label for="secOperationProfile">Номер анкеты</label><input class="field" id="secOperationProfile" required inputmode="numeric" pattern="[0-9]{1,9}" maxlength="9" value="'+esc(secondaryOperationQuery.profileId)+'">'+
+ '<label for="secOperationKind">Вид операции</label><select class="field" id="secOperationKind">'+
+ '<option value="review" '+(secondaryOperationQuery.kind==="review"?'selected':'')+'>✍️ Отзыв</option>'+
+ '<option value="rating" '+(secondaryOperationQuery.kind==="rating"?'selected':'')+'>⭐ Оценка</option></select>'+
+ '<label for="secOperationNonce">Номер операции (nonce, 12 символов)</label>'+
+ '<input class="field" id="secOperationNonce" required maxlength="12" pattern="[a-f0-9]{12}" autocomplete="off" value="'+esc(secondaryOperationQuery.nonce)+'" placeholder="12 символов">'+
+ '<button type="submit" class="secondary" '+(secondaryOperationBusy?'disabled':'')+'>🔎 '+(secondaryOperationBusy?'Проверяем…':'Проверить состояние')+'</button></form>'+
+ (secondaryOperationError?'<p class="error" role="alert">'+esc(secondaryOperationError)+'</p>':'')+
+ (d?'<div class="note" role="status"><strong>'+(d.completed?'✓ Операция завершена':d.needsReview?'⚠ Требуется сверка':'◷ Публикация не завершена')+'</strong>'+
+ line('Отправка',d.publicationStatus)+line('Билет подтверждения',d.ticketStatus)+
+ line('Доказательство',d.proofPresent?'✓ Подтверждено':'Не подтверждено')+
+ line('Списание кредита',d.creditStatus)+line('Результат',d.resultStatus)+
+ '<p class="hint">Повторная отправка на сайт запрещена. Публикации новых мужчин остаются закрытыми.</p></div>':'')+'</div>';
+}
+async function checkSecondaryOperation(event){
+ event.preventDefault();
+ if(secondaryOperationBusy||!selectedManId||selectedManId==="yan_first")return;
+ const man=selectedManId;
+ const q={userId:String(document.getElementById("secOperationClient")?.value||""),
+  profileId:String(document.getElementById("secOperationProfile")?.value||"").trim(),
+  kind:String(document.getElementById("secOperationKind")?.value||""),
+  nonce:String(document.getElementById("secOperationNonce")?.value||"").trim()};
+ secondaryOperationQuery=q;
+ secondaryOperationError="";secondaryOperationState=null;
+ if(!/^[1-9][0-9]{4,15}$/.test(q.userId)||!/^[0-9]{1,9}$/.test(q.profileId)||
+    !["review","rating"].includes(q.kind)||!/^[a-f0-9]{12}$/.test(q.nonce)){
+  secondaryOperationError="Укажите клиентку, анкету и корректный номер операции";render();return;
+ }
+ secondaryOperationBusy=true;render();
+ try{
+  const result=await callAdmin("secondary_operation_status",{accountId:man,userId:q.userId,
+   profileId:q.profileId,kind:q.kind,nonce:q.nonce});
+  if(man===selectedManId){secondaryOperationState=result;secondaryOperationError="";}
+ }catch(e){if(man===selectedManId)secondaryOperationError="Не удалось проверить операцию: "+e.message;}
+ finally{secondaryOperationBusy=false;if(man===selectedManId&&state.page==="man-detail")render();}
+}
+let manApprovalBusy=false;
+async function updateManOwnerApproval(approved){
+ const x=manAccounts.find(a=>a.id===selectedManId);
+ if(!x||x.id==='yan_first'||manApprovalBusy)return;
+ const prior=x.approval;
+ if(!prior||!Number.isSafeInteger(prior.version))return;
+ if(approved&&!window.confirm('Подтвердить административное разрешение для '+x.name+'? Публикации останутся заблокированы до завершения интеграции.'))return;
+ manApprovalBusy=true;render();
+ try{
+  await callAdmin('secondary_man_approval_set',{accountId:x.id,expectedVersion:prior.version,approved});
+  await reloadMen();
+  toast(approved?'✓ Разрешение сохранено. Публикации ещё заблокированы.':'✓ Разрешение отозвано');
+ }catch(e){toast('Разрешение не изменено: '+e.message);}
+ finally{manApprovalBusy=false;render();}
+}
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
@@ -593,7 +701,8 @@ function renderManConsole(){
  const login=data?.login;
  // Only the trusted login executor result for the saved credentials and pinned
  // proxy can complete the last step. This never grants publication rights.
- const identityOK=loaded&&ipOK&&siteSaved&&login?.technicalReady===true;
+ const loginOK=loaded&&ipOK&&siteSaved&&login?.technicalReady===true;
+ const identityOK=loginOK&&login?.siteIdentityVerified===true;
  const steps=[
   {title:'Сохранить HTTP-прокси',desc:'Одна строка Dolphin. Реквизиты хранятся зашифрованно.',
    done:proxySaved,action:'openManProxy()',button:'Настроить прокси'},
@@ -602,7 +711,9 @@ function renderManConsole(){
   {title:'Сохранить доступ к кабинету',desc:'Логин и пароль Intimcity сохраняются отдельно и не отображаются повторно.',
    done:siteSaved,action:'openManSite()',button:'Заполнить данные кабинета'},
   {title:'Проверить вход в кабинет',desc:'Chromium подтверждает вход через личный прокси и закреплённый IP. Публикации остаются закрытыми.',
-   done:identityOK,action:'openManSite()',button:'Открыть проверку входа'}
+   done:loginOK,action:'openManSite()',button:'Открыть проверку входа'},
+  {title:'Подтвердить личность в Intimcity',desc:'Проверить ID или email в области авторизованного аккаунта, а не только успешный вход.',
+   done:identityOK,action:'openManSite()',button:'Повторить проверку личности'}
  ];
  const current=loaded?steps.findIndex(step=>!step.done):0;
  const active=current<0?steps.length:Math.max(current,0),progress=loaded?active:0;
@@ -636,6 +747,25 @@ function renderManConsole(){
  (active===3?'<p class="note">Нужен подтверждённый браузером вход именно через личный прокси. Публикации не включаются.</p>':'')+
  '<button class="primary" onclick="'+focus.action+'">'+esc(focus.button)+' →</button></div>')+
  (soon?'<details class="card" style="margin-top:12px"><summary style="cursor:pointer">Что будет дальше · '+(steps.length-active-1)+' этапа</summary>'+soon+'</details>':''):'')+
+ '<div class="card" style="margin-top:14px"><strong>Разрешение владельца</strong>'+
+ '<p class="hint">'+(x.approval?.approved?'✓ Одобрение записано для текущих версий прокси и кабинета.':'Разрешение ещё не выдано либо настройки изменились.')+'</p>'+
+ '<p class="hint">Личность: '+(identityOK?'✓ Подтверждена в кабинете':'◷ Не подтверждена · требуется проверка авторизованного аккаунта')+'</p>'+ 
+ '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
+ '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||(!identityOK&&!x.approval?.approved)?'disabled':'')+'>'+
+ (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
+ '<div class="card" style="margin-top:14px"><strong>🔎 Проверка поиска анкеты</strong>'+
+ '<p class="hint">Поиск выполняется через личный прокси и кабинет этого мужчины по сценарию Яна Первого. Без оценок и отправки отзывов.</p>'+
+ '<p class="hint">'+esc(secondaryProbeError||(
+  secondaryProbeStatus?.status==='completed'
+   ?(secondaryProbeStatus.verified?'✅ Анкета найдена и проверена':'⚠️ Проверка завершилась без подтверждения')
+   :secondaryProbeStatus?.status==='running'?'⏳ Проверка выполняется'
+   :'Проверка пока не запускалась'))+'</p>'+
+ '<form onsubmit="startSecondaryProfileProbe(event)"><label for="secondaryProbeProfile">Номер анкеты</label>'+
+ '<input class="field" id="secondaryProbeProfile" type="text" inputmode="numeric" pattern="[0-9]{1,9}" maxlength="9" placeholder="Номер анкеты" required>'+
+ '<button type="submit" class="secondary" '+(secondaryProbeBusy||!identityOK||!x.approval?.approved?'disabled':'')+'>🔎 Проверить поиск через личный прокси</button></form>'+
+ '<button type="button" class="secondary" onclick="refreshSecondaryProfileProbe()">↻ Обновить результат</button></div>'+
+
+ renderSecondaryOperationDiagnostic(x)+
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
  '<details class="man-step-details"><summary>Диагностика и история</summary>'+
  manChecks(x)+renderManDiagnostic(x)+
@@ -1032,8 +1162,8 @@ const auth=()=>window.Telegram?.WebApp?.initData||'';
 function openManDetail(id){
  if(!manAccounts.some(x=>x.id===id))return;
  selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://b.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
- menHistory=[];menHistoryError='';++menHistoryRequest;go('man-detail');
- void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);
+ menHistory=[];menHistoryError='';secondaryProbeStatus=null;secondaryProbeError='';++menHistoryRequest;go('man-detail');
+ void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);if(id!=='yan_first')void refreshSecondaryProfileProbe(id);
 }
 async function refreshManWizard(id=selectedManId){
  if(!id)return;

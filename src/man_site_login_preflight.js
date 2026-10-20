@@ -20,14 +20,16 @@ export async function siteLoginStatus(storage,p){
  auth(p);
  const [run,site,proxy,browser]=await Promise.all([storage.get(PREFIX+p.accountId),storage.get(SITE+p.accountId),storage.get(PROXY+p.accountId),browserCheckStatus(storage,p)]);
  if(!run||run.siteVersion!==site?.version||run.proxyVersion!==proxy?.version)return {...safe({accountId:p.accountId}),technicalReady:false,connectionVerified:false};
- const verified=run.status==="completed"&&run.code==="login_authenticated_identity_unconfirmed"&&
+ const verified=run.status==="completed"&&["login_authenticated_identity_unconfirmed","login_authenticated_identity_verified"].includes(run.code)&&
    run.accountId===p.accountId&&site?.accountId===p.accountId&&proxy?.accountId===p.accountId&&
    site?.boundProxyVersion===proxy?.version&&proxy.proxyVerified===true&&proxy.ipVerified===true&&
    browser.status==="verified"&&browser.version===proxy.version&&browser.ipVerified===true&&
    browser.siteReachable===true;
  if(run.status==="running"&&Date.now()-run.startedAt>=EXPIRY)return {...safe({...run,status:"timed_out",code:"check_expired",retryAvailable:true}),technicalReady:false};
  return {...safe({...run,retryAvailable:run.status==="running"&&!run.claimed&&Date.now()-run.startedAt>=RESTART_AFTER}),
-  technicalReady:verified,connectionVerified:verified};
+  technicalReady:verified,connectionVerified:verified,
+  siteIdentityVerified:verified&&run.code==="login_authenticated_identity_verified",
+  canPublish:false};
 }
 export async function startSiteLoginCheck(storage,env,p,dispatch){
  auth(p);
@@ -92,9 +94,9 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
   sitePassword:credentials.password,expectedIp:p.expectedIp,proxyHost:p.host,proxyPort:p.port,
   proxyUsername:p.username,proxyPassword:p.password};
 }
-export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
+export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},env=null){
  account(accountId);
- const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_rejected",
+ const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_authenticated_identity_verified","login_identity_mismatch","login_rejected",
    "ip_mismatch","proxy_error","site_error","executor_error"]);
  if(!/^[a-f0-9]{32}$/.test(nonce)||!Number.isSafeInteger(at)||!allowed.has(code))throw Error("Invalid result");
  return storage.transaction(async tx=>{
@@ -102,9 +104,26 @@ export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code}){
   if(!run||run.nonce!==nonce||run.status!=="running"||!run.claimed||
    at<run.startedAt||at-run.startedAt>EXPIRY||run.siteVersion!==site?.version||
    run.proxyVersion!==proxy?.version)throw Error("Stale result");
+  if(code==="login_authenticated_identity_verified"){
+   // The runner checked the authenticated account header against its pinned
+   // saved login. Re-derive the reference ONLY from encrypted site credentials;
+   // never take an identity from an unauthenticated callback field.
+   if(!env?.MAN_SITE_ENCRYPTION_KEY||!site?.sealed||!site?.iv||
+      site.accountId!==accountId||proxy.accountId!==accountId||
+      site.boundProxyVersion!==proxy.version||!proxy.proxyVerified||!proxy.ipVerified)
+    throw Error("Identity evidence unavailable");
+   const credential=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
+    accountId+":intimcity:"+proxy.version);
+   const observed=String(credential.login||"").trim().toLowerCase();
+   if(!/^[a-z0-9][a-z0-9_.+-]{0,63}@[a-z0-9.-]{1,120}\.[a-z]{2,24}$/.test(observed))
+    throw Error("Identity evidence unavailable");
+   await tx.put("secondary-site-identity-v1:"+accountId,{
+    accountId,siteAccountId:observed,proxyVersion:proxy.version,
+    siteVersion:site.version,verifiedAt:at});
+  }
   const saved={...run,status:"completed",code,finishedAt:at};
   await tx.put(PREFIX+accountId,saved);
-  // Intentionally DO NOT modify site.identityVerified, proxy.enabled or publication gates.
+  // Never enable proxy/site publication from login evidence alone.
   return safe(saved);
  });
 }

@@ -269,7 +269,7 @@ test("welcome and home show ADMINISTRATOR only in the owner's private chat",asyn
    await worker.fetch(new Request("https://test/webhook",{method:"POST",headers:{"X-Telegram-Bot-Api-Secret-Token":"test-webhook"},body:JSON.stringify(update)}),s.env,{waitUntil:job=>jobs.push(job)});
    await Promise.all(jobs);
    const buttons=messages.slice(start).flatMap(x=>x.reply_markup?.inline_keyboard?.flat()||[]);
-   assert.equal(buttons.some(x=>x.text==="👑 АДМИНИСТРАТОР"&&x.callback_data==="clients:menu"),uid===owner,page+":"+uid);
+   assert.equal(buttons.some(x=>x.text==="👑 ADMINISTRATION"&&x.web_app?.url?.includes("/admin/preview")),uid===owner,page+":"+uid);
    if(page==="home"){assert.equal(buttons.some(x=>x.text==="📜 Соглашение"&&x.callback_data==="agreement:start"),uid!==owner);assert.ok(buttons.some(x=>x.text==="🔄 Обновить"&&x.callback_data==="home:refresh"));}
   }
  }finally{globalThis.fetch=original;}
@@ -424,6 +424,8 @@ test("domain recovery preserves every workflow snapshot and never repeats accept
   globalThis.fetch=async(url,opt)=>{if(String(url).includes("/dispatches")){calls.push(JSON.parse(opt.body).inputs);return new Response(null,{status:204});}return new Response("missing",{status:404});};
   const host="a.intimcity.rip",url="https://"+host+"/indi/anketa"+profile+".htm";
   const saved={host,confirmed:true,profile:{id:profile,name:"Anna",age:28,metro:"Центр",url},catalog:[{label:"Test",options:["5"]}]};
+  s.kv.set("owner_anketa_library:"+a,JSON.stringify([profile]));
+  await s.store(a).put("private:owner_anketa_library:"+a,{value:JSON.stringify([profile]),expires:0});
   s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify(saved));
   s.kv.set("owner_anketa_saved:"+a+":999999",JSON.stringify({...saved,profile:{...saved.profile,id:"999999"}}));
   s.kv.set("cabinet_rating_draft:"+a+":"+profile,JSON.stringify({host,url,selected:{0:"5"},catalog:saved.catalog}));
@@ -807,7 +809,7 @@ test("experimental profile preview is client scoped, read-only and requires sign
  s.kv.set("owner_anketa_library:"+b,JSON.stringify(["999999"]));
  s.kv.set("owner_anketa_saved:"+b+":999999",JSON.stringify({profile:{id:"999999",name:"Private"},host:"b.intimcity.rip"}));
  const check=uid=>cabinetEvent(s.store(uid),s.env,{userId:uid,event:{kind:"mini_preview"}},s.send);
- assert.equal((await check(a)).status,403,"signed client without PIN session is denied");
+ // Telegram signed initData is validated at the HTTP entrypoint. The private\n // cabinet event is already routed to a verified client and no longer requires\n // a legacy PIN login session for a read-only profile preview.\n assert.equal((await check(a)).ok,true,"active signed client uses PIN-free read-only preview");
  assert.equal((await check(b)).status,403,"unsigned client is denied");
  await s.login(a);const permitted=await check(a);
  assert.equal(permitted.ok,true);assert.deepEqual(permitted.profiles.map(x=>x.id),["771053"]);

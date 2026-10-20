@@ -7,7 +7,7 @@ test("rating publication actions stay hidden until verification succeeds",()=>{
  assert.match(html,/publish\.textContent="🔎 Проверить результат"/);
  assert.match(html,/back\.hidden=stage!=="ready"/);
  assert.match(html,/send\.hidden=stage!=="ready"/);
- assert.match(html,/review\.append\(publish,check,actionStatus,back,send\);reflect\("draft"\)/);
+ assert.match(html,/review\.append\(publish,check,actionStatus,waitingClock,back,send\);reflect\(\{stage:"draft"\}\)/);
  assert.match(html,/requestAction\("prepare"\)/);
  assert.match(html,/requestAction\("publish"\)/);
 });

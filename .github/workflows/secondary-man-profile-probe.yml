@@ -1,0 +1,47 @@
+name: Secondary man verified profile search (read only)
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        description: "Stable secondary man ID"
+        required: true
+        type: string
+      profile_id:
+        description: "Profile number"
+        required: true
+        type: string
+      nonce:
+        description: "One-use secure claim nonce"
+        required: true
+        type: string
+      site_host:
+        description: "Pinned Intimcity subdomain"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: "secondary-profile-${{ inputs.account_id }}-${{ inputs.profile_id }}"
+  cancel-in-progress: false
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright and Chromium
+        run: |
+          python -m pip install playwright==1.56.0 pillow==11.3.0
+          python -m playwright install --with-deps chromium
+      - name: Search profile using approved personal proxy (no publications)
+        env:
+          ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+          SECONDARY_ACCOUNT_ID: ${{ inputs.account_id }}
+          SECONDARY_PROFILE_ID: ${{ inputs.profile_id }}
+          SECONDARY_PROBE_NONCE: ${{ inputs.nonce }}
+          SECONDARY_SITE_HOST: ${{ inputs.site_host }}
+        run: python tools/secondary_man_profile_probe.py
