@@ -424,6 +424,7 @@ test("domain recovery preserves every workflow snapshot and never repeats accept
   globalThis.fetch=async(url,opt)=>{if(String(url).includes("/dispatches")){calls.push(JSON.parse(opt.body).inputs);return new Response(null,{status:204});}return new Response("missing",{status:404});};
   const host="a.intimcity.rip",url="https://"+host+"/indi/anketa"+profile+".htm";
   const saved={host,confirmed:true,profile:{id:profile,name:"Anna",age:28,metro:"Центр",url},catalog:[{label:"Test",options:["5"]}]};
+  s.kv.set("owner_anketa_library:"+a,JSON.stringify([profile]));
   s.kv.set("owner_anketa_saved:"+a+":"+profile,JSON.stringify(saved));
   s.kv.set("owner_anketa_saved:"+a+":999999",JSON.stringify({...saved,profile:{...saved.profile,id:"999999"}}));
   s.kv.set("cabinet_rating_draft:"+a+":"+profile,JSON.stringify({host,url,selected:{0:"5"},catalog:saved.catalog}));
