@@ -751,19 +751,9 @@ function renderManConsole(){
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
  '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
- '<div class="card" style="margin-top:14px"><strong>🔎 Проверка поиска анкеты</strong>'+
- '<p class="hint">Поиск выполняется через личный прокси и кабинет этого мужчины по сценарию Яна Первого. Без оценок и отправки отзывов.</p>'+
- '<p class="hint">'+esc(secondaryProbeError||(
-  secondaryProbeStatus?.status==='completed'
-   ?(secondaryProbeStatus.verified?'✅ Анкета найдена и проверена':'⚠️ Проверка завершилась без подтверждения')
-   :secondaryProbeStatus?.status==='running'?'⏳ Проверка выполняется'
-   :'Проверка пока не запускалась'))+'</p>'+
- '<form onsubmit="startSecondaryProfileProbe(event)"><label for="secondaryProbeProfile">Номер анкеты</label>'+
- '<input class="field" id="secondaryProbeProfile" type="text" inputmode="numeric" pattern="[0-9]{1,9}" maxlength="9" placeholder="Номер анкеты" required>'+
- '<button type="submit" class="secondary" '+(secondaryProbeBusy||!identityOK||!x.approval?.approved?'disabled':'')+'>🔎 Проверить поиск через личный прокси</button></form>'+
- '<button type="button" class="secondary" onclick="refreshSecondaryProfileProbe()">↻ Обновить результат</button></div>'+
-
+ '<details class="man-step-details" style="margin-top:14px"><summary>Техническая диагностика · только ADMIN</summary>'+ 
  renderSecondaryOperationDiagnostic(x)+
+ '<p class="hint">Поиск анкет и проверку клиентского маршрута выполняем в кабинете клиентки. Публикации пока заблокированы.</p></details>'+ 
  '<button class="secondary man-step-refresh" style="margin-top:12px" onclick="refreshManWizard()">↻ Обновить статус этапов</button>'+
  '<details class="man-step-details"><summary>Диагностика и история</summary>'+
  manChecks(x)+renderManDiagnostic(x)+
