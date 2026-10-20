@@ -11,3 +11,11 @@ test("secondary readiness is exposed only through owner ADMIN",()=>{
  assert.ok(runtime.includes('secondaryRatingReadiness(id,'));
  assert.ok(runtime.includes('executorConnected:false,callbackConnected:false,proofAndLedgerConnected:false'));
 });
+
+test("ADMIN view shows independent rating diagnostics for selected man",()=>{
+ const html=fs.readFileSync("admin/preview-v3.html","utf8");
+ assert.ok(html.includes("renderSecondaryRatingReadiness(x)+"));
+ assert.ok(html.includes("callAdmin('secondary_rating_readiness',{accountId:id})"));
+ assert.ok(html.includes("id==='yan_first'"));
+ assert.ok(html.includes("proof_and_credit_not_connected"));
+});
