@@ -2,6 +2,7 @@
 // verified website catalog and UI contract as the legacy rating editor.
 // It never submits to Intimcity, issues a callback ticket, or debits credits.
 import {requireManId,manStorageKey} from "./man_account_isolation.js";
+import {readSharedCriteria} from "./shared_rating_criteria.js";
 const USER=/^\d{5,16}$/,PROFILE=/^\d{1,9}$/,INDEX=/^(0|[1-9]\d{0,2})$/;
 const MAX_FIELDS=120;
 function identity({userId,accountId,profileId}){
@@ -56,7 +57,8 @@ async function catalogRecord(kv,x){
  const record=await kv?.get("owner_anketa_saved:"+x.userId+":"+x.profileId,"json");
  if(!record?.confirmed||String(record.profile?.id)!==x.profileId)
   throw Error("Saved profile not verified");
- const catalog=normalizeCatalog(record.catalog);
+ const shared=(!Array.isArray(record.catalog)||record.catalog.length===0)?await readSharedCriteria(kv,x.profileId):null;
+ const catalog=normalizeCatalog(shared||record.catalog);
  return {catalog,profile:{id:x.profileId,name:String(record.profile.name||"").slice(0,100)}};
 }
 function selectValues(catalog,candidate,metElsewhere){
