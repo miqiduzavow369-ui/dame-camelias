@@ -449,7 +449,7 @@ function manStatus(man,kind){
  if(man.id!=="yan_first"){
   const row=secondaryStatuses[String(workProfile?.id||"")]?.[man.id];
   const stage=kind==="rating"?row?.rating:row?.review;
-  return ({draft_saved:"📝 Оценки сохранены",prepared:"🔎 Проверка перед публикацией",
+  return ({draft_saved:kind==="rating"?"✅ Оценки подготовлены":"✅ Отзыв подготовлен",prepared:"🔎 Проверка перед публикацией",
    checking:"⏳ Проверяется результат",published:"✅ Опубликовано",
    reconciliation_required:"⚠️ Требуется проверка",moderation:"⏳ На модерации"})[stage]||
    (man.cabinetReady?"⭐ Ожидает заполнения":"🔒 Ожидает подключения");
@@ -677,7 +677,7 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
  $("ratingCount").textContent=p.counts?.rating||0;$("reviewCount").textContent=p.counts?.review||0;$("totalCount").textContent=p.counts?.total||0;$("ratingStatus").textContent=label(p.statuses?.rating);$("reviewStatus").textContent=label(p.statuses?.review);
  const selectedProgress=selectedAccount!=="yan_first"?
    secondaryStatuses[String(p.id)]?.[selectedAccount]||{}:{};
- const messages={draft_saved:"📝 Оценки сохранены",prepared:"🔎 Подготовка публикации",
+ const messages={draft_saved:"✅ Оценки подготовлены",prepared:"🔎 Подготовка публикации",
    reconciliation_required:"⚠️ Требуется проверка",published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
@@ -724,9 +724,9 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
  const stageNames={ratings_loading:"Загружаются услуги",ratings:"Заполнение оценок",ratings_agreed:"Выбор оценок проверяется",audit_loading:"Проверяются поля сайта",dryfill_loading:"Подготовка публикации",prepublish_ready:"Ожидается подтверждение",publishing:"Публикация выполняется",proof_loading:"Проверяется результат",review_input:"Ввод текста отзыва",review_preview:"Проверка черновика",review_moderation:"Отзыв на модерации",review_dispatch:"Отзыв отправляется",review_recheck:"Проверка размещения",review_result:"Результат отзыва",publication_result:"Результат публикации"};
  const stageIndex={rating:{ratings_loading:0,ratings:0,ratings_agreed:1,audit_loading:1,dryfill_loading:1,prepublish_ready:2,publishing:3,proof_loading:3,publication_result:4},review:{review_input:0,review_preview:1,review_moderation:1,review_dispatch:3,review_recheck:3,review_result:4}};
  const stage=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
- const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");body.append(status);
+ const status=document.createElement("div");status.className="proof-note workflow-status";status.setAttribute("aria-live","polite");if(false)body.append(status);
  const stageRows=[];
- (legacySteps[kind]||[]).forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
+ [].forEach((step,i)=>{const row=document.createElement("div");row.className="workflow-step";const marker=document.createElement("span");marker.className="workflow-number";marker.textContent=String(i+1).padStart(2,"0");const text=document.createElement("span");text.textContent=step;row.append(marker,text);body.append(row);stageRows.push(row);});
  function syncStage(){
   const active=legacyWorkflow?.profileId===String(selected.id)&&legacyWorkflow?.account===selectedAccount?legacyWorkflow.stage:null;
   const i=stageIndex[kind]?.[active];
@@ -1105,20 +1105,17 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       send.onclick=async()=>{send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
       review.append(publish,check,actionStatus,waitingClock,back,send);
       if(selectedAccount!=="yan_first"&&saved.publicationAvailable!==true){
-       // Same Yan First review/confirmation controls. Disallow external POST
-       // until a separate, account-pinned production executor is actually wired.
-       reflect({stage:"ready"});
-       publish.hidden=false;
-       publish.textContent="🔎 Подготовить публикацию";
-       publish.disabled=true;
+       // Preserve the same clean completed-rating card layout as Yan First.
+       // Never enable submit until this man's own verified runner exists.
+       publish.hidden=true;
+       check.hidden=true;
        send.hidden=false;
        send.textContent="✅ Опубликовать оценки";
        send.disabled=true;
        back.hidden=false;
-       check.hidden=true;
-       actionStatus.textContent="🔒 Оценки сохранены за "+accountName(selectedAccount)+
-        ". Отдельный исполнитель публикации ещё не подключён. "+
-        "Отправка заблокирована во избежание публикации под Яном Первым.";
+       waitingClock.hidden=true;
+       proofCard.hidden=true;
+       actionStatus.textContent="Отправка на сайт пока недоступна.";
       }else reflect({stage:"draft"});
       editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
