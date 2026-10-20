@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
 import {signSecondaryResultAttestation,verifySecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
+import {recordAttestedSecondaryResult,secondaryVerifiedResultStatus} from "../src/secondary_man_result_settlement.js";
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const secret="ab".repeat(32),otherSecret="cd".repeat(32);
 const input=(man="yan_second")=>({
@@ -51,4 +52,18 @@ test("signature cannot authorize a missing, replaced or not-attempted publicatio
  await db.put(k,{identity:createAccountOperation(x.identity),status:"attempted",attempted:true,proxyVersion:7,siteVersion:3});
  await assert.rejects(()=>verifySecondaryResultAttestation(db,{secret,input:x,signature,at:x.issuedAt}),/invalid/);
  await assert.rejects(()=>signSecondaryResultAttestation(secret,input("yan_first")) ,/invalid/);
+});
+
+test("signed result writes one verified proof while forged signature cannot create archive",async()=>{
+ const db=storage();
+ db.transaction=async fn=>fn(db);
+ const x=input(),sig=await signSecondaryResultAttestation(secret,x);
+ await attempted(db,x);
+ const parameters={secret,input:x,at:x.issuedAt+1000,moderatorApproved:true,independentAuthorConfirmed:true};
+ await assert.rejects(()=>recordAttestedSecondaryResult(db,{...parameters,signature:"00".repeat(32)}),/invalid/);
+ assert.equal((await secondaryVerifiedResultStatus(db,x.identity)).status,"not_started");
+ const result=await recordAttestedSecondaryResult(db,{...parameters,signature:sig});
+ assert.equal(result.status,"proof_saved");
+ assert.equal((await secondaryVerifiedResultStatus(db,x.identity)).proofPresent,true);
+ await assert.rejects(()=>recordAttestedSecondaryResult(db,{...parameters,signature:sig}),/already claimed/);
 });
