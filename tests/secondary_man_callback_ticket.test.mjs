@@ -114,3 +114,23 @@ test("issued callback ticket is rejected if ledger or authorization changes befo
   assert.equal((await secondaryCallbackTicketStatus(tx,identity)).status,"issued",mutation);
  }
 });
+
+test("consumed callback ticket with interrupted proof recording locks publication uncertain",async()=>{
+ const {tx,rows}=storage(),identity=i(),proof=input(identity);
+ await attempted(tx,identity);
+ const ticket=await issueSecondaryCallbackTicket(tx,{identity,proxyVersion:1,siteVersion:2,at:1000000});
+ const signature=await signSecondaryResultAttestation(secret,proof);
+ const resultKey=manStorageKey({...identity,scope:"proof"})+":"+identity.kind+":"+identity.nonce+":settlement";
+ const pubKey=manStorageKey({...identity,scope:"publication"})+":"+identity.kind;
+ const broken={...tx,transaction:async fn=>fn({...tx,put:async (key,value)=>{
+  if(key===resultKey)throw Error("Proof storage offline");
+  return tx.put(key,value);
+ }})};
+ const request={identity,token:ticket.token,secret,input:proof,signature,at:1000001,
+  moderatorApproved:true,independentAuthorConfirmed:true};
+ await assert.rejects(()=>recordTicketedSecondaryResult(broken,request),/Proof storage offline/);
+ assert.equal((await secondaryCallbackTicketStatus(tx,identity)).status,"consumed");
+ assert.equal(rows.get(pubKey).status,"uncertain");
+ assert.equal(rows.get(resultKey),undefined);
+ await assert.rejects(()=>recordTicketedSecondaryResult(tx,request),/consumed|invalid/);
+});
