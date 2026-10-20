@@ -96,20 +96,23 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
  let outcome;
  try{outcome=await settleSecondaryFeedbackCredit(storage,env,i);}
  catch{outcome={ok:false,status:"reconciliation_required"};}
- const completed=outcome?.ok===true&&outcome.status==="completed";
- await storage.transaction(async tx=>{
+ const ledgerCompleted=outcome?.ok===true&&outcome.status==="completed";
+ const finalized=await storage.transaction(async tx=>{
   const row=await tx.get(resultKey(i));
-  if(row?.status==="settling")await tx.put(resultKey(i),{
-   ...row,status:completed?"completed":"reconciliation_required",
-   ledgerStatus:completed?"completed":"requires_reconciliation"
-  });
-  if(completed){
-   const operation=await tx.get(publicationKey(i));
-   if(operation?.status==="attempted"&&verifyAccountCallback(operation.identity,callback))
-    await tx.put(publicationKey(i),{...operation,status:"completed"});
+  const operation=await tx.get(publicationKey(i));
+  const canFinalize=ledgerCompleted&&row?.status==="settling"&&
+   operation?.status==="attempted"&&operation.attempted===true&&
+   verifyAccountCallback(operation.identity,callback);
+  if(row?.status==="settling"){
+   await tx.put(resultKey(i),{...row,
+    status:canFinalize?"completed":"reconciliation_required",
+    ledgerStatus:canFinalize?"completed":"requires_reconciliation"});
   }
+  if(canFinalize)await tx.put(publicationKey(i),{...operation,status:"completed"});
+  return canFinalize;
  });
- return {ok:completed,accountId:i.accountId,status:completed?"completed":"reconciliation_required"};
+ return {ok:finalized,accountId:i.accountId,
+  status:finalized?"completed":"reconciliation_required"};
 }
 export async function secondaryVerifiedResultStatus(storage,identity){
  const i=createAccountOperation(identity);
