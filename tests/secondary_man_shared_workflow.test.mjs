@@ -43,7 +43,7 @@ test("client+man+profile operation cannot skip stages, forge callback, or submit
  await advanceSecondaryWorkflow(tx,i,{step:"dryfill_on_site",callback:i,siteIdentityVerified:true});
  await advanceSecondaryWorkflow(tx,i,{step:"owner_confirm",callback:i,ownerConfirmed:true});
  await advanceSecondaryWorkflow(tx,i,{step:"reserve_credit_and_lock",callback:i,creditReserved:true});
- await assert.rejects(()=>advanceSecondaryWorkflow(tx,i,{step:"submit_once",callback:i,siteIdentityVerified:true}),/executor not connected/);
+ await assert.rejects(()=>advanceSecondaryWorkflow(tx,i,{step:"submit_once",callback:i,siteIdentityVerified:true,executorConnected:true,callbackConnected:true,proofAndLedgerConnected:true}),/executor not connected/);
 });
 test("reviews strictly require moderation and owner confirmation before executor",async()=>{
  const {tx}=storage(),i=identity("yan_second","review");
