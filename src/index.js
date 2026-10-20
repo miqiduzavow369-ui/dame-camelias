@@ -785,7 +785,7 @@ export default {
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
-      if(!["status","save"].includes(body?.action)||
+      if(!["status","save","load"].includes(body?.action)||
          !["rating","review"].includes(body?.draftKind)||
          !/^\d{1,9}$/.test(String(body?.profileId||""))||
          typeof body?.accountId!=="string")
