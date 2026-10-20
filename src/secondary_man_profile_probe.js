@@ -83,12 +83,20 @@ export async function completeProfileProbe(storage,{accountId,profileId,nonce,at
     !["profile_verified","profile_unavailable","browser_failed"].includes(code)||!Number.isSafeInteger(at))
   throw Error("Invalid result");
  return storage.transaction(async tx=>{
-  const run=await tx.get(PREFIX+accountId);
+  const [run,proxy,site,approval]=await Promise.all([
+   tx.get(PREFIX+accountId),tx.get(PROXY+accountId),
+   tx.get(SITE+accountId),tx.get(APPROVAL+accountId)
+  ]);
   if(!run||run.accountId!==accountId||run.profileId!==profileId||run.nonce!==nonce||
-     run.status!=="running"||!run.claimed||at<run.startedAt||at-run.startedAt>MAX_AGE)
+     run.status!=="running"||!run.claimed||at<run.startedAt||at-run.startedAt>MAX_AGE||
+     proxy?.accountId!==accountId||site?.accountId!==accountId||
+     run.proxyVersion!==proxy.version||run.siteVersion!==site.version||
+     site.boundProxyVersion!==proxy.version||proxy.proxyVerified!==true||
+     proxy.ipVerified!==true||
+     !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version))
    throw Error("Stale profile result");
   const next={...run,status:"completed",code,finishedAt:at};
   await tx.put(PREFIX+accountId,next);
-  return {ok:true,accountId,profileId,status:next.status,code,verified:code==="profile_verified"};
+  return {ok:true,accountId,profileId,status:next.status,code,verified:code==="profile_verified",verifiedSiteHost:new URL(site.siteUrl).hostname};
  });
 }
