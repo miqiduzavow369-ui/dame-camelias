@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {validateSecondaryDispatchContract} from "../src/secondary_man_dispatch_contract.js";
+import {validateSecondaryDispatchContract,readSecondaryDispatchPreflight} from "../src/secondary_man_dispatch_contract.js";
 
 function fixture(accountId="yan_second",kind="rating"){
  const identity={userId:"123456789",accountId,profileId:"2468",kind,nonce:"abcdef123456"};
@@ -58,4 +58,30 @@ test("stale credentials, already claimed attempts, and unauthorized review fail 
  const review=fixture("yan_second","review");
  assert.throws(()=>validateSecondaryDispatchContract({...review,
    publication:{...review.publication,moderatorApproved:false}}),/authorized/);
+});
+
+test("preflight reads existing private records rather than browser-supplied flags",async()=>{
+ const request=fixture();
+ const {identity:i,publication,credit,proxy,site,approval,verifiedIdentity}=request;
+ const prefix=["man-account-v1",i.userId,i.accountId].join(":");
+ const kv=new Map([
+  [prefix+":publication:"+i.profileId+":"+i.kind,publication],
+  [prefix+":operation:"+i.profileId+":"+i.kind+":"+i.nonce+":ledger",credit],
+  ["man-proxy-sealed-v1:"+i.accountId,proxy],
+  ["man-intimcity-sealed-v1:"+i.accountId,{...site,siteUrl:"https://b.intimcity.rip/"}],
+  ["man-owner-approval-v1:"+i.accountId,approval],
+  ["secondary-site-identity-v1:"+i.accountId,verifiedIdentity]
+ ]);
+ const storage={get:async key=>kv.get(key)};
+ const result=await readSecondaryDispatchPreflight(storage,{
+  identity:i,ownerOperationConfirmed:true,independentAuthorConfirmed:true});
+ assert.equal(result.accountId,"yan_second");
+ assert.equal(result.maySubmit,false);
+ kv.set("man-proxy-sealed-v1:yan_second",{...proxy,version:4});
+ await assert.rejects(()=>readSecondaryDispatchPreflight(storage,{
+  identity:i,ownerOperationConfirmed:true,independentAuthorConfirmed:true}),/changed/);
+ kv.set("man-proxy-sealed-v1:yan_second",proxy);
+ kv.delete(prefix+":operation:"+i.profileId+":"+i.kind+":"+i.nonce+":ledger");
+ await assert.rejects(()=>readSecondaryDispatchPreflight(storage,{
+  identity:i,ownerOperationConfirmed:true,independentAuthorConfirmed:true}),/credit/);
 });
