@@ -1131,19 +1131,28 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   // Fast per-client status index, written alongside drafts. Legacy Михаил
   // records are also read directly until touched in the new index.
   const secondaryStatuses={};
-  const indexed=await storage.get("secondary-rating-progress-v1:"+uid)||{};
+  const [indexed,reviewIndexed]=await Promise.all([
+   storage.get("secondary-rating-progress-v1:"+uid),
+   storage.get("secondary-review-progress-v1:"+uid)
+  ]);
   const candidates=[];
   for(const p of profiles){
    const pid=String(p.id);
    secondaryStatuses[pid]={};
    for(const man of MAN_ACCOUNTS.slice(1)){
     const mid=man.id;
-    const row=indexed[pid+":"+mid];
+    const row=indexed?.[pid+":"+mid];
+    const reviewRow=reviewIndexed?.[pid+":"+mid];
+    if(reviewRow?.accountId===mid&&reviewRow?.profileId===pid&&
+       reviewRow.kind==="review"&&reviewRow.stage==="draft_saved"){
+     secondaryStatuses[pid][mid]={review:"draft_saved"};
+     activities.push({id:pid,kind:"review",account:mid,status:"draft_saved"});
+    }
     if(row?.accountId!==mid||row?.profileId!==pid||
        !Number.isSafeInteger(row.count)||row.count<0)continue;
     const stage=row.stage==="draft_saved"?"draft_saved":"not_started";
     if(stage==="not_started")continue;
-    secondaryStatuses[pid][mid]={rating:stage,ratingCount:row.count};
+    secondaryStatuses[pid][mid]={...secondaryStatuses[pid][mid],rating:stage,ratingCount:row.count};
     activities.push({id:pid,kind:"rating",account:mid,status:stage,count:row.count});
    }
    // Backwards-compatible read of Михаил's already-saved draft, without
@@ -1161,7 +1170,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       !draft.selected||typeof draft.selected!=="object")return;
    const count=Object.keys(draft.selected).length;
    if(!count)return;
-   secondaryStatuses[pid][mid]={rating:"draft_saved",ratingCount:count};
+   secondaryStatuses[pid][mid]={...secondaryStatuses[pid][mid],rating:"draft_saved",ratingCount:count};
    activities.push({id:pid,kind:"rating",account:mid,status:"draft_saved",count});
   }));
   const history=(archive.items||[]).map(item=>({
