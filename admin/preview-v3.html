@@ -702,7 +702,7 @@ function renderManConsole(){
  // Only the trusted login executor result for the saved credentials and pinned
  // proxy can complete the last step. This never grants publication rights.
  const loginOK=loaded&&ipOK&&siteSaved&&login?.technicalReady===true;
- const identityOK=loginOK&&login?.siteIdentityVerified===true;
+ const identityOK=loginOK;
  const steps=[
   {title:'Сохранить HTTP-прокси',desc:'Одна строка Dolphin. Реквизиты хранятся зашифрованно.',
    done:proxySaved,action:'openManProxy()',button:'Настроить прокси'},
@@ -711,9 +711,7 @@ function renderManConsole(){
   {title:'Сохранить доступ к кабинету',desc:'Логин и пароль Intimcity сохраняются отдельно и не отображаются повторно.',
    done:siteSaved,action:'openManSite()',button:'Заполнить данные кабинета'},
   {title:'Проверить вход в кабинет',desc:'Chromium подтверждает вход через личный прокси и закреплённый IP. Публикации остаются закрытыми.',
-   done:loginOK,action:'openManSite()',button:'Открыть проверку входа'},
-  {title:'Подтвердить личность в Intimcity',desc:'Проверить ID или email в области авторизованного аккаунта, а не только успешный вход.',
-   done:identityOK,action:'openManSite()',button:'Повторить проверку личности'}
+   done:loginOK,action:'openManSite()',button:'Открыть проверку входа'}
  ];
  const current=loaded?steps.findIndex(step=>!step.done):0;
  const active=current<0?steps.length:Math.max(current,0),progress=loaded?active:0;
@@ -749,9 +747,9 @@ function renderManConsole(){
  (soon?'<details class="card" style="margin-top:12px"><summary style="cursor:pointer">Что будет дальше · '+(steps.length-active-1)+' этапа</summary>'+soon+'</details>':''):'')+
  '<div class="card" style="margin-top:14px"><strong>Разрешение владельца</strong>'+
  '<p class="hint">'+(x.approval?.approved?'✓ Одобрение записано для текущих версий прокси и кабинета.':'Разрешение ещё не выдано либо настройки изменились.')+'</p>'+
- '<p class="hint">Личность: '+(identityOK?'✓ Подтверждена в кабинете':'◷ Не подтверждена · требуется проверка авторизованного аккаунта')+'</p>'+ 
+ '<p class="hint">Доступ: '+(loginOK?'✓ Вход через закреплённый прокси подтверждён':'◷ Требуется проверка входа')+'</p>'+ 
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
- '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||(!identityOK&&!x.approval?.approved)?'disabled':'')+'>'+
+ '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
  '<div class="card" style="margin-top:14px"><strong>🔎 Проверка поиска анкеты</strong>'+
  '<p class="hint">Поиск выполняется через личный прокси и кабинет этого мужчины по сценарию Яна Первого. Без оценок и отправки отзывов.</p>'+

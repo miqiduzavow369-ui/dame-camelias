@@ -553,7 +553,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
           site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
          return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
        const [login,browser]=await Promise.all([siteLoginStatus(storage,params),browserCheckStatus(storage,params)]);
-       if(login.technicalReady!==true||login.siteIdentityVerified!==true||browser.status!=="verified"||
+       if(login.technicalReady!==true||browser.status!=="verified"||
           browser.ipVerified!==true||browser.siteReachable!==true||
           browser.version!==proxy.version)
          return {ok:false,status:409,reason:"technical_checks_incomplete"};
