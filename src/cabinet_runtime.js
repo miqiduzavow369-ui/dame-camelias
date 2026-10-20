@@ -21,6 +21,7 @@ import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
 import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
+import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -658,6 +659,26 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniDomainRecovery(env,String(event.profileId||""),event.action,event.url);
+ }
+ if(event.kind==="mini_secondary_draft"){
+  if(uid!==OWNER_ID){
+   if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
+  }
+  try{
+   const profileId=String(event.profileId||"");
+   if(!/^\\d{1,9}$/.test(profileId))return {ok:false,status:400,reason:"invalid_profile"};
+   const list=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+   const profileOwned=Array.isArray(list)&&list.some(v=>String(v)===profileId);
+   if(event.action==="save"&&!profileOwned)return {ok:false,status:403,reason:"profile_not_saved"};
+   const result=await secondaryDraftAction(storage,{
+    accountId:event.accountId,profileId,userId:uid,
+    kind:event.draftKind,action:event.action,
+    text:event.text,ratings:event.ratings,
+    profileOwned,authorAttested:event.authorAttested===true
+   });
+   return result;
+  }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
  }
  if(event.kind==="mini_review_action"){
   if(uid!==OWNER_ID){
