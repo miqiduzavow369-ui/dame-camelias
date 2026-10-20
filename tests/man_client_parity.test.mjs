@@ -25,5 +25,6 @@ test("client catalog is server-bound and Mini App JS still parses",()=>{
  new vm.Script(script[1]);
  assert.match(html,/function applyServerMen\(rows\)/);
  assert.match(html,/applyServerMen\(data\.men\)/);
- assert.match(html,/if\(account!=="yan_first"\)return/);
+ assert.match(html,/if\(!availableMen\.some\(m=>m\.id===account&&m\.visible!==false\)\)return/);
+ assert.match(html,/selectedAccount!=="yan_first"\?"account_disabled"/);
 });
