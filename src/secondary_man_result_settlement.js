@@ -55,7 +55,10 @@ export async function recordSecondaryVerifiedResult(storage,{
    proofFileId,moderatorApproved,independentAuthorConfirmed,at});
   await storage.transaction(async tx=>{
    const current=await tx.get(resultKey(i));
-   if(current?.status!=="proof_pending")throw Error("Result state conflicted");
+   const publication=await tx.get(publicationKey(i));
+   if(current?.status!=="proof_pending"||publication?.status!=="attempted"||
+      publication.attempted!==true||!verifyAccountCallback(publication.identity,i))
+    throw Error("Result or publication state conflicted");
    await tx.put(resultKey(i),{...current,status:"proof_saved"});
   });
   return {ok:true,accountId:i.accountId,status:"proof_saved",readyForSettlement:true};
