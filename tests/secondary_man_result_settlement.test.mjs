@@ -72,3 +72,17 @@ test("failed credit completion remains locked for reconciliation without another
  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
  assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"reconciliation_required");
 });
+
+test("uncertain or changed publication cannot settle a verified screenshot",async()=>{
+ for(const status of ["uncertain","prepared","completed"]){
+  const {tx}=storage(),{env,seen}=fakeEnv(),i=identity("yan_second",status==="uncertain"?"aaaaaaaaaaaa":status==="prepared"?"bbbbbbbbbbbb":"cccccccccccc");
+  await reserveSecondaryFeedbackCredit(tx,env,i,{independentAuthorConfirmed:true,moderatorApproved:true});
+  await attempted(tx,i);
+  await recordSecondaryVerifiedResult(tx,proof(i));
+  const key=manStorageKey({userId:i.userId,accountId:i.accountId,profileId:i.profileId,scope:"publication"})+":"+i.kind;
+  await tx.put(key,{...await tx.get(key),status});
+  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
+  assert.equal(seen.filter(v=>v.type==="credits_complete").length,0);
+  assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"proof_saved");
+ }
+});
