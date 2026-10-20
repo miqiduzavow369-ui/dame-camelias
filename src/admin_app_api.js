@@ -268,6 +268,21 @@ export async function handleAdminApi(request,env){
    const items=[...results.values()].sort((a,b)=>Number(b.decidedAt||b.publishedAt||b.at||0)-Number(a.decidedAt||a.publishedAt||a.at||0));
    return respond({ok:true,items,partial:outcomes.some(x=>!x.ok)||journalUnavailable,source:"moderation_decisions_and_publication_archive"});
   }
+  if(action==="secondary_operation_status"){
+   if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
+   if(typeof body.accountId!=="string"||!/^yan_(?:second|0[3-9]|[12][0-9]|30)$/.test(body.accountId)||
+      !/^\\d{1,9}$/.test(String(body.profileId||""))||
+      !["rating","review"].includes(body.kind)||
+      !/^[a-f0-9]{12}$/.test(String(body.nonce||"")))return bad("invalid_operation_identity");
+   const {client}=await registry(env,{action:"get",userId:uid});
+   if(!client)return bad("missing",404);
+   const result=await cabinetRPC(env,uid,{
+    kind:"admin_secondary_operation_status",actorId:OWNER_ID,
+    accountId:body.accountId,profileId:String(body.profileId),
+    publicationKind:body.kind,nonce:body.nonce
+   });
+   return respond(result,result?.ok?200:result?.status===403?403:409);
+  }
   if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
   if(action==="client"){
    const {client}=await registry(env,{action:"get",userId:uid});
