@@ -77,7 +77,9 @@ def run_readonly_profile_check(grant, account_id, profile_id, *, mode="ratings",
         previous_host = legacy.OWNER_HOST
         legacy.OWNER_HOST = host
         try:
-            return inspect(str(profile_id), mode)
+            if mode == "ratings":
+                return inspect(str(profile_id), "ratings")
+            return inspect(str(profile_id), "dryfill")
         finally:
             legacy.OWNER_HOST = previous_host
     finally:
