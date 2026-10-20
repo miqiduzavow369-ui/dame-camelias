@@ -26,7 +26,23 @@ import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
+import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
+// Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
+async function secondaryRatingCabinetConnected(storage,accountId){
+ if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))return false;
+ const params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId};
+ const [proxy,site,login,browser,siteRecord]=await Promise.all([
+  proxyStatus(storage,params),readSiteStatus(storage,params),
+  siteLoginStatus(storage,params),browserCheckStatus(storage,params),
+  storage.get("man-intimcity-sealed-v1:"+accountId)
+ ]);
+ return proxy.accountId===accountId&&proxy.proxyVerified===true&&proxy.ipVerified===true&&
+  site.accountId===accountId&&site.configured===true&&
+  siteRecord?.accountId===accountId&&siteRecord?.boundProxyVersion===proxy.version&&
+  login.technicalReady===true&&browser.status==="verified"&&
+  browser.version===proxy.version&&browser.siteReachable===true;
+}
 export const settlementKey=x=>[x.ledger,x.userId,x.profileId,x.kind,x.nonce,x.date||""].join(":");
 const nonce=()=>crypto.randomUUID().replace(/-/g,"").slice(0,16);
 export function privateActor(update){
@@ -786,6 +802,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingAction(env,String(event.profileId||""),event.action);
  }
  if(event.kind==="mini_rating_open"){
+  // The secondary man reuses the original client form but saves under a
+  // different user/account/profile namespace. No legacy publisher calls.
+  if(event.accountId!=null&&event.accountId!=="yan_first"){
+   if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
+   try{
+    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+     return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
+    return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
+   }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
+     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
+  }
+
   // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
   if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
@@ -797,6 +826,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingOpen(env,String(event.profileId||""));
  }
  if(event.kind==="mini_rating_form"){
+  // The secondary man reuses the original client form but saves under a
+  // different user/account/profile namespace. No legacy publisher calls.
+  if(event.accountId!=null&&event.accountId!=="yan_first"){
+   if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
+   try{
+    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+     return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
+    return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
+   }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
+     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
+  }
+
   // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
   if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
@@ -807,6 +849,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   return engine.miniRatingFormLoad(env,String(event.profileId||""));
  }
  if(event.kind==="mini_rating_save"){
+  // The secondary man reuses the original client form but saves under a
+  // different user/account/profile namespace. No legacy publisher calls.
+  if(event.accountId!=null&&event.accountId!=="yan_first"){
+   if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
+   try{
+    if(!await secondaryRatingCabinetConnected(storage,event.accountId))
+     return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
+    return await saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||""),selected:event.selected,metElsewhere:event.metElsewhere});
+   }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
+     "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
+  }
+
   // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
   if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
   if(uid!==OWNER_ID){
