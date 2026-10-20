@@ -81,3 +81,17 @@ test("ADMIN diagnostics are read-only, authenticated and scoped to client",()=>{
  assert.ok(event.includes('userId:uid'));
  assert.ok(!event.includes('dispatch(')&&!event.includes('settleSecondaryVerifiedResult('));
 });
+
+test("interrupted proof archive and ambiguous credit debit require admin review",async()=>{
+ for(const [resultState,creditState] of [["proof_pending","reserved"],["proof_saved","reconciliation_required"]]){
+  const {storage}=source(),i=identity(),k=keys(i);
+  await storage.put(k.publication,{identity:createAccountOperation(i),status:"attempted",attempted:true});
+  await storage.put(k.credit,{...i,status:creditState});
+  await storage.put(k.result,{identity:createAccountOperation(i),status:resultState,
+   sitePublicationId:"site-12345",proofFileId:"telegram-54321"});
+  const status=await readSecondaryOperationDiagnostics(storage,i);
+  assert.equal(status.needsReview,true);
+  assert.equal(status.completed,false);
+  assert.equal(status.canRetrySitePost,false);
+ }
+});
