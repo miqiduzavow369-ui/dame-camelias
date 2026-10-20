@@ -806,7 +806,7 @@ export default {
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["prepare","status","publish"].includes(body?.action))return new Response("Invalid request",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_rating_action",profileId:String(body.profileId),action:body.action});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_action",accountId:body?.accountId??"yan_first",profileId:String(body.profileId),action:body.action});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-open"){
@@ -817,7 +817,7 @@ export default {
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body?.profileId||"")))return new Response("Invalid profile",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_rating_open",profileId:String(body.profileId)});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_open",accountId:body?.accountId??"yan_first",profileId:String(body.profileId)});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-form"){
@@ -829,7 +829,7 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const profileId=String(body?.profileId||"");
       if(!/^\d{1,9}$/.test(profileId))return new Response("Invalid profile",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_rating_form",profileId});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_form",accountId:body?.accountId??"yan_first",profileId});
       return Response.json(result,{status:result?.status===403?403:200,headers:{"Cache-Control":"no-store"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-rating-save"){
@@ -839,7 +839,7 @@ export default {
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       if(!/^\d{1,9}$/.test(String(body.profileId||"")))return new Response("Invalid profile",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_rating_save",profileId:String(body.profileId),selected:body.selected,metElsewhere:body.metElsewhere});
+      const result=await cabinetRPC(env,uid,{kind:"mini_rating_save",accountId:body?.accountId??"yan_first",profileId:String(body.profileId),selected:body.selected,metElsewhere:body.metElsewhere});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store"}});
     }
     if (request.method === "GET" && url.pathname === "/anketa/ratings") {

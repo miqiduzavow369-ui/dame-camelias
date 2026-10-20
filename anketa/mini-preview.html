@@ -669,13 +669,14 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
  const messages={published:"✅ Опубликовано",checking:"⏳ На проверке",credits:"💎 Недостаточно кредитов",daily_limit:"📅 Дневной лимит исчерпан",disabled:"🔒 Публикации отключены",unknown:"⚠️ Доступность не проверена",account_disabled:"🔒 Аккаунт не подключён",check_in_bot:"🔎 Проверить возможность публикации"};
  for(const kind of ["rating","review"]){
   const button=document.querySelector('[data-sub="'+kind+'"]');
-  const state=selectedAccount!=="yan_first"?"account_disabled":p.capabilities?.[kind]?.state||"unknown";
+  const connected=availableMen.some(m=>m.id===selectedAccount&&m.cabinetReady===true);
+  const state=selectedAccount!=="yan_first"?(connected&&kind==="rating"?"check_in_bot":"account_disabled"):p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=messages[state]||messages.unknown;
   button.hidden=!["published","check_in_bot"].includes(state);
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
   button.dataset.mode=state==="published"?"proof":"check";
  }
- $("secondaryDraftCard").hidden=selectedAccount==="yan_first";if(selectedAccount!=="yan_first"){secondaryDraftKind="review";$("secondaryDraftTitle").textContent="Черновик для "+accountName(selectedAccount);$("secondaryDraftInput").value="";$("secondaryDraftAttest").checked=false;updateSecondaryDraftForm();void checkSecondaryDraftStatus();}
+ $("secondaryDraftCard").hidden=selectedAccount==="yan_first"||availableMen.some(m=>m.id===selectedAccount&&m.cabinetReady===true);if(selectedAccount!=="yan_first"&&!$("secondaryDraftCard").hidden){secondaryDraftKind="review";$("secondaryDraftTitle").textContent="Черновик для "+accountName(selectedAccount);$("secondaryDraftInput").value="";$("secondaryDraftAttest").checked=false;updateSecondaryDraftForm();void checkSecondaryDraftStatus();}
  scrollTo(0,0);}
 $("back").onclick=()=>showTab(lastTab);$("subBack").onclick=()=>{if(selected)openDetail(selected);else showTab("profiles");};
 // The step labels mirror the legacy flow; this read-only screen never commits a publication.
@@ -833,7 +834,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     if(data.ok&&data.stage==="loading"){showWaiting("Пожалуйста, подождите немного, затем нажмите кнопку, чтобы увидеть результат.");return;}
     if(checkOnly&&!data.ok&&data.reason==="not_ready"){showWaiting("Проверка продолжается. Пожалуйста, посмотрите результат чуть позже.");return;}
     if(!res.ok||!data.ok){
-      const reasons={not_ready:"Проверка ещё не завершена.",already_published_or_pending:"Оценки уже опубликованы или проверяются.",credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",busy:"⏳ Пожалуйста, подождите. Ваше последнее действие ещё выполняется. Попробуйте повторить немного позже.",lookup_failed:"Не удалось начать проверку списка. Попробуйте позже.",account_not_selected:"Выберите мужчину ещё раз.",not_saved:"Анкета не найдена в сохранённых."};
+      const reasons={not_ready:"Проверка ещё не завершена.",already_published_or_pending:"Оценки уже опубликованы или проверяются.",credits:"Недостаточно кредитов.",daily_limit:"Дневной лимит исчерпан.",busy:"⏳ Пожалуйста, подождите. Ваше последнее действие ещё выполняется. Попробуйте повторить немного позже.",lookup_failed:"Не удалось начать проверку списка. Попробуйте позже.",rating_catalog_not_ready:"Не найден сохранённый перечень услуг анкеты. Требуется однократно обновить его через проверку анкеты.",secondary_cabinet_unverified:"Подключение мужчины изменилось. Обновите статус в ADMIN.",account_not_selected:"Выберите мужчину ещё раз.",not_saved:"Анкета не найдена в сохранённых."};
       throw Error(res.status===403?"Сессия Telegram истекла. Откройте приложение заново.":reasons[data.reason]||"Не удалось открыть оценки. Попробуйте позже.");
     }
     panel.replaceChildren();
@@ -967,6 +968,15 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       if(saved.metElsewhere===true){const extra=document.createElement("p");extra.textContent="☑️ Встречался по другой анкете";details.append(extra);}
       const back=document.createElement("button");back.className="ghost";back.type="button";back.textContent="✏️ Вернуться к выбору";back.onclick=()=>{review.remove();navigation.hidden=false;stepStatus.hidden=false;progress.hidden=false;hint.hidden=false;elsewhere.hidden=false;reset.hidden=true;if(summaries.length)showStep(0);const field=editor.querySelector(".rating-form-entry");if(field){field.scrollIntoView({behavior:"smooth",block:"start"});const control=field.querySelector(".rating-select");if(control){try{control.focus({preventScroll:true});}catch{control.focus();}}}else loadForm.scrollIntoView({behavior:"smooth",block:"start"});};
       back.textContent="✏️ Изменить оценки";
+      if(selectedAccount!=="yan_first"){
+       // Same rating UI and confirmation, isolated draft. Never display a
+       // "publish" action until the separate per-man Chromium runner exists.
+       const note=document.createElement("p");note.className="muted";
+       note.textContent="✓ Оценки для "+accountName(selectedAccount)+
+        " сохранены. Публикация на сайте пока не подключена; кредиты не списаны.";
+       review.append(back,note);editor.append(review);
+       review.scrollIntoView({block:"nearest",behavior:"smooth"});return;
+      }
       const actionStatus=document.createElement("p");actionStatus.setAttribute("aria-live","polite");
       const waitingClock=document.createElement("section");
       waitingClock.className="rating-countdown";waitingClock.hidden=true;
