@@ -16,6 +16,8 @@ import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
 import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
 import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
+import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "./secondary_man_result_settlement.js";
+import {manStorageKey,requirePublicationIdentity} from "./man_account_isolation.js";
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
@@ -477,6 +479,39 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        return {ok:response.status===204};
       }});
   }catch{return {ok:false,status:409,reason:"profile_probe_rejected"};}
+ }
+ // The future runner may send its signed completion here using the existing
+ // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
+ // previously issued single-use ticket. Never honor callback-supplied
+ // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_signed_result"){
+  try{
+   if(!rawEnv.SECONDARY_CALLBACK_HMAC_KEY)return {status:503,body:"Receiver not configured"};
+   const body=JSON.parse(event.body||"null");
+   if(!body||typeof body!=="object"||Array.isArray(body))throw Error("Bad payload");
+   const identity=requirePublicationIdentity(body.identity);
+   if(identity.accountId==="yan_first"||identity.userId!==uid)
+    throw Error("Wrong account or client");
+   const publicationKey=manStorageKey({userId:uid,accountId:identity.accountId,
+    profileId:identity.profileId,scope:"publication"})+":"+identity.kind;
+   const publication=await storage.get(publicationKey);
+   // Only trusted server-owned approvals may authorize storing the result.
+   // Older prepared attempts without these recorded attestations fail closed.
+   if(publication?.independentAuthorConfirmed!==true||
+      (identity.kind==="review"&&publication?.moderatorApproved!==true))
+    throw Error("Publisher consent or moderation missing");
+   const result=await recordTicketedSecondaryResult(storage,{
+    identity,token:body.token,secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,
+    input:body.input,signature:body.signature,at:Date.now(),
+    independentAuthorConfirmed:publication.independentAuthorConfirmed===true,
+    moderatorApproved:identity.kind!=="review"||publication.moderatorApproved===true
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{
+   return {status:409,body:JSON.stringify({ok:false,reason:"untrusted_or_duplicate_result"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }
  }
  if(event.kind==="secondary_profile_probe_payload"||event.kind==="secondary_profile_probe_result"){
   if(uid!==OWNER_ID)return {status:403,body:"Forbidden"};
