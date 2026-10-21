@@ -102,12 +102,12 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
  // A signed proof ID alone is not evidence that the original JPEG was archived.
  // For new secondary publications, never debit credits without reading and
  // validating the exact immutable, account-bound original from private KV.
- let original=null;
+ let originalJpeg=null;
  try{
-  if(env?.VISITORS_KV)original=await readSecondaryOriginalJpeg(
+  if(env?.VISITORS_KV)originalJpeg=await readSecondaryOriginalJpeg(
    env.VISITORS_KV,i,record.proofFileId);
- }catch{original=null;}
- if(original?.mime!=="image/jpeg"||!(original.size>0)){
+ }catch{originalJpeg=null;}
+ if(originalJpeg?.mime!=="image/jpeg"||!(originalJpeg.size>0)){
   await storage.transaction(async tx=>{
    const row=await tx.get(resultKey(i));
    if(row?.status==="settling")await tx.put(resultKey(i),{
