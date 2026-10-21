@@ -714,6 +714,56 @@ async function updateManOwnerApproval(approved){
  }catch(e){toast('Разрешение не изменено: '+e.message);}
  finally{manApprovalBusy=false;render();}
 }
+function renderSecondaryReviewApproval(){
+ if(!selectedManId||selectedManId==="yan_first")return "";
+ const preview=secondaryReviewPreview;
+ return '<details class="card" style="margin-top:12px"><summary style="cursor:pointer;color:var(--gold)">✍️ Согласовать отзыв</summary>'+
+ '<p class="hint">Подтвердите точный авторский текст для выбранного мужчины и анкеты. Согласование не публикует отзыв и не списывает кредиты.</p>'+
+ '<label for="secondaryReviewClientId">Telegram ID клиентки</label>'+
+ '<input class="field" id="secondaryReviewClientId" inputmode="numeric" maxlength="16" placeholder="ID клиентки" value="'+esc(secondaryReviewClientId)+'">'+
+ '<label for="secondaryReviewProfileId">Номер анкеты</label>'+
+ '<input class="field" id="secondaryReviewProfileId" inputmode="numeric" maxlength="9" placeholder="Например 690230" value="'+esc(secondaryReviewProfileId)+'">'+
+ '<button class="secondary" type="button" onclick="previewSecondaryManReview()" '+(secondaryReviewBusy?'disabled':'')+'>Проверить текст →</button>'+
+ (secondaryReviewError?'<p class="hint" role="alert">'+esc(secondaryReviewError)+'</p>':'')+
+ (preview&&preview.accountId===selectedManId?
+  '<div style="white-space:pre-wrap;overflow-wrap:anywhere;padding:13px;border:1px solid var(--line);border-radius:10px;margin-top:10px">'+esc(preview.text)+'</div>'+
+  '<p class="hint">Версия '+preview.draftVersion+' · анкета №'+esc(preview.profileId)+'</p>'+
+  '<button class="primary" type="button" onclick="approveSecondaryManReview()" '+(secondaryReviewBusy?'disabled':'')+'>✅ Согласовать именно этот текст</button>':'')+
+ '</details>';
+}
+let secondaryReviewPreview=null,secondaryReviewBusy=false,
+ secondaryReviewError="",secondaryReviewClientId="",secondaryReviewProfileId="";
+async function previewSecondaryManReview(){
+ const userId=document.getElementById("secondaryReviewClientId")?.value.trim();
+ const profileId=document.getElementById("secondaryReviewProfileId")?.value.trim();
+ secondaryReviewPreview=null;secondaryReviewError="";
+ if(!/^\d{5,16}$/.test(userId||"")||!/^\d{1,9}$/.test(profileId||"")){
+  secondaryReviewError="Введите действительные ID клиентки и номер анкеты.";render();return;
+ }
+ secondaryReviewClientId=userId;secondaryReviewProfileId=profileId;
+ const man=selectedManId;secondaryReviewBusy=true;
+ try{
+  const data=await callAdmin("secondary_review_preview",{userId,accountId:man,profileId});
+  if(selectedManId===man)secondaryReviewPreview=data;
+ }catch(e){secondaryReviewError="Не удалось прочитать сохранённый отзыв: "+e.message;}
+ finally{secondaryReviewBusy=false;render();}
+}
+async function approveSecondaryManReview(){
+ const p=secondaryReviewPreview;
+ if(!p||selectedManId!==p.accountId||secondaryReviewBusy)return;
+ if(!confirm("Вы подтверждаете точный текст, автора "+p.accountId+" и анкету №"+p.profileId+"?"))return;
+ secondaryReviewBusy=true;secondaryReviewError="";
+ try{
+  await callAdmin("secondary_review_approve",{
+   userId:secondaryReviewClientId,accountId:p.accountId,profileId:p.profileId,
+   draftVersion:p.draftVersion,expectedTextSha256:p.approvedTextSha256,confirmExactText:true
+  });
+  secondaryReviewPreview=null;
+  toast("✓ Отзыв согласован. Клиентке доступна кнопка публикации.");
+ }catch(e){secondaryReviewError="Согласование не выполнено: "+e.message;}
+ finally{secondaryReviewBusy=false;render();}
+}
+
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
@@ -787,7 +837,7 @@ function renderManConsole(){
  '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
  '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
- renderSecondaryRatingReadiness(x)+
+ renderSecondaryRatingReadiness(x)+renderSecondaryReviewApproval()+
  '<details class="man-step-details" style="margin-top:14px"><summary>Техническая диагностика · только ADMIN</summary>'+ 
  renderSecondaryOperationDiagnostic(x)+
  '<p class="hint">Поиск анкет и проверку клиентского маршрута выполняем в кабинете клиентки. Публикации пока заблокированы.</p></details>'+ 
