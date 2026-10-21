@@ -789,6 +789,13 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
                         print("PUBLISH: submit control unavailable",flush=True)
                         return {"profile":profile,"catalog":[],"publication":publication}
                     if secondary_rating_selections is not None:
+                        # A pre-existing rating for this account/profile cannot
+                        # be presented as evidence of this newly submitted form.
+                        # This independent read-only check happens before POST.
+                        before=capture_verified_proof(ctx,pid)
+                        if before is not None:
+                            print("RATING_PREFLIGHT: existing checked-list rating",flush=True)
+                            return {"profile":profile,"catalog":[],"publication":publication}
                         if not callable(secondary_rating_boundary):
                             raise RuntimeError("Missing trusted rating submit boundary")
                         secondary_rating_boundary("rating_submit_boundary")
@@ -817,7 +824,13 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
                         try:
                             # The authenticated checked-list is independent of the
                             # form's HTTP response. No second POST is ever sent.
-                            verified=capture_verified_proof(ctx,pid)
+                            verified=None
+                            for proof_attempt in range(3):
+                                verified=capture_verified_proof(ctx,pid)
+                                if verified:
+                                    break
+                                if proof_attempt<2:
+                                    profile_page.wait_for_timeout(3500)
                             if verified and verified.get("image") and verified.get("mime")=="image/jpeg":
                                 verified["account"]=os.environ.get("SECONDARY_RATING_ACCOUNT_ID","")
                                 publication["confirmed"]=True
