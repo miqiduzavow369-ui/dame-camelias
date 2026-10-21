@@ -33,6 +33,8 @@ import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_r
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {launchApprovedSecondaryRating} from "./secondary_man_rating_launch.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -585,6 +587,32 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
  // previously issued single-use ticket. Never honor callback-supplied
  // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_rating_runner_payload"){
+  try{
+   const q=new URL(event.url).searchParams;
+   const identity={userId:uid,accountId:q.get("account_id"),
+    profileId:q.get("profile_id"),kind:"rating",nonce:q.get("nonce")};
+   if(q.get("user_id")!==uid)throw Error("Client mismatch");
+   const data=await claimSecondaryRatingRunnerPayload(storage,rawEnv,{
+    identity,token:q.get("callback_ticket"),at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(data),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"rating_runner_grant_unavailable"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
+ if(event.kind==="secondary_man_rating_submit_boundary"){
+  try{
+   const b=JSON.parse(event.body||"null"),identity=requirePublicationIdentity(b?.identity);
+   if(identity.userId!==uid||identity.kind!=="rating")throw Error("Rating mismatch");
+   const result=await recordSecondaryRatingSubmitBoundary(storage,{
+    identity,token:b.token,approvedSelectionsSha256:b.approvedSelectionsSha256,at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"rating_submit_boundary_rejected"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
  if(event.kind==="secondary_man_review_runner_payload"){
   try{
    const q=new URL(event.url).searchParams;
@@ -643,7 +671,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    });
    // Verified immutable original proof is required by the settlement adapter.
    // Ambiguous financial outcomes remain locked; site submission is never retried.
-   if(result?.status==="proof_saved"&&identity.kind==="review"){
+   if(result?.status==="proof_saved"&&(identity.kind==="review"||identity.kind==="rating")){
     const settled=await settleSecondaryVerifiedResult(storage,rawEnv,{
      original:identity,callback:identity
     });
@@ -1018,7 +1046,49 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))
     return {ok:false,status:403};
-   if(event.action!=="status")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
+   if(!["prepare","publish","status"].includes(event.action))
+    return {ok:false,status:400,reason:"invalid_rating_action"};
+   try{
+    const accountId=String(event.accountId),profileId=String(event.profileId||"");
+    if((await manVisibility(storage,accountId)).visible!==true)
+     return {ok:false,status:403,reason:"man_hidden_from_clients"};
+    const saved=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
+    if(saved?.confirmed!==true||String(saved.profile?.id)!==profileId)
+     return {ok:false,status:403,reason:"profile_not_saved"};
+    const base=manStorageKey({userId:uid,accountId,profileId,scope:"publication"})+":rating";
+    const row=await storage.get(base);
+    const draft=await storage.get(manStorageKey({
+     userId:uid,accountId,profileId,scope:"rating-draft"})+":rating");
+    if(event.action==="prepare"){
+     if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
+     if(draft?.accountId!==accountId||draft.userId!==uid||
+        draft.profileId!==profileId||!Object.keys(draft.selected||{}).length)
+      return {ok:false,status:409,reason:"not_ready"};
+     return {ok:true,stage:"ready",publicationAvailable:true};
+    }
+    if(event.action==="publish"){
+     if(event.confirmed!==true||rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")
+      return {ok:false,status:409,reason:"explicit_rating_confirmation_required"};
+     if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
+     const identity={userId:uid,accountId,profileId,kind:"rating",
+      nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)};
+     const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
+      identity,at:Date.now()
+     });
+     return launched.ok?{ok:true,stage:"publishing",nonce:identity.nonce}:
+      {ok:false,status:409,reason:launched.status};
+    }
+    if(!row)return {ok:true,stage:draft?"draft":"draft"};
+    const s=await secondaryPublicationOperationalStatus(storage,row.identity,{
+     proofKv:rawEnv.VISITORS_KV
+    });
+    return {ok:true,stage:s.published?"published":
+     s.requiresManualReconciliation?"unknown":
+     row.status==="attempted"?"checking":
+     row.status==="prepared"?"preparing":"unknown",
+     nonce:row.identity.nonce};
+   }catch{return {ok:false,status:409,reason:"secondary_rating_operation_unavailable"};}
+
    if(!/^[a-f0-9]{12}$/.test(String(event.nonce||"")))
     return {ok:false,status:400,reason:"invalid_operation_nonce"};
    try{
