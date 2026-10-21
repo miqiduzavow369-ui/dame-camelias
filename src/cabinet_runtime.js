@@ -37,6 +37,7 @@ import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} f
 import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
 import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryRatingDryfill,completeSecondaryRatingDryfill,requireFreshSecondaryRatingDryfill} from "./secondary_man_rating_dryfill.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
+import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
 async function secondaryRatingCabinetConnected(storage,accountId){
@@ -1064,8 +1065,35 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     text:event.text,ratings:event.ratings,
     profileOwned,authorAttested:event.authorAttested===true
    });
+   if(result.ok&&event.draftKind==="review"&&event.action==="save"){
+    const delivered=await ensureSecondaryReviewGroupNotice(storage,rawEnv,{
+     userId:uid,accountId:event.accountId,profileId,kind:"review"
+    });
+    return {...result,moderationNotification:delivered.ok?"delivered_or_existing":"delivery_uncertain"};
+   }
    return result;
   }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
+ }
+ if(event.kind==="admin_secondary_review_group_approve"){
+  if(uid===OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
+   const i={userId:uid,accountId,profileId,kind:"review"};
+   if(!await verifySecondaryReviewGroupDecision(storage,i,{
+    version:event.draftVersion,messageId:event.messageId
+   }))return {ok:false,status:409,reason:"outdated_moderation_card"};
+   const draft=await storage.get(manStorageKey({
+    userId:uid,accountId,profileId,scope:"review-draft"
+   })+":review");
+   if(draft?.version!==event.draftVersion||draft?.authorAttested!==true)
+    return {ok:false,status:409,reason:"review_changed"};
+   const sha=Array.from(new Uint8Array(await crypto.subtle.digest(
+    "SHA-256",new TextEncoder().encode(draft.text))),v=>v.toString(16).padStart(2,"0")).join("");
+   return await approveSecondaryReviewForSubmission(storage,{
+    identity:{...i,nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)},
+    draftVersion:draft.version,expectedTextSha256:sha,moderatorApproved:true,at:Date.now()
+   });
+  }catch{return {ok:false,status:409,reason:"review_group_approval_unavailable"};}
  }
  if(event.kind==="admin_secondary_review_preview"||event.kind==="admin_secondary_review_approve"){
   // Constructed only by owner-authenticated admin Mini App API.
@@ -1130,6 +1158,10 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(event.action==="status"){
      const draft=await storage.get(manStorageKey({
       userId:uid,accountId,profileId,scope:"review-draft"})+":review");
+     if(draft?.authorAttested===true&&approval?.approved!==true)
+      await ensureSecondaryReviewGroupNotice(storage,rawEnv,{
+       userId:uid,accountId,profileId,kind:"review"
+      }).catch(()=>null);
      if(approval?.approved!==true||approval.identity?.userId!==uid||
         approval.identity?.accountId!==accountId||
         approval.identity?.profileId!==profileId)
