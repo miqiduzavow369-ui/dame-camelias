@@ -20,6 +20,7 @@ async function openVault(secret,row,aad){
 }
 function publicationKey(i){return manStorageKey({...i,scope:"publication"})+":"+i.kind;}
 function draftKey(i){return manStorageKey({...i,scope:"review-draft"})+":review";}
+function ratingDraftKey(i){return manStorageKey({...i,scope:"rating-draft"})+":rating";}
 function creditKey(i){return manStorageKey({...i,scope:"operation"})+":"+i.kind+":"+i.nonce+":ledger";}
 function ticketKey(i){return manStorageKey({...i,scope:"callback"})+":"+i.kind+":"+i.nonce;}
 function grantKey(i){return manStorageKey({...i,scope:"operation"})+":"+i.kind+":"+i.nonce+":runner-grant";}
@@ -115,5 +116,103 @@ export async function recordSecondaryReviewSubmitBoundary(storage,{
     throw Error("Review boundary already used or mismatched");
   await tx.put(grantKey(i),{...claimed,status:"submit_boundary",boundaryAt:at});
   return {ok:true,accountId:i.accountId,stage:"review_submit_boundary"};
+ });
+}
+
+/** Private, one-shot rating grant, never returned to Mini App. */
+export async function claimSecondaryRatingRunnerPayload(storage,env,{identity,token,at}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||i.kind!=="rating"||
+  typeof token!=="string"||!/^[a-f0-9]{32}$/.test(token)||
+  !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function")
+  throw Error("Invalid secondary rating grant");
+ const found=await storage.transaction(async tx=>{
+  const [publication,credit,ticket,draft,proxy,site,approval,observed,old]=await Promise.all([
+   tx.get(publicationKey(i)),tx.get(creditKey(i)),tx.get(ticketKey(i)),
+   tx.get(ratingDraftKey(i)),tx.get("man-proxy-sealed-v1:"+i.accountId),
+   tx.get("man-intimcity-sealed-v1:"+i.accountId),tx.get("man-owner-approval-v1:"+i.accountId),
+   tx.get("secondary-site-identity-v1:"+i.accountId),tx.get(grantKey(i))
+  ]);
+  if(old||publication?.status!=="attempted"||publication.attempted!==true||
+   !verifyAccountCallback(publication.identity,i)||
+   publication.independentAuthorConfirmed!==true||
+   credit?.status!=="reserved"||credit.accountId!==i.accountId||
+   credit.userId!==i.userId||credit.profileId!==i.profileId||
+   credit.kind!=="rating"||credit.nonce!==i.nonce||
+   ticket?.status!=="issued"||ticket.token!==token||
+   ticket.issuedAt>at||ticket.expiresAt<at||
+   !verifyAccountCallback(ticket.identity,i)||
+   proxy?.accountId!==i.accountId||proxy.proxyVerified!==true||
+   proxy.ipVerified!==true||site?.accountId!==i.accountId||
+   site.boundProxyVersion!==proxy.version||
+   publication.proxyVersion!==proxy.version||publication.siteVersion!==site.version||
+   ticket.proxyVersion!==proxy.version||ticket.siteVersion!==site.version||
+   observed?.accountId!==i.accountId||observed.proxyVersion!==proxy.version||
+   observed.siteVersion!==site.version||typeof observed.siteAccountId!=="string"||
+   !approvalMatchesConfiguration(approval,i.accountId,proxy.version,site.version)||
+   draft?.userId!==i.userId||draft.accountId!==i.accountId||
+   draft.profileId!==i.profileId||draft.kind!=="rating"||
+   !Number.isSafeInteger(draft.version)||draft.version<1||
+   !draft.selected||typeof draft.selected!=="object"||
+   !Array.isArray(draft.catalogSignature?JSON.parse(draft.catalogSignature):null)||
+   typeof draft.metElsewhere!=="boolean"||
+   !Array.isArray(publication.ratingSelections)||publication.ratingSelections.length<1||
+   publication.ratingDraftVersion!==draft.version)
+    throw Error("Rating grant lacks server-pinned authorization");
+  const payload=Object.freeze({
+   metElsewhere:draft.metElsewhere,
+   selections:publication.ratingSelections
+  });
+  const signature=JSON.stringify(payload);
+  const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(signature))),
+   b=>b.toString(16).padStart(2,"0")).join("");
+  if(digest!==publication.ratingSelectionsSha256)
+   throw Error("Stored rating selections changed");
+  await tx.put(grantKey(i),{identity:i,at,status:"claimed",approvedTextSha256:digest});
+  return {proxy,site,observed,payload,digest};
+ });
+ const [p,s]=await Promise.all([
+  openVault(env?.MAN_PROXY_ENCRYPTION_KEY,found.proxy,i.accountId),
+  openVault(env?.MAN_SITE_ENCRYPTION_KEY,found.site,i.accountId+":intimcity:"+found.proxy.version)
+ ]);
+ if(p.protocol!=="http"||!PORT(p.port)||p.expectedIp!==found.proxy.expectedIp||
+    s.siteUrl!==found.site.siteUrl||
+    String(s.login).toLowerCase()!==String(found.observed.siteAccountId).toLowerCase()||
+    typeof p.host!=="string"||typeof p.username!=="string"||
+    typeof p.password!=="string"||typeof s.password!=="string")
+  throw Error("Unsealed rating credentials mismatched");
+ return {ok:true,mode:"publish",kind:"rating",status:"attempted",
+  accountId:i.accountId,userId:i.userId,profileId:i.profileId,nonce:i.nonce,
+  oneUseClaimConsumed:true,ownerOperationConfirmed:true,
+  independentAuthorConfirmed:true,creditReserved:true,siteIdentityVerified:true,
+  callbackTicket:token,approvedSelectionsSha256:found.digest,
+  selections:found.payload,proxyHost:p.host,proxyPort:p.port,
+  proxyUsername:p.username,proxyPassword:p.password,expectedIp:p.expectedIp,
+  proxyVersion:found.proxy.version,siteVersion:found.site.version,siteUrl:s.siteUrl,
+  siteLogin:s.login,verifiedSiteLogin:found.observed.siteAccountId,sitePassword:s.password};
+}
+export async function recordSecondaryRatingSubmitBoundary(storage,{
+ identity,token,approvedSelectionsSha256,at
+}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||i.kind!=="rating"||
+  !/^[a-f0-9]{32}$/.test(token||"")||
+  !/^[a-f0-9]{64}$/.test(approvedSelectionsSha256||"")||
+  !Number.isSafeInteger(at)||typeof storage?.transaction!=="function")
+  throw Error("Invalid rating submit boundary");
+ return storage.transaction(async tx=>{
+  const [grant,publication,ticket]=await Promise.all([
+   tx.get(grantKey(i)),tx.get(publicationKey(i)),tx.get(ticketKey(i))
+  ]);
+  if(grant?.status!=="claimed"||!verifyAccountCallback(grant.identity,i)||
+   grant.approvedTextSha256!==approvedSelectionsSha256||
+   publication?.status!=="attempted"||publication.attempted!==true||
+   !verifyAccountCallback(publication.identity,i)||
+   ticket?.status!=="issued"||ticket.token!==token||
+   ticket.issuedAt>at||ticket.expiresAt<at||
+   !verifyAccountCallback(ticket.identity,i))
+    throw Error("Rating submit boundary already consumed");
+  await tx.put(grantKey(i),{...grant,status:"submit_boundary",boundaryAt:at});
+  return {ok:true,stage:"rating_submit_boundary"};
  });
 }
