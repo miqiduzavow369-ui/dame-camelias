@@ -556,6 +556,47 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // Restore the record only if the SAME verified login already completed
    // for this exact account, proxy and site versions. No browser posting.
    await restoreVerifiedSiteIdentity(storage,rawEnv,accountId,OWNER_ID).catch(()=>null);
+   // A previously authenticated technical login can have no verified identity.
+   // Re-run the EXISTING personal Chromium login probe, never the rating submit.
+   // Owner-side only; no client credentials, draft changes, or credit mutations.
+   if(event.kind==="secondary_publication_account_snapshot"){
+    const verified=await storage.get("secondary-site-identity-v1:"+accountId);
+    const site=await storage.get("man-intimcity-sealed-v1:"+accountId);
+    const proxy=await storage.get("man-proxy-sealed-v1:"+accountId);
+    const matched=verified?.accountId===accountId&&
+     verified.proxyVersion===proxy?.version&&
+     verified.siteVersion===site?.version&&verified.siteAccountId;
+    if(!matched&&site&&proxy&&rawEnv.DC_ACTIONS_TOKEN&&
+       rawEnv.ANKETA_CALLBACK_TOKEN&&rawEnv.ANKETA_CALLBACK_URL){
+     const stamp="secondary-identity-recheck-v1:"+accountId;
+     const now=Date.now(),prev=await storage.get(stamp);
+     if(!prev||prev.siteVersion!==site.version||
+        prev.proxyVersion!==proxy.version||now-prev.at>15*60*1000){
+      const params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,
+       accountId,expectedVersion:site.version,at:now};
+      try{
+       await startSiteLoginCheck(storage,rawEnv,params,
+        async ({accountId,nonce,siteHost})=>{
+         const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/man-site-login-preflight.yml/dispatches",{
+          method:"POST",headers:{
+           Authorization:"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+           Accept:"application/vnd.github+json",
+           "Content-Type":"application/json","User-Agent":"dame-camelias-worker"
+          },
+          body:JSON.stringify({ref:"main",inputs:{
+           account_id:accountId,nonce,site_host:siteHost
+          }}),signal:AbortSignal.timeout(15000)
+         });
+         return {ok:response.status===204,reason:"github_dispatch_rejected"};
+        });
+       await storage.put(stamp,{at:now,proxyVersion:proxy.version,
+        siteVersion:site.version});
+      }catch{
+       // A running or invalid login check must never authorize publication.
+      }
+     }
+    }
+   }
    const [proxy,site,approval,verified]=await Promise.all([
     storage.get("man-proxy-sealed-v1:"+accountId),
     storage.get("man-intimcity-sealed-v1:"+accountId),
