@@ -62,7 +62,8 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
      draft.authorAttested!==true||typeof draft.text!=="string"||
      draft.text!==draft.text.trim()||draft.text.length<10||draft.text.length>3000)
    throw Error("Unverified secondary review runner preflight");
-  await tx.put(grantKey(i),{identity:i,at,status:"claimed"});
+  const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(draft.text))),b=>b.toString(16).padStart(2,"0")).join("");
+  await tx.put(grantKey(i),{identity:i,at,status:"claimed",approvedTextSha256:digest});
   return {draft,proxy,site,observed};
  });
  const {draft,proxy,site,observed}=records;
@@ -87,4 +88,32 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
   proxyUsername:p.username,proxyPassword:p.password,expectedIp:p.expectedIp,
   proxyVersion:proxy.version,siteVersion:site.version,siteUrl:s.siteUrl,
   siteLogin:s.login,verifiedSiteLogin:observed.siteAccountId,sitePassword:s.password};
+}
+
+/** Record the submit boundary once, before any site click, for this exact text. */
+export async function recordSecondaryReviewSubmitBoundary(storage,{
+ identity,token,approvedTextSha256,at
+}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||i.kind!=="review"||
+    !/^[a-f0-9]{32}$/.test(token||"")||
+    !/^[a-f0-9]{64}$/.test(approvedTextSha256||"")||
+    !Number.isSafeInteger(at)||typeof storage?.transaction!=="function")
+  throw Error("Invalid review boundary");
+ return storage.transaction(async tx=>{
+  const [claimed,publication,ticket]=await Promise.all([
+   tx.get(grantKey(i)),tx.get(publicationKey(i)),tx.get(ticketKey(i))
+  ]);
+  if(claimed?.status!=="claimed"||
+     !verifyAccountCallback(claimed.identity,i)||
+     claimed.approvedTextSha256!==approvedTextSha256||
+     ticket?.status!=="issued"||ticket.token!==token||
+     !verifyAccountCallback(ticket.identity,i)||
+     ticket.expiresAt<at||ticket.issuedAt>at||
+     publication?.status!=="attempted"||publication.attempted!==true||
+     !verifyAccountCallback(publication.identity,i))
+    throw Error("Review boundary already used or mismatched");
+  await tx.put(grantKey(i),{...claimed,status:"submit_boundary",boundaryAt:at});
+  return {ok:true,accountId:i.accountId,stage:"review_submit_boundary"};
+ });
 }
