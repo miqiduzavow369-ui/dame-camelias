@@ -658,6 +658,21 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const identity={userId:uid,accountId:q.get("account_id"),
     profileId:q.get("profile_id"),kind:"review",nonce:q.get("nonce")};
    if(!q.get("user_id")||q.get("user_id")!==uid)throw Error("User mismatch");
+   // Every secondary author uses the same owner-held account configuration.
+   // A client's cached encrypted copy is only valid while the owner still
+   // approves these exact proxy/site versions.
+   if(uid!==OWNER_ID){
+    const accountId=String(identity.accountId);
+    const [proxy,site]=await Promise.all([
+     storage.get("man-proxy-sealed-v1:"+accountId),
+     storage.get("man-intimcity-sealed-v1:"+accountId)
+    ]);
+    const status=await cabinetRPC(rawEnv,OWNER_ID,{
+     kind:"secondary_publication_account_version_check",accountId,
+     proxyVersion:proxy?.version,siteVersion:site?.version
+    });
+    if(status?.ok!==true)throw Error("Account owner withdrew or changed approval");
+   }
    const payload=await claimSecondaryReviewRunnerPayload(storage,rawEnv,{
     identity,token:q.get("callback_ticket"),at:Date.now()
    });
@@ -1055,6 +1070,24 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     if(approval?.approved!==true||approval.identity?.userId!==uid||
        approval.identity?.accountId!==accountId||approval.identity?.profileId!==profileId)
      throw Error("Moderation missing");
+    // Same sealed per-man account synchronization as secondary ratings.
+    // Never share one man's plaintext login, proxy or authenticated session
+    // with another man. Each client stores only ciphertext bound to accountId.
+    if(uid!==OWNER_ID){
+     const config=await cabinetRPC(rawEnv,OWNER_ID,{
+      kind:"secondary_publication_account_snapshot",accountId});
+     if(config?.ok!==true)
+      return {ok:false,status:409,reason:"secondary_owner_account_not_ready"};
+     await storage.transaction(async tx=>{
+      const pubKey=manStorageKey({userId:uid,accountId,profileId,
+       scope:"publication"})+":review";
+      if(await tx.get(pubKey))throw Error("Review already attempted");
+      await tx.put("man-proxy-sealed-v1:"+accountId,config.proxy);
+      await tx.put("man-intimcity-sealed-v1:"+accountId,config.site);
+      await tx.put("man-owner-approval-v1:"+accountId,config.approval);
+      await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
+     });
+    }
     return await launchApprovedSecondaryReview(storage,rawEnv,{
      identity:approval.identity,ownerConfirmed:true,at:Date.now()
     });
