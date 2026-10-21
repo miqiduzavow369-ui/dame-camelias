@@ -12,11 +12,15 @@ async function digest(value){
  const bytes=await crypto.subtle.digest("SHA-256",encoder.encode(value));
  return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("");
 }
-export async function launchApprovedSecondaryRating(storage,env,{identity,at,dispatch=null}={}){
+/** The SAME exact validation is used by read-only prepare and live launch.
+ * Returns only server-private records; never send proxy/site records to the UI.
+ * No credit reservations, dispatch, or site requests occur here.
+ */
+export async function preflightSecondaryRating(storage,env,{identity}={}){
  const i=createAccountOperation(identity);
- if(i.accountId==="yan_first"||i.kind!=="rating"||
-  !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function"||
-  !env?.DC_ACTIONS_TOKEN||!env?.ANKETA_CALLBACK_TOKEN||
+ if(i.accountId==="yan_first"||i.kind!=="rating")
+  throw Error("Legacy rating route immutable");
+ if(!env?.DC_ACTIONS_TOKEN||!env?.ANKETA_CALLBACK_TOKEN||
   !env?.SECONDARY_CALLBACK_HMAC_KEY||!env?.MAN_PROXY_ENCRYPTION_KEY||
   !env?.MAN_SITE_ENCRYPTION_KEY||!env?.VISITORS_KV||!env?.ORDER_REMINDERS)
   throw Error("Secondary rating publishing unavailable");
@@ -70,6 +74,18 @@ export async function launchApprovedSecondaryRating(storage,env,{identity,at,dis
   throw Error("Incomplete rating selections");
  const payload={metElsewhere:draft.metElsewhere,selections};
  const fingerprint=await digest(JSON.stringify(payload));
+ return {draft,proxy,site,approval,verified,selections,fingerprint};
+}
+export async function launchApprovedSecondaryRating(storage,env,{identity,at,dispatch=null}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||i.kind!=="rating"||
+  !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function"||
+  !env?.DC_ACTIONS_TOKEN||!env?.ANKETA_CALLBACK_TOKEN||
+  !env?.SECONDARY_CALLBACK_HMAC_KEY||!env?.MAN_PROXY_ENCRYPTION_KEY||
+  !env?.MAN_SITE_ENCRYPTION_KEY||!env?.VISITORS_KV||!env?.ORDER_REMINDERS)
+  throw Error("Secondary rating publishing unavailable");
+ const {draft,proxy,site,approval,selections,fingerprint}=
+  await preflightSecondaryRating(storage,env,{identity:i});
  const reserved=await reserveSecondaryFeedbackCredit(storage,env,i,{
   independentAuthorConfirmed:true,moderatorApproved:true
  });
