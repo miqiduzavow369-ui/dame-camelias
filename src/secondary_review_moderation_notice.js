@@ -4,7 +4,8 @@ import {MODERATION_CHAT,MODERATOR_ID,moderationTelegram} from "./review_moderati
 import {manStorageKey} from "./man_account_isolation.js";
 const esc=x=>String(x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function escLimited(x,max){let out="";for(const ch of String(x)){const bit=esc(ch);if(out.length+bit.length>max-1)return out+"…";out+=bit;}return out;}
-const key=i=>manStorageKey({...i,scope:"moderation"})+":review-notification";
+export const secondaryReviewNoticeKey=i=>manStorageKey({...i,scope:"moderation"})+":review-notification";
+const key=secondaryReviewNoticeKey;
 export function moderationCallback(i,version,action="approve"){
  return ["srmod",action,i.userId,i.accountId,i.profileId,String(version)].join(":");
 }
@@ -26,7 +27,7 @@ export async function ensureSecondaryReviewGroupNotice(storage,env,i){
  const id=key(i),at=Date.now();
  const claim=await storage.transaction(async tx=>{
   const prev=await tx.get(id);
-  if(prev?.version===draft.version&&["sending","delivered","uncertain"].includes(prev.status))
+  if(prev?.version===draft.version&&["sending","delivered","uncertain","editing","approved","cancelled","corrected"].includes(prev.status))
    return false;
   await tx.put(id,{version:draft.version,status:"sending",at});
   return true;
