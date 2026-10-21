@@ -1202,8 +1202,27 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      // NEVER log proxy, site credentials, selected ratings or full error text.
      userScope:"per_client"
     });
-    // After reaching launch, the reserve or external dispatch may have happened.
-    // Never advise retry; an authenticated status/read-only audit is required.
+    // Distinguish a failed pre-reservation validation from an ambiguous
+    // reservation/dispatch. Never clear claims or initiate a retry here.
+    if(failureStage==="launch"){
+     try{
+      const operationPrefix=manStorageKey({
+       userId:uid,accountId:String(event.accountId),
+       profileId:String(event.profileId||""),scope:"operation"})+":rating:";
+      const publicationKey=manStorageKey({
+       userId:uid,accountId:String(event.accountId),
+       profileId:String(event.profileId||""),scope:"publication"})+":rating";
+      const operationClaims=typeof storage.list==="function"?
+       await storage.list({prefix:operationPrefix}):null;
+      const publication=await storage.get(publicationKey);
+      if(operationClaims&&operationClaims.size===0&&!publication)
+       return {ok:false,status:409,reason:"secondary_rating_preflight_failed"};
+     }catch{
+      // Failed reconciliation check: retain the conservative result.
+     }
+    }
+    // Any credit claim or publication record may represent an external side
+    // effect. Do not advise retry without a separate verified reconciliation.
     return {ok:false,status:409,reason:
      failureStage==="launch"?"secondary_rating_reconciliation_required":
      failureStage==="owner_snapshot"||failureStage==="owner_preflight"?
