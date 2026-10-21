@@ -32,7 +32,20 @@ export async function ensureSecondaryReviewGroupNotice(storage,env,i){
   await tx.put(id,{version:draft.version,status:"sending",at});
   return true;
  });
- if(!claim)return {ok:true,already:true};
+ if(!claim){
+  const prior=await storage.get(id);
+  if(prior?.status==="delivered"&&prior.version===draft.version&&
+     Number.isSafeInteger(prior.messageId)&&!prior.controlsUpdated){
+   try{
+    await moderationTelegram(env,"editMessageReplyMarkup",{
+     chat_id:MODERATION_CHAT,message_id:prior.messageId,
+     reply_markup:secondaryModerationButtons(i,draft.version)
+    });
+    await storage.put(id,{...prior,controlsUpdated:true});
+   }catch{return {ok:false,reason:"secondary_review_controls_update_unavailable"};}
+  }
+  return {ok:true,already:true};
+ }
  try{
   if(!env.BOT_TOKEN)throw Error("Telegram token missing");
   const text=["🌹 <b>DAME CAMELIAS</b>","━━━━━━━━━━━━━━━━",
@@ -50,7 +63,7 @@ export async function ensureSecondaryReviewGroupNotice(storage,env,i){
   await storage.transaction(async tx=>{
    const state=await tx.get(id);
    if(state?.version===draft.version&&state.status==="sending")
-    await tx.put(id,{...state,status:"delivered",messageId:result.message_id,deliveredAt:Date.now()});
+    await tx.put(id,{...state,status:"delivered",messageId:result.message_id,deliveredAt:Date.now(),controlsUpdated:true});
   });
   return {ok:true,notified:true};
  }catch{
