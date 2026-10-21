@@ -1,5 +1,6 @@
 import {handleAgreement,agreementStatus,agreementRPC} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
+import {handleSecondaryReviewGroupCallback} from "./secondary_review_moderation_notice.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
@@ -416,6 +417,7 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  if(await handleSecondaryReviewGroupCallback(update,env,cabinetRPC))return;
   if(await handleModeration(update,env))return;
   const agreement=await handleAgreement(update,env);
   if(agreement?.handled){
