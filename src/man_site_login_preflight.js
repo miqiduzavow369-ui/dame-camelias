@@ -2,6 +2,7 @@
 // A submitted login is NOT proof of account identity or publication permission.
 import {requireManId} from "./man_account_isolation.js";
 import {browserCheckStatus} from "./man_browser_preflight.js";
+import {approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 const PREFIX="man-site-login-check-v1:", PROXY="man-proxy-sealed-v1:", SITE="man-intimcity-sealed-v1:";
 const EXPIRY=15*60*1000, RESTART_AFTER=90*1000, te=new TextEncoder();
 function account(id){requireManId(id);if(id==="yan_first")throw Error("Legacy account immutable");}
@@ -144,4 +145,49 @@ export async function expectedVerifiedSiteAccountId(storage,env,accountId){
   throw Error("Expected account identity missing");
  return {expectedSiteAccountId:decrypted.login,
   proxyVersion:proxy.version,siteVersion:site.version};
+}
+
+/**
+ * Repair the private identity record from an ALREADY COMPLETED authenticated
+ * account-page verification. Never manufacture identity from mere credentials.
+ * Does not contact Intimcity, touch ratings, publish, or reserve credits.
+ */
+export async function restoreVerifiedSiteIdentity(storage,env,accountId){
+ account(accountId);
+ if(typeof storage?.transaction!=="function")throw Error("Atomic storage unavailable");
+ const params={actorId:env?.OWNER_ID||"5866034656",
+  cabinetId:env?.OWNER_ID||"5866034656",ownerId:env?.OWNER_ID||"5866034656",accountId};
+ // A completed browser preflight must match the current proxy version.
+ const browser=await browserCheckStatus(storage,params);
+ return storage.transaction(async tx=>{
+  const [run,site,proxy,approval,previous]=await Promise.all([
+   tx.get(PREFIX+accountId),tx.get(SITE+accountId),tx.get(PROXY+accountId),
+   tx.get("man-owner-approval-v1:"+accountId),
+   tx.get("secondary-site-identity-v1:"+accountId)
+  ]);
+  if(previous?.accountId===accountId&&previous.proxyVersion===proxy?.version&&
+     previous.siteVersion===site?.version&&previous.siteAccountId)
+   return {ok:true,restored:false,verified:true};
+  if(run?.status!=="completed"||run.code!=="login_authenticated_identity_verified"||
+     run.accountId!==accountId||run.proxyVersion!==proxy?.version||
+     run.siteVersion!==site?.version||run.claimed!==true||
+     !Number.isSafeInteger(run.finishedAt)||run.finishedAt<run.startedAt||
+     site?.accountId!==accountId||proxy?.accountId!==accountId||
+     site.boundProxyVersion!==proxy.version||proxy.proxyVerified!==true||
+     proxy.ipVerified!==true||browser.status!=="verified"||
+     browser.version!==proxy.version||browser.ipVerified!==true||
+     browser.siteReachable!==true||
+     !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version))
+   return {ok:false,restored:false,verified:false,reason:"fresh_site_login_check_required"};
+  const saved=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
+   accountId+":intimcity:"+proxy.version);
+  const siteAccountId=String(saved.login||"").trim().toLowerCase();
+  if(!/^[a-z0-9][a-z0-9_.+-]{0,63}@[a-z0-9.-]{1,120}\.[a-z]{2,24}$/.test(siteAccountId))
+   throw Error("Trusted login identity unavailable");
+  await tx.put("secondary-site-identity-v1:"+accountId,{
+   accountId,siteAccountId,proxyVersion:proxy.version,
+   siteVersion:site.version,verifiedAt:run.finishedAt
+  });
+  return {ok:true,restored:true,verified:true};
+ });
 }
