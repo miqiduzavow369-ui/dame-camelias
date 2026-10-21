@@ -27,7 +27,7 @@ test("legacy Yan moderation and unchanged HTML remain independent",()=>{
  assert.ok(index.includes("handleSecondaryReviewGroupCallback(update,env,cabinetRPC)"));
  assert.ok(index.includes("handleModeration(update,env)"));
  const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
- assert.ok(runtime.includes("if(event.kind===\"admin_secondary_review_group_approve\")"));
+ assert.ok(runtime.includes('"admin_secondary_review_group_decision"'));
  assert.ok(runtime.includes("verifySecondaryReviewGroupDecision(storage,i"));
  assert.ok(runtime.includes('event.draftKind==="review"&&event.action==="save"'));
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
@@ -41,4 +41,23 @@ test("unauthorized moderator callback cannot approve",async()=>{
  },{BOT_TOKEN:null},async(...x)=>{calls.push(x);return {ok:true};});
  assert.equal(result,true);
  assert.equal(calls.length,0);
+});
+
+test("all secondary accounts receive Yan First's three moderation actions",async()=>{
+ const {secondaryModerationButtons}=await import("../src/secondary_review_moderation_notice.js");
+ const ids=["yan_second",...Array.from({length:28},(_,j)=>"yan_"+String(j+3).padStart(2,"0"))];
+ assert.equal(ids.length,29);
+ for(const accountId of ids){
+  const buttons=secondaryModerationButtons({...i,accountId},2);
+  assert.deepEqual(buttons.inline_keyboard.map(r=>r[0].text),
+   ["✅ Опубликовать","✏️ Скорректировать","❌ Отклонить"]);
+  assert.ok(buttons.inline_keyboard.every(row=>row[0].callback_data.length<=64));
+ }
+});
+test("old one-button moderation card is upgraded in place without new submission",()=>{
+ const src=fs.readFileSync("src/secondary_review_moderation_notice.js","utf8");
+ assert.ok(src.includes('editMessageReplyMarkup'));
+ assert.ok(src.includes('!prior.controlsUpdated'));
+ assert.ok(src.includes('status:"delivered",messageId:result.message_id'));
+ assert.ok(!src.includes('reserveSecondaryFeedbackCredit('));
 });
