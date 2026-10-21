@@ -1,16 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {webcrypto} from "node:crypto";
+import {webcrypto,createHash} from "node:crypto";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
 import {issueSecondaryCallbackTicket} from "../src/secondary_man_callback_ticket.js";
 import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "../src/secondary_man_result_settlement.js";
 import {signSecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const jpegBuffer=Buffer.concat([Buffer.from([255,216,255]),Buffer.alloc(100),Buffer.from([255,217])]);
+const proofId="jpeg_"+createHash("sha256").update(jpegBuffer).digest("hex").slice(0,40);
+function proofStorage(){
+ const rows=new Map();
+ return {get:async key=>rows.get(key)||null,put:async (key,value)=>{rows.set(key,value);},rows};
+}
+
 function tx(){const entries=new Map();const storage={get:async k=>entries.get(k),put:async(k,v)=>entries.set(k,v),transaction:async fn=>fn(storage)};return {storage,entries};}
 const identity={userId:"123456789",accountId:"yan_second",profileId:"2468",kind:"review",nonce:"abcdef123456"};
 const signed={identity,proxyVersion:1,siteVersion:2,issuedAt:1000000,status:"verified_published",
- sitePublicationId:"site-confirmed-2345",proofFileId:"telegram-original-5678"};
+ sitePublicationId:"site-confirmed-2345",proofFileId:proofId};
 const secret="ab".repeat(32);
 test("signed result endpoint is gated by bearer auth, HMAC, stored author and moderation, and per-client isolation",()=>{
  const worker=fs.readFileSync("src/index.js","utf8");
