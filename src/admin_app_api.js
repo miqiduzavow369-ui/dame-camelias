@@ -51,6 +51,19 @@ export async function handleAdminApi(request,env){
  const action=String(body.action||"");
  const uid=String(body.userId||"");
  try{
+  if(action==="secondary_review_preview"||action==="secondary_review_approve"){
+   if(!validId(uid)||!body.accountId||!/^\d{1,9}$/.test(String(body.profileId||"")))
+    return bad("invalid_review_target");
+   const result=await cabinetRPC(env,uid,{
+    kind:action==="secondary_review_preview"?
+      "admin_secondary_review_preview":"admin_secondary_review_approve",
+    actorId:OWNER_ID,accountId:body.accountId,
+    profileId:String(body.profileId),draftVersion:body.draftVersion,
+    expectedTextSha256:body.expectedTextSha256,
+    confirmExactText:body.confirmExactText===true
+   });
+   return respond(result,result?.ok?200:result?.status===403?403:409);
+  }
   if(action==="man_check_status"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_check_status",actorId:OWNER_ID,accountId:body.accountId});
    return respond(result,result?.ok?200:result?.status===403?403:400);

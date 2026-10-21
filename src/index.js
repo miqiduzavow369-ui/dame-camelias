@@ -751,8 +751,11 @@ export default {
       if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
-      if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["submit","status"].includes(body.action))return new Response("Invalid request",{status:400});
-      const result=await cabinetRPC(env,uid,{kind:"mini_review_action",profileId:String(body.profileId),action:body.action,text:body.text});
+      if(!/^\d{1,9}$/.test(String(body?.profileId||""))||!["submit","status","publish"].includes(body.action)||
+       (body.action==="publish"&&(body.accountId==null||body.accountId==="yan_first")))
+       return new Response("Invalid request",{status:400});
+      const result=await cabinetRPC(env,uid,{kind:"mini_review_action",profileId:String(body.profileId),
+       accountId:body.accountId,action:body.action,text:body.text,confirmed:body.confirmed===true});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-review-draft"){
@@ -871,6 +874,8 @@ export default {
       return cabinetEndpoint(request,env,"dryfill");
     if (request.method === "GET" && url.pathname === "/api/secondary-profile-probe/payload") return cabinetEndpoint(request,env,"secondary_profile_probe_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-profile-probe/result") return cabinetEndpoint(request,env,"secondary_profile_probe_result");
+    if (request.method === "GET" && url.pathname === "/api/secondary-man/review-payload") return cabinetEndpoint(request,env,"secondary_man_review_runner_payload");
+    if (request.method === "POST" && url.pathname === "/api/secondary-man/review-stage") return cabinetEndpoint(request,env,"secondary_man_review_submit_boundary");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/result") return cabinetEndpoint(request,env,"secondary_man_signed_result");
     if (request.method === "GET" && url.pathname === "/api/man-site-login/payload") return cabinetEndpoint(request,env,"man_site_login_payload");
     if (request.method === "POST" && url.pathname === "/api/man-site-login/result") return cabinetEndpoint(request,env,"man_site_login_result");

@@ -24,7 +24,9 @@ export function validateSecondaryDispatchContract({
   throw Error("Missing isolated credit reservation");
  if(proxy?.accountId!==i.accountId||proxy?.proxyVerified!==true||
     proxy?.ipVerified!==true||!positive(proxy.version)||
-    site?.accountId!==i.accountId||site?.configured!==true||
+    site?.accountId!==i.accountId||
+    !(site?.configured===true||(Array.isArray(site?.sealed)&&site.sealed.length>16&&
+      Array.isArray(site?.iv)&&site.iv.length===12))||
     !positive(site.version)||site.boundProxyVersion!==proxy.version||
     publication.proxyVersion!==proxy.version||
     publication.siteVersion!==site.version||
