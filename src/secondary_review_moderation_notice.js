@@ -103,7 +103,7 @@ export async function handleSecondaryReviewGroupCallback(update,env,cabinetRPC){
     if(action==="edit"){
      const prompt=await moderationTelegram(env,"sendMessage",{
       chat_id:MODERATION_CHAT,
-      text:"✏️ Ответьте на это сообщение исправленным текстом (10–3000 символов).\\n"+
+      text:"✏️ Ответьте на это сообщение исправленным текстом (10–3000 символов).\n"+
        "srmod-edit:"+userId+":"+accountId+":"+profileId+":"+version,
       reply_parameters:{message_id:cb.message.message_id},
       reply_markup:{force_reply:true,selective:true}
@@ -136,7 +136,7 @@ export async function handleSecondaryReviewGroupCallback(update,env,cabinetRPC){
  * An edited author's review needs their fresh attestation before publication. */
 export async function handleSecondaryReviewCorrection(update,env,cabinetRPC){
  const msg=update?.message,reply=msg?.reply_to_message;
- const match=/srmod-edit:([1-9][0-9]{4,15}):(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):([0-9]{1,9}):([1-9][0-9]{0,7})/.exec(reply?.text||"");
+ const match=/^✏️[^\n]*\nsrmod-edit:([1-9][0-9]{4,15}):(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):([0-9]{1,9}):([1-9][0-9]{0,7})$/.exec(reply?.text||"");
  if(!match||String(msg.chat?.id)!==MODERATION_CHAT||
    String(msg.from?.id)!==MODERATOR_ID)return false;
  const [,userId,accountId,profileId,v]=match,text=String(msg.text||"").trim();
