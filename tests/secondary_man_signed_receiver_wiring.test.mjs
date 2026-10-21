@@ -49,7 +49,8 @@ test("signed callback proof cannot be replayed or redirected to another user",as
  const ticket=await issueSecondaryCallbackTicket(storage,{identity,proxyVersion:1,siteVersion:2,at:1000000});
  const signature=await signSecondaryResultAttestation(secret,signed);
  const opts={identity,token:ticket.token,secret,input:signed,signature,at:1000001,
-  independentAuthorConfirmed:true,moderatorApproved:true};
+  independentAuthorConfirmed:true,moderatorApproved:true,
+  proofKv:proofStorage(),originalJpegBase64:jpegBuffer.toString("base64")};
  assert.equal((await recordTicketedSecondaryResult(storage,opts)).status,"proof_saved");
  assert.equal((await secondaryVerifiedResultStatus(storage,identity)).proofPresent,true);
  await assert.rejects(()=>recordTicketedSecondaryResult(storage,opts),/consumed/);
