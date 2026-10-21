@@ -8,7 +8,8 @@ test("rating publication actions stay hidden until verification succeeds",()=>{
  assert.match(html,/back\.hidden=stage!=="ready"/);
  assert.match(html,/send\.hidden=stage!=="ready"/);
  assert.match(html,/review\.append\(publish,check,actionStatus,waitingClock,back,send\)/);
- assert.match(html,/if\(selectedAccount!=="yan_first"&&saved\.publicationAvailable!==true\)/);
+ assert.doesNotMatch(html,/actionStatus\.textContent="Отправка на сайт пока недоступна\."/);
+ assert.match(html,/confirmed:action==="publish"&&selectedAccount!=="yan_first"/);
  assert.match(html,/send\.disabled=true/);
  assert.match(html,/requestAction\("prepare"\)/);
  assert.match(html,/requestAction\("publish"\)/);
