@@ -10,7 +10,7 @@ import {appendVerifiedFeedbackEvidence,readVerifiedFeedbackEvidence} from "./sec
 import {settleSecondaryFeedbackCredit} from "./secondary_man_credit_bridge.js";
 import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
 import {claimSecondaryCallbackTicket} from "./secondary_man_callback_ticket.js";
-import {readSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
+import {readSecondaryOriginalJpeg,saveSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
 
 const IDENTIFIER=/^[A-Za-z0-9_-]{6,300}$/;
 function validated(original,callback){
@@ -180,7 +180,8 @@ export async function recordAttestedSecondaryResult(storage,{
 // before saving proof. The moderator and original-author confirmation must
 // come from server records, NOT request fields. This is still not an HTTP route.
 export async function recordTicketedSecondaryResult(storage,{
- identity,token,secret,input,signature,at,moderatorApproved,independentAuthorConfirmed
+ identity,token,secret,input,signature,at,moderatorApproved,independentAuthorConfirmed,
+ proofKv=null,originalJpegBase64=null
 }){
  if(moderatorApproved!==true||independentAuthorConfirmed!==true)
   throw Error("Trusted author and moderation confirmation missing");
@@ -188,6 +189,11 @@ export async function recordTicketedSecondaryResult(storage,{
   identity,token,secret,input,signature,at
  });
  try{
+  if(!proofKv||typeof originalJpegBase64!=="string")
+   throw Error("Original JPEG evidence unavailable");
+  await saveSecondaryOriginalJpeg(proofKv,verified.identity,{
+   base64:originalJpegBase64,expectedProofFileId:verified.proofFileId,at
+  });
   return await recordSecondaryVerifiedResult(storage,{
    original:verified.identity,callback:verified.identity,
    sitePublicationId:verified.sitePublicationId,
