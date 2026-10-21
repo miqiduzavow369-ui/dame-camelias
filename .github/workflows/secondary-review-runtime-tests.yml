@@ -7,6 +7,8 @@ on:
       - 'src/cabinet_runtime.js'
       - 'src/admin_app_api.js'
       - 'tools/secondary_man_review_job.py'
+      - 'tools/secondary_man_rating_job.py'
+      - 'src/secondary_man_rating_launch.js'
       - 'tools/intimcity_profile_lookup.py'
       - 'tests/secondary_man_review_runner_grant.test.mjs'
       - '.github/workflows/secondary-review-runtime-tests.yml'
@@ -31,6 +33,7 @@ jobs:
           node --check src/secondary_man_review_launch.js
           node --check src/cabinet_runtime.js
           node --check src/admin_app_api.js
-          python -m py_compile tools/secondary_man_review_job.py tools/intimcity_profile_lookup.py
+          node --check src/secondary_man_rating_launch.js
+          python -m py_compile tools/secondary_man_review_job.py tools/secondary_man_rating_job.py tools/secondary_man_rating_publish.py tools/intimcity_profile_lookup.py
       - name: Test real crypto grant and one-use submission boundaries
         run: node --test tests/secondary_man_review_runner_grant.test.mjs
