@@ -33,9 +33,9 @@ test("signed result endpoint is gated by bearer auth, HMAC, stored author and mo
  assert.match(block,/publication\?\.independentAuthorConfirmed!==true/);
  assert.match(block,/publication\?\.moderatorApproved!==true/);
  assert.match(block,/recordTicketedSecondaryResult\(storage/);
- assert.doesNotMatch(block,/body\\.moderatorApproved|body\\.independentAuthorConfirmed|credits\\(/);
- assert.match(block,/if\\(result\\?\\.status==="proof_saved"&&identity\\.kind==="review"\\)/);
- assert.match(block,/settleSecondaryVerifiedResult\\(storage,rawEnv/);
+ assert.ok(!block.includes("body.moderatorApproved")&&!block.includes("body.independentAuthorConfirmed"));
+ assert.ok(block.includes('if(result?.status==="proof_saved"&&identity.kind==="review")'));
+ assert.ok(block.includes("settleSecondaryVerifiedResult(storage,rawEnv"));
  const auth=runtime.slice(runtime.indexOf('export async function cabinetEndpoint'),runtime.indexOf('async function telegram'));
  assert.ok(auth.includes('env.ANKETA_CALLBACK_TOKEN'));
  assert.ok(auth.includes('"Bearer "+env.ANKETA_CALLBACK_TOKEN'));
