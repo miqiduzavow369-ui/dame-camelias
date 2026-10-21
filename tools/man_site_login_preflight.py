@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from playwright.sync_api import sync_playwright
-from intimcity_authenticated_identity import authenticated_identity_status
+from intimcity_authenticated_identity import authenticated_identity_status, observed_authenticated_site_email
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
@@ -108,6 +108,7 @@ def main():
     if not safe_host(details["siteUrl"]) or urllib.parse.urlsplit(details["siteUrl"]).hostname!=site_host:
         raise RuntimeError("Invalid target")
     code="executor_error"
+    observed_site_account_id=None
     print("SITE_LOGIN_STAGE: chromium_start",flush=True)
     try:
         with sync_playwright() as p:
@@ -127,6 +128,10 @@ def main():
                         print("SITE_LOGIN_STAGE: site_login_attempt",flush=True)
                         code=inspect_login(page,details["siteUrl"],
                             details["siteLogin"],details["sitePassword"])
+                        if code=="login_authenticated_identity_verified":
+                            observed_site_account_id=observed_authenticated_site_email(page,details["siteLogin"])
+                            if observed_site_account_id is None:
+                                code="login_authenticated_identity_unconfirmed"
                 finally: context.close()
             finally: browser.close()
     except Exception:
@@ -136,7 +141,9 @@ def main():
     print("SITE_LOGIN_STAGE: callback_result",flush=True)
     try:
         result=request_json(endpoint("/api/man-site-login/result"),{
-            "account_id":account,"nonce":nonce,"code":code})
+            "account_id":account,"nonce":nonce,"code":code,
+            "observed_site_account_id":observed_site_account_id
+            if code=="login_authenticated_identity_verified" else None})
     except urllib.error.HTTPError as exc:
         print(f"SITE_LOGIN_STAGE: callback_http_{exc.code}",flush=True)
         raise RuntimeError("Result callback rejected") from None
