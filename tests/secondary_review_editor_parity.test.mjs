@@ -27,7 +27,7 @@ test("common Yan review editor uses secondary draft API but never Yan publish AP
  assert.match(html,/if\(selectedAccount!=="yan_first"\)\{\s*if\(action==="submit"/);
  assert.match(html,/fetch\("\/api\/anketa\/mini-secondary-draft"/);
  assert.match(html,/draftKind:"review",action:mapped/);
- assert.match(html,/send\.textContent="💾 Сохранить отзыв"/);
+ assert.match(html,/send\.textContent="✅ Отправить отзыв"/);
  assert.match(html,/editSaved\.onclick=async/);
  assert.match(html,/if\(selectedAccount!=="yan_first"\)saveDraft\.hidden=true/);
 });
