@@ -874,6 +874,8 @@ export default {
       return cabinetEndpoint(request,env,"dryfill");
     if (request.method === "GET" && url.pathname === "/api/secondary-profile-probe/payload") return cabinetEndpoint(request,env,"secondary_profile_probe_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-profile-probe/result") return cabinetEndpoint(request,env,"secondary_profile_probe_result");
+    if (request.method === "GET" && url.pathname === "/api/secondary-man/rating-dryfill-payload") return cabinetEndpoint(request,env,"secondary_man_rating_dryfill_payload");
+    if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-dryfill-result") return cabinetEndpoint(request,env,"secondary_man_rating_dryfill_result");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/rating-payload") return cabinetEndpoint(request,env,"secondary_man_rating_runner_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-stage") return cabinetEndpoint(request,env,"secondary_man_rating_submit_boundary");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/review-payload") return cabinetEndpoint(request,env,"secondary_man_review_runner_payload");

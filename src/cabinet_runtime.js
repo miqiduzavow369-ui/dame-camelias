@@ -35,6 +35,7 @@ import {secondaryPublicationOperationalStatus} from "./secondary_man_publication
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
 import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
 import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
+import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryRatingDryfill,completeSecondaryRatingDryfill,requireFreshSecondaryRatingDryfill} from "./secondary_man_rating_dryfill.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -614,6 +615,38 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
  // previously issued single-use ticket. Never honor callback-supplied
  // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_rating_dryfill_payload"||
+    event.kind==="secondary_man_rating_dryfill_result"){
+  try{
+   const read=event.kind==="secondary_man_rating_dryfill_payload";
+   const source=read?new URL(event.url).searchParams:JSON.parse(event.body||"null");
+   const userId=read?source.get("user_id"):source?.identity?.userId;
+   const accountId=read?source.get("account_id"):source?.identity?.accountId;
+   const profileId=read?source.get("profile_id"):source?.identity?.profileId;
+   const nonce=read?source.get("nonce"):source?.nonce;
+   if(userId!==uid)throw Error("Wrong client");
+   const identity={userId:uid,accountId,profileId,kind:"rating",nonce:"000000000000"};
+   if(uid!==OWNER_ID){
+    const [proxy,site]=await Promise.all([
+     storage.get("man-proxy-sealed-v1:"+accountId),
+     storage.get("man-intimcity-sealed-v1:"+accountId)
+    ]);
+    const approved=await cabinetRPC(rawEnv,OWNER_ID,{
+     kind:"secondary_publication_account_version_check",accountId,
+     proxyVersion:proxy?.version,siteVersion:site?.version
+    });
+    if(approved?.ok!==true)throw Error("Owner revoked account");
+   }
+   const result=read?await claimSecondaryRatingDryfill(storage,rawEnv,{
+    identity,nonce,at:Date.now()
+   }):await completeSecondaryRatingDryfill(storage,{
+    identity,nonce,at:Date.now(),code:source?.code
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"secondary_rating_dryfill_unavailable"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
  if(event.kind==="secondary_man_rating_runner_payload"){
   try{
    const q=new URL(event.url).searchParams;
@@ -1177,7 +1210,38 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
         reason:
        "secondary_rating_preflight_failed"};
      }
-     return {ok:true,stage:"ready",publicationAvailable:true};
+     // Yan First prepares its actual live website form before the confirm
+     // button can appear. Use EXACTLY the same Chromium dryfill inspection,
+     // restricted to this man's own sealed credentials and selected client.
+     const dryIdentity={userId:uid,accountId,profileId,kind:"rating",
+      nonce:"000000000000"};
+     try{
+      await requireFreshSecondaryRatingDryfill(storage,rawEnv,dryIdentity);
+      return {ok:true,stage:"ready",publicationAvailable:true};
+     }catch{
+      const existing=await secondaryRatingDryfillStatus(storage,{identity:dryIdentity});
+      if(existing.stage==="preparing"&&Date.now()-Number(existing.startedAt)<600000)
+       return {ok:true,stage:"preparing"};
+     }
+     failureStage="browser_dryfill";
+     return await startSecondaryRatingDryfill(storage,rawEnv,{
+      identity:dryIdentity,at:Date.now(),
+      dispatch:async args=>{
+       const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-rating-dryfill.yml/dispatches",{
+        method:"POST",headers:{
+         Authorization:"Bearer "+rawEnv.DC_ACTIONS_TOKEN,
+         Accept:"application/vnd.github+json",
+         "X-GitHub-Api-Version":"2022-11-28",
+         "Content-Type":"application/json","User-Agent":"dame-camelias-worker"
+        },
+        body:JSON.stringify({ref:"main",inputs:{
+         account_id:args.accountId,user_id:args.userId,
+         profile_id:args.profileId,nonce:args.nonce,site_host:args.siteHost
+        }}),signal:AbortSignal.timeout(15000)
+       });
+       return {accepted:response.status===204};
+      }
+     });
     }
     if(event.action==="publish"){
      if(event.confirmed!==true||rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")
@@ -1200,6 +1264,11 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
       });
      }
+     try{
+      await requireFreshSecondaryRatingDryfill(storage,rawEnv,{
+       userId:uid,accountId,profileId,kind:"rating",nonce:"000000000000"
+      });
+     }catch{return {ok:false,status:409,reason:"secondary_site_check_not_verified"};}
      failureStage="launch";
      const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
       identity,at:Date.now()
@@ -1207,7 +1276,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      return launched.ok?{ok:true,stage:"publishing",nonce:identity.nonce}:
       {ok:false,status:409,reason:launched.status};
     }
-    if(!row)return {ok:true,stage:draft?"draft":"draft"};
+    if(!row){
+     const i={userId:uid,accountId,profileId,kind:"rating",nonce:"000000000000"};
+     const browser=await secondaryRatingDryfillStatus(storage,{identity:i});
+     if(browser.stage==="ready"){
+      try{
+       await requireFreshSecondaryRatingDryfill(storage,rawEnv,i);
+       return {ok:true,stage:"ready"};
+      }catch{return {ok:true,stage:"failed"};}
+     }
+     return {ok:true,stage:browser.stage};
+    }
     const s=await secondaryPublicationOperationalStatus(storage,row.identity,{
      proofKv:rawEnv.VISITORS_KV
     });
