@@ -32,6 +32,7 @@ import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
+import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
 async function secondaryRatingCabinetConnected(storage,accountId){
  if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))return false;
@@ -582,6 +583,33 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
  // previously issued single-use ticket. Never honor callback-supplied
  // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_review_runner_payload"){
+  try{
+   const q=new URL(event.url).searchParams;
+   const identity={userId:uid,accountId:q.get("account_id"),
+    profileId:q.get("profile_id"),kind:"review",nonce:q.get("nonce")};
+   if(!q.get("user_id")||q.get("user_id")!==uid)throw Error("User mismatch");
+   const payload=await claimSecondaryReviewRunnerPayload(storage,rawEnv,{
+    identity,token:q.get("callback_ticket"),at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(payload),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"runner_grant_unavailable"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
+ if(event.kind==="secondary_man_review_submit_boundary"){
+  try{
+   const b=JSON.parse(event.body||"null");
+   const identity=requirePublicationIdentity(b?.identity);
+   if(identity.userId!==uid||identity.kind!=="review")throw Error("Invalid review identity");
+   const result=await recordSecondaryReviewSubmitBoundary(storage,{
+    identity,token:b.token,approvedTextSha256:b.approvedTextSha256,at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"submit_boundary_rejected"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
  if(event.kind==="secondary_man_signed_result"){
   try{
    if(!rawEnv.SECONDARY_CALLBACK_HMAC_KEY)return {status:503,body:"Receiver not configured"};
