@@ -604,15 +604,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,input:body.input,
     signature:body.signature,at:Date.now()
    });
-   await saveSecondaryOriginalJpeg(rawEnv.VISITORS_KV,identity,{
-    base64:body.originalJpegBase64,
-    expectedProofFileId:body.input?.proofFileId,at:Date.now()
-   });
    const result=await recordTicketedSecondaryResult(storage,{
     identity,token:body.token,secret:rawEnv.SECONDARY_CALLBACK_HMAC_KEY,
     input:body.input,signature:body.signature,at:Date.now(),
     independentAuthorConfirmed:publication.independentAuthorConfirmed===true,
-    moderatorApproved:identity.kind!=="review"||publication.moderatorApproved===true
+    moderatorApproved:identity.kind!=="review"||publication.moderatorApproved===true,
+    proofKv:rawEnv.VISITORS_KV,originalJpegBase64:body.originalJpegBase64
    });
    return {status:200,body:JSON.stringify(result),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
