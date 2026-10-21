@@ -34,7 +34,7 @@ import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
 import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
-import {launchApprovedSecondaryRating} from "./secondary_man_rating_launch.js";
+import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -1152,11 +1152,31 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       const owner=await cabinetRPC(rawEnv,OWNER_ID,{
        kind:"secondary_publication_account_snapshot",accountId});
       if(owner?.ok!==true)return {ok:false,status:409,reason:"secondary_owner_account_not_ready"};
+      // Only encrypted, exact-account vault records are copied into this
+      // client's Durable Object. Nothing is published or reserved by prepare.
+      await storage.transaction(async tx=>{
+       if(await tx.get(base))throw Error("Rating already attempted");
+       await tx.put("man-proxy-sealed-v1:"+accountId,owner.proxy);
+       await tx.put("man-intimcity-sealed-v1:"+accountId,owner.site);
+       await tx.put("man-owner-approval-v1:"+accountId,owner.approval);
+       await tx.put("secondary-site-identity-v1:"+accountId,owner.verified);
+      });
      }
-     failureStage="preflight";
-     if(draft?.accountId!==accountId||draft.userId!==uid||
-        draft.profileId!==profileId||!Object.keys(draft.selected||{}).length)
-      return {ok:false,status:409,reason:"not_ready"};
+     failureStage="rating_validation";
+     const candidate={userId:uid,accountId,profileId,kind:"rating",
+      nonce:"000000000000"};
+     try{await preflightSecondaryRating(storage,rawEnv,{identity:candidate});}
+     catch(e){
+      const reason=String(e?.message||"");
+      return {ok:false,status:409,reason:
+       reason==="Incomplete rating selections"?"incomplete_ratings":
+       reason==="Rating selections changed"?"rating_selections_changed":
+       reason==="Invalid stored rating draft"||reason==="Empty rating selection"?
+        "not_ready":
+       reason==="Rating draft or verified personal account missing"?
+        "secondary_rating_identity_or_draft_not_ready":
+       "secondary_rating_preflight_failed"};
+     }
      return {ok:true,stage:"ready",publicationAvailable:true};
     }
     if(event.action==="publish"){
