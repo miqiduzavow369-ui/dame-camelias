@@ -963,8 +963,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const accountId=String(event.accountId),profileId=String(event.profileId||"");
     if((await manVisibility(storage,accountId)).visible!==true)
      return {ok:false,status:403,reason:"man_hidden_from_clients"};
-    const owned=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
-    if(owned?.confirmed!==true||String(owned.profile?.id)!==profileId)
+    const library=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+    if(!Array.isArray(library)||!library.some(p=>String(p?.id??p)===profileId))
      return {ok:false,status:403,reason:"profile_not_saved"};
     const approvalKey=manStorageKey({userId:uid,accountId,profileId,scope:"moderation"})+":review";
     const approval=await storage.get(approvalKey);
