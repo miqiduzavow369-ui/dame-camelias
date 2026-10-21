@@ -955,8 +955,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(event.accountId!=null&&event.accountId!=="yan_first"){
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
-   if(event.action!=="publish"||event.confirmed!==true||
-      rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")
+   if(!["status","publish"].includes(event.action)||
+      event.action==="publish"&&(event.confirmed!==true||
+        rawEnv.CABINET_PUBLICATIONS_ENABLED==="false"))
     return {ok:false,status:409,reason:"explicit_review_approval_required"};
    try{
     const accountId=String(event.accountId),profileId=String(event.profileId||"");
@@ -967,6 +968,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      return {ok:false,status:403,reason:"profile_not_saved"};
     const approvalKey=manStorageKey({userId:uid,accountId,profileId,scope:"moderation"})+":review";
     const approval=await storage.get(approvalKey);
+    if(event.action==="status"){
+     const draft=await storage.get(manStorageKey({
+      userId:uid,accountId,profileId,scope:"review-draft"})+":review");
+     if(approval?.approved!==true||approval.identity?.userId!==uid||
+        approval.identity?.accountId!==accountId||
+        approval.identity?.profileId!==profileId)
+      return {ok:true,stage:draft?.authorAttested===true?"saved":"draft",
+       publicationAvailable:false};
+     const published=await secondaryPublicationOperationalStatus(storage,
+      approval.identity,{proofKv:rawEnv.VISITORS_KV});
+     const stage=published.published===true?"published":
+      published.status==="attempted"?"waiting":
+      published.status==="uncertain"||published.status==="reconciliation_required"?"unknown":
+      published.status==="prepared"?"waiting":"approved";
+     return {ok:true,stage,publicationAvailable:stage==="approved",
+      accountId,profileId};
+    }
     if(approval?.approved!==true||approval.identity?.userId!==uid||
        approval.identity?.accountId!==accountId||approval.identity?.profileId!==profileId)
      throw Error("Moderation missing");
