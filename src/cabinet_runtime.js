@@ -145,7 +145,7 @@ export async function cabinetEndpoint(request,env,kind){
  }else{
   if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"token_rejected","Cache-Control":"no-store"}});
   body=request.method==="POST"?await request.clone().json().catch(()=>null):null;
-  uid=String(body?.user_id||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
+  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
  }
  if(!validId(uid))return new Response("Invalid user",{status:400});
  const result=await cabinetRPC(env,uid,{kind,url:request.url,method:request.method,headers:{Authorization:request.headers.get("Authorization")||""},body:request.method==="POST"?await request.text():null});
@@ -544,6 +544,33 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
  }
+ if(event.kind==="secondary_publication_account_snapshot"||
+    event.kind==="secondary_publication_account_version_check"){
+  // Internal Durable Object RPC only; never exposed by an HTTP action.
+  if(uid!==OWNER_ID)return {ok:false,status:403};
+  try{
+   const accountId=String(event.accountId||"");
+   if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))
+    throw Error("Invalid secondary account");
+   const [proxy,site,approval,verified]=await Promise.all([
+    storage.get("man-proxy-sealed-v1:"+accountId),
+    storage.get("man-intimcity-sealed-v1:"+accountId),
+    storage.get("man-owner-approval-v1:"+accountId),
+    storage.get("secondary-site-identity-v1:"+accountId)
+   ]);
+   if(!proxy||!site||!approval||!verified||
+      !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)||
+      verified.accountId!==accountId||
+      verified.proxyVersion!==proxy.version||verified.siteVersion!==site.version||
+      !verified.siteAccountId||!proxy.proxyVerified||!proxy.ipVerified||
+      site.boundProxyVersion!==proxy.version)
+    throw Error("Account credentials not currently authorized");
+   if(event.kind==="secondary_publication_account_version_check")
+    return {ok:event.proxyVersion===proxy.version&&event.siteVersion===site.version};
+   // Ciphertext only, returned exclusively to another server-side DO.
+   return {ok:true,proxy,site,approval,verified};
+  }catch{return {ok:false,reason:"secondary_account_not_ready"};}
+ }
  if(event.kind==="secondary_catalog_cabinet_ready"){
   if(uid!==OWNER_ID)return {ok:false,status:403};
   const ready=await secondaryRatingCabinetConnected(storage,event.accountId).catch(()=>false);
@@ -593,6 +620,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const identity={userId:uid,accountId:q.get("account_id"),
     profileId:q.get("profile_id"),kind:"rating",nonce:q.get("nonce")};
    if(q.get("user_id")!==uid)throw Error("Client mismatch");
+   if(uid!==OWNER_ID){
+    const accountId=String(identity.accountId);
+    const [proxy,site]=await Promise.all([
+     storage.get("man-proxy-sealed-v1:"+accountId),
+     storage.get("man-intimcity-sealed-v1:"+accountId)
+    ]);
+    const status=await cabinetRPC(rawEnv,OWNER_ID,{
+     kind:"secondary_publication_account_version_check",accountId,
+     proxyVersion:proxy?.version,siteVersion:site?.version
+    });
+    if(status?.ok!==true)throw Error("Account owner withdrew or changed approval");
+   }
    const data=await claimSecondaryRatingRunnerPayload(storage,rawEnv,{
     identity,token:q.get("callback_ticket"),at:Date.now()
    });
@@ -1072,6 +1111,20 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
      const identity={userId:uid,accountId,profileId,kind:"rating",
       nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)};
+     if(uid!==OWNER_ID){
+      const config=await cabinetRPC(rawEnv,OWNER_ID,{
+       kind:"secondary_publication_account_snapshot",accountId});
+      if(config?.ok!==true)throw Error("Owner account setup unavailable");
+      // Each client's DO receives encrypted account records, never plaintext.
+      // A later grant MUST re-check versions and approval against owner.
+      await storage.transaction(async tx=>{
+       if(await tx.get(base))throw Error("Rating already attempted");
+       await tx.put("man-proxy-sealed-v1:"+accountId,config.proxy);
+       await tx.put("man-intimcity-sealed-v1:"+accountId,config.site);
+       await tx.put("man-owner-approval-v1:"+accountId,config.approval);
+       await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
+      });
+     }
      const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
       identity,at:Date.now()
      });
