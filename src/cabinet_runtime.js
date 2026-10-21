@@ -28,7 +28,7 @@ import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
-import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js";
+import {savePersonalCriteria,readPersonalCriteria} from "./secondary_personal_rating_criteria.js";
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
@@ -64,13 +64,12 @@ async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
    const record=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+userId+":"+profileId,"json");
    if(record?.confirmed!==true||String(record.profile?.id)!==profileId)
     return {ok:false,status:403,reason:"profile_not_saved"};
-   if(Array.isArray(record.catalog)&&record.catalog.length)
-    return {ok:true,stage:"available"};
-   if(await readSharedCriteria(rawEnv.VISITORS_KV,profileId))
+   // Ignore original client's old catalog and ALL other men's catalogs.
+   if(await readPersonalCriteria(rawEnv.VISITORS_KV,accountId,profileId))
     return {ok:true,stage:"available"};
    if(!await secondaryRatingCabinetConnected(storage,accountId))
     return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
-   const key="secondary-auto-rating-lookup-v1:"+profileId,now=Date.now();
+   const key="secondary-auto-rating-lookup-v1:"+accountId+":"+profileId,now=Date.now();
    const reserved=await storage.transaction(async tx=>{
     const prev=await tx.get(key);
     if(prev?.expiresAt>now)return false;
@@ -103,7 +102,7 @@ async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
    return {ok:true,stage:"loading"};
   }catch{
    // Retry can be attempted; no secondary publication action is possible here.
-   await storage.delete("secondary-auto-rating-lookup-v1:"+profileId).catch(()=>{});
+   await storage.delete("secondary-auto-rating-lookup-v1:"+accountId+":"+profileId).catch(()=>{});
    return {ok:false,status:409,reason:"catalog_lookup_unavailable"};
   }
 }
@@ -792,7 +791,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     // claimed a live nonce with matching proxy/site versions and owner approval.
     if(result.verified===true&&Array.isArray(src.catalog)&&src.catalog.length){
      try{
-      await saveSharedCriteria(rawEnv.VISITORS_KV,{accountId,profileId,
+      await savePersonalCriteria(rawEnv.VISITORS_KV,{accountId,profileId,
        siteHost:result.verifiedSiteHost,catalog:src.catalog});
       result.criteriaCached=true;
      }catch{result.criteriaCached=false;}
