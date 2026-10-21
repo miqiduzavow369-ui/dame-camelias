@@ -1082,7 +1082,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   try{
    const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
    if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId)||
-      !/^\\d{1,9}$/.test(profileId))return {ok:false,status:400};
+      !/^\d{1,9}$/.test(profileId))return {ok:false,status:400};
    const i={userId:uid,accountId,profileId,kind:"review"};
    const noticeKey=secondaryReviewNoticeKey(i);
    const draftKey=manStorageKey({userId:uid,accountId,profileId,
