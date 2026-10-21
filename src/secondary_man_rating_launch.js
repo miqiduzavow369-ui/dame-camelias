@@ -32,18 +32,30 @@ export async function preflightSecondaryRating(storage,env,{identity}={}){
   storage.get("secondary-site-identity-v1:"+i.accountId),
   env.VISITORS_KV.get("owner_anketa_saved:"+i.userId+":"+i.profileId,"json")
  ]);
- if(old||draft?.accountId!==i.accountId||draft.userId!==i.userId||
-  draft.profileId!==i.profileId||draft.kind!=="rating"||
-  !Number.isSafeInteger(draft.version)||draft.version<1||
-  typeof draft.catalogSignature!=="string"||
-  !approvalMatchesConfiguration(approval,i.accountId,proxy?.version,site?.version)||
-  proxy?.proxyVerified!==true||proxy.ipVerified!==true||
-  site?.boundProxyVersion!==proxy.version||
-  verified?.accountId!==i.accountId||
-  verified.proxyVersion!==proxy.version||verified.siteVersion!==site.version||
-  !verified.siteAccountId||profile?.confirmed!==true||
-  String(profile.profile?.id)!==i.profileId)
-  throw Error("Rating draft or verified personal account missing");
+ // Explain the first safe reason for rejection. Nothing secret is exposed.
+ if(old)throw Error("rating_attempt_already_claimed");
+ if(!draft||draft.accountId!==i.accountId||draft.userId!==i.userId||
+    draft.profileId!==i.profileId||draft.kind!=="rating"||
+    !Number.isSafeInteger(draft.version)||draft.version<1||
+    typeof draft.catalogSignature!=="string")
+   throw Error("rating_saved_draft_mismatch");
+ if(profile?.confirmed!==true||String(profile.profile?.id)!==i.profileId)
+   throw Error("rating_saved_profile_mismatch");
+ if(!proxy||proxy.accountId!==i.accountId||
+    proxy.proxyVerified!==true||proxy.ipVerified!==true||
+    !Number.isSafeInteger(proxy.version)||proxy.version<1)
+   throw Error("rating_proxy_not_verified");
+ if(!site||site.accountId!==i.accountId||
+    site.boundProxyVersion!==proxy.version||
+    !Number.isSafeInteger(site.version)||site.version<1)
+   throw Error("rating_site_binding_mismatch");
+ if(!approvalMatchesConfiguration(approval,i.accountId,proxy.version,site.version))
+   throw Error("rating_owner_approval_stale");
+ if(verified?.accountId!==i.accountId||
+    verified.proxyVersion!==proxy.version||
+    verified.siteVersion!==site.version||
+    typeof verified.siteAccountId!=="string"||!verified.siteAccountId.trim())
+   throw Error("rating_site_identity_stale");
  const catalog=JSON.parse(draft.catalogSignature);
  if(!Array.isArray(catalog)||catalog.length<1||catalog.length>120||
   !draft.selected||typeof draft.selected!=="object"||

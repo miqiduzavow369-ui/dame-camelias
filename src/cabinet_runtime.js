@@ -1173,8 +1173,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        reason==="Rating selections changed"?"rating_selections_changed":
        reason==="Invalid stored rating draft"||reason==="Empty rating selection"?
         "not_ready":
-       reason==="Rating draft or verified personal account missing"?
-        "secondary_rating_identity_or_draft_not_ready":
+       /^(?:rating_attempt_already_claimed|rating_saved_draft_mismatch|rating_saved_profile_mismatch|rating_proxy_not_verified|rating_site_binding_mismatch|rating_owner_approval_stale|rating_site_identity_stale)$/.test(reason)?
+        reason:
        "secondary_rating_preflight_failed"};
      }
      return {ok:true,stage:"ready",publicationAvailable:true};

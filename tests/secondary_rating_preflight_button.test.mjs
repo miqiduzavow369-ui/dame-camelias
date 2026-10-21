@@ -48,7 +48,7 @@ test("preflight blocks incomplete mandatory rating before exposing publish",asyn
 test("preflight denies mixed proxy/site and different man without side effects",async()=>{
  const ctx=fake({"man-intimcity-sealed-v1:yan_second":{accountId:"yan_second",version:3,boundProxyVersion:99}});
  await assert.rejects(()=>preflightSecondaryRating(ctx.storage,ctx.env,{identity:i}),
-  /Rating draft or verified personal account missing/);
+  /rating_site_binding_mismatch/);
  await assert.rejects(()=>preflightSecondaryRating(ctx.storage,ctx.env,{
   identity:{...i,accountId:"yan_first"}}),/immutable/);
 });
