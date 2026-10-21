@@ -52,7 +52,7 @@ export async function handleAdminApi(request,env){
  const uid=String(body.userId||"");
  try{
   if(action==="secondary_review_preview"||action==="secondary_review_approve"){
-   if(!validId(uid)||!body.accountId||!/^\\d{1,9}$/.test(String(body.profileId||"")))
+   if(!validId(uid)||!body.accountId||!/^\d{1,9}$/.test(String(body.profileId||"")))
     return bad("invalid_review_target");
    const result=await cabinetRPC(env,uid,{
     kind:action==="secondary_review_preview"?
