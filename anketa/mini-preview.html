@@ -1124,7 +1124,13 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       send.onclick=async()=>{
        // The existing primary button is the explicit publishing confirmation,
        // matching Yan First. Do not show a second modal for secondary men.
-       send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
+       send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;
+        // A publish request may already have reserved a credit or reached the site.
+        // Fail closed: never enable another POST until a read-only status check
+        // establishes a safe terminal state. Preserve the Yan First route.
+        send.hidden=true;send.disabled=true;
+        check.hidden=false;check.textContent="🔄 Посмотреть результат";
+       }finally{if(!send.hidden)send.disabled=false;}};
       review.append(publish,check,actionStatus,waitingClock,back,send);
       // The same clean rating confirmation steps are now available for a
       // verified secondary account. The server still decides eligibility.
