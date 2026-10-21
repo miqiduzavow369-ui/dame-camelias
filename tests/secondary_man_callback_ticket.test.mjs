@@ -1,16 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {webcrypto} from "node:crypto";
+import {webcrypto,createHash} from "node:crypto";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
 import {signSecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
 import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "../src/secondary_man_result_settlement.js";
 import {issueSecondaryCallbackTicket,claimSecondaryCallbackTicket,secondaryCallbackTicketStatus} from "../src/secondary_man_callback_ticket.js";
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const jpegBuffer=Buffer.concat([Buffer.from([255,216,255]),Buffer.alloc(100),Buffer.from([255,217])]);
+const proofId="jpeg_"+createHash("sha256").update(jpegBuffer).digest("hex").slice(0,40);
+function proofStorage(){
+ const rows=new Map();
+ return {get:async key=>rows.get(key)||null,put:async (key,value)=>{rows.set(key,value);},rows};
+}
+
 const secret="ab".repeat(32);
 const i=(accountId="yan_second")=>({userId:"123456789",accountId,profileId:"2468",kind:"review",nonce:"abcdef123456"});
 const input=(identity=i())=>({identity,proxyVersion:1,siteVersion:2,
  issuedAt:1000000,status:"verified_published",
- sitePublicationId:"site-proof-1234",proofFileId:"file-original-5678"});
+ sitePublicationId:"site-proof-1234",proofFileId:proofId});
 function storage(){
  const rows=new Map();
  const tx={get:async key=>rows.get(key),put:async(k,v)=>rows.set(k,v),
@@ -67,7 +74,8 @@ test("ticketed callback records one proof and never accepts repeat delivery",asy
  const ticket=await issueSecondaryCallbackTicket(tx,{identity,proxyVersion:1,siteVersion:2,at:1000000});
  const signature=await signSecondaryResultAttestation(secret,proof);
  const request={identity,token:ticket.token,secret,input:proof,signature,at:1000001,
-  moderatorApproved:true,independentAuthorConfirmed:true};
+  moderatorApproved:true,independentAuthorConfirmed:true,
+  proofKv:proofStorage(),originalJpegBase64:jpegBuffer.toString("base64")};
  assert.equal((await recordTicketedSecondaryResult(tx,request)).status,"proof_saved");
  assert.equal((await secondaryVerifiedResultStatus(tx,identity)).proofPresent,true);
  await assert.rejects(()=>recordTicketedSecondaryResult(tx,request),/consumed/);
@@ -127,7 +135,8 @@ test("consumed callback ticket with interrupted proof recording locks publicatio
   return tx.put(key,value);
  }})};
  const request={identity,token:ticket.token,secret,input:proof,signature,at:1000001,
-  moderatorApproved:true,independentAuthorConfirmed:true};
+  moderatorApproved:true,independentAuthorConfirmed:true,
+  proofKv:proofStorage(),originalJpegBase64:jpegBuffer.toString("base64")};
  await assert.rejects(()=>recordTicketedSecondaryResult(broken,request),/Proof storage offline/);
  assert.equal((await secondaryCallbackTicketStatus(tx,identity)).status,"consumed");
  assert.equal(rows.get(pubKey).status,"uncertain");
