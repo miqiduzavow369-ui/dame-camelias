@@ -63,5 +63,5 @@ test("signed rating API never drops selected man; secondary saves cannot reach l
  assert.ok(runtime.includes("openSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
  assert.ok(runtime.includes("saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
  assert.ok(html.includes('selectedProgress.rating'));
- assert.ok(html.includes('if(selectedAccount!=="yan_first"&&saved.publicationAvailable!==true){'));
+ assert.ok(html.includes('confirmed:action==="publish"&&selectedAccount!=="yan_first"'));
 });
