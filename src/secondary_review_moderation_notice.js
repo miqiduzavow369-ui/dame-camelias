@@ -29,7 +29,7 @@ export async function ensureSecondaryReviewGroupNotice(storage,env,i){
    "🌹 <b>Анкета:</b> №"+esc(i.profileId),
    "👨‍💻 <b>Мужчина:</b> "+esc(i.accountId),
    "👤 <b>Клиентка:</b> "+esc(i.userId),"",
-   "✍️ <b>ТЕКСТ ОТЗЫВА</b>",esc(draft.text),
+   "✍️ <b>ТЕКСТ ОТЗЫВА</b>",esc(draft.text).slice(0,3200),
    "","🔒 Публикации и списания пока нет."].join("\n");
   const result=await moderationTelegram(env,"sendMessage",{
    chat_id:MODERATION_CHAT,text,parse_mode:"HTML",
