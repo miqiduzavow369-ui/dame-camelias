@@ -33,6 +33,8 @@ import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_r
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
+import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
 async function secondaryRatingCabinetConnected(storage,accountId){
  if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))return false;
@@ -639,6 +641,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     moderatorApproved:identity.kind!=="review"||publication.moderatorApproved===true,
     proofKv:rawEnv.VISITORS_KV,originalJpegBase64:body.originalJpegBase64
    });
+   // Verified immutable original proof is required by the settlement adapter.
+   // Ambiguous financial outcomes remain locked; site submission is never retried.
+   if(result?.status==="proof_saved"&&identity.kind==="review"){
+    const settled=await settleSecondaryVerifiedResult(storage,rawEnv,{
+     original:identity,callback:identity
+    });
+    return {status:200,body:JSON.stringify(settled),
+     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+   }
    return {status:200,body:JSON.stringify(result),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
   }catch{
@@ -897,6 +908,35 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    return result;
   }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
  }
+ if(event.kind==="admin_secondary_review_preview"||event.kind==="admin_secondary_review_approve"){
+  // Constructed only by owner-authenticated admin Mini App API.
+  if(event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
+   if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId)||
+      !/^\\d{1,9}$/.test(profileId))throw Error("Invalid review target");
+   const draftKey=manStorageKey({userId:uid,accountId,profileId,
+    scope:"review-draft"})+":review";
+   const draft=await storage.get(draftKey);
+   if(draft?.userId!==uid||draft.accountId!==accountId||
+      draft.profileId!==profileId||draft.authorAttested!==true||
+      typeof draft.text!=="string"||draft.text.length<10||draft.text.length>3000)
+    throw Error("Review draft not ready");
+   const hash=Array.from(new Uint8Array(await crypto.subtle.digest(
+    "SHA-256",new TextEncoder().encode(draft.text))),b=>b.toString(16).padStart(2,"0")).join("");
+   if(event.kind==="admin_secondary_review_preview")
+    return {ok:true,accountId,profileId,draftVersion:draft.version,
+     approvedTextSha256:hash,text:draft.text,authorAttested:true};
+   if(event.confirmExactText!==true||event.draftVersion!==draft.version||
+      event.expectedTextSha256!==hash)throw Error("Owner did not confirm exact text");
+   const identity={userId:uid,accountId,profileId,kind:"review",
+    nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)};
+   return await approveSecondaryReviewForSubmission(storage,{
+    identity,draftVersion:draft.version,expectedTextSha256:hash,
+    moderatorApproved:true,at:Date.now()
+   });
+  }catch{return {ok:false,status:409,reason:"review_approval_unavailable"};}
+ }
  if(event.kind==="admin_secondary_operation_status"){
   // The actor is the ADMIN owner, while uid is the selected CLIENT's DO.
   // No balance adjustment, proof download, dispatch or publication is possible.
@@ -910,8 +950,31 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }catch{return {ok:false,status:400,reason:"operation_status_unavailable"};}
  }
  if(event.kind==="mini_review_action"){
-  // Legacy publisher is Yan First only. Never route an explicit secondary man into it.
-  if(event.accountId!=null&&event.accountId!=="yan_first")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
+  // Authenticated clients may explicitly confirm their already moderated
+  // own author's review. No other action enters the secondary site publisher.
+  if(event.accountId!=null&&event.accountId!=="yan_first"){
+   if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+      (await agreementStatus(env,uid)).status!=="accepted"))return {ok:false,status:403};
+   if(event.action!=="publish"||event.confirmed!==true||
+      rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")
+    return {ok:false,status:409,reason:"explicit_review_approval_required"};
+   try{
+    const accountId=String(event.accountId),profileId=String(event.profileId||"");
+    if((await manVisibility(storage,accountId)).visible!==true)
+     return {ok:false,status:403,reason:"man_hidden_from_clients"};
+    const owned=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
+    if(owned?.confirmed!==true||String(owned.profile?.id)!==profileId)
+     return {ok:false,status:403,reason:"profile_not_saved"};
+    const approvalKey=manStorageKey({userId:uid,accountId,profileId,scope:"moderation"})+":review";
+    const approval=await storage.get(approvalKey);
+    if(approval?.approved!==true||approval.identity?.userId!==uid||
+       approval.identity?.accountId!==accountId||approval.identity?.profileId!==profileId)
+     throw Error("Moderation missing");
+    return await launchApprovedSecondaryReview(storage,rawEnv,{
+     identity:approval.identity,ownerConfirmed:true,at:Date.now()
+    });
+   }catch{return {ok:false,status:409,reason:"secondary_review_dispatch_unavailable"};}
+  }
   if(uid!==OWNER_ID){
    if(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted")return {ok:false,status:403};
