@@ -127,3 +127,21 @@ export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},e
   return safe(saved);
  });
 }
+
+/** Read expected login ONLY inside trusted account's Durable Object; no client output. */
+export async function expectedVerifiedSiteAccountId(storage,env,accountId){
+ account(accountId);
+ const [site,proxy]=await Promise.all([
+  storage.get(SITE+accountId),storage.get(PROXY+accountId)
+ ]);
+ if(site?.accountId!==accountId||proxy?.accountId!==accountId||
+    site.boundProxyVersion!==proxy.version||
+    proxy.proxyVerified!==true||proxy.ipVerified!==true)
+  throw Error("Stale account configuration");
+ const decrypted=await decrypt(env.MAN_SITE_ENCRYPTION_KEY,site.iv,site.sealed,
+  accountId+":intimcity:"+proxy.version);
+ if(typeof decrypted.login!=="string"||decrypted.login.length<4)
+  throw Error("Expected account identity missing");
+ return {expectedSiteAccountId:decrypted.login,
+  proxyVersion:proxy.version,siteVersion:site.version};
+}
