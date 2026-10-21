@@ -53,7 +53,7 @@ test("every secondary rating and review use owner's own sealed account records a
   assert.ok(block.includes('kind:"secondary_publication_account_snapshot"'));
   for(const prefix of ["man-proxy-sealed-v1:","man-intimcity-sealed-v1:",
    "man-owner-approval-v1:","secondary-site-identity-v1:"])
-   assert.ok(block.includes(prefix+"+accountId"),prefix);
+   assert.ok(block.includes('"'+prefix+'"+accountId'),prefix);
  }
  for(const block of [ratingGrant,reviewGrant]){
   assert.ok(block.includes('kind:"secondary_publication_account_version_check"'));
