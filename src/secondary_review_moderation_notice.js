@@ -3,6 +3,7 @@
 import {MODERATION_CHAT,MODERATOR_ID,moderationTelegram} from "./review_moderation.js";
 import {manStorageKey} from "./man_account_isolation.js";
 const esc=x=>String(x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function escLimited(x,max){let out="";for(const ch of String(x)){const bit=esc(ch);if(out.length+bit.length>max-1)return out+"…";out+=bit;}return out;}
 const key=i=>manStorageKey({...i,scope:"moderation"})+":review-notification";
 export function moderationCallback(i,version){
  return ["srmod","approve",i.userId,i.accountId,i.profileId,String(version)].join(":");
@@ -29,7 +30,7 @@ export async function ensureSecondaryReviewGroupNotice(storage,env,i){
    "🌹 <b>Анкета:</b> №"+esc(i.profileId),
    "👨‍💻 <b>Мужчина:</b> "+esc(i.accountId),
    "👤 <b>Клиентка:</b> "+esc(i.userId),"",
-   "✍️ <b>ТЕКСТ ОТЗЫВА</b>",esc(draft.text).slice(0,3200),
+   "✍️ <b>ТЕКСТ ОТЗЫВА</b>",escLimited(draft.text,3100),
    "","🔒 Публикации и списания пока нет."].join("\n");
   const result=await moderationTelegram(env,"sendMessage",{
    chat_id:MODERATION_CHAT,text,parse_mode:"HTML",
