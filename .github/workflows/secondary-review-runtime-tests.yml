@@ -1,0 +1,36 @@
+name: Secondary review runner readiness tests
+on:
+  pull_request:
+    paths:
+      - 'src/secondary_man_review_runner_grant.js'
+      - 'src/secondary_man_review_launch.js'
+      - 'src/cabinet_runtime.js'
+      - 'src/admin_app_api.js'
+      - 'tools/secondary_man_review_job.py'
+      - 'tools/intimcity_profile_lookup.py'
+      - 'tests/secondary_man_review_runner_grant.test.mjs'
+      - '.github/workflows/secondary-review-runtime-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  review-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Worker and runner syntax
+        run: |
+          node --check src/secondary_man_review_runner_grant.js
+          node --check src/secondary_man_review_launch.js
+          node --check src/cabinet_runtime.js
+          node --check src/admin_app_api.js
+          python -m py_compile tools/secondary_man_review_job.py tools/intimcity_profile_lookup.py
+      - name: Test real crypto grant and one-use submission boundaries
+        run: node --test tests/secondary_man_review_runner_grant.test.mjs
