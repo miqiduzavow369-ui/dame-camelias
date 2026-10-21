@@ -59,7 +59,7 @@ def main():
         "nonce":nonce,"callback_ticket":ticket})
     if validate_publish_grant(grant,account,pid)!=host or grant.get("userId")!=uid or grant.get("nonce")!=nonce or grant.get("callbackTicket")!=ticket:
         raise RuntimeError("Private rating grant mismatched")
-    if grant.get("siteIdentityVerified") is not True or grant.get("verifiedSiteLogin")!=grant.get("siteLogin") or grant.get("siteUrl") is None:
+    if grant.get("siteIdentityVerified") is not True or str(grant.get("verifiedSiteLogin","")).casefold()!=str(grant.get("siteLogin","")).casefold() or grant.get("siteUrl") is None:
         raise RuntimeError("Authenticated site identity missing")
     payload=grant["selections"]
     identity={"userId":uid,"accountId":account,"profileId":pid,
