@@ -1,0 +1,22 @@
+name: Secondary review isolation regression
+on:
+  pull_request:
+    paths:
+      - 'tools/secondary_man_review_publish.py'
+      - 'tools/secondary_man_profile_readonly.py'
+      - 'tests/test_secondary_man_review_publish.py'
+      - '.github/workflows/secondary-review-guard-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secondary-review-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify account isolation and review authorization
+        run: python -m unittest discover -s tests -p test_secondary_man_review_publish.py -v
