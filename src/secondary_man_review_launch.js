@@ -90,7 +90,7 @@ export async function launchApprovedSecondaryReview(storage,env,{
   independentAuthorConfirmed:true,moderationApproved:true,
   executorConnected:true,callbackConnected:true,proofAndLedgerConnected:true
  });
- const trustedDispatch=dispatch||async args=>{
+ const trustedDispatch=dispatch||(async args=>{
   const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-review-publish.yml/dispatches",{
    method:"POST",headers:{
     "Authorization":"Bearer "+env.DC_ACTIONS_TOKEN,
@@ -105,7 +105,7 @@ export async function launchApprovedSecondaryReview(storage,env,{
    }}),signal:AbortSignal.timeout(15000)
   });
   return {accepted:response.status===204};
- };
+ });
  return dispatchApprovedSecondaryPublication(storage,{
   identity:i,ownerOperationConfirmed:true,independentAuthorConfirmed:true,
   trustedDispatch,at
