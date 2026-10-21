@@ -152,11 +152,10 @@ export async function expectedVerifiedSiteAccountId(storage,env,accountId){
  * account-page verification. Never manufacture identity from mere credentials.
  * Does not contact Intimcity, touch ratings, publish, or reserve credits.
  */
-export async function restoreVerifiedSiteIdentity(storage,env,accountId){
+export async function restoreVerifiedSiteIdentity(storage,env,accountId,ownerId){
  account(accountId);
  if(typeof storage?.transaction!=="function")throw Error("Atomic storage unavailable");
- const params={actorId:env?.OWNER_ID||"5866034656",
-  cabinetId:env?.OWNER_ID||"5866034656",ownerId:env?.OWNER_ID||"5866034656",accountId};
+ const params={actorId:ownerId,cabinetId:ownerId,ownerId,accountId};
  // A completed browser preflight must match the current proxy version.
  const browser=await browserCheckStatus(storage,params);
  return storage.transaction(async tx=>{
