@@ -222,7 +222,7 @@ def capture_verified_proof(ctx, pid, expected_date=None):
     finally:
         page.close()
 
-def inspect(pid, mode='profile'):
+def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review_boundary=None):
     host = required("PROXY_HOST")
     proxy_port = int(os.environ.get("PROXY_PORT", "6408"))
     if not 1 <= proxy_port <= 65535:
@@ -496,8 +496,14 @@ def inspect(pid, mode='profile'):
                     raise RuntimeError("Review profile identity not verified")
                 print("REVIEW_STAGE: verified-profile-from-search",flush=True)
                 from review_live_workflow import run_review
-                approved=required("ANKETA_PRIVATE_REVIEW")
-                stage=(lambda kind: report_review_stage(pid,required("ANKETA_LOOKUP_NONCE"),kind)) if mode=="review_publish" else None
+                if secondary_review_text is not None:
+                    if not callable(secondary_review_boundary) or not os.environ.get("SECONDARY_EXPECTED_SITE_LOGIN"):
+                        raise RuntimeError("Secondary browser grant required")
+                    approved=secondary_review_text
+                    stage=secondary_review_boundary
+                else:
+                    approved=required("ANKETA_PRIVATE_REVIEW")
+                    stage=(lambda kind: report_review_stage(pid,required("ANKETA_LOOKUP_NONCE"),kind)) if mode=="review_publish" else None
                 return {"profile":profile,"review_publication":run_review(
                     ctx,pid,OWNER_HOST,mode,approved,report_stage=stage,profile_page=profile_page)}
             if mode not in ("ratings","mapping","dryfill","publish") or not profile:
