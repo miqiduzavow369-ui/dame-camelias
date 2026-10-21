@@ -14,7 +14,7 @@ import {readSecondaryManApproval,setSecondaryManApproval,approvalMatchesConfigur
 import {readManSetupDrafts,changeManSetupDraft,readManSetupHistory} from "./man_setup_store.js";
 import {proxyStatus,saveProxy} from "./man_proxy_vault.js";
 import {browserCheckStatus,startBrowserCheck,claimBrowserCheck,completeBrowserCheck} from "./man_browser_preflight.js";
-import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck} from "./man_site_login_preflight.js";
+import {siteLoginStatus,startSiteLoginCheck,claimSiteLoginCheck,completeSiteLoginCheck,restoreVerifiedSiteIdentity} from "./man_site_login_preflight.js";
 import {profileProbeStatus,startProfileProbe,claimProfileProbe,completeProfileProbe} from "./secondary_man_profile_probe.js";
 import {recordTicketedSecondaryResult,secondaryVerifiedResultStatus} from "./secondary_man_result_settlement.js";
 import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
@@ -553,6 +553,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const accountId=String(event.accountId||"");
    if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))
     throw Error("Invalid secondary account");
+   // Restore the record only if the SAME verified login already completed
+   // for this exact account, proxy and site versions. No browser posting.
+   await restoreVerifiedSiteIdentity(storage,rawEnv,accountId,OWNER_ID).catch(()=>null);
    const [proxy,site,approval,verified]=await Promise.all([
     storage.get("man-proxy-sealed-v1:"+accountId),
     storage.get("man-intimcity-sealed-v1:"+accountId),
