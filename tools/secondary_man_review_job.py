@@ -143,9 +143,9 @@ def main():
                  "sitePublicationId":proof_reference,"proofFileId":file_id},
         "signature":signature,"originalJpegBase64":encoded
     })
-    if callback.get("ok") is not True or callback.get("status")!="proof_saved":
+    if callback.get("ok") is not True or callback.get("status")!="completed":
         raise RuntimeError("Proof receiver did not confirm immutable evidence")
-    print("SECONDARY_REVIEW: proof_saved; credit settlement pending",flush=True)
+    print("SECONDARY_REVIEW: verified proof and credit settlement completed",flush=True)
     return 0
 
 if __name__=="__main__":
