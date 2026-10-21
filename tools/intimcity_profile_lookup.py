@@ -222,7 +222,7 @@ def capture_verified_proof(ctx, pid, expected_date=None):
     finally:
         page.close()
 
-def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review_boundary=None):
+def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review_boundary=None, secondary_rating_selections=None, secondary_rating_boundary=None):
     host = required("PROXY_HOST")
     proxy_port = int(os.environ.get("PROXY_PORT", "6408"))
     if not 1 <= proxy_port <= 65535:
@@ -613,7 +613,7 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
             if mode in ("dryfill","publish"):
                 # Perform value assignment only in the ephemeral browser DOM; no events,
                 # requests, form submission or persistent browser storage.
-                payload=json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
+                payload=secondary_rating_selections if secondary_rating_selections is not None else json.loads(required("ANKETA_DRYFILL_SELECTIONS"))
                 requested=payload.get("selections") if isinstance(payload,dict) else payload
                 extra_flag=payload.get("metElsewhere",False) if isinstance(payload,dict) else False
                 if not isinstance(extra_flag,bool):
@@ -788,6 +788,10 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
                     if btn.count()!=1 or not btn.first.is_visible():
                         print("PUBLISH: submit control unavailable",flush=True)
                         return {"profile":profile,"catalog":[],"publication":publication}
+                    if secondary_rating_selections is not None:
+                        if not callable(secondary_rating_boundary):
+                            raise RuntimeError("Missing trusted rating submit boundary")
+                        secondary_rating_boundary("rating_submit_boundary")
                     print("PUBLISH: sending one submission attempt",flush=True)
                     # Mark attempted *before* click, since timeout/network error can
                     # happen after the server has received the form.
@@ -809,6 +813,18 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
                             publication["confirmedBy"]="visible-success-alert"
                     except Exception as e:
                         print("PUBLISH: uncertain after attempt; exception_type="+type(e).__name__,flush=True)
+                    if secondary_rating_selections is not None and publication["attempted"]:
+                        try:
+                            # The authenticated checked-list is independent of the
+                            # form's HTTP response. No second POST is ever sent.
+                            verified=capture_verified_proof(ctx,pid)
+                            if verified and verified.get("image") and verified.get("mime")=="image/jpeg":
+                                verified["account"]=os.environ.get("SECONDARY_RATING_ACCOUNT_ID","")
+                                publication["confirmed"]=True
+                                publication["confirmedBy"]="authenticated-checked-list"
+                                publication["proof"]=verified
+                        except Exception as exc:
+                            print("RATING_PROOF: not verified; "+type(exc).__name__,flush=True)
                     print("PUBLISH: result="+("confirmed" if publication["confirmed"] else "unconfirmed"),flush=True)
                     return {"profile":profile,"catalog":[],"publication":publication}
                 return {"profile":profile,"catalog":[],"dryfill":report}
