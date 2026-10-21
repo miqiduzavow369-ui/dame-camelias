@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {webcrypto} from "node:crypto";
+import {webcrypto,createHash} from "node:crypto";
 import {reserveSecondaryFeedbackCredit} from "../src/secondary_man_credit_bridge.js";
 import {recordSecondaryVerifiedResult,settleSecondaryVerifiedResult,secondaryVerifiedResultStatus} from "../src/secondary_man_result_settlement.js";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
@@ -29,7 +29,15 @@ async function attempted(tx,i){
  const k=manStorageKey({userId:i.userId,accountId:i.accountId,profileId:i.profileId,scope:"publication"})+":"+i.kind;
  await tx.put(k,{identity:createAccountOperation(i),status:"attempted",attempted:true,proxyVersion:1,siteVersion:2});
 }
-function proof(i){return {original:i,callback:i,sitePublicationId:"verified-site-2345",proofFileId:"telegram-image-5432",moderatorApproved:true,independentAuthorConfirmed:true,verifiedByTrustedExecutor:true,at:1000};}
+const jpegBytes=Buffer.concat([Buffer.from([255,216,255]),Buffer.alloc(100),Buffer.from([255,217])]);
+const jpegDigest=createHash("sha256").update(jpegBytes).digest("hex");
+const jpegFileId="jpeg_"+jpegDigest.slice(0,40);
+function installProof(env,i){
+ env.VISITORS_KV={get:async()=>({accountId:i.accountId,userId:i.userId,
+  profileId:i.profileId,kind:i.kind,nonce:i.nonce,
+  base64:jpegBytes.toString("base64"),digest:jpegDigest,size:jpegBytes.length})};
+}
+function proof(i){return {original:i,callback:i,sitePublicationId:"verified-site-2345",proofFileId:jpegFileId,moderatorApproved:true,independentAuthorConfirmed:true,verifiedByTrustedExecutor:true,at:1000};}
 test("two men's identical profile, client and nonce settle independently, once",async()=>{
  const {tx,entries}=storage(),{env,seen}=fakeEnv();
  for(const accountId of ["yan_second","yan_03"]){
@@ -39,6 +47,7 @@ test("two men's identical profile, client and nonce settle independently, once",
   await attempted(tx,i);
   assert.equal((await recordSecondaryVerifiedResult(tx,proof(i))).status,"proof_saved");
   assert.equal((await secondaryVerifiedResultStatus(tx,i)).proofPresent,true);
+  installProof(env,i);
   await assert.rejects(()=>recordSecondaryVerifiedResult(tx,proof(i)),/already claimed/);
   assert.equal((await settleSecondaryVerifiedResult(tx,env,{original:i,callback:i})).status,"completed");
   await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
@@ -67,6 +76,7 @@ test("failed credit completion remains locked for reconciliation without another
  assert.equal(reserve.status,"reserved");
  await attempted(tx,i);
  await recordSecondaryVerifiedResult(tx,proof(i));
+ installProof(env,i);
  const done=await settleSecondaryVerifiedResult(tx,env,{original:i,callback:i});
  assert.equal(done.status,"reconciliation_required");
  await assert.rejects(()=>settleSecondaryVerifiedResult(tx,env,{original:i,callback:i}),/not ready/);
@@ -107,6 +117,7 @@ test("publication status changed while external credit completes cannot be false
   }
   return {ok:true,json:async()=>({ok:true})};
  }});
+ installProof(env,i);
  const result=await settleSecondaryVerifiedResult(tx,env,{original:i,callback:i});
  assert.equal(result.status,"reconciliation_required");
  assert.equal((await secondaryVerifiedResultStatus(tx,i)).status,"reconciliation_required");

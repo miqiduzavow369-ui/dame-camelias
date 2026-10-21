@@ -10,6 +10,7 @@ import {appendVerifiedFeedbackEvidence,readVerifiedFeedbackEvidence} from "./sec
 import {settleSecondaryFeedbackCredit} from "./secondary_man_credit_bridge.js";
 import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
 import {claimSecondaryCallbackTicket} from "./secondary_man_callback_ticket.js";
+import {readSecondaryOriginalJpeg,saveSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
 
 const IDENTIFIER=/^[A-Za-z0-9_-]{6,300}$/;
 function validated(original,callback){
@@ -98,6 +99,25 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
   });
   return {ok:false,accountId:i.accountId,status:"reconciliation_required"};
  }
+ // A signed proof ID alone is not evidence that the original JPEG was archived.
+ // For new secondary publications, never debit credits without reading and
+ // validating the exact immutable, account-bound original from private KV.
+ let originalJpeg=null;
+ try{
+  if(env?.VISITORS_KV)originalJpeg=await readSecondaryOriginalJpeg(
+   env.VISITORS_KV,i,record.proofFileId);
+ }catch{originalJpeg=null;}
+ if(originalJpeg?.mime!=="image/jpeg"||!(originalJpeg.size>0)){
+  await storage.transaction(async tx=>{
+   const row=await tx.get(resultKey(i));
+   if(row?.status==="settling")await tx.put(resultKey(i),{
+    ...row,status:"reconciliation_required",
+    ledgerStatus:"requires_reconciliation"
+   });
+  });
+  return {ok:false,accountId:i.accountId,status:"reconciliation_required",
+   reason:"original_jpeg_not_verified"};
+ }
  let outcome;
  try{outcome=await settleSecondaryFeedbackCredit(storage,env,i);}
  catch{outcome={ok:false,status:"reconciliation_required"};}
@@ -160,7 +180,8 @@ export async function recordAttestedSecondaryResult(storage,{
 // before saving proof. The moderator and original-author confirmation must
 // come from server records, NOT request fields. This is still not an HTTP route.
 export async function recordTicketedSecondaryResult(storage,{
- identity,token,secret,input,signature,at,moderatorApproved,independentAuthorConfirmed
+ identity,token,secret,input,signature,at,moderatorApproved,independentAuthorConfirmed,
+ proofKv=null,originalJpegBase64=null
 }){
  if(moderatorApproved!==true||independentAuthorConfirmed!==true)
   throw Error("Trusted author and moderation confirmation missing");
@@ -168,6 +189,11 @@ export async function recordTicketedSecondaryResult(storage,{
   identity,token,secret,input,signature,at
  });
  try{
+  if(!proofKv||typeof originalJpegBase64!=="string")
+   throw Error("Original JPEG evidence unavailable");
+  await saveSecondaryOriginalJpeg(proofKv,verified.identity,{
+   base64:originalJpegBase64,expectedProofFileId:verified.proofFileId,at
+  });
   return await recordSecondaryVerifiedResult(storage,{
    original:verified.identity,callback:verified.identity,
    sitePublicationId:verified.sitePublicationId,
