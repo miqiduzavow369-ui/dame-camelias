@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "../src/secondary_man_rating_form.js";
 import {MAN_ACCOUNTS} from "../src/man_accounts.js";
+import {savePersonalCriteria} from "../src/secondary_personal_rating_criteria.js";
 
 const userId="123456789",profileId="765432";
 const catalog=[
@@ -12,15 +13,19 @@ const catalog=[
 ];
 function context(){
  const values=new Map();
+ const cache=new Map();
  const kv={get:async(key)=>key==="owner_anketa_saved:"+userId+":"+profileId?
-  {confirmed:true,profile:{id:profileId,name:"Анкета"},catalog}:null};
+  {confirmed:true,profile:{id:profileId,name:"Анкета"},catalog}:cache.get(key)||null,
+  put:async(key,val)=>cache.set(key,JSON.parse(val))};
  const tx={get:async k=>values.get(k),put:async(k,v)=>{values.set(k,v)}};
  const storage={get:tx.get,transaction:async fn=>fn(tx)};
  return {storage,kv,values};
 }
-test("all 29 secondary men open same validated site criteria without posting",async()=>{
+test("all 29 secondary men require their own inspected site criteria without posting",async()=>{
  const {storage,kv}=context();
  for(const man of MAN_ACCOUNTS.slice(1)){
+  await assert.rejects(()=>openSecondaryRatingForm(storage,kv,{userId,profileId,accountId:man.id}),/Rating catalog not ready/);
+  await savePersonalCriteria(kv,{accountId:man.id,profileId,siteHost:"b.intimcity.rip",catalog});
   const form=await openSecondaryRatingForm(storage,kv,{userId,profileId,accountId:man.id});
   assert.equal(form.ok,true);
   assert.equal(form.publicationAvailable,false);
@@ -32,6 +37,7 @@ test("all 29 secondary men open same validated site criteria without posting",as
 test("men's selected ratings persist separately; Yan First legacy state untouched",async()=>{
  const {storage,kv,values}=context();
  for(const accountId of ["yan_second","yan_03"]){
+  await savePersonalCriteria(kv,{accountId,profileId,siteHost:"b.intimcity.rip",catalog});
   const result=await saveSecondaryRatingForm(storage,kv,{
    userId,profileId,accountId,selected:{"1":"5","2":"Да"},metElsewhere:false
   });
@@ -46,6 +52,7 @@ test("men's selected ratings persist separately; Yan First legacy state untouche
 });
 test("invalid site choice, foreign profiles and claimed operations reject safely",async()=>{
  const {storage,kv,values}=context();
+ await savePersonalCriteria(kv,{accountId:"yan_second",profileId,siteHost:"b.intimcity.rip",catalog});
  const x={userId,profileId,accountId:"yan_second",metElsewhere:false};
  await assert.rejects(()=>saveSecondaryRatingForm(storage,kv,{...x,selected:{"1":"4"}}),/Invalid rating selection/);
  await assert.rejects(()=>openSecondaryRatingForm(storage,kv,{...x,profileId:"999999"}),/Saved profile not verified/);
