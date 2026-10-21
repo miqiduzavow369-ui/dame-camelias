@@ -9,7 +9,7 @@ test("secondary ratings have a separate one-shot client confirmation and runner"
  assert.ok(html);
  new vm.Script(html[1]);
  assert.ok(ui.includes('confirmed:action==="publish"&&selectedAccount!=="yan_first"'));
- assert.ok(ui.includes('selectedAccount!=="yan_first"&&!window.confirm('));
+ assert.ok(!ui.includes('selectedAccount!=="yan_first"&&!window.confirm('));
  assert.ok(!ui.includes('actionStatus.textContent="Отправка на сайт пока недоступна."'));
  const src=fs.readFileSync("src/cabinet_runtime.js","utf8");
  const from=src.indexOf('if(event.kind==="mini_rating_action")'),to=src.indexOf('if(event.kind==="mini_rating_open")',from);
