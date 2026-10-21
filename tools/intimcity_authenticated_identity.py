@@ -57,3 +57,30 @@ def authenticated_identity_status(page, expected_login):
     if len(set(x.casefold() for x in observed)) != 1:
         return "identity_unverified"
     return "identity_verified" if matches_verified_account(expected_login, observed[0]) else "identity_mismatch"
+
+def observed_authenticated_site_email(page, expected_login):
+    """Return the distinct real authenticated header email ONLY after full
+    identity verification. Never infer an account ID from the submitted login.
+    """
+    if authenticated_identity_status(page, expected_login)!="identity_verified":
+        return None
+    selectors = [
+        'header [data-account-email]',
+        'header [data-user-email]',
+        '.user-account [data-email]',
+        '.account-details .account-email',
+        '.profile-menu .account-email',
+    ]
+    values=[]
+    for selector in selectors:
+        for element in page.locator(selector).all():
+            if element.is_visible():
+                value=(element.get_attribute("data-account-email") or
+                       element.get_attribute("data-user-email") or
+                       element.get_attribute("data-email") or
+                       element.inner_text()).strip()
+                if value:
+                    values.append(value)
+    if len(set(v.casefold() for v in values))!=1:
+        return None
+    return values[0] if matches_verified_account(expected_login,values[0]) else None
