@@ -1065,7 +1065,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       const requestAction=async action=>{
        // Retry only read-only status requests after a transient connection error.
        // Never automatically repeat prepare or publish; they may have reached the server.
-       const getResponse=()=>fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:selected.id,action}),cache:"no-store"});
+       const getResponse=()=>fetch("/api/anketa/mini-rating-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData,accountId:selectedAccount,profileId:selected.id,action,confirmed:action==="publish"&&selectedAccount!=="yan_first"}),cache:"no-store"});
        let response;
        try{response=await getResponse();}
        catch(error){
@@ -1119,21 +1119,13 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       };
       publish.onclick=async()=>{publish.disabled=true;actionStatus.textContent="⏳ Запускаем проверку…";try{const x=await requestAction("prepare");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{publish.disabled=false;}};
       check.onclick=async()=>{check.disabled=true;try{const x=await requestAction("status");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
-      send.onclick=async()=>{send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
+      send.onclick=async()=>{
+       if(selectedAccount!=="yan_first"&&!window.confirm("Подтвердить однократную публикацию выбранных оценок через "+accountName(selectedAccount)+"? Повторная отправка при неизвестном результате запрещена."))return;
+       send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
       review.append(publish,check,actionStatus,waitingClock,back,send);
-      if(selectedAccount!=="yan_first"&&saved.publicationAvailable!==true){
-       // Preserve the same clean completed-rating card layout as Yan First.
-       // Never enable submit until this man's own verified runner exists.
-       publish.hidden=true;
-       check.hidden=true;
-       send.hidden=false;
-       send.textContent="✅ Опубликовать оценки";
-       send.disabled=true;
-       back.hidden=false;
-       waitingClock.hidden=true;
-       proofCard.hidden=true;
-       actionStatus.textContent="Отправка на сайт пока недоступна.";
-      }else reflect({stage:"draft"});
+      // The same clean rating confirmation steps are now available for a
+      // verified secondary account. The server still decides eligibility.
+      reflect({stage:"draft"});
       editor.append(review);review.scrollIntoView({block:"nearest",behavior:"smooth"});
     }catch(e){result.textContent="⚠️ "+e.message;}finally{save.disabled=false;}};
     panel.hidden=false;

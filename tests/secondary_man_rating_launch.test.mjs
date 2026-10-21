@@ -1,0 +1,53 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+
+test("secondary ratings have a separate one-shot client confirmation and runner",()=>{
+ const ui=fs.readFileSync("anketa/mini-preview.html","utf8");
+ const html=ui.match(/<script>([\s\S]*?)<\/script>/);
+ assert.ok(html);
+ new vm.Script(html[1]);
+ assert.ok(ui.includes('confirmed:action==="publish"&&selectedAccount!=="yan_first"'));
+ assert.ok(ui.includes('selectedAccount!=="yan_first"&&!window.confirm('));
+ assert.ok(!ui.includes('actionStatus.textContent="Отправка на сайт пока недоступна."'));
+ const src=fs.readFileSync("src/cabinet_runtime.js","utf8");
+ const from=src.indexOf('if(event.kind==="mini_rating_action")'),to=src.indexOf('if(event.kind==="mini_rating_open")',from);
+ const route=src.slice(from,to);
+ assert.ok(route.includes('launchApprovedSecondaryRating('));
+ assert.ok(route.includes('event.confirmed!==true'));
+ assert.ok(route.includes('secondaryPublicationOperationalStatus('));
+ assert.ok(route.includes('return engine.miniRatingAction('));
+ assert.ok(src.includes('(identity.kind==="review"||identity.kind==="rating")'));
+ const worker=fs.readFileSync("src/index.js","utf8");
+ assert.ok(worker.includes('/api/secondary-man/rating-payload'));
+ assert.ok(worker.includes('/api/secondary-man/rating-stage'));
+ assert.ok(worker.includes('confirmed:body.confirmed===true'));
+});
+test("rating Chromium runner submits at most once with durable audit and authenticated own proof",()=>{
+ const py=fs.readFileSync("tools/intimcity_profile_lookup.py","utf8");
+ const start=py.indexOf('if mode=="publish":'),end=py.indexOf('return {"profile":profile,"catalog":[],"dryfill":report}',start);
+ assert.ok(start>0&&end>start);
+ const block=py.slice(start,end);
+ assert.ok(block.includes('secondary_rating_boundary("rating_submit_boundary")'));
+ assert.ok(block.indexOf('secondary_rating_boundary("rating_submit_boundary")')<block.indexOf('btn.first.click('));
+ assert.ok(block.includes('capture_verified_proof(ctx,pid)'));
+ assert.ok(block.includes('publication["confirmedBy"]="authenticated-checked-list"'));
+ const runner=fs.readFileSync("tools/secondary_man_rating_job.py","utf8");
+ assert.ok(runner.includes('validate_publish_grant('));
+ assert.ok(runner.includes('approvedSelectionsSha256'));
+ assert.ok(runner.includes('SECONDARY_CALLBACK_HMAC_KEY'));
+ assert.ok(runner.includes('authenticated-checked-list'));
+});
+test("rating grant and launcher deny Yan First and require owner/account cryptographic binding",()=>{
+ const grant=fs.readFileSync("src/secondary_man_review_runner_grant.js","utf8");
+ const launch=fs.readFileSync("src/secondary_man_rating_launch.js","utf8");
+ assert.ok(grant.includes('export async function claimSecondaryRatingRunnerPayload'));
+ assert.ok(grant.includes('export async function recordSecondaryRatingSubmitBoundary'));
+ assert.ok(grant.includes('status:"submit_boundary"'));
+ assert.ok(launch.includes('i.accountId==="yan_first"'));
+ assert.ok(launch.includes('reserveSecondaryFeedbackCredit('));
+ assert.ok(launch.includes('prepareSecondaryPublication('));
+ assert.ok(launch.includes('dispatchApprovedSecondaryPublication('));
+ assert.ok(launch.includes('ratingSelectionsSha256:fingerprint'));
+});

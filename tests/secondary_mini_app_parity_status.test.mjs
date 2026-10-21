@@ -10,8 +10,8 @@ test("Yan First's original compact interface stays free of visible stage rows an
  assert.match(html,/\[\]\.forEach\(\(step,i\)=>/);
  assert.doesNotMatch(html,/\(legacySteps\[kind\]\|\|\[\]\)\.forEach\(\(step,i\)=>/);
  assert.match(html,/\$\("secondaryDraftCard"\)\.hidden=true/);
- assert.match(html,/send\.textContent="✅ Опубликовать оценки"/);
- assert.match(html,/send\.disabled=true/);
+ assert.match(html,/send\.textContent="✅ Подтвердить публикацию"/);
+ assert.match(html,/send\.hidden=stage!=="ready"/);
  assert.match(html,/secondaryStatuses\[String\(p\.id\)\]/);
  assert.doesNotMatch(html,/publish\.textContent="🔎 Подготовить публикацию"/);
  assert.match(html,/draft_saved:kind==="rating"\?"✅ Оценки подготовлены":"✅ Отзыв подготовлен"/);

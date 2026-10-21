@@ -33,6 +33,8 @@ import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_r
 import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {launchApprovedSecondaryRating} from "./secondary_man_rating_launch.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 // Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
@@ -143,7 +145,7 @@ export async function cabinetEndpoint(request,env,kind){
  }else{
   if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"token_rejected","Cache-Control":"no-store"}});
   body=request.method==="POST"?await request.clone().json().catch(()=>null):null;
-  uid=String(body?.user_id||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
+  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
  }
  if(!validId(uid))return new Response("Invalid user",{status:400});
  const result=await cabinetRPC(env,uid,{kind,url:request.url,method:request.method,headers:{Authorization:request.headers.get("Authorization")||""},body:request.method==="POST"?await request.text():null});
@@ -542,6 +544,33 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      accountId:event.accountId,expectedVersion:event.expectedVersion,settings:event.settings,at:Date.now()});}
    catch(e){return {ok:false,status:409,reason:String(e.message)==="Proxy vault key not configured"?"vault_key_missing":"proxy_save_rejected"};}
  }
+ if(event.kind==="secondary_publication_account_snapshot"||
+    event.kind==="secondary_publication_account_version_check"){
+  // Internal Durable Object RPC only; never exposed by an HTTP action.
+  if(uid!==OWNER_ID)return {ok:false,status:403};
+  try{
+   const accountId=String(event.accountId||"");
+   if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))
+    throw Error("Invalid secondary account");
+   const [proxy,site,approval,verified]=await Promise.all([
+    storage.get("man-proxy-sealed-v1:"+accountId),
+    storage.get("man-intimcity-sealed-v1:"+accountId),
+    storage.get("man-owner-approval-v1:"+accountId),
+    storage.get("secondary-site-identity-v1:"+accountId)
+   ]);
+   if(!proxy||!site||!approval||!verified||
+      !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)||
+      verified.accountId!==accountId||
+      verified.proxyVersion!==proxy.version||verified.siteVersion!==site.version||
+      !verified.siteAccountId||!proxy.proxyVerified||!proxy.ipVerified||
+      site.boundProxyVersion!==proxy.version)
+    throw Error("Account credentials not currently authorized");
+   if(event.kind==="secondary_publication_account_version_check")
+    return {ok:event.proxyVersion===proxy.version&&event.siteVersion===site.version};
+   // Ciphertext only, returned exclusively to another server-side DO.
+   return {ok:true,proxy,site,approval,verified};
+  }catch{return {ok:false,reason:"secondary_account_not_ready"};}
+ }
  if(event.kind==="secondary_catalog_cabinet_ready"){
   if(uid!==OWNER_ID)return {ok:false,status:403};
   const ready=await secondaryRatingCabinetConnected(storage,event.accountId).catch(()=>false);
@@ -585,6 +614,44 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  // ANKETA_CALLBACK_TOKEN transport authentication, plus a distinct HMAC and
  // previously issued single-use ticket. Never honor callback-supplied
  // moderation/consent fields, nor complete the credit ledger in this route.
+ if(event.kind==="secondary_man_rating_runner_payload"){
+  try{
+   const q=new URL(event.url).searchParams;
+   const identity={userId:uid,accountId:q.get("account_id"),
+    profileId:q.get("profile_id"),kind:"rating",nonce:q.get("nonce")};
+   if(q.get("user_id")!==uid)throw Error("Client mismatch");
+   if(uid!==OWNER_ID){
+    const accountId=String(identity.accountId);
+    const [proxy,site]=await Promise.all([
+     storage.get("man-proxy-sealed-v1:"+accountId),
+     storage.get("man-intimcity-sealed-v1:"+accountId)
+    ]);
+    const status=await cabinetRPC(rawEnv,OWNER_ID,{
+     kind:"secondary_publication_account_version_check",accountId,
+     proxyVersion:proxy?.version,siteVersion:site?.version
+    });
+    if(status?.ok!==true)throw Error("Account owner withdrew or changed approval");
+   }
+   const data=await claimSecondaryRatingRunnerPayload(storage,rawEnv,{
+    identity,token:q.get("callback_ticket"),at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(data),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"rating_runner_grant_unavailable"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
+ if(event.kind==="secondary_man_rating_submit_boundary"){
+  try{
+   const b=JSON.parse(event.body||"null"),identity=requirePublicationIdentity(b?.identity);
+   if(identity.userId!==uid||identity.kind!=="rating")throw Error("Rating mismatch");
+   const result=await recordSecondaryRatingSubmitBoundary(storage,{
+    identity,token:b.token,approvedSelectionsSha256:b.approvedSelectionsSha256,at:Date.now()
+   });
+   return {status:200,body:JSON.stringify(result),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"rating_submit_boundary_rejected"}),
+    headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
  if(event.kind==="secondary_man_review_runner_payload"){
   try{
    const q=new URL(event.url).searchParams;
@@ -643,7 +710,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    });
    // Verified immutable original proof is required by the settlement adapter.
    // Ambiguous financial outcomes remain locked; site submission is never retried.
-   if(result?.status==="proof_saved"&&identity.kind==="review"){
+   if(result?.status==="proof_saved"&&(identity.kind==="review"||identity.kind==="rating")){
     const settled=await settleSecondaryVerifiedResult(storage,rawEnv,{
      original:identity,callback:identity
     });
@@ -1018,7 +1085,63 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
       (await agreementStatus(env,uid)).status!=="accepted"))
     return {ok:false,status:403};
-   if(event.action!=="status")return {ok:false,status:409,reason:"secondary_executor_not_connected"};
+   if(!["prepare","publish","status"].includes(event.action))
+    return {ok:false,status:400,reason:"invalid_rating_action"};
+   try{
+    const accountId=String(event.accountId),profileId=String(event.profileId||"");
+    if((await manVisibility(storage,accountId)).visible!==true)
+     return {ok:false,status:403,reason:"man_hidden_from_clients"};
+    const saved=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
+    if(saved?.confirmed!==true||String(saved.profile?.id)!==profileId)
+     return {ok:false,status:403,reason:"profile_not_saved"};
+    const base=manStorageKey({userId:uid,accountId,profileId,scope:"publication"})+":rating";
+    const row=await storage.get(base);
+    const draft=await storage.get(manStorageKey({
+     userId:uid,accountId,profileId,scope:"rating-draft"})+":rating");
+    if(event.action==="prepare"){
+     if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
+     if(draft?.accountId!==accountId||draft.userId!==uid||
+        draft.profileId!==profileId||!Object.keys(draft.selected||{}).length)
+      return {ok:false,status:409,reason:"not_ready"};
+     return {ok:true,stage:"ready",publicationAvailable:true};
+    }
+    if(event.action==="publish"){
+     if(event.confirmed!==true||rawEnv.CABINET_PUBLICATIONS_ENABLED==="false")
+      return {ok:false,status:409,reason:"explicit_rating_confirmation_required"};
+     if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
+     const identity={userId:uid,accountId,profileId,kind:"rating",
+      nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)};
+     if(uid!==OWNER_ID){
+      const config=await cabinetRPC(rawEnv,OWNER_ID,{
+       kind:"secondary_publication_account_snapshot",accountId});
+      if(config?.ok!==true)throw Error("Owner account setup unavailable");
+      // Each client's DO receives encrypted account records, never plaintext.
+      // A later grant MUST re-check versions and approval against owner.
+      await storage.transaction(async tx=>{
+       if(await tx.get(base))throw Error("Rating already attempted");
+       await tx.put("man-proxy-sealed-v1:"+accountId,config.proxy);
+       await tx.put("man-intimcity-sealed-v1:"+accountId,config.site);
+       await tx.put("man-owner-approval-v1:"+accountId,config.approval);
+       await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
+      });
+     }
+     const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
+      identity,at:Date.now()
+     });
+     return launched.ok?{ok:true,stage:"publishing",nonce:identity.nonce}:
+      {ok:false,status:409,reason:launched.status};
+    }
+    if(!row)return {ok:true,stage:draft?"draft":"draft"};
+    const s=await secondaryPublicationOperationalStatus(storage,row.identity,{
+     proofKv:rawEnv.VISITORS_KV
+    });
+    return {ok:true,stage:s.published?"published":
+     s.requiresManualReconciliation?"unknown":
+     row.status==="attempted"?"checking":
+     row.status==="prepared"?"preparing":"unknown",
+     nonce:row.identity.nonce};
+   }catch{return {ok:false,status:409,reason:"secondary_rating_operation_unavailable"};}
+
    if(!/^[a-f0-9]{12}$/.test(String(event.nonce||"")))
     return {ok:false,status:400,reason:"invalid_operation_nonce"};
    try{
