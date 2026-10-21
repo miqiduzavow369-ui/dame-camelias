@@ -1087,6 +1087,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     return {ok:false,status:403};
    if(!["prepare","publish","status"].includes(event.action))
     return {ok:false,status:400,reason:"invalid_rating_action"};
+   let failureStage="preflight";
    try{
     const accountId=String(event.accountId),profileId=String(event.profileId||"");
     if((await manVisibility(storage,accountId)).visible!==true)
@@ -1098,8 +1099,28 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const row=await storage.get(base);
     const draft=await storage.get(manStorageKey({
      userId:uid,accountId,profileId,scope:"rating-draft"})+":rating");
+    // A credit reservation may exist even when dispatch failed before
+    // writing a publication record. Never create a second reservation.
+    const claims=typeof storage.list==="function"?
+     await storage.list({prefix:manStorageKey({
+      userId:uid,accountId,profileId,scope:"operation"})+":rating:"}):new Map();
+    const outstanding=[...claims.values()].some(x=>
+     x&&["reserving","reserved","settling","reconciliation_required","completed"].includes(x.status));
+    if(!row&&outstanding)
+     return {ok:false,status:409,reason:"secondary_rating_reconciliation_required"};
     if(event.action==="prepare"){
      if(row)return {ok:false,status:409,reason:"already_published_or_pending"};
+     const readySecrets=!!(rawEnv.DC_ACTIONS_TOKEN&&rawEnv.ANKETA_CALLBACK_TOKEN&&
+      rawEnv.SECONDARY_CALLBACK_HMAC_KEY&&rawEnv.MAN_PROXY_ENCRYPTION_KEY&&
+      rawEnv.MAN_SITE_ENCRYPTION_KEY&&rawEnv.VISITORS_KV&&rawEnv.ORDER_REMINDERS);
+     if(!readySecrets)return {ok:false,status:409,reason:"secondary_runner_configuration_missing"};
+     if(uid!==OWNER_ID){
+      failureStage="owner_preflight";
+      const owner=await cabinetRPC(rawEnv,OWNER_ID,{
+       kind:"secondary_publication_account_snapshot",accountId});
+      if(owner?.ok!==true)return {ok:false,status:409,reason:"secondary_owner_account_not_ready"};
+     }
+     failureStage="preflight";
      if(draft?.accountId!==accountId||draft.userId!==uid||
         draft.profileId!==profileId||!Object.keys(draft.selected||{}).length)
       return {ok:false,status:409,reason:"not_ready"};
@@ -1112,6 +1133,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      const identity={userId:uid,accountId,profileId,kind:"rating",
       nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)};
      if(uid!==OWNER_ID){
+      failureStage="owner_snapshot";
       const config=await cabinetRPC(rawEnv,OWNER_ID,{
        kind:"secondary_publication_account_snapshot",accountId});
       if(config?.ok!==true)throw Error("Owner account setup unavailable");
@@ -1125,6 +1147,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
       });
      }
+     failureStage="launch";
      const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
       identity,at:Date.now()
      });
@@ -1140,7 +1163,19 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      row.status==="attempted"?"checking":
      row.status==="prepared"?"preparing":"unknown",
      nonce:row.identity.nonce};
-   }catch{return {ok:false,status:409,reason:"secondary_rating_operation_unavailable"};}
+   }catch(e){
+    console.error("Secondary rating action failed",{
+     action:event.action,stage:failureStage,errorType:e?.constructor?.name,
+     // NEVER log proxy, site credentials, selected ratings or full error text.
+     userScope:"per_client"
+    });
+    // After reaching launch, the reserve or external dispatch may have happened.
+    // Never advise retry; an authenticated status/read-only audit is required.
+    return {ok:false,status:409,reason:
+     failureStage==="launch"?"secondary_rating_reconciliation_required":
+     failureStage==="owner_snapshot"||failureStage==="owner_preflight"?
+      "secondary_owner_account_not_ready":"secondary_rating_preflight_failed"};
+   }
 
    if(!/^[a-f0-9]{12}$/.test(String(event.nonce||"")))
     return {ok:false,status:400,reason:"invalid_operation_nonce"};
