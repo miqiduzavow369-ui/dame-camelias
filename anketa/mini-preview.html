@@ -769,7 +769,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   accuracy.append(consent,agreeText);
   const edit=document.createElement("button");edit.type="button";edit.className="ghost";edit.textContent="✏️ Изменить текст";
   const send=document.createElement("button");send.type="button";send.className="primary";send.textContent="✅ Отправить отзыв";
-  if(selectedAccount!=="yan_first")send.textContent="💾 Сохранить отзыв";
+  // Use the same primary author-facing wording as Yan First.
+
   const checkText=document.createElement("button");checkText.type="button";checkText.className="primary";checkText.textContent="✅ Проверить текст";
   const saveDraft=document.createElement("button");saveDraft.type="button";saveDraft.className="ghost";saveDraft.textContent="💾 Сохранить черновик";
   const status=document.createElement("p");status.setAttribute("aria-live","polite");
@@ -843,7 +844,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   send.onclick=async()=>{if(!consent.checked){status.textContent="Подтвердите достоверность текста.";return;}send.disabled=true;status.textContent="⏳ Отправляем отзыв…";try{const x=await request("submit",field.value.trim());showStage(x.stage,x);}catch(e){if(e instanceof TypeError||/load failed|failed to fetch|networkerror|network request failed/i.test(String(e.message||""))){showStage("unknown");try{const x=await request("status");if(x.stage!=="draft")showStage(x.stage,x);}catch{} }else if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
   check.onclick=async()=>{check.disabled=true;try{const x=await request("status");showStage(x.stage,x);}catch(e){if(!await showDomainRecoveryIfNeeded(editor,selected.id,()=>document.querySelector("[data-sub=review]")?.click()))status.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
   publishButton.onclick=async()=>{
-    if(!confirm("Подтверждаете однократную публикацию согласованного авторского отзыва для анкеты №"+selected.id+" через "+accountName(selectedAccount)+"?"))return;
+    // The visible publish button already confirms the action. The server still
+    // requires matching author attestation and owner moderation.
     publishButton.disabled=true;
     try{const x=await request("publish");showStage(x.stage,x);}
     catch(e){status.textContent="⚠️ "+e.message;}
@@ -1120,7 +1122,8 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
       publish.onclick=async()=>{publish.disabled=true;actionStatus.textContent="⏳ Запускаем проверку…";try{const x=await requestAction("prepare");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{publish.disabled=false;}};
       check.onclick=async()=>{check.disabled=true;try{const x=await requestAction("status");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{check.disabled=false;}};
       send.onclick=async()=>{
-       if(selectedAccount!=="yan_first"&&!window.confirm("Подтвердить однократную публикацию выбранных оценок через "+accountName(selectedAccount)+"? Повторная отправка при неизвестном результате запрещена."))return;
+       // The existing primary button is the explicit publishing confirmation,
+       // matching Yan First. Do not show a second modal for secondary men.
        send.disabled=true;try{const x=await requestAction("publish");reflect(x);}catch(e){if(!await showDomainRecoveryIfNeeded(review,selected.id,()=>loadForm.click()))actionStatus.textContent="⚠️ "+e.message;}finally{send.disabled=false;}};
       review.append(publish,check,actionStatus,waitingClock,back,send);
       // The same clean rating confirmation steps are now available for a
