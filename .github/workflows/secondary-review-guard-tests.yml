@@ -4,6 +4,8 @@ on:
     paths:
       - 'tools/secondary_man_review_publish.py'
       - 'tools/secondary_man_profile_readonly.py'
+      - 'tools/secondary_man_review_executor.py'
+      - 'tests/test_secondary_man_review_executor.py'
       - 'tests/test_secondary_man_review_publish.py'
       - '.github/workflows/secondary-review-guard-tests.yml'
   workflow_dispatch:
@@ -19,4 +21,4 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify account isolation and review authorization
-        run: python -m unittest discover -s tests -p test_secondary_man_review_publish.py -v
+        run: python -m unittest discover -s tests -p 'test_secondary_man_review_*.py' -v
