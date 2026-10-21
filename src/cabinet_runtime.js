@@ -914,7 +914,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   try{
    const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
    if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId)||
-      !/^\\d{1,9}$/.test(profileId))throw Error("Invalid review target");
+      !/^\d{1,9}$/.test(profileId))throw Error("Invalid review target");
    const draftKey=manStorageKey({userId:uid,accountId,profileId,
     scope:"review-draft"})+":review";
    const draft=await storage.get(draftKey);
