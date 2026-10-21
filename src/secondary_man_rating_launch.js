@@ -55,6 +55,19 @@ export async function launchApprovedSecondaryRating(storage,env,{identity,at,dis
  }).sort((a,b)=>a.index-b.index);
  if(selections.length<1||selections.length>120)
   throw Error("Empty rating selection");
+ // Match Yan First's original coverage rule, not merely nonempty selections.
+ const mandatory=new Set(["соответствие фото","соотв. параметров",
+  "соответствие параметров","реальная инди","отношение к клиенту","общая оценка"]);
+ let missing=0,optionalTotal=0,optionalFilled=0;
+ for(let ix=0;ix<catalog.length;ix++){
+  const label=String(catalog[ix].label||"").trim().toLowerCase();
+  if(label==="isfair"||label==="фото соответствует")continue;
+  if(mandatory.has(label)){if(!draft.selected[ix])missing++;continue;}
+  if(!catalog[ix].options?.length)continue;
+  optionalTotal++;if(draft.selected[ix])optionalFilled++;
+ }
+ if(missing||optionalFilled<Math.ceil(optionalTotal*0.2))
+  throw Error("Incomplete rating selections");
  const payload={metElsewhere:draft.metElsewhere,selections};
  const fingerprint=await digest(JSON.stringify(payload));
  const reserved=await reserveSecondaryFeedbackCredit(storage,env,i,{
