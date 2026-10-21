@@ -11,7 +11,7 @@ test("client secondary draft editor renders without altering Yan First actions",
  assert.match(html,/man\.id!=="yan_first"&&man\.visible!==false/);
  assert.match(html,/if\(!availableMen\.some\(m=>m\.id===account&&m\.visible!==false\)\)return/);
  assert.match(html,/\$\("secondaryDraftCard"\)\.hidden=true/);
- assert.match(html,/if\(selectedAccount!=="yan_first"&&saved\.publicationAvailable!==true\)/);
+ assert.match(html,/confirmed:action==="publish"&&selectedAccount!=="yan_first"/);
  const script=html.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(script);
  assert.doesNotThrow(()=>new vm.Script(script[1]));
