@@ -10,6 +10,7 @@ import {appendVerifiedFeedbackEvidence,readVerifiedFeedbackEvidence} from "./sec
 import {settleSecondaryFeedbackCredit} from "./secondary_man_credit_bridge.js";
 import {verifySecondaryResultAttestation} from "./secondary_man_callback_attestation.js";
 import {claimSecondaryCallbackTicket} from "./secondary_man_callback_ticket.js";
+import {readSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
 
 const IDENTIFIER=/^[A-Za-z0-9_-]{6,300}$/;
 function validated(original,callback){
@@ -97,6 +98,25 @@ export async function settleSecondaryVerifiedResult(storage,env,{original,callba
      ledgerStatus:"requires_reconciliation"});
   });
   return {ok:false,accountId:i.accountId,status:"reconciliation_required"};
+ }
+ // A signed proof ID alone is not evidence that the original JPEG was archived.
+ // For new secondary publications, never debit credits without reading and
+ // validating the exact immutable, account-bound original from private KV.
+ let original=null;
+ try{
+  if(env?.VISITORS_KV)original=await readSecondaryOriginalJpeg(
+   env.VISITORS_KV,i,record.proofFileId);
+ }catch{original=null;}
+ if(original?.mime!=="image/jpeg"||!(original.size>0)){
+  await storage.transaction(async tx=>{
+   const row=await tx.get(resultKey(i));
+   if(row?.status==="settling")await tx.put(resultKey(i),{
+    ...row,status:"reconciliation_required",
+    ledgerStatus:"requires_reconciliation"
+   });
+  });
+  return {ok:false,accountId:i.accountId,status:"reconciliation_required",
+   reason:"original_jpeg_not_verified"};
  }
  let outcome;
  try{outcome=await settleSecondaryFeedbackCredit(storage,env,i);}
