@@ -1116,10 +1116,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       return {ok:false,status:409};
      // Never silently attribute moderator's replacement words to the author.
      // The original client must explicitly save/attest the corrected text.
-     const next={...draft,text,version:draft.version+1,authorAttested:false};
+     const correctedAt=Date.now();
+     const revision={previousText:draft.text,proposedText:text,
+      moderatorId:event.actorId,at:correctedAt};
+     const next={...draft,originalText:draft.originalText||draft.text,
+      revisions:[...(draft.revisions||[]),revision],
+      text,version:draft.version+1,authorAttested:false};
      await tx.put(draftKey,next);
      await tx.put(noticeKey,{...row,status:"corrected",
-      correctedVersion:next.version,correctedAt:Date.now()});
+      correctedVersion:next.version,correctedAt,
+      revisions:[...(row.revisions||[]),revision]});
      return {ok:true,requiresAuthorAttestation:true};
     });
    }
