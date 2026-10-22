@@ -98,7 +98,8 @@ def inspect_login(page,site_url,login_value,password_value):
     account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
     password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
     if logout or (account and not password_visible):
-        identity=login_step("login_identity_check", lambda: authenticated_identity_status(page,login_value))
+        identity=login_step("login_identity_check", lambda: authenticated_identity_status(page,login_value,
+            diagnostic=lambda status,reason: print("SITE_IDENTITY_DIAG: status="+status+"; reason="+reason,flush=True)))
         if identity=="identity_verified":
             return "login_authenticated_identity_verified"
         if identity=="identity_mismatch":

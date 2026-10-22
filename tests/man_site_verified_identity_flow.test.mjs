@@ -52,8 +52,9 @@ test("a mismatched authenticated account never confirms identity or unlocks publ
 });
 test("Chromium identity probe is strictly downstream of site login and never logs actual account identifiers",()=>{
  const python=fs.readFileSync("tools/man_site_login_preflight.py","utf8");
- assert.match(python,/authenticated_identity_status\(page,login_value\)/);
+ assert.match(python,/authenticated_identity_status\(page,login_value,/);
  assert.match(python,/login_authenticated_identity_verified/);
  assert.match(python,/login_identity_mismatch/);
  assert.doesNotMatch(python,/print\([^\n]*details\[["']siteLogin/);
 });
+
