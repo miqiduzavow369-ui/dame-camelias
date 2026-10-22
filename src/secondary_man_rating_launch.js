@@ -101,7 +101,7 @@ export async function launchApprovedSecondaryRating(storage,env,{identity,at,dis
  const reserved=await reserveSecondaryFeedbackCredit(storage,env,i,{
   independentAuthorConfirmed:true,moderatorApproved:true
  });
- if(reserved?.ok!==true)throw Error("Rating credit unavailable");
+ if(reserved?.ok!==true)throw Error(reserved?.reason==="empty"?"rating_credit_empty":"Rating credit unavailable");
  await prepareSecondaryPublication(storage,{
   identity:i,approval,proxyVersion:proxy.version,siteVersion:site.version,
   verifiedSiteIdentity:true,ownerConfirmed:true,creditReserved:true,
@@ -134,3 +134,4 @@ export async function launchApprovedSecondaryRating(storage,env,{identity,at,dis
   trustedDispatch,at
  });
 }
+

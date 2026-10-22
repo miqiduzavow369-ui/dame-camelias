@@ -8,8 +8,9 @@ const CREDIT_GRANTS={
 };
 // Atomic publication credits, isolated by Telegram user ID.
 // Only trusted bot code invokes this private Durable Object.
-export async function credits(env,userId,type,kind="",profileId="",nonce=""){
+export async function credits(env,userId,type,kind="",profileId="",nonce="",accountId=null){
   const id=String(userId);
+  if(accountId!==null&&!/^(?:yan_second|yan_(?:0[3-9]|[12][0-9]|30))$/.test(accountId))throw Error("Invalid secondary credit account");
   if(!env.ORDER_REMINDERS || !/^\d{5,16}$/.test(id))throw Error("Credits unavailable");
   const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("publication-credits:"+id));
   let grant=CREDIT_GRANTS[id];
@@ -17,10 +18,11 @@ export async function credits(env,userId,type,kind="",profileId="",nonce=""){
     const {client}=await registry(env,{action:"get",userId:id});
     grant=client?{totalGranted:client.grant,revision:client.revision}:{totalGranted:0,revision:0};
   }
-  const settlement={ledger:"credits",action:type,userId:id,kind,profileId:String(profileId),nonce};
+  const scope=accountId?{accountId}:{};
+  const settlement={ledger:"credits",action:type,userId:id,kind,profileId:String(profileId),nonce,...scope};
   if(["complete","release"].includes(type)&&env.__enqueueLedger)await env.__enqueueLedger(settlement);
   const res=await object.fetch("https://reminder.internal/",{
-    method:"POST",body:JSON.stringify({type:"credits_"+type,userId:id,kind,profileId:String(profileId),nonce,grant})
+    method:"POST",body:JSON.stringify({type:"credits_"+type,userId:id,kind,profileId:String(profileId),nonce,grant,...scope})
   });
   if(!res.ok)throw Error("Credits ledger request failed");
   const result=await res.json();
@@ -29,6 +31,20 @@ export async function credits(env,userId,type,kind="",profileId="",nonce=""){
     if(env.__settleLedger)await env.__settleLedger(settlement);
   }
   return result;
+}
+
+// Atomic no-publication recovery: the ledger fences a rejected/unseen old
+// reserve nonce before its local claim can be retired. Existing money is held.
+export async function fenceUnstartedSecondaryReservation(env,i,ledgerNonce,legacyScope){
+ const object=env.ORDER_REMINDERS.get(env.ORDER_REMINDERS.idFromName("publication-credits:"+i.userId));
+ const response=await object.fetch("https://credits.internal/",{method:"POST",body:JSON.stringify({
+  type:"credits_secondary_unstarted",userId:i.userId,accountId:i.accountId,
+  kind:i.kind,profileId:i.profileId,nonce:ledgerNonce,legacyScope:legacyScope===true
+ })});
+ if(!response.ok)throw Error("Reservation inspection unavailable");
+ const result=await response.json();
+ if(result?.ok!==true)throw Error("Reservation inspection unavailable");
+ return result;
 }
 
 // Owner-only adjustment preserves every claim, spend and grant revision.
@@ -47,3 +63,4 @@ export async function adjustCredits(env,userId,target,expected,operation,actorId
  const response=await object.fetch("https://credits.internal/",{method:"POST",body:JSON.stringify({type:"credits_adjust",userId:String(userId),target,expected,operation,actorId:String(actorId)})});
  if(!response.ok)throw Error("Credit adjustment rejected");return response.json();
 }
+
