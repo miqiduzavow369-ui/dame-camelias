@@ -10,7 +10,7 @@ function auth(p){account(p.accountId);if(!p.ownerId||p.actorId!==p.ownerId||p.ca
 function safe(row){return {ok:true,accountId:row?.accountId||null,status:row?.status||"not_started",
  code:row?.code||null,startedAt:row?.startedAt||null,finishedAt:row?.finishedAt||null,
  retryAvailable:row?.retryAvailable===true,
- siteIdentityVerified:false,canPublish:false};}
+ failureStage:row?.failureStage||null,siteIdentityVerified:false,canPublish:false};}
 async function decrypt(hex,iv,sealed,aad){
  if(typeof hex!=="string"||!/^[a-f0-9]{64}$/i.test(hex))throw Error("Vault unavailable");
  const k=await crypto.subtle.importKey("raw",Uint8Array.from(hex.match(/../g).map(v=>parseInt(v,16))),{name:"AES-GCM"},false,["decrypt"]);
@@ -95,10 +95,12 @@ export async function claimSiteLoginCheck(storage,env,{accountId,nonce,at}){
   sitePassword:credentials.password,expectedIp:p.expectedIp,proxyHost:p.host,proxyPort:p.port,
   proxyUsername:p.username,proxyPassword:p.password};
 }
-export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},env=null){
+export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code,failureStage=null},env=null){
  account(accountId);
  const allowed=new Set(["login_form_unavailable","login_attempted_unconfirmed","login_authenticated_identity_unconfirmed","login_authenticated_identity_verified","login_identity_mismatch","login_rejected",
-   "ip_mismatch","proxy_error","site_error","executor_error"]);
+   "ip_mismatch","proxy_error","site_error","executor_error","browser_start_failed",
+   "site_open_failed","login_form_failed","login_fill_failed","login_submit_failed",
+   "login_verify_failed","login_identity_failed"]);
  if(!/^[a-f0-9]{32}$/.test(nonce)||!Number.isSafeInteger(at)||!allowed.has(code))throw Error("Invalid result");
  return storage.transaction(async tx=>{
   const run=await tx.get(PREFIX+accountId),site=await tx.get(SITE+accountId),proxy=await tx.get(PROXY+accountId);
@@ -122,7 +124,10 @@ export async function completeSiteLoginCheck(storage,{accountId,nonce,at,code},e
     accountId,siteAccountId:observed,proxyVersion:proxy.version,
     siteVersion:site.version,verifiedAt:at});
   }
-  const saved={...run,status:"completed",code,finishedAt:at};
+  const stages=new Set(["site_open","login_form_scan","login_email_fill","login_password_fill",
+   "login_submit","login_verify","login_identity_check"]);
+  const saved={...run,status:"completed",code,finishedAt:at,
+   failureStage:stages.has(failureStage)?failureStage:null};
   await tx.put(PREFIX+accountId,saved);
   // Never enable proxy/site publication from login evidence alone.
   return safe(saved);
@@ -190,3 +195,4 @@ export async function restoreVerifiedSiteIdentity(storage,env,accountId,ownerId)
   return {ok:true,restored:true,verified:true};
  });
 }
+

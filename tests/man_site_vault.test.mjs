@@ -49,6 +49,7 @@ test("mobile form and JS parse, no synthetic confirmation button",()=>{
  assert.ok(script);new vm.Script(script[1]);
  for(const value of ["function renderManSiteForm()","function openManSite()","function saveManSite(event)","man_site_status","man_site_stage","manSiteUrl","manSiteLogin","manSitePassword","MAN_SITE_ENCRYPTION_KEY"]){assert.ok(html.includes(value),value);}
  assert.match(html, /startManSiteLoginCheck\(\)/);
- assert.match(html, /Подтверждение личности мужчины пока не выполняется/);
+ assert.match(html, /После входа проверяется соответствие кабинета выбранному мужчине/);
  assert.doesNotMatch(html, /siteIdentityVerified:true/);
 });
+

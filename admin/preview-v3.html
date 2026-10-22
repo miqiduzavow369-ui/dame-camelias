@@ -877,7 +877,7 @@ function renderManSiteForm(){
  (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form>'+
  (present?'</details>':'')+'</div>'+
  '<div class="card"><strong>Проверка входа в кабинет</strong>'+
- '<p class="hint">Chromium попробует войти через подтверждённый прокси. Отправка формы входа не означает подтверждения личности: публикации остаются закрытыми.</p>'+
+ '<p class="hint">Chromium проверит вход в кабинет этого мужчины через его личный прокси и сверит аккаунт. Проверка не отправляет оценки или отзывы.</p>'+
  '<button class="secondary" type="button" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy||siteLoginRefreshing||siteLoginState?.status==='running'?'disabled':'')+'>'+(siteLoginBusy?'⏳ Запускаем…':'🔐 Проверить вход через Chromium')+'</button>'+
  (siteLoginState?.status==='running'&&siteLoginState?.retryAvailable===true?
  '<button class="secondary" style="margin-top:8px" onclick="startManSiteLoginCheck(true)" '+(siteLoginBusy?'disabled':'')+'>↻ Повторить зависшую проверку без пароля</button>':'')+
@@ -885,7 +885,7 @@ function renderManSiteForm(){
  (siteLoginNotice?'<p class="hint" role="status">'+esc(siteLoginNotice)+'</p>':'')+
  (siteLoginState?.accountId===x.id?'<p class="hint" role="status">'+esc(siteLoginStatusText(siteLoginState))+'</p>':'')+
  (siteLoginError?'<p class="error" role="alert">'+esc(siteLoginError)+'</p>':'')+
- '<p class="hint">Подтверждение личности мужчины пока не выполняется. Проверка не включает публикации.</p></div>'+
+ '<p class="hint">После входа проверяется соответствие кабинета выбранному мужчине. Повторно вводить сохранённые данные не нужно.</p></div>'+
  '<div class="watermark">Без публикаций · Ян Первый не затронут · пароли не возвращаются в интерфейс</div>';
 }
 
@@ -894,12 +894,24 @@ function siteLoginStatusText(r){
   'Прежний запуск не забрал данные. Можно повторить без ввода пароля.':
   '⏳ Задание выполняется. Обновите статус через минуту.';
  if(r.status==='timed_out')return 'Прежняя проверка истекла. Можно снова запустить проверку без пароля.';
- if(r.code==='login_authenticated_identity_unconfirmed')return '✓ Вход в Intimcity подтверждён. Публикации пока закрыты.';
+ if(r.code==='login_authenticated_identity_verified')return '✓ Вход в свой кабинет и соответствие выбранному мужчине подтверждены.';
+ if(r.code==='login_authenticated_identity_unconfirmed')return 'Вход выполнен, но соответствие кабинета выбранному мужчине пока не подтверждено.';
+ if(r.code==='login_identity_mismatch')return 'Проверка остановлена: кабинет не соответствует сохранённому аккаунту этого мужчины.';
  if(r.code==='login_rejected')return 'Вход на сайт не подтверждён. Проверьте правильность сохранённых данных.';
  if(r.code==='login_form_unavailable')return 'Форма входа на сайте не найдена.';
  if(r.code==='login_challenge_required')return 'Сайт запросил CAPTCHA или код подтверждения.';
  if(r.code==='ip_mismatch')return 'Внешний IP не совпал с прокси этого мужчины.';
- if(r.code==='proxy_error'||r.code==='site_error')return 'Сетевая ошибка. Проверьте прокси или доступность сайта.';
+ const errors={
+  browser_start_failed:'Не удалось запустить Chromium. Данные кабинета не изменены.',
+  site_open_failed:'IP проверен, но Intimcity не открылся через личный прокси.',
+  login_form_failed:'Intimcity открыт, но не удалось прочитать форму входа.',
+  login_fill_failed:r.failureStage==='login_email_fill'?'Не удалось заполнить поле логина на сайте. Сохранённые данные не изменены.':'Не удалось заполнить поле пароля на сайте. Сохранённые данные не изменены.',
+  login_submit_failed:'Не удалось завершить отправку формы входа. Оценки и отзывы не отправлялись.',
+  login_verify_failed:'IP проверен, но не удалось завершить проверку входа в Intimcity.',
+  login_identity_failed:'Вход выполнен, но проверка соответствия кабинета не завершилась.'
+ };
+ if(errors[r.code])return errors[r.code];
+ if(r.code==='proxy_error'||r.code==='site_error')return 'Предыдущая проверка завершилась общей ошибкой без точного этапа. Новый запуск покажет место остановки.';
  if(r.status==='not_started')return 'Проверка входа ещё не запускалась.';
  return 'Статус: '+String(r.status||'неизвестен')+' · '+String(r.code||'нет результата');
 }

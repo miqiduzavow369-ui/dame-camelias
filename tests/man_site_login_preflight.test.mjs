@@ -109,3 +109,22 @@ test("stale claimed checks can restart only after expiry without resaving login"
  assert.equal(result.status,"running");
  assert.equal((await store.get("man-intimcity-sealed-v1:yan_second")).version,1);
 });
+
+test("login failure stage reaches ADMIN without certifying identity or exposing credentials",async()=>{
+ for(const [code,failureStage] of [
+  ["site_open_failed","site_open"],["login_fill_failed","login_email_fill"],
+  ["login_fill_failed","login_password_fill"],["login_submit_failed","login_submit"],
+  ["login_verify_failed","login_verify"],["login_identity_failed","login_identity_check"]
+ ]){
+  const store=await fixture();let run;
+  await startSiteLoginCheck(store,env,{...owner,expectedVersion:1,at:10},async x=>(run=x,{ok:true}));
+  await claimSiteLoginCheck(store,env,{accountId:owner.accountId,nonce:run.nonce,at:11});
+  await completeSiteLoginCheck(store,{accountId:owner.accountId,nonce:run.nonce,at:12,code,failureStage});
+  const status=await siteLoginStatus(store,owner);
+  assert.equal(status.code,code);assert.equal(status.failureStage,failureStage);
+  assert.equal(status.technicalReady,false);assert.equal(status.siteIdentityVerified,false);
+  assert.ok(!JSON.stringify(status).includes(credentials.password));
+  assert.equal((await store.get("man-intimcity-sealed-v1:"+owner.accountId)).version,1);
+ }
+});
+

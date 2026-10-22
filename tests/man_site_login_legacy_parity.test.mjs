@@ -9,7 +9,7 @@ test("site login mirrors proven Yan First form fields",()=>{
   'input[name="password"][type="password"]', 'input[type="submit"]']){
   assert.ok(legacy.includes(selector));assert.ok(next.includes(selector));
  }
- assert.match(next,/for form in page.locator\("form"\).all\(\)/);
+ assert.ok(next.includes('for form in login_step("login_form_scan", lambda: page.locator("form").all())'));
  assert.match(next,/pw.first.press\("Enter"\)/);
 });
 test("successful login evidence does not certify identity or enable publications",()=>{
@@ -19,3 +19,4 @@ test("successful login evidence does not certify identity or enable publications
  assert.match(coordinator,/siteIdentityVerified:false,canPublish:false/);
  assert.doesNotMatch(next,/submit.click\(timeout=15000\)/);
 });
+
