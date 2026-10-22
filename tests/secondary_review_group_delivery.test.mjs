@@ -27,8 +27,8 @@ test("legacy Yan moderation and unchanged HTML remain independent",()=>{
  assert.ok(index.includes("handleSecondaryReviewGroupCallback(update,env,cabinetRPC)"));
  assert.ok(index.includes("handleModeration(update,env)"));
  const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
- assert.ok(runtime.includes("if(event.kind===\"admin_secondary_review_group_approve\")"));
- assert.ok(runtime.includes("verifySecondaryReviewGroupDecision(storage,i"));
+ assert.ok(runtime.includes('event.kind==="admin_secondary_review_group_decision"'));
+ assert.ok(runtime.includes("secondaryReviewGroupDecision(storage,rawEnv,i"));
  assert.ok(runtime.includes('event.draftKind==="review"&&event.action==="save"'));
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
  assert.ok(html.includes('send.textContent="✅ Отправить отзыв"'));
@@ -42,3 +42,4 @@ test("unauthorized moderator callback cannot approve",async()=>{
  assert.equal(result,true);
  assert.equal(calls.length,0);
 });
+

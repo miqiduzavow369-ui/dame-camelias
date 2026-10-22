@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-test("secondary review UI offers explicit, separate publication only after owner approval",()=>{
+test("secondary review publication belongs to the moderator; client does not reconfirm",()=>{
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
  const source=html.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(source,"Inline Mini App script present");
  new vm.Script(source[1]);
- assert.ok(html.includes('publishButton.hidden=stage!=="approved"'));
+ assert.ok(html.includes('publishButton.hidden=stage!=="approved"||selectedAccount!=="yan_first"'));
+ assert.ok(html.includes('editSaved.hidden=true;'));
  assert.ok(html.includes('publishButton.onclick=async()=>'));
  assert.ok(html.includes('request("publish")'));
  assert.ok(html.includes('confirmed:action==="publish"'));

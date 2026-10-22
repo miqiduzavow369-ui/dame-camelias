@@ -1,7 +1,7 @@
 // Safe per-man draft entrypoint for the signed client Mini App.
 // Does not authorize publication, reserve credits or impersonate a site account.
 import {requireManId,manStorageKey} from "./man_account_isolation.js";
-const PROFILE=/^\d{1,9}$/,TEXT_MAX=4000;
+const PROFILE=/^\d{1,9}$/;
 function validate({accountId,profileId,kind,userId}){
  requireManId(accountId);
  if(accountId==="yan_first")throw Error("Legacy route only");
@@ -32,7 +32,7 @@ export async function secondaryDraftAction(storage,{accountId,profileId,userId,k
  if(action!=="save"||profileOwned!==true||authorAttested!==true)
   throw Error("Profile and independent author consent required");
  const content=kind==="review"?
-  (typeof text==="string"&&text.trim().length>=10&&text.length<=TEXT_MAX?{text:text.trim()}:null):
+  (typeof text==="string"&&text.trim().length>=10&&text.length<=3000?{text:text.trim()}:null):
   (Array.isArray(ratings)&&ratings.length>0&&ratings.length<=30&&
    ratings.every(r=>Number.isInteger(r)&&r>=1&&r<=5)?{ratings:[...ratings]}:null);
  if(!content)throw Error("Invalid rating or review draft");
@@ -42,6 +42,10 @@ export async function secondaryDraftAction(storage,{accountId,profileId,userId,k
   // only while no publication attempt has started for this man's profile.
   const gate=manStorageKey({...i,scope:"publication"})+":"+i.kind;
   if(await tx.get(gate))throw Error("Publication already reserved or attempted");
+  if(i.kind==="review"){
+   const notice=await tx.get(manStorageKey({...i,scope:"moderation"})+":review-notification");
+   if(notice&&["sending","uncertain","editing","approving","approved","published","delivered"].includes(notice.status))throw Error("Review is already under moderation");
+  }
   const value={...i,...content,authorAttested:true,version:(old?.version??0)+1,
    publicationAvailable:false};
   await tx.put(k,value);
@@ -60,3 +64,4 @@ export async function secondaryDraftAction(storage,{accountId,profileId,userId,k
    kind:i.kind,version:value.version,saved:true,publicationAvailable:false};
  });
 }
+

@@ -35,7 +35,7 @@ import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary,cl
 import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
 import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryRatingDryfill,completeSecondaryRatingDryfill,requireFreshSecondaryRatingDryfill} from "./secondary_man_rating_dryfill.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
-import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
+import {ensureSecondaryReviewGroupNotice,secondaryReviewNoticeKey,secondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 import {readSecondaryConnection,installSecondaryConnection} from "./secondary_man_connection.js";
 import {deliverSecondaryCompletedResult,secondaryCompletedProof} from "./secondary_man_result_delivery.js";
@@ -758,6 +758,14 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"submit_boundary_rejected"}),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
+ if(event.kind==="secondary_review_notice_refresh"){
+  try{
+   const body=JSON.parse(event.body||"null"),i={userId:uid,accountId:body.accountId,profileId:String(body.profileId||""),kind:"review"};
+   if(i.accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===i.accountId)||!/^\d{1,9}$/.test(i.profileId))throw Error("Invalid notice identity");
+   const result=await ensureSecondaryReviewGroupNotice(storage,rawEnv,i,{existingOnly:true});
+   return {status:result.ok?200:409,body:JSON.stringify(result),headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"existing_notice_required"})};}
+ }
  if(event.kind==="secondary_man_result_delivery"){
   try{
    const body=JSON.parse(event.body||"null"),identity=requirePublicationIdentity(body?.identity);
@@ -1073,26 +1081,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    return result;
   }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
  }
- if(event.kind==="admin_secondary_review_group_approve"){
-  if(uid===OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+ if(event.kind==="admin_secondary_review_group_approve"||event.kind==="admin_secondary_review_group_decision"){
+  if(event.actorId!==OWNER_ID)return {ok:false,status:403};
   try{
    const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
+   if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId)||!/^\d{1,9}$/.test(profileId))return {ok:false,status:400};
    const i={userId:uid,accountId,profileId,kind:"review"};
-   if(!await verifySecondaryReviewGroupDecision(storage,i,{
-    version:event.draftVersion,messageId:event.messageId
-   }))return {ok:false,status:409,reason:"outdated_moderation_card"};
-   const draft=await storage.get(manStorageKey({
-    userId:uid,accountId,profileId,scope:"review-draft"
-   })+":review");
-   if(draft?.version!==event.draftVersion||draft?.authorAttested!==true)
-    return {ok:false,status:409,reason:"review_changed"};
-   const sha=Array.from(new Uint8Array(await crypto.subtle.digest(
-    "SHA-256",new TextEncoder().encode(draft.text))),v=>v.toString(16).padStart(2,"0")).join("");
-   return await approveSecondaryReviewForSubmission(storage,{
-    identity:{...i,nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)},
-    draftVersion:draft.version,expectedTextSha256:sha,moderatorApproved:true,at:Date.now()
-   });
-  }catch{return {ok:false,status:409,reason:"review_group_approval_unavailable"};}
+   // Callback identity, current card and current draft are checked atomically.
+   return await secondaryReviewGroupDecision(storage,rawEnv,i,{...event,action:event.kind==="admin_secondary_review_group_approve"?"approve":event.action},
+    ()=>cabinetEvent(storage,rawEnv,{userId:uid,event:{kind:"mini_review_action",accountId,profileId,action:"publish",confirmed:true}},send));
+  }catch{return {ok:false,status:409,reason:"review_group_decision_unavailable"};}
  }
  if(event.kind==="admin_secondary_review_preview"||event.kind==="admin_secondary_review_approve"){
   // Constructed only by owner-authenticated admin Mini App API.
@@ -1161,6 +1159,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       await ensureSecondaryReviewGroupNotice(storage,rawEnv,{
        userId:uid,accountId,profileId,kind:"review"
       }).catch(()=>null);
+     const notice=await storage.get(secondaryReviewNoticeKey({userId:uid,accountId,profileId,kind:"review"}));
+     if(notice?.version===draft?.version&&["cancelled","editing","approving","uncertain"].includes(notice.status))
+      return {ok:true,stage:({cancelled:"rejected",editing:"waiting",approving:"waiting",uncertain:"unknown"})[notice.status],rejectedAt:notice.decidedAt,publicationAvailable:false};
      const exactApproval=approval?.draftVersion===draft?.version&&draft?.authorAttested===true&&
       typeof draft.text==="string"&&approval.approvedTextSha256===Array.from(new Uint8Array(
        await crypto.subtle.digest("SHA-256",new TextEncoder().encode(draft.text))),
@@ -1646,8 +1647,10 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const reviewRow=reviewIndexed?.[pid+":"+mid];
     if(reviewRow?.accountId===mid&&reviewRow?.profileId===pid&&
        reviewRow.kind==="review"&&reviewRow.stage==="draft_saved"){
-     secondaryStatuses[pid][mid]={review:"draft_saved"};
-     activities.push({id:pid,kind:"review",account:mid,status:"draft_saved"});
+     const notice=await storage.get(secondaryReviewNoticeKey({userId:uid,accountId:mid,profileId:pid,kind:"review"}));
+     const reviewStage=({delivered:"moderation",editing:"moderation",cancelled:"rejected",approving:"checking",approved:"checking",uncertain:"reconciliation_required",published:"checking"})[notice?.status]||"draft_saved";
+     secondaryStatuses[pid][mid]={review:reviewStage};
+     activities.push({id:pid,kind:"review",account:mid,status:reviewStage});
     }
     if(row?.accountId!==mid||row?.profileId!==pid||
        !Number.isSafeInteger(row.count)||row.count<0)continue;

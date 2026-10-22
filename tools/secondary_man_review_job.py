@@ -51,6 +51,16 @@ def request(path,payload=None,query=None):
             raise RuntimeError("Coordinator rejected request")
         return json.loads(response.read(950000).decode("utf-8"))
 
+def bind_review_proof(proof, account, profile):
+    # The shared Yan capture helper labels its metadata yan_first. The browser
+    # was authenticated with this grant's individual credentials above. Preserve
+    # the exact JPEG; bind only its metadata to the already validated grant.
+    if not ACCOUNT.fullmatch(account) or not PROFILE.fullmatch(profile):
+        raise RuntimeError("Invalid secondary proof identity")
+    if not isinstance(proof,dict) or proof.get("text_verified") is not True or proof.get("mime")!="image/jpeg" or str(proof.get("profile_id"))!=profile or proof.get("account") not in ("yan_first",account):
+        raise RuntimeError("Original review proof identity mismatch")
+    return {**proof,"account":account}
+
 def main():
     account=required("SECONDARY_ACCOUNT_ID")
     user=required("SECONDARY_USER_ID")
@@ -111,9 +121,7 @@ def main():
     if not isinstance(publication,dict) or publication.get("confirmed") is not True or publication.get("attempted") is not True:
         print("SECONDARY_REVIEW: unverified or uncertain; manual reconciliation required",flush=True)
         return 2
-    proof=publication.get("proof")
-    if not isinstance(proof,dict) or proof.get("text_verified") is not True or proof.get("mime")!="image/jpeg":
-        raise RuntimeError("No authenticated original proof")
+    proof=bind_review_proof(publication.get("proof"),account,profile)
     encoded=proof.get("image")
     if not isinstance(encoded,str):
         raise RuntimeError("Original proof absent")

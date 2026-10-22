@@ -1,6 +1,6 @@
 import {handleAgreement,agreementStatus,agreementRPC} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
-import {handleSecondaryReviewGroupCallback} from "./secondary_review_moderation_notice.js";
+import {handleSecondaryReviewGroupCallback,handleSecondaryReviewCorrection} from "./secondary_review_moderation_notice.js";
 import { reminderCall } from "./reminders.js";
 import {handleCabinet,cabinetEndpoint,cabinetRPC} from "./cabinet_runtime.js";
 import {registry} from "./client_registry.js";
@@ -417,6 +417,7 @@ async function quickReply(env,update){
  return true;
 }
 async function handle(update, env) {
+  if(await handleSecondaryReviewCorrection(update,env,cabinetRPC))return;
   if(await handleSecondaryReviewGroupCallback(update,env,cabinetRPC))return;
   if(await handleModeration(update,env))return;
   const agreement=await handleAgreement(update,env);
@@ -887,6 +888,7 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-stage") return cabinetEndpoint(request,env,"secondary_man_rating_submit_boundary");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/review-payload") return cabinetEndpoint(request,env,"secondary_man_review_runner_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/review-stage") return cabinetEndpoint(request,env,"secondary_man_review_submit_boundary");
+    if (request.method === "POST" && url.pathname === "/api/secondary-man/review-notice-refresh") return cabinetEndpoint(request,env,"secondary_review_notice_refresh");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/result-delivery") return cabinetEndpoint(request,env,"secondary_man_result_delivery");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/result") return cabinetEndpoint(request,env,"secondary_man_signed_result");
     if (request.method === "GET" && url.pathname === "/api/man-site-login/payload") return cabinetEndpoint(request,env,"man_site_login_payload");
