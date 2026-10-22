@@ -6,7 +6,7 @@ import {Memory,seed,fixture,savePrivateProfile,CLIENT,PROFILE,OWNER_ID} from "./
 import {MAN_ACCOUNTS} from "../src/man_accounts.js";
 import {OrderReminder} from "../src/reminders.js";
 import {manStorageKey} from "../src/man_account_isolation.js";
-import {secondaryReviewNoticeKey,ensureSecondaryReviewGroupNotice,handleSecondaryReviewGroupCallback,handleSecondaryReviewCorrection} from "../src/secondary_review_moderation_notice.js";
+import {secondaryReviewNoticeKey,refreshSecondaryReviewCard,ensureSecondaryReviewGroupNotice,handleSecondaryReviewGroupCallback,handleSecondaryReviewCorrection} from "../src/secondary_review_moderation_notice.js";
 import {cabinetEndpoint,cabinetEvent} from "../src/cabinet_runtime.js";
 import {recordSecondaryReviewSubmitBoundary} from "../src/secondary_man_review_runner_grant.js";
 import {signSecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
@@ -153,5 +153,21 @@ for(const mode of ["own-owner-approve","stale-owner-connection","ambiguous-dispa
    assert.equal((await f.event(uid,decision(man,"cancel"))).ok,false);
    assert.equal(f.calls.filter(x=>x.type==="credits_reserve").length,1);
   }
+ }finally{f.restore();}
+});
+
+test("slow pending card edit cannot leave a completed review showing waiting",async()=>{
+ const f=setup(),store=f.stores.get(CLIENT),i={userId:CLIENT,accountId:"yan_second",profileId:PROFILE,kind:"review"};
+ try{
+  await store.put(manStorageKey({...i,scope:"review-draft"})+":review",{...i,text:TEXT,version:1,authorAttested:true});
+  await store.put(secondaryReviewNoticeKey(i),{status:"approved",version:1,messageId:57});
+  const before=globalThis.fetch;let edits=0;
+  globalThis.fetch=async(url,options)=>{
+   if(url.endsWith("/editMessageText")&&edits++===0)await store.put(secondaryReviewNoticeKey(i),{status:"published",version:1,messageId:57,controlsVersion:0});
+   return before(url,options);
+  };
+  assert.equal((await refreshSecondaryReviewCard(store,f.env,i)).ok,true);
+  assert.equal(edits,2);
+  assert.match(f.messages.at(-1).body.text,/ОТЗЫВ ОПУБЛИКОВАН/);
  }finally{f.restore();}
 });

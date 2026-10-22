@@ -36,13 +36,16 @@ async function register(env,i,row,messageId){
  const result=await messageIndex(env,"put",messageId,{userId:i.userId,ticket:"0000000000000000",secondary:{...i,version:row.version,messageId:row.messageId}});
  if(!result.ok)throw Error("Moderation index unavailable");
 }
-export async function refreshSecondaryReviewCard(storage,env,i){
+export async function refreshSecondaryReviewCard(storage,env,i,remaining=3){
  const [row,draft]=await Promise.all([storage.get(secondaryReviewNoticeKey(i)),storage.get(draftKey(i))]);
  if(!Number.isSafeInteger(row?.messageId)||!draft)return {ok:false};
  try{
   await moderationTelegram(env,"editMessageText",{...card(i,row,draft),message_id:row.messageId});
-  await storage.transaction(async tx=>{const current=await tx.get(secondaryReviewNoticeKey(i));if(current?.version===row.version&&current.status===row.status)await tx.put(secondaryReviewNoticeKey(i),{...current,controlsVersion:2});});
-  return {ok:true,messageId:row.messageId,status:row.status};
+  const same=await storage.transaction(async tx=>{const current=await tx.get(secondaryReviewNoticeKey(i));if(current?.version!==row.version||current.status!==row.status)return false;await tx.put(secondaryReviewNoticeKey(i),{...current,controlsVersion:2});return true;});
+  // A result callback may complete while Telegram is editing an older card.
+  // Finish with the latest durable state, never overwrite published with waiting.
+  if(!same&&remaining>0)return refreshSecondaryReviewCard(storage,env,i,remaining-1);
+  return {ok:same,messageId:row.messageId,status:row.status};
  }catch{return {ok:false,messageId:row.messageId,status:row.status};}
 }
 export async function ensureSecondaryReviewGroupNotice(storage,env,i,{existingOnly=false}={}){
