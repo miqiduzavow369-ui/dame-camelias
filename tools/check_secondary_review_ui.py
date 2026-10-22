@@ -10,7 +10,7 @@ OUT.mkdir(exist_ok=True)
 PNG=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6uzQAAAAASUVORK5CYII=")
 phase="moderation"
 def snapshot():
-    return dict(men=[dict(id="yan_second",name="Михаил Корсаков",visible=True,cabinetReady=True)],
+    return dict(men=[dict(id="yan_first" if i==0 else "yan_second" if i==1 else "yan_"+str(i+1).zfill(2),name="Михаил Корсаков" if i==1 else "Ян Первый" if i==0 else "Synthetic man "+str(i+1),visible=True,cabinetReady=True) for i in range(30)],
         profiles=[dict(id="690230",name="Synthetic profile",daily=dict(remaining=1),counts=dict(rating=0,review=0,total=0),capabilities={},statuses={})],
         secondaryStatuses={"690230":{"yan_second":{"review":phase}}},balance=dict(available=9,reserved=0,spent=1),
         history=[dict(id="690230",account="yan_second",kind="review",date="20261022",hasProof=True)] if phase=="published" else [],activities=[])
@@ -43,6 +43,7 @@ with sync_playwright() as p:
         page.set_viewport_size(dict(width=width,height=900))
         for phase in ("moderation","checking","rejected","published"):
             page.evaluate("data=>{render(data);selectedAccount='yan_second';openDetail(profiles[0]);}",snapshot())
+            assert page.locator("#detailAccount").inner_text()=="Михаил Корсаков"
             button=page.locator('[data-sub="review"]')
             assert button.is_visible(),phase
             if phase=="published":assert "Подтверждение" in button.inner_text() or "подтверждение" in button.inner_text()
@@ -52,7 +53,9 @@ with sync_playwright() as p:
             button.click()
             if phase!="published":
                 page.get_by_role("button",name="✅ Опубликовать отзыв",exact=True).wait_for(state="hidden")
-                if phase=="rejected":page.get_by_role("button",name="↺ Попробовать снова",exact=True).wait_for()
+                if phase=="rejected":
+                    page.get_by_role("button",name="↺ Попробовать снова",exact=True).wait_for()
+                    assert page.get_by_text("Дата недоступна",exact=False).count()==0
                 else:
                     page.get_by_role("button",name="🔄 Посмотреть результат",exact=True).wait_for()
                     assert page.locator("#subContent textarea:visible").count()==0

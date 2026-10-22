@@ -800,7 +800,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
         profileId:selected.id,action,confirmed:action==="publish"}),cache:"no-store"});
       const data=await res.json().catch(()=>({}));
       if(!res.ok||data.ok!==true)throw Error("Публикация не готова: "+String(data.reason||res.status));
-      return {ok:true,stage:action==="publish"?"waiting":data.stage};
+      return {ok:true,stage:action==="publish"?"waiting":data.stage,rejectedAt:data.rejectedAt};
      }
      const mapped=action==="submit"?"save":action;
      if(!["save","load","status"].includes(mapped))
