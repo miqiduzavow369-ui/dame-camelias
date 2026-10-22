@@ -29,8 +29,9 @@ jobs:
           node --check src/cabinet_runtime.js
           node --check src/owner_anketa.js
       - name: Node regression suite
-        run: node --test tests/*.test.mjs
+        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/*.test.mjs
       - name: Python regression suite
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Python syntax
         run: python -m py_compile tools/*.py
+

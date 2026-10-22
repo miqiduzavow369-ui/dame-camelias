@@ -325,7 +325,8 @@ function manChecks(x,mini=false){
 
 function menStatus(x){
  if(x.connection==='legacy_active')return {label:'Действующий',short:'Работает',cls:'legacy',icon:'✦'};
- if(x.readiness?.siteIdentityVerified===true)return {label:'Личность подтверждена · Публикации ещё закрыты',short:'✓ Личность проверена',cls:'planning',icon:'✓'};
+ if(x.readiness?.connectionReady===true)return {label:'Подключён · Данные подтверждены в ADMIN',short:'✓ Подключён',cls:'planning',icon:'✓'};
+ if(x.readiness?.siteIdentityVerified===true)return {label:'Личность подтверждена · Требуется разрешение ADMIN',short:'✓ Личность проверена',cls:'planning',icon:'✓'};
  if(x.readiness?.technicalReady===true)return {label:'Вход выполнен · Личность не подтверждена',short:'◷ Проверка личности',cls:'planning',icon:'◷'};
  if(x.setup?.stage==='awaiting_credentials')return {label:'Ожидает настройки',short:'Подготовка',cls:'planning',icon:'◷'};
  return {label:'Не подключён',short:'Отключён',cls:'disabled',icon:'🔒'};
@@ -369,7 +370,7 @@ function renderMenDashboard(){
  return '<div class="men-topline"><div><div class="mini">👑 ADMINISTRATION · CONTROL CENTER</div><h1>Мужчины <span style="color:#e8c88e">✦</span></h1><p class="muted small">Управление аккаунтами</p></div>'+
  '<button class="men-refresh" type="button" onclick="reloadMen()" aria-label="Обновить список мужчин">↻ Обновить</button></div>'+
  '<div class="men-summary"><div class="men-summary-item"><strong>'+total+'</strong><span>Всего мужчин</span></div><div class="men-summary-item"><strong>'+(active+ready)+'</strong><span>Подключены</span></div><div class="men-summary-item"><strong>'+Math.max(0,total-active-ready)+'</strong><span>Ожидают проверки</span></div></div>'+
- '<div class="note">Ян Первый работает по прежней схеме. Технически подтверждены: '+ready+' из 29. Публикации новых мужчин остаются закрытыми.</div>'+
+ '<div class="note">Ян Первый работает по прежней схеме. Технически подтверждены: '+ready+' из 29. Каждый мужчина использует только свои подтверждённые данные подключения.</div>'+
  (menError?'<p class="error" role="alert">'+esc(menError)+'</p>':'')+
  '<input class="search" id="men-search" type="search" autocomplete="off" placeholder="⌕ Поиск по имени, номеру или email" aria-label="Поиск мужчин" value="'+esc(menQuery)+'" oninput="searchMen(this.value)">'+
  '<div class="men-filters" role="group" aria-label="Статусы мужчин">'+chip('all','Все · '+total)+chip('active','Подключены')+chip('waiting','Ожидают')+'</div>'+
@@ -642,7 +643,7 @@ function renderSecondaryOperationDiagnostic(man){
  line('Отправка',d.publicationStatus)+line('Билет подтверждения',d.ticketStatus)+
  line('Доказательство',d.proofPresent?'✓ Подтверждено':'Не подтверждено')+
  line('Списание кредита',d.creditStatus)+line('Результат',d.resultStatus)+
- '<p class="hint">Повторная отправка на сайт запрещена. Публикации новых мужчин остаются закрытыми.</p></div>':'')+'</div>';
+ '<p class="hint">Повторная отправка на сайт запрещена. Каждый мужчина использует только свои подтверждённые данные подключения.</p></div>':'')+'</div>';
 }
 async function checkSecondaryOperation(event){
  event.preventDefault();
@@ -671,6 +672,8 @@ const ratingBlockerLabels={
  proxy_unverified:'Проверка индивидуального IP',
  site_credentials_unverified:'Доступ Intimcity',
  site_login_unverified:'Подтверждение входа',
+ browser_unverified:'Проверка браузера через личный прокси',
+ runner_configuration_missing:'Настройки соединения с исполнителем',
  owner_approval_required:'Разрешение ADMIN',
  site_identity_unverified:'Проверка личности на сайте',
  isolated_executor_not_connected:'Изолированный Chromium-исполнитель',
@@ -705,12 +708,12 @@ async function updateManOwnerApproval(approved){
  if(!x||x.id==='yan_first'||manApprovalBusy)return;
  const prior=x.approval;
  if(!prior||!Number.isSafeInteger(prior.version))return;
- if(approved&&!window.confirm('Подтвердить административное разрешение для '+x.name+'? Публикации останутся заблокированы до завершения интеграции.'))return;
+ if(approved&&!window.confirm('Подтвердить личный прокси и кабинет для '+x.name+' в клиентском кабинете?'))return;
  manApprovalBusy=true;render();
  try{
   await callAdmin('secondary_man_approval_set',{accountId:x.id,expectedVersion:prior.version,approved});
   await reloadMen();
-  toast(approved?'✓ Разрешение сохранено. Публикации ещё заблокированы.':'✓ Разрешение отозвано');
+  toast(approved?'✓ Личный прокси и кабинет подтверждены для работы.':'✓ Разрешение отозвано');
  }catch(e){toast('Разрешение не изменено: '+e.message);}
  finally{manApprovalBusy=false;render();}
 }
@@ -787,7 +790,7 @@ function renderManConsole(){
  const login=data?.login;
  // Only the trusted login executor result for the saved credentials and pinned
  // proxy can complete the last step. This never grants publication rights.
- const loginOK=loaded&&ipOK&&siteSaved&&login?.technicalReady===true;
+ const loginOK=loaded&&ipOK&&siteSaved&&login?.technicalReady===true&&login?.siteIdentityVerified===true;
  const identityOK=loginOK;
  const steps=[
   {title:'Сохранить HTTP-прокси',desc:'Одна строка Dolphin. Реквизиты хранятся зашифрованно.',
@@ -796,7 +799,7 @@ function renderManConsole(){
    done:ipOK,action:'openManProxy()',button:'Открыть проверку Chromium'},
   {title:'Сохранить доступ к кабинету',desc:'Логин и пароль Intimcity сохраняются отдельно и не отображаются повторно.',
    done:siteSaved,action:'openManSite()',button:'Заполнить данные кабинета'},
-  {title:'Проверить вход в кабинет',desc:'Chromium подтверждает вход через личный прокси и закреплённый IP. Публикации остаются закрытыми.',
+  {title:'Проверить вход в кабинет',desc:'Chromium подтверждает вход в свой кабинет через личный прокси и закреплённый IP.',
    done:loginOK,action:'openManSite()',button:'Открыть проверку входа'}
  ];
  const current=loaded?steps.findIndex(step=>!step.done):0;
@@ -818,23 +821,23 @@ function renderManConsole(){
  '<h1>'+esc(x.name)+'</h1></div><span class="pill">'+(identityOK?'✓ Вход подтверждён':'🔒 Настройка')+'</span></div></div>'+
  '<div class="man-step-progress"><div class="row"><strong>Подключение аккаунта</strong><b>'+progress+' / '+steps.length+'</b></div>'+
  '<div class="man-step-track"><span style="width:'+(progress*100/steps.length)+'%"></span></div>'+
- '<p class="hint" style="margin:10px 0 0">'+(identityOK?'Техническое подключение завершено. Публикации отдельно заблокированы.':'Далее показывается только тот этап, который требует действия.')+'</p></div>'+
+ '<p class="hint" style="margin:10px 0 0">'+(identityOK?'Личный прокси и кабинет проверены. Разрешение ADMIN закрепляет их для клиентского кабинета.':'Далее показывается только тот этап, который требует действия.')+'</p></div>'+
  (wizardLoading||!data?'<div class="note">Получаем подтверждённые статусы с сервера…</div>':'')+
  (wizardError?'<p class="error" role="alert">'+esc(wizardError)+'</p>':'')+
  (loaded?summary+
- (identityOK?'<div class="card" style="border-color:var(--green);padding:18px;margin-top:14px"><h2>✓ Подключён · Вход подтверждён</h2><p class="hint">Проверен индивидуальный прокси, внешний IP и вход в Intimcity. Дополнительный пароль не требуется. Публикации закрыты до отдельного разрешения.</p><button class="secondary" onclick="openManSite()">Просмотреть проверку →</button></div>':
+ (identityOK?'<div class="card" style="border-color:var(--green);padding:18px;margin-top:14px"><h2>✓ Подключён · Вход подтверждён</h2><p class="hint">Проверен индивидуальный прокси, внешний IP и вход в Intimcity. Повторный ввод реквизитов не требуется. Разрешение ADMIN ниже подтверждает эти данные для клиентского кабинета.</p><button class="secondary" onclick="openManSite()">Просмотреть проверку →</button></div>':
  '<div class="card" style="border-color:var(--gold);padding:18px;margin-top:14px">'+
  '<div class="mini">ТЕКУЩИЙ ЭТАП · '+(active+1)+' ИЗ '+steps.length+'</div>'+
  '<h2 style="margin-top:9px">'+esc(focus.title)+'</h2>'+
  '<p class="hint">'+esc(focus.desc)+'</p>'+
  (active===1&&status?'<p class="hint" role="status">'+esc(status)+'</p>':'')+
- (active===3?'<p class="note">Нужен подтверждённый браузером вход именно через личный прокси. Публикации не включаются.</p>':'')+
+ (active===3?'<p class="note">Нужен подтверждённый браузером вход именно в свой кабинет через личный прокси.</p>':'')+
  '<button class="primary" onclick="'+focus.action+'">'+esc(focus.button)+' →</button></div>')+
  (soon?'<details class="card" style="margin-top:12px"><summary style="cursor:pointer">Что будет дальше · '+(steps.length-active-1)+' этапа</summary>'+soon+'</details>':''):'')+
  '<div class="card" style="margin-top:14px"><strong>Разрешение владельца</strong>'+
  '<p class="hint">'+(x.approval?.approved?'✓ Одобрение записано для текущих версий прокси и кабинета.':'Разрешение ещё не выдано либо настройки изменились.')+'</p>'+
  '<p class="hint">Доступ: '+(loginOK?'✓ Вход через закреплённый прокси подтверждён':'◷ Требуется проверка входа')+'</p>'+ 
- '<p class="hint">Статус публикаций: 🔒 отключены до подключения персонального исполнителя, архива и учёта кредитов.</p>'+
+ '<p class="hint">'+(x.readiness?.connectionReady?'✓ Клиентский кабинет использует подтверждённые данные этого мужчины.':'Подтвердите личный прокси и кабинет после завершения проверки входа.')+'</p>'+
  '<button type="button" class="secondary" onclick="updateManOwnerApproval('+(x.approval?.approved?'false':'true')+')" '+(manApprovalBusy||!loginOK||!ipOK||!siteSaved?'disabled':'')+'>'+
  (x.approval?.approved?'Отозвать разрешение':'✓ Одобрить мужчину в ADMIN')+'</button></div>'+
  renderSecondaryRatingReadiness(x)+renderSecondaryReviewApproval()+
@@ -847,7 +850,7 @@ function renderManConsole(){
  '<div class="card">'+(menHistoryError?'<p class="error">'+esc(menHistoryError)+'</p>':'')+
  (menHistory.map(v=>'<div class="men-history-entry">'+esc(v.action==='plan'?'Подготовка начата':'Подготовка сброшена')+'</div>').join('')||
  '<div class="empty">История пуста</div>')+'</div></details>'+
- '<div class="watermark">Публикации закрыты до отдельного разрешения · Ян Первый не изменён</div>';
+ '<div class="watermark">Личные подключения мужчин · Ян Первый не изменён</div>';
 }
 
 function renderManSiteForm(){

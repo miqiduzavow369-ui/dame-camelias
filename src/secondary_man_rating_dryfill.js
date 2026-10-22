@@ -46,7 +46,8 @@ export async function startSecondaryRatingDryfill(storage,env,{
   prior=await tx.get(key(i));
   if(prior?.status==="running"&&at-prior.startedAt<TTL)
    throw Error("Dryfill already running");
-  if(prior?.status==="verified"&&prior.fingerprint===ready.fingerprint&&
+  if(prior?.status==="verified"&&validTime(prior.completedAt)&&at-prior.completedAt<=TTL&&
+     prior.fingerprint===ready.fingerprint&&
      prior.draftVersion===ready.draft.version&&
      prior.proxyVersion===ready.proxy.version&&
      prior.siteVersion===ready.site.version)throw Error("Dryfill already verified");
@@ -154,3 +155,4 @@ export async function requireFreshSecondaryRatingDryfill(storage,env,identity){
    throw Error("Site dryfill snapshot changed");
  return {ok:true};
 }
+

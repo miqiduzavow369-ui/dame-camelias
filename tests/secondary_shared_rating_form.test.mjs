@@ -60,8 +60,9 @@ test("signed rating API never drops selected man; secondary saves cannot reach l
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
  for(const kind of ["mini_rating_open","mini_rating_form","mini_rating_save","mini_rating_action"])
   assert.ok(index.includes('kind:"'+kind+'",accountId:body?.accountId??"yan_first"'));
- assert.ok(runtime.includes("openSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
- assert.ok(runtime.includes("saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV"));
+ assert.ok(runtime.includes("openSecondaryRatingForm(storage,env.VISITORS_KV"));
+ assert.ok(runtime.includes("saveSecondaryRatingForm(storage,env.VISITORS_KV"));
  assert.ok(html.includes('selectedProgress.rating'));
  assert.ok(html.includes('confirmed:action==="publish"&&selectedAccount!=="yan_first"'));
 });
+

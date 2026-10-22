@@ -14,8 +14,11 @@ test("all men owner registry initializes proxy status before readiness projectio
  const block=runtime.slice(begin,end);
  assert.ok(block.indexOf('const proxyMap=new Map(proxyEntries)')>=0);
  assert.ok(block.indexOf('const proxyMap=new Map(proxyEntries)')<block.indexOf('const readinessEntries='));
- assert.ok(block.includes('p?.proxyVerified===true&&p?.ipVerified===true'));
- assert.ok(block.includes('login.technicalReady===true'));
+ assert.ok(block.includes('readSecondaryConnection(storage,rawEnv,x.id,OWNER_ID)'));
+ const connection=fs.readFileSync('src/secondary_man_connection.js','utf8');
+ assert.ok(connection.includes('proxyStatusRow.proxyVerified===true&&'));
+ assert.ok(connection.includes('proxyStatusRow.ipVerified===true'));
+ assert.ok(connection.includes('login.technicalReady===true'));
  assert.ok(block.includes('canPublish:false'));
 });
 test("stored site credentials are invalidated when proxy version or account changes",()=>{
@@ -40,8 +43,9 @@ test("already saved credentials do not require re-entry and site indicator is ho
  assert.match(ui,/x\.readiness\?\.technicalReady===true\?'ok':'unknown'/);
  assert.match(ui,/siteLoginState\?\.retryAvailable===true/);
  assert.match(ui,/Проверить вход через Chromium/);
- assert.match(ui,/Публикации закрыты/);
+ assert.match(ui,/connectionReady/);
  const script=ui.match(/<script>([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);
  new vm.Script(script);
 });
+

@@ -16,7 +16,8 @@ test("only owner account snapshot can request a missing-identity login recheck",
  assert.ok(body.includes('now-prev.at>15*60*1000'));
  assert.ok(body.includes('verified.proxyVersion===proxy?.version'));
  assert.ok(body.includes('verified.siteVersion===site?.version'));
- assert.ok(body.includes('if(!proxy||!site||!approval||!verified||'));
+ assert.ok(body.includes('readSecondaryConnection(storage,rawEnv,accountId,OWNER_ID)'));
+ assert.ok(body.includes('if(!connection.ready)'));
 });
 test("secondary recovery does not publish, mutate credits or change user interface",()=>{
  const html=fs.readFileSync("anketa/mini-preview.html","utf8");
@@ -29,3 +30,4 @@ test("secondary recovery does not publish, mutate credits or change user interfa
  assert.ok(!body.includes('reserveSecondaryFeedbackCredit'));
  assert.ok(!body.includes('secondary-man-rating-publish.yml'));
 });
+
