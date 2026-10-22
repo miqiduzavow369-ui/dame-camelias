@@ -2,7 +2,7 @@
 // No identity, proxy credentials, chosen ratings, session or publication state.
 const PROFILE=/^\d{1,9}$/;
 const ACCOUNT=/^(?:yan_second|yan_(?:0[3-9]|[12][0-9]|30))$/;
-const HOSTS=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip"]);
+const HOSTS=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"]);
 const PREFIX="shared-rating-criteria-v1:",LIFETIME=24*60*60;
 export function validateSharedCriteria({accountId,profileId,siteHost,catalog}){
  if(!ACCOUNT.test(String(accountId))||!PROFILE.test(String(profileId))||
@@ -46,3 +46,4 @@ export async function readSharedCriteria(kv,profileId){
  try{return validateSharedCriteria({accountId:entry.sourceAccountId,profileId,
   siteHost:entry.siteHost,catalog:entry.catalog});}catch{return null;}
 }
+

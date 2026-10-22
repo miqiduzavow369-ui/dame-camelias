@@ -5,6 +5,7 @@ import {requireManId} from "./man_account_isolation.js";
 const PREFIX="man-intimcity-sealed-v1:";
 const PROXY_PREFIX="man-proxy-sealed-v1:";
 const te=new TextEncoder();
+export const CURRENT_SECONDARY_SITE_URL="https://c.intimcity.rip/";
 function auth(actorId,cabinetId,ownerId,accountId){
  requireManId(accountId);
  if(accountId==="yan_first")throw Error("Legacy account immutable");
@@ -46,6 +47,40 @@ export async function readSiteStatus(storage,{actorId,cabinetId,ownerId,accountI
    siteUrl:raw?.siteUrl||null,updatedAt:raw?.updatedAt||null,
    proxyReady:validProxy,stagedOnly:raw?.stagedOnly===true,siteIdentityVerified:false,canPublish:false,
    needsProxyVerification:!validProxy};
+}
+// Owner explicitly updates this man's destination, keeping only his sealed login
+// and proxy binding. A new site version invalidates old login/approval/grants.
+export async function updateSiteDomain(storage,env,p){
+ auth(p.actorId,p.cabinetId,p.ownerId,p.accountId);
+ if(!p.ownerId||!Number.isSafeInteger(p.expectedVersion)||p.expectedVersion<1||
+    !Number.isSafeInteger(p.at)||p.at<0)throw Error("Invalid request");
+ const hex=env?.MAN_SITE_ENCRYPTION_KEY;
+ if(typeof hex!=="string"||!/^[a-fA-F0-9]{64}$/.test(hex))throw Error("Site vault key not configured");
+ const key=await crypto.subtle.importKey("raw",Uint8Array.from(hex.match(/../g).map(v=>parseInt(v,16))),
+  {name:"AES-GCM"},false,["encrypt","decrypt"]);
+ return storage.transaction(async tx=>{
+  const site=await tx.get(PREFIX+p.accountId),proxy=await tx.get(PROXY_PREFIX+p.accountId);
+  if(site?.accountId!==p.accountId||proxy?.accountId!==p.accountId||
+     site.version!==p.expectedVersion||site.boundProxyVersion!==proxy.version)
+   throw Error("Version conflict");
+  const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:new Uint8Array(site.iv),
+   additionalData:te.encode(p.accountId+":intimcity:"+proxy.version)},key,new Uint8Array(site.sealed));
+  const saved=validateSiteCredentials(JSON.parse(new TextDecoder().decode(plain)));
+  if(saved.siteUrl!==site.siteUrl)throw Error("Site binding mismatch");
+  if(site.siteUrl===CURRENT_SECONDARY_SITE_URL)return {ok:true,accountId:p.accountId,
+   version:site.version,siteUrl:site.siteUrl,configured:true,canPublish:false,unchanged:true};
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const sealed=await crypto.subtle.encrypt({name:"AES-GCM",iv,
+   additionalData:te.encode(p.accountId+":intimcity:"+proxy.version)},key,
+   te.encode(JSON.stringify({...saved,siteUrl:CURRENT_SECONDARY_SITE_URL})));
+  const next={schema:1,accountId:p.accountId,version:site.version+1,
+   boundProxyVersion:proxy.version,siteUrl:CURRENT_SECONDARY_SITE_URL,iv:Array.from(iv),
+   sealed:Array.from(new Uint8Array(sealed)),updatedAt:p.at,
+   identityVerified:false,enabled:false,stagedOnly:true};
+  await tx.put(PREFIX+p.accountId,next);
+  return {ok:true,accountId:p.accountId,version:next.version,siteUrl:next.siteUrl,
+   configured:true,siteIdentityVerified:false,canPublish:false,stagedOnly:true};
+ });
 }
 export async function saveSiteCredentials(storage,env,{actorId,cabinetId,ownerId,accountId,expectedVersion,settings,at}){
  auth(actorId,cabinetId,ownerId,accountId);
@@ -106,3 +141,4 @@ export function requireSiteVerification({accountId,siteRecord,proxyRecord,verifi
   throw Error("Intimcity account not verified");
  return {accountId,verifiedIdentity,proxyVersion:proxyRecord.version};
 }
+

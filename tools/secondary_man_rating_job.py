@@ -52,7 +52,7 @@ def main():
     host=required("SECONDARY_SITE_HOST")
     if not ACCOUNT.fullmatch(account) or not USER.fullmatch(uid) or not PROFILE.fullmatch(pid) or not NONCE.fullmatch(nonce) or not TOKEN.fullmatch(ticket):
         raise RuntimeError("Invalid personal rating identifiers")
-    if host not in ("a.intimcity.rip","b.intimcity.rip"):
+    if host not in ("a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"):
         raise RuntimeError("Untrusted personal host")
     grant=call("/api/secondary-man/rating-payload",query={
         "account_id":account,"user_id":uid,"profile_id":pid,
@@ -135,3 +135,4 @@ if __name__=="__main__":
         # Never leak proxy credentials/site passwords in traceback or logs.
         print("SECONDARY_RATING: unavailable; "+type(exc).__name__,file=sys.stderr,flush=True)
         sys.exit(1)
+

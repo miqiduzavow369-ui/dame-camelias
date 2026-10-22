@@ -34,7 +34,7 @@ async function seed(storage,id){
   ...await encrypt(PROXY_KEY,{protocol:"http",host:id+".proxy.example.test",port:8080,
    username:id,password:"synthetic-proxy",expectedIp:"8.8.8.8"},id)});
  await storage.put("man-intimcity-sealed-v1:"+id,{accountId:id,version:3,boundProxyVersion:2,
-  siteUrl:"https://b.intimcity.rip/",...await encrypt(SITE_KEY,{siteUrl:"https://b.intimcity.rip/",
+  siteUrl:"https://c.intimcity.rip/",...await encrypt(SITE_KEY,{siteUrl:"https://c.intimcity.rip/",
    login,password:"synthetic-site"},id+":intimcity:2")});
  await storage.put("man-browser-check-v1:"+id,{accountId:id,proxyVersion:2,status:"verified",siteReachable:true});
  await storage.put("man-site-login-check-v1:"+id,{accountId:id,proxyVersion:2,siteVersion:3,
@@ -64,7 +64,7 @@ async function savePrivateProfile(storage,uid){
  const catalog=[{label:"Общая оценка",options:["5"]}];
  await storage.put("private:owner_anketa_library:"+uid,{value:JSON.stringify([PROFILE]),expires:0});
  await storage.put("private:owner_anketa_saved:"+uid+":"+PROFILE,{value:JSON.stringify({confirmed:true,
-  host:"b.intimcity.rip",profile:{id:PROFILE,name:"Synthetic profile"},catalog}),expires:0});
+  host:"c.intimcity.rip",profile:{id:PROFILE,name:"Synthetic profile"},catalog}),expires:0});
 }
 
 test("every secondary ADMIN connection is reused by a client's full prepare/payload/result/status route",async()=>{

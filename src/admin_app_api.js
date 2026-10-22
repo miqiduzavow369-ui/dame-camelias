@@ -83,6 +83,11 @@ export async function handleAdminApi(request,env){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_site_status",actorId:OWNER_ID,accountId:body.accountId});
    return respond(result,result?.ok?200:result?.status===403?403:400);
   }
+  if(action==="man_site_domain_update"){
+   const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_site_domain_update",actorId:OWNER_ID,
+     accountId:body.accountId,expectedVersion:body.expectedVersion});
+   return respond(result,result?.ok?200:result?.status===403?403:409);
+  }
   if(action==="man_site_stage"){
    const result=await cabinetRPC(env,OWNER_ID,{kind:"admin_man_site_stage",actorId:OWNER_ID,
       accountId:body.accountId,expectedVersion:body.expectedVersion,settings:body.settings});

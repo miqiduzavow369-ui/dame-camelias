@@ -37,7 +37,7 @@ def main():
     site_host=required("SECONDARY_SITE_HOST")
     if not re.fullmatch(r"(yan_second|yan_(?:0[3-9]|[12][0-9]|30))",account) or not re.fullmatch(r"[0-9]{1,9}",profile) or not re.fullmatch(r"[a-f0-9]{32}",nonce):
         raise RuntimeError("Invalid probe identifiers")
-    if site_host not in ("intimcity.rip","a.intimcity.rip","b.intimcity.rip"):
+    if site_host not in ("intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"):
         raise RuntimeError("Invalid host")
     query=urllib.parse.urlencode({"account_id":account,"profile_id":profile,"nonce":nonce})
     grant=request_json(endpoint("/api/secondary-profile-probe/payload")+"?"+query)
@@ -74,3 +74,4 @@ if __name__=="__main__":
     except Exception:
         print("PROFILE_PROBE_RESULT: unavailable",file=sys.stderr)
         sys.exit(1)
+

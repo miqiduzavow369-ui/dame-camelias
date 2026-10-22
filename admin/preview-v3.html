@@ -268,7 +268,7 @@ try{
  setAdminLayout(localStorage.getItem(ADMIN_LAYOUT_PREF)==='wide');
 }catch(_){setAdminLayout(false)}
 // ADMIN V5: presentation and navigation only; no changes to authorized operations.
-const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let browserPreflight=null,browserPreflightBusy=false,browserPreflightError='';let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://b.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
+const archive=[];let reviewHistory=[],historyLoadError='',historyPartial=false;let visitorEvents=[],eventsPartial=false,eventsError='',eventsFilter='all',eventsQuery='';let menFilter="all",proxyVaultState=null,proxyVaultError='',proxySaving=false,siteVaultState=null,siteVaultError='',siteSaving=false;let browserPreflight=null,browserPreflightBusy=false,browserPreflightError='';let siteProbing=false,siteProbeError='',siteProbeResult=null,siteProbeUrl='https://c.intimcity.rip/';let proxyVerifying=false,proxyVerifyError='',proxyVerifyResult=null;let wizardData=null,wizardLoading=false,wizardError='',wizardSeq=0;let privateDraft=null,privateDraftError='',privateDraftBusy=false,privateImportBusy=false,manAccounts=[],menError='',menQuery='',menBusy=false,menChanging=false,selectedManId=null,menHistory=[],menHistoryError='',menHistoryRequest=0,manCheckState=null,manCheckError='',manCheckBusy=false;let clients=[],reviews=[],state={page:'clients',client:null,filter:'pending',query:'',archquery:'',reviewQuery:'',fromReviews:false,reviewIndex:null,review:null,wizard:null,step:0,action:null,field:'',editor:'',ack:''};
 try{const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand();}}catch{}
 const el=document.getElementById('app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const cby=id=>clients.find(c=>c.id===id);const available=c=>Number.isFinite(c.available)?c.available:c.grant-c.spent-c.reserved;
 // Display-only username: never an account key or authority. Null is a valid Telegram state.
@@ -518,10 +518,10 @@ async function checkManSiteNow(event){
  let parsed;
  try{
   parsed=new URL(siteUrl);
-  if(parsed.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip'].includes(parsed.hostname)||
+  if(parsed.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip','c.intimcity.rip'].includes(parsed.hostname)||
       parsed.username||parsed.password||parsed.port||parsed.hash||parsed.search)throw Error('invalid');
  }catch{
-  siteProbeError='Разрешены только HTTPS-ссылки на intimcity.rip, a.intimcity.rip и b.intimcity.rip без параметров.';
+  siteProbeError='Разрешены только HTTPS-ссылки на intimcity.rip, a.intimcity.rip, b.intimcity.rip и c.intimcity.rip без параметров.';
   render();return;
  }
  siteProbeUrl=siteUrl;siteProbeResult=null;siteProbeError='';siteProbing=true;render();
@@ -866,8 +866,8 @@ function renderManSiteForm(){
  (present?'<p class="hint">Данные сохранены. Для проверки входа повторно заполнять поля не нужно.</p><details><summary style="cursor:pointer;color:var(--gold)">Изменить логин или пароль (сбросит подтверждение входа)</summary>':'')+
  '<form id="manSiteForm" autocomplete="off" onsubmit="saveManSite(event)">'+
  '<label for="manSiteUrl">Ссылка Intimcity</label>'+
- '<input class="field" id="manSiteUrl" type="url" required value="'+esc(st?.siteUrl||siteProbeUrl||'https://b.intimcity.rip/')+
- '" placeholder="https://b.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
+ '<input class="field" id="manSiteUrl" type="url" required value="'+esc(st?.siteUrl||siteProbeUrl||'https://c.intimcity.rip/')+
+ '" placeholder="https://c.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
  '<label for="manSiteLogin">Логин / Email Intimcity</label>'+
  '<input class="field" id="manSiteLogin" type="text" autocomplete="off" required maxlength="256" '+
  'value="'+esc(privateDraft?.accountId===x.id?privateDraft.settings?.siteLogin||'':'')+'" autocapitalize="off" spellcheck="false">'+
@@ -875,7 +875,11 @@ function renderManSiteForm(){
  '<input class="field" id="manSitePassword" type="password" autocomplete="new-password" required maxlength="512" placeholder="Пароль мужского кабинета">'+
  '<button class="primary" type="submit" '+(siteSaving?'disabled':'')+'>'+
  (siteSaving?'Сохраняем…':'🔐 Сохранить логин и пароль')+'</button></form>'+
- (present?'</details>':'')+'</div>'+
+ (present?'</details>':'')+
+ (present?'<p class="hint">Сохранённый адрес: '+esc(st.siteUrl)+'</p>':'')+
+ (present&&st.siteUrl!=='https://c.intimcity.rip/'?
+ '<p class="hint">Актуальный адрес — c.intimcity.rip. Обновите ссылку, затем заново проверьте вход. Сохранённые логин, пароль и личный прокси сохранятся.</p>'+
+ '<button class="secondary" type="button" onclick="updateManSiteDomain()" '+(siteSaving||siteLoginBusy?'disabled':'')+'>🔗 Обновить адрес без ввода пароля</button>':'')+'</div>'+
  '<div class="card"><strong>Проверка входа в кабинет</strong>'+
  '<p class="hint">Chromium проверит вход в кабинет этого мужчины через его личный прокси и сверит аккаунт. Проверка не отправляет оценки или отзывы.</p>'+
  '<button class="secondary" type="button" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy||siteLoginRefreshing||siteLoginState?.status==='running'?'disabled':'')+'>'+(siteLoginBusy?'⏳ Запускаем…':'🔐 Проверить вход через Chromium')+'</button>'+
@@ -989,6 +993,20 @@ async function openManSite(){
   siteVaultState=r;privateDraft=draft?.accountId===id?draft:null;render();void refreshManSiteLoginCheck();
  }catch{if(selectedManId===id){siteVaultError='Не удалось загрузить защищённую настройку';render();}}
 }
+async function updateManSiteDomain(){
+ const id=selectedManId;
+ if(!id||id==='yan_first'||!siteVaultState?.configured||siteSaving||siteLoginBusy)return;
+ siteSaving=true;siteVaultError='';
+ try{
+  const r=await callAdmin('man_site_domain_update',{accountId:id,expectedVersion:siteVaultState.version});
+  if(selectedManId!==id)return;
+  if(r.accountId!==id||r.canPublish!==false)throw Error('invalid_update');
+  siteVaultState=r;siteLoginState=null;siteLoginError='';
+  siteLoginNotice='Адрес обновлён. Нажмите «Проверить вход через Chromium»: будут использованы сохранённые данные этого мужчины.';
+  toast('🔗 Адрес Intimcity обновлён');void refreshManWizard(id);
+ }catch{if(selectedManId===id)siteVaultError='Не удалось обновить адрес. Откройте настройку кабинета заново и повторите.';}
+ finally{siteSaving=false;if(selectedManId===id)render();}
+}
 async function saveManSite(event){
  event.preventDefault();
  const id=selectedManId;
@@ -1045,7 +1063,7 @@ function renderManProxyForm(){
  '<input class="field" id="proxySingleLine" type="password" autocomplete="new-password" required '+
  'placeholder="логин:пароль@IP:6408" autocapitalize="off" spellcheck="false">'+
  '<label for="manSiteLink">Ссылка для проверки через прокси</label>'+
- '<input class="field" id="manSiteLink" type="url" required value="'+esc(siteProbeUrl||'https://b.intimcity.rip/')+'" placeholder="https://b.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
+ '<input class="field" id="manSiteLink" type="url" required value="'+esc(siteProbeUrl||'https://c.intimcity.rip/')+'" placeholder="https://c.intimcity.rip/" autocapitalize="off" spellcheck="false">'+
  '<button class="primary" type="submit" '+(proxySaving||siteProbing?'disabled':'')+'>'+
  (proxySaving||siteProbing?'⏳ Сохраняем и проверяем…':'🔐 Сохранить HTTP-прокси')+'</button>'+
  '</form>'+
@@ -1086,7 +1104,7 @@ async function startManBrowserCheck(retry=false){
 }
 async function openManProxy(){
  if(!selectedManId||selectedManId==='yan_first')return;
- proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;browserPreflight=null;browserPreflightError='';siteProbeUrl='https://b.intimcity.rip/';go('man-proxy');
+ proxyVaultState=null;proxyVaultError='';siteProbeError='';siteProbeResult=null;browserPreflight=null;browserPreflightError='';siteProbeUrl='https://c.intimcity.rip/';go('man-proxy');
  try{privateDraft=await callAdmin('man_private_status',{accountId:selectedManId});}catch{privateDraft=null;}
  try{const r=await callAdmin('man_proxy_status',{accountId:selectedManId});
  if(selectedManId!==r.accountId)return;proxyVaultState=r;render();void refreshManBrowserCheck();
@@ -1149,9 +1167,9 @@ async function saveManProxy(event){
  const siteUrl=document.getElementById('manSiteLink').value.trim();
  try{
   const url=new URL(siteUrl);
-  if(url.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip'].includes(url.hostname)||
+  if(url.protocol!=='https:'||!['intimcity.rip','a.intimcity.rip','b.intimcity.rip','c.intimcity.rip'].includes(url.hostname)||
    url.username||url.password||url.port||url.search||url.hash)throw Error('bad');
- }catch{proxyVaultError='Укажи HTTPS-ссылку на b.intimcity.rip или другой разрешённый домен Intimcity.';render();return;}
+ }catch{proxyVaultError='Укажи HTTPS-ссылку на c.intimcity.rip или другой разрешённый домен Intimcity.';render();return;}
  proxySaving=true;proxyVaultError='';siteProbeError='';siteProbeResult=null;siteProbeUrl=siteUrl;render();
  try{
   const result=await callAdmin('man_proxy_save',{accountId:id,expectedVersion:proxyVaultState.version,settings});
@@ -1251,7 +1269,7 @@ function confirmContent(){let t=state.action,c=cby(state.client),x=reviews.find(
 const auth=()=>window.Telegram?.WebApp?.initData||'';
 function openManDetail(id){
  if(!manAccounts.some(x=>x.id===id))return;
- selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://b.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
+ selectedManId=id;siteProbeResult=null;siteProbeError='';siteProbeUrl='https://c.intimcity.rip/';wizardData=null;wizardError='';manCheckState=null;manCheckError='';
  menHistory=[];menHistoryError='';secondaryProbeStatus=null;secondaryProbeError='';++menHistoryRequest;go('man-detail');
  void refreshManWizard(id);void reloadManHistory(id);void reloadManChecks(id);if(id!=='yan_first')void refreshSecondaryProfileProbe(id);
 }

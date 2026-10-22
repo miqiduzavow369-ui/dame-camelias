@@ -40,7 +40,7 @@ def main():
         "SECONDARY_DRYFILL_NONCE","SECONDARY_SITE_HOST"))
     if not ACCOUNT.fullmatch(account) or not ID.fullmatch(uid) or not PROFILE.fullmatch(pid) or not NONCE.fullmatch(nonce):
         raise RuntimeError("Account-bound dryfill identifiers invalid")
-    if host not in ("a.intimcity.rip","b.intimcity.rip"):
+    if host not in ("a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"):
         raise RuntimeError("Untrusted personal site host")
     grant=call("/api/secondary-man/rating-dryfill-payload",params={
         "account_id":account,"user_id":uid,"profile_id":pid,"nonce":nonce
@@ -92,3 +92,4 @@ if __name__=="__main__":
     except Exception as exc:
         print("YAN_SHARED_DRYFILL: failed "+type(exc).__name__,file=sys.stderr,flush=True)
         sys.exit(1)
+

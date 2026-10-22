@@ -5,7 +5,7 @@ import {validateProxyInput} from "./man_proxy_vault.js";
 import {validIntimcityUrl} from "./man_site_vault.js";
 const PREFIX="man-proxy-sealed-v1:";
 const te=new TextEncoder();
-const allowedHosts=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip"]);
+const allowedHosts=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"]);
 function verifyOwner(actorId,cabinetId,ownerId,id){
  requireManId(id);
  if(id==="yan_first"||!ownerId||actorId!==ownerId||cabinetId!==ownerId)throw Error("Forbidden");
@@ -225,3 +225,4 @@ export async function checkManSiteThroughProxy(storage,env,{actorId,cabinetId,ow
    tlsEstablished:progress.tlsEstablished===true,requestSent:progress.requestSent===true}:null,
   ipVerified:false,identityVerified:false,canPublish:false};
 }
+
