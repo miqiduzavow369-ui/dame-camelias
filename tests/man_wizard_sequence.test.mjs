@@ -18,7 +18,7 @@ test("wizard uses authoritative browser verification, not transient probe",()=>{
  assert.match(block,/const steps=\[/);
  assert.match(block,/Пройдено:/);
  assert.match(block,/ТЕКУЩИЙ ЭТАП/);
- assert.match(block,/Публикации закрыты до отдельного разрешения/);
+ assert.match(block,/Разрешение ADMIN ниже подтверждает эти данные/);
 });
 test("legacy Yan First is immutable and remains on its own screen",()=>{
  const block=html.slice(html.indexOf("function renderManConsole(){"),html.indexOf("function renderManSiteForm(){"));

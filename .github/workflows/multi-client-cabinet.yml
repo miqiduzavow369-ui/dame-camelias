@@ -24,8 +24,9 @@ jobs:
           for file in src/*.js; do node --check "$file"; done
           node -e "import('./src/index.js')"
       - name: Test cabinet, ledgers, authorization and existing bot regressions
-        run: node --test tests/*.test.mjs
+        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/*.test.mjs
       - name: Test Python publication safety without network or real publication
         run: |
           python -m unittest discover -s tests -p 'test_*.py'
           python -m py_compile tools/*.py
+

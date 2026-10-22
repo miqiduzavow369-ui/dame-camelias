@@ -292,7 +292,7 @@ export async function handleAdminApi(request,env){
   if(action==="secondary_operation_status"){
    if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
    if(typeof body.accountId!=="string"||!/^yan_(?:second|0[3-9]|[12][0-9]|30)$/.test(body.accountId)||
-      !/^\\d{1,9}$/.test(String(body.profileId||""))||
+      !/^\d{1,9}$/.test(String(body.profileId||""))||
       !["rating","review"].includes(body.kind)||
       !/^[a-f0-9]{12}$/.test(String(body.nonce||"")))return bad("invalid_operation_identity");
    const {client}=await registry(env,{action:"get",userId:uid});
@@ -377,3 +377,4 @@ export async function handleAdminApi(request,env){
   return bad("operation_unavailable",503);
  }
 }
+

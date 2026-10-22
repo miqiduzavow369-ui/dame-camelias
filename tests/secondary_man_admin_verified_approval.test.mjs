@@ -14,10 +14,11 @@ test("ADMIN requires verified pinned proxy and technical login before approval",
  assert.match(body,/site\.proxyReady!==true/);
  assert.match(body,/event\.approved===false/);
 });
-test("ADMIN uses four setup steps and still blocks publishing",()=>{
+test("ADMIN confirms the connection without granting a publication",()=>{
  assert.match(admin,/const identityOK=loginOK;/);
- assert.match(admin,/Статус публикаций: 🔒 отключены/);
+ assert.match(admin,/x\.readiness\?\.connectionReady/);
  const match=admin.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(match);
  assert.doesNotThrow(()=>new vm.Script(match[1]));
 });
+

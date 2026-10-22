@@ -8,10 +8,10 @@ test("secondary men use Yan First's browser dryfill before any publication with 
  const from=source.indexOf('if(event.kind==="mini_rating_action")');
  const to=source.indexOf('if(event.kind==="mini_rating_open")',from);
  const route=source.slice(from,to);
- assert.ok(route.includes('startSecondaryRatingDryfill(storage,rawEnv'));
- assert.ok(route.includes('requireFreshSecondaryRatingDryfill(storage,rawEnv'));
- assert.ok(route.indexOf('requireFreshSecondaryRatingDryfill(storage,rawEnv,{')<
-   route.indexOf('launchApprovedSecondaryRating(storage,rawEnv'));
+ assert.ok(route.includes('startSecondaryRatingDryfill(storage,env'));
+ assert.ok(route.includes('requireFreshSecondaryRatingDryfill(storage,env'));
+ assert.ok(route.indexOf('requireFreshSecondaryRatingDryfill(storage,env,{')<
+   route.indexOf('launchApprovedSecondaryRating(storage,env'));
  assert.ok(route.includes('secondary_man_rating_dryfill_payload')===false);
  assert.ok(source.includes('if(event.kind==="secondary_man_rating_dryfill_payload"'));
  assert.ok(source.includes('kind:"secondary_publication_account_version_check"'));
@@ -49,3 +49,4 @@ test("dryfill state is private, expiring, one-use and never reserves credits",()
  assert.ok(!s.includes('btn.first.click('));
  assert.ok(!s.includes('submit('));
 });
+

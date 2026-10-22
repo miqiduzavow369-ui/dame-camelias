@@ -8,8 +8,9 @@ test("secondary readiness is exposed only through owner ADMIN",()=>{
  assert.ok(admin.includes('action==="secondary_rating_readiness"'));
  assert.ok(admin.includes('kind:"admin_secondary_rating_readiness",actorId:OWNER_ID'));
  assert.ok(runtime.includes('event.kind==="admin_secondary_rating_readiness"'));
- assert.ok(runtime.includes('secondaryRatingReadiness(id,'));
- assert.ok(runtime.includes('executorConnected:false,callbackConnected:false,proofAndLedgerConnected:false'));
+ assert.ok(runtime.includes('readSecondaryConnection(storage,rawEnv,event.accountId,OWNER_ID)'));
+ assert.ok(!runtime.includes('executorConnected:false,callbackConnected:false,proofAndLedgerConnected:false'));
+ assert.ok(runtime.includes('runner_configuration_missing'));
 });
 
 test("ADMIN view shows independent rating diagnostics for selected man",()=>{
@@ -19,3 +20,4 @@ test("ADMIN view shows independent rating diagnostics for selected man",()=>{
  assert.ok(html.includes("id==='yan_first'"));
  assert.ok(html.includes("proof_and_credit_not_connected"));
 });
+

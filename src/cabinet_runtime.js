@@ -27,10 +27,8 @@ import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_pri
 import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
-import {secondaryRatingReadiness} from "./secondary_man_rating_readiness.js";
 import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js";
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
-import {currentVerifiedIdentity} from "./secondary_man_verified_identity.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
 import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
@@ -39,20 +37,12 @@ import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryR
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
 import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
-// Setup 4/4 is sufficient for client form entry but NEVER authorizes site submit.
-async function secondaryRatingCabinetConnected(storage,accountId){
+import {readSecondaryConnection,installSecondaryConnection} from "./secondary_man_connection.js";
+// ADMIN's verified connection is the same connection used by client operations.
+// A connection is never, by itself, permission to submit a rating or review.
+async function secondaryRatingCabinetConnected(storage,accountId,rawEnv){
  if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))return false;
- const params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId};
- const [proxy,site,login,browser,siteRecord]=await Promise.all([
-  proxyStatus(storage,params),readSiteStatus(storage,params),
-  siteLoginStatus(storage,params),browserCheckStatus(storage,params),
-  storage.get("man-intimcity-sealed-v1:"+accountId)
- ]);
- return proxy.accountId===accountId&&proxy.proxyVerified===true&&proxy.ipVerified===true&&
-  site.accountId===accountId&&site.configured===true&&
-  siteRecord?.accountId===accountId&&siteRecord?.boundProxyVersion===proxy.version&&
-  login.technicalReady===true&&browser.status==="verified"&&
-  browser.version===proxy.version&&browser.siteReachable===true;
+ return (await readSecondaryConnection(storage,rawEnv,accountId,OWNER_ID)).connection.ready;
 }
 
 async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
@@ -62,14 +52,12 @@ async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
      accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId))
     return {ok:false,status:400,reason:"invalid_catalog_request"};
   try{
-   const record=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+userId+":"+profileId,"json");
-   if(record?.confirmed!==true||String(record.profile?.id)!==profileId)
-    return {ok:false,status:403,reason:"profile_not_saved"};
-   if(Array.isArray(record.catalog)&&record.catalog.length)
-    return {ok:true,stage:"available"};
+   // The client coordinator attests ownership after opening its private
+   // saved profile; never look for another client's private record in shared KV.
+   if(event.profileOwned!==true)return {ok:false,status:403,reason:"profile_not_saved"};
    if(await readSharedCriteria(rawEnv.VISITORS_KV,profileId))
     return {ok:true,stage:"available"};
-   if(!await secondaryRatingCabinetConnected(storage,accountId))
+   if(!await secondaryRatingCabinetConnected(storage,accountId,rawEnv))
     return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
    const key="secondary-auto-rating-lookup-v1:"+profileId,now=Date.now();
    const reserved=await storage.transaction(async tx=>{
@@ -110,7 +98,7 @@ async function autoStartSecondaryCatalogLookup(storage,rawEnv,event){
 }
 
 async function isSecondaryCabinetReady(storage,rawEnv,uid,accountId){
- if(uid===OWNER_ID)return secondaryRatingCabinetConnected(storage,accountId);
+ if(uid===OWNER_ID)return secondaryRatingCabinetConnected(storage,accountId,rawEnv);
  const check=await cabinetRPC(rawEnv,OWNER_ID,{kind:"secondary_catalog_cabinet_ready",accountId});
  return check?.ok===true&&check.ready===true;
 }
@@ -147,7 +135,7 @@ export async function cabinetEndpoint(request,env,kind){
  }else{
   if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"token_rejected","Cache-Control":"no-store"}});
   body=request.method==="POST"?await request.clone().json().catch(()=>null):null;
-  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
+  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_rating_dryfill_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
  }
  if(!validId(uid))return new Response("Invalid user",{status:400});
  const result=await cabinetRPC(env,uid,{kind,url:request.url,method:request.method,headers:{Authorization:request.headers.get("Authorization")||""},body:request.method==="POST"?await request.text():null});
@@ -598,34 +586,23 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }
     }
    }
-   const [proxy,site,approval,verified]=await Promise.all([
-    storage.get("man-proxy-sealed-v1:"+accountId),
-    storage.get("man-intimcity-sealed-v1:"+accountId),
-    storage.get("man-owner-approval-v1:"+accountId),
-    storage.get("secondary-site-identity-v1:"+accountId)
-   ]);
-   if(!proxy||!site||!approval||!verified||
-      !approvalMatchesConfiguration(approval,accountId,proxy.version,site.version)||
-      verified.accountId!==accountId||
-      verified.proxyVersion!==proxy.version||verified.siteVersion!==site.version||
-      !verified.siteAccountId||!proxy.proxyVerified||!proxy.ipVerified||
-      site.boundProxyVersion!==proxy.version)
-    throw Error("Account credentials not currently authorized");
+   const {connection,snapshot}=await readSecondaryConnection(storage,rawEnv,accountId,OWNER_ID);
+   if(!connection.ready)return {ok:false,reason:"secondary_account_not_ready",blockers:connection.blockers};
+   const {proxy,site}=snapshot;
    if(event.kind==="secondary_publication_account_version_check")
     return {ok:event.proxyVersion===proxy.version&&event.siteVersion===site.version};
-   // Ciphertext only, returned exclusively to another server-side DO.
-   return {ok:true,proxy,site,approval,verified};
+   return {ok:true,...snapshot};
   }catch{return {ok:false,reason:"secondary_account_not_ready"};}
  }
  if(event.kind==="secondary_catalog_cabinet_ready"){
   if(uid!==OWNER_ID)return {ok:false,status:403};
-  const ready=await secondaryRatingCabinetConnected(storage,event.accountId).catch(()=>false);
+  const ready=await secondaryRatingCabinetConnected(storage,event.accountId,rawEnv).catch(()=>false);
   return {ok:true,ready};
  }
  if(event.kind==="secondary_catalog_cabinet_list"){
   if(uid!==OWNER_ID)return {ok:false,status:403};
   const all=await Promise.all(MAN_ACCOUNTS.slice(1).map(async man=>
-   await secondaryRatingCabinetConnected(storage,man.id).catch(()=>false)?man.id:null));
+   await secondaryRatingCabinetConnected(storage,man.id,rawEnv).catch(()=>false)?man.id:null));
   return {ok:true,readyIds:all.filter(Boolean)};
  }
  if(event.kind==="secondary_catalog_lookup_start"){
@@ -851,20 +828,13 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // callbacks, grants or publications are returned or triggered.
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    try{
-     const id=event.accountId;
-     const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:id};
-     const [proxy,site,approval,login,identity,siteRecord]=await Promise.all([
-       proxyStatus(storage,params),readSiteStatus(storage,params),
-       readSecondaryManApproval(storage,params),siteLoginStatus(storage,params),
-       currentVerifiedIdentity(storage,id),storage.get("man-intimcity-sealed-v1:"+id)
-     ]);
-     // Explicitly use server records, not user-supplied capability flags.
-     const readiness=secondaryRatingReadiness(id,{
-       proxy,site:{...site,boundProxyVersion:siteRecord?.boundProxyVersion},
-       approval,login,identity,
-       executorConnected:false,callbackConnected:false,proofAndLedgerConnected:false
-     });
-     return {ok:true,...readiness};
+     const {connection}=await readSecondaryConnection(storage,rawEnv,event.accountId,OWNER_ID);
+     const configured=!!(rawEnv.DC_ACTIONS_TOKEN&&rawEnv.ANKETA_CALLBACK_TOKEN&&
+      rawEnv.SECONDARY_CALLBACK_HMAC_KEY&&rawEnv.MAN_PROXY_ENCRYPTION_KEY&&
+      rawEnv.MAN_SITE_ENCRYPTION_KEY&&rawEnv.VISITORS_KV&&rawEnv.ORDER_REMINDERS);
+     const blockers=[...connection.blockers,...(configured?[]:["runner_configuration_missing"])];
+     return {ok:true,...connection,kind:"rating",ready:blockers.length===0,blockers,
+      publicationAttempted:false};
    }catch{return {ok:false,status:409,reason:"secondary_readiness_unavailable"};}
  }
  if(event.kind==="admin_secondary_man_approval"){
@@ -889,7 +859,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
           site.proxyReady!==true||proxy.proxyVerified!==true||proxy.ipVerified!==true)
          return {ok:false,status:409,reason:"proxy_and_site_not_ready"};
        const [login,browser]=await Promise.all([siteLoginStatus(storage,params),browserCheckStatus(storage,params)]);
-       if(login.technicalReady!==true||browser.status!=="verified"||
+       if(login.technicalReady!==true||login.siteIdentityVerified!==true||browser.status!=="verified"||
           browser.ipVerified!==true||browser.siteReachable!==true||
           browser.version!==proxy.version)
          return {ok:false,status:409,reason:"technical_checks_incomplete"};
@@ -899,9 +869,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      const result=await setSecondaryManApproval(storage,{...params,
        expectedVersion:event.expectedVersion,approved:event.approved,
        proxyVersion,siteVersion});
-     // Owner approval alone never grants publication while site identity and
-     // account-specific publishing, callback, ledger and proof remain unconnected.
-     return {ok:true,...result,publicationAvailable:false,reason:"isolated_executor_not_connected"};
+     // ADMIN confirms this connection; per-operation checks still guard submission.
+     const {connection}=await readSecondaryConnection(storage,rawEnv,event.accountId,OWNER_ID);
+     return {ok:true,...result,connectionReady:connection.ready,publicationAvailable:false};
    }catch(e){
      const message=String(e?.message||"");
      return {ok:false,status:/Forbidden|immutable/.test(message)?403:409,reason:
@@ -940,16 +910,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const readinessEntries=await Promise.all(inventory.accounts.map(async x=>{
      if(x.id==="yan_first")return [x.id,null];
      try{
-       const params={actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id};
-       const [login,site,browser]=await Promise.all([
-         siteLoginStatus(storage,params),readSiteStatus(storage,params),browserCheckStatus(storage,params)]);
-       const p=proxyMap.get(x.id);
-       const ready=login.technicalReady===true&&site.configured===true&&
-         p?.proxyVerified===true&&p?.ipVerified===true&&
-         browser.status==="verified"&&browser.ipVerified===true&&browser.siteReachable===true;
-       return [x.id,{technicalReady:ready,loginCode:login.code,loginStatus:login.status,
-         loginVerifiedAt:ready?login.finishedAt:null,
-         siteIdentityVerified:ready&&login.siteIdentityVerified===true,canPublish:false}];
+       const {connection}=await readSecondaryConnection(storage,rawEnv,x.id,OWNER_ID);
+       return [x.id,{...connection,connectionReady:connection.ready}];
      }catch{return [x.id,{technicalReady:false,siteIdentityVerified:false,canPublish:false}];}
    }));
    const approvalEntries=await Promise.all(inventory.accounts.map(async x=>{
@@ -1056,7 +1018,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(!/^\d{1,9}$/.test(profileId))return {ok:false,status:400,reason:"invalid_profile"};
    if((await manVisibility(storage,event.accountId)).visible!==true)
     return {ok:false,status:403,reason:"man_hidden_from_clients"};
-   const list=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+   const list=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
    const profileOwned=Array.isArray(list)&&list.some(v=>String(v)===profileId);
    if(["save","load"].includes(event.action)&&!profileOwned)return {ok:false,status:403,reason:"profile_not_saved"};
    const result=await secondaryDraftAction(storage,{
@@ -1150,7 +1112,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const accountId=String(event.accountId),profileId=String(event.profileId||"");
     if((await manVisibility(storage,accountId)).visible!==true)
      return {ok:false,status:403,reason:"man_hidden_from_clients"};
-    const library=await rawEnv.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+    const library=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
     if(!Array.isArray(library)||!library.some(p=>String(p?.id??p)===profileId))
      return {ok:false,status:403,reason:"profile_not_saved"};
     const approvalKey=manStorageKey({userId:uid,accountId,profileId,scope:"moderation"})+":review";
@@ -1162,7 +1124,11 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       await ensureSecondaryReviewGroupNotice(storage,rawEnv,{
        userId:uid,accountId,profileId,kind:"review"
       }).catch(()=>null);
-     if(approval?.approved!==true||approval.identity?.userId!==uid||
+     const exactApproval=approval?.draftVersion===draft?.version&&draft?.authorAttested===true&&
+      typeof draft.text==="string"&&approval.approvedTextSha256===Array.from(new Uint8Array(
+       await crypto.subtle.digest("SHA-256",new TextEncoder().encode(draft.text))),
+       b=>b.toString(16).padStart(2,"0")).join("");
+     if(!exactApproval||approval?.approved!==true||approval.identity?.userId!==uid||
         approval.identity?.accountId!==accountId||
         approval.identity?.profileId!==profileId)
       return {ok:true,stage:draft?.authorAttested===true?"saved":"draft",
@@ -1187,15 +1153,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       kind:"secondary_publication_account_snapshot",accountId});
      if(config?.ok!==true)
       return {ok:false,status:409,reason:"secondary_owner_account_not_ready"};
-     await storage.transaction(async tx=>{
-      const pubKey=manStorageKey({userId:uid,accountId,profileId,
-       scope:"publication"})+":review";
-      if(await tx.get(pubKey))throw Error("Review already attempted");
-      await tx.put("man-proxy-sealed-v1:"+accountId,config.proxy);
-      await tx.put("man-intimcity-sealed-v1:"+accountId,config.site);
-      await tx.put("man-owner-approval-v1:"+accountId,config.approval);
-      await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
-     });
+     await installSecondaryConnection(storage,accountId,config,{publicationKey:
+      manStorageKey({userId:uid,accountId,profileId,scope:"publication"})+":review"});
     }
     return await launchApprovedSecondaryReview(storage,rawEnv,{
      identity:approval.identity,ownerConfirmed:true,at:Date.now()
@@ -1234,7 +1193,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const accountId=String(event.accountId),profileId=String(event.profileId||"");
     if((await manVisibility(storage,accountId)).visible!==true)
      return {ok:false,status:403,reason:"man_hidden_from_clients"};
-    const saved=await rawEnv.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
+    const saved=await env.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
     if(saved?.confirmed!==true||String(saved.profile?.id)!==profileId)
      return {ok:false,status:403,reason:"profile_not_saved"};
     const base=manStorageKey({userId:uid,accountId,profileId,scope:"publication"})+":rating";
@@ -1263,18 +1222,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       if(owner?.ok!==true)return {ok:false,status:409,reason:"secondary_owner_account_not_ready"};
       // Only encrypted, exact-account vault records are copied into this
       // client's Durable Object. Nothing is published or reserved by prepare.
-      await storage.transaction(async tx=>{
-       if(await tx.get(base))throw Error("Rating already attempted");
-       await tx.put("man-proxy-sealed-v1:"+accountId,owner.proxy);
-       await tx.put("man-intimcity-sealed-v1:"+accountId,owner.site);
-       await tx.put("man-owner-approval-v1:"+accountId,owner.approval);
-       await tx.put("secondary-site-identity-v1:"+accountId,owner.verified);
-      });
+      await installSecondaryConnection(storage,accountId,owner,{publicationKey:base});
      }
      failureStage="rating_validation";
      const candidate={userId:uid,accountId,profileId,kind:"rating",
       nonce:"000000000000"};
-     try{await preflightSecondaryRating(storage,rawEnv,{identity:candidate});}
+     try{await preflightSecondaryRating(storage,env,{identity:candidate});}
      catch(e){
       const reason=String(e?.message||"");
       return {ok:false,status:409,reason:
@@ -1292,7 +1245,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      const dryIdentity={userId:uid,accountId,profileId,kind:"rating",
       nonce:"000000000000"};
      try{
-      await requireFreshSecondaryRatingDryfill(storage,rawEnv,dryIdentity);
+      await requireFreshSecondaryRatingDryfill(storage,env,dryIdentity);
       return {ok:true,stage:"ready",publicationAvailable:true};
      }catch{
       const existing=await secondaryRatingDryfillStatus(storage,{identity:dryIdentity});
@@ -1300,7 +1253,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
        return {ok:true,stage:"preparing"};
      }
      failureStage="browser_dryfill";
-     return await startSecondaryRatingDryfill(storage,rawEnv,{
+     return await startSecondaryRatingDryfill(storage,env,{
       identity:dryIdentity,at:Date.now(),
       dispatch:async args=>{
        const response=await fetch("https://api.github.com/repos/miqiduzavow369-ui/dame-camelias/actions/workflows/secondary-man-rating-dryfill.yml/dispatches",{
@@ -1332,21 +1285,15 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       if(config?.ok!==true)throw Error("Owner account setup unavailable");
       // Each client's DO receives encrypted account records, never plaintext.
       // A later grant MUST re-check versions and approval against owner.
-      await storage.transaction(async tx=>{
-       if(await tx.get(base))throw Error("Rating already attempted");
-       await tx.put("man-proxy-sealed-v1:"+accountId,config.proxy);
-       await tx.put("man-intimcity-sealed-v1:"+accountId,config.site);
-       await tx.put("man-owner-approval-v1:"+accountId,config.approval);
-       await tx.put("secondary-site-identity-v1:"+accountId,config.verified);
-      });
+      await installSecondaryConnection(storage,accountId,config,{publicationKey:base});
      }
      try{
-      await requireFreshSecondaryRatingDryfill(storage,rawEnv,{
+      await requireFreshSecondaryRatingDryfill(storage,env,{
        userId:uid,accountId,profileId,kind:"rating",nonce:"000000000000"
       });
      }catch{return {ok:false,status:409,reason:"secondary_site_check_not_verified"};}
      failureStage="launch";
-     const launched=await launchApprovedSecondaryRating(storage,rawEnv,{
+     const launched=await launchApprovedSecondaryRating(storage,env,{
       identity,at:Date.now()
      });
      return launched.ok?{ok:true,stage:"publishing",nonce:identity.nonce}:
@@ -1357,7 +1304,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      const browser=await secondaryRatingDryfillStatus(storage,{identity:i});
      if(browser.stage==="ready"){
       try{
-       await requireFreshSecondaryRatingDryfill(storage,rawEnv,i);
+       await requireFreshSecondaryRatingDryfill(storage,env,i);
        return {ok:true,stage:"ready"};
       }catch{return {ok:true,stage:"failed"};}
      }
@@ -1431,12 +1378,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{
     if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
-    return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
+    return await openSecondaryRatingForm(storage,env.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
    }catch(e){
     if(String(e?.message)==="Rating catalog not ready"){
      if(event.kind==="mini_rating_form")return {ok:false,status:409,reason:"not_ready"};
      const query={kind:"secondary_catalog_lookup_start",userId:uid,
-      accountId:event.accountId,profileId:String(event.profileId||"")};
+      accountId:event.accountId,profileId:String(event.profileId||""),profileOwned:true};
      const result=await (uid===OWNER_ID?
       autoStartSecondaryCatalogLookup(storage,rawEnv,query):
       cabinetRPC(rawEnv,OWNER_ID,query)
@@ -1468,12 +1415,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{
     if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
-    return await openSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
+    return await openSecondaryRatingForm(storage,env.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||"")});
    }catch(e){
     if(String(e?.message)==="Rating catalog not ready"){
      if(event.kind==="mini_rating_form")return {ok:false,status:409,reason:"not_ready"};
      const query={kind:"secondary_catalog_lookup_start",userId:uid,
-      accountId:event.accountId,profileId:String(event.profileId||"")};
+      accountId:event.accountId,profileId:String(event.profileId||""),profileOwned:true};
      const result=await (uid===OWNER_ID?
       autoStartSecondaryCatalogLookup(storage,rawEnv,query):
       cabinetRPC(rawEnv,OWNER_ID,query)
@@ -1504,7 +1451,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    try{
     if(!await isSecondaryCabinetReady(storage,rawEnv,uid,event.accountId))
      return {ok:false,status:409,reason:"secondary_cabinet_unverified"};
-    return await saveSecondaryRatingForm(storage,rawEnv.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||""),selected:event.selected,metElsewhere:event.metElsewhere});
+    return await saveSecondaryRatingForm(storage,env.VISITORS_KV,{userId:uid,accountId:event.accountId,profileId:String(event.profileId||""),selected:event.selected,metElsewhere:event.metElsewhere});
    }catch(e){return {ok:false,status:409,reason:/catalog/i.test(String(e?.message))?
      "rating_catalog_not_ready":"secondary_rating_draft_rejected"};}
   }
@@ -1734,19 +1681,11 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   const visibility=await clientManVisibilityMap(storage,MAN_ACCOUNTS);
   // Verified 4/4 connection grants cabinet entry, NOT publication.
   // Read only private owner-controlled records; unavailable data fails closed.
-  const connected=new Map(await Promise.all(MAN_ACCOUNTS.slice(1).map(async man=>{
-   const id=man.id,params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId:id};
+  const connected=uid!==OWNER_ID?new Map():new Map(await Promise.all(MAN_ACCOUNTS.slice(1).map(async man=>{
    try{
-    const [proxy,site,login,browser,siteRecord]=await Promise.all([
-     proxyStatus(storage,params),readSiteStatus(storage,params),siteLoginStatus(storage,params),
-     browserCheckStatus(storage,params),storage.get("man-intimcity-sealed-v1:"+id)
-    ]);
-    return [id,{accountId:id,proxyVerified:proxy.proxyVerified,ipVerified:proxy.ipVerified,
-     proxyVersion:proxy.version,siteConfigured:site.configured,
-     boundProxyVersion:siteRecord?.boundProxyVersion,
-     loginVerified:login.technicalReady===true,
-     browserVerified:browser.status==="verified"&&browser.siteReachable===true}];
-   }catch{return [id,null];}
+    const {connection:c}=await readSecondaryConnection(storage,rawEnv,man.id,OWNER_ID);
+    return [man.id,{...c,loginVerified:c.ready}];
+   }catch{return [man.id,null];}
   })));
   let catalog=secondaryCabinetAvailability(connected);
   if(uid!==OWNER_ID){
@@ -1930,3 +1869,4 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
  const response=await engine[methods[event.kind]](request,env,send,verifyTelegram);
  return {status:response.status,body:await response.text(),headers:Object.fromEntries(response.headers)};
 }
+

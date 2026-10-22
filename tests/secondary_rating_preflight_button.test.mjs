@@ -58,6 +58,7 @@ test("Mini App hides submit button after a failed rating operation",()=>{
  const runtime=fs.readFileSync("src/cabinet_runtime.js","utf8");
  const snippet=runtime.slice(runtime.indexOf('if(event.kind==="mini_rating_action")'),
   runtime.indexOf('if(event.kind==="mini_rating_open")'));
- assert.ok(snippet.includes('await preflightSecondaryRating(storage,rawEnv,{identity:candidate})'));
+ assert.ok(snippet.includes('await preflightSecondaryRating(storage,env,{identity:candidate})'));
  assert.ok(snippet.indexOf('await preflightSecondaryRating(')<snippet.indexOf('launchApprovedSecondaryRating('));
 });
+
