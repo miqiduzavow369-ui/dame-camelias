@@ -20,13 +20,14 @@ jobs:
           if not token:raise SystemExit("Server callback token unavailable")
           body=json.dumps({"user_id":"5866034656","accountId":"yan_second","profileId":"690230"}).encode()
           request=urllib.request.Request("https://dame-camelias.gptjjjgpt.workers.dev/api/secondary-man/review-notice-refresh",
-            data=body,headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"},method="POST")
+            data=body,headers={"Authorization":"Bearer "+token,"Content-Type":"application/json","Accept":"application/json","User-Agent":"DameCameliasSecondaryReview/1.0"},method="POST")
           try:
               with urllib.request.urlopen(request,timeout=45) as response:result=json.load(response)
           except urllib.error.HTTPError as error:
-              try:result=json.loads(error.read())
+              raw=error.read(500)
+              try:result=json.loads(raw)
               except Exception:result={}
-              print(json.dumps({"ok":False,"http":error.code,"reason":result.get("reason","existing_card_update_unavailable")}))
+              print(json.dumps({"ok":False,"http":error.code,"reason":result.get("reason","existing_card_update_unavailable"),"handler":error.headers.get("X-DC-Callback-Handler"),"bodyType":"json" if result else "plain","body":raw.decode("utf-8","replace")[:100] if not result else None}))
               raise SystemExit(1)
           print(json.dumps({k:result.get(k) for k in ("ok","already","messageId","status")}))
           if result.get("ok") is not True:raise SystemExit(1)
