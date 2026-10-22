@@ -138,12 +138,12 @@ export class OrderReminder {
           // Read-only, user-isolated ledger. Never use publication archive as a financial ledger.
           const events=[];
           for(const [key,claim] of Object.entries(claims)){
-            const match=/^(rating|review):(\d{1,9})$/.exec(key);
+            const match=/^(?:(yan_second|yan_(?:0[3-9]|[12][0-9]|30)):)?(rating|review):(\d{1,9})$/.exec(key);
             if(!match||!claim)continue;
             if(claim.status==="completed"&&Number.isFinite(claim.completedAt))
-              events.push({type:"spend",kind:match[1],profileId:match[2],at:claim.completedAt,delta:-1});
+              events.push({type:"spend",kind:match[2],profileId:match[3],at:claim.completedAt,delta:-1,...(match[1]?{accountId:match[1]}:{})});
             else if(claim.status==="reserved"&&Number.isFinite(claim.at))
-              events.push({type:"reserve",kind:match[1],profileId:match[2],at:claim.at,delta:0});
+              events.push({type:"reserve",kind:match[2],profileId:match[3],at:claim.at,delta:0,...(match[1]?{accountId:match[1]}:{})});
           }
           for(const record of ledger.history||[]){
             if(record.type==="adjust"&&Number.isSafeInteger(record.delta)&&Number.isFinite(record.at))
@@ -156,12 +156,29 @@ export class OrderReminder {
             historicalGrantDatesAvailable:false,remaining:total-ledger.spent});
         }
 
-        const key=String(input.kind)+":"+String(input.profileId||"");
+        const accountId=input.accountId??null;
+        if(accountId!==null&&!/^(?:yan_second|yan_(?:0[3-9]|[12][0-9]|30))$/.test(accountId))
+          return Response.json({error:"invalid_secondary_account"},{status:400});
+        const legacyKey=String(input.kind)+":"+String(input.profileId||"");
+        const key=accountId&&!(input.type==="credits_secondary_unstarted"&&input.legacyScope===true)?accountId+":"+legacyKey:legacyKey;
         if(!["rating","review"].includes(input.kind) ||
            !/^\d{1,9}$/.test(String(input.profileId)) ||
            !/^[a-f0-9]{12,16}$/.test(String(input.nonce||"")))
           return Response.json({error:"invalid_claim"},{status:400});
+        if(input.type==="credits_secondary_unstarted"){
+          if(!accountId||typeof input.legacyScope!=="boolean")return Response.json({ok:false},{status:400});
+          const current=claims[key];
+          if(current?.nonce===input.nonce)
+            return Response.json({ok:true,canRetire:false,status:current.status});
+          // Fence even a delayed reserve RPC before confirming no reservation
+          // belongs to this failed operation. Never alter another claim.
+          ledger.rejectedSecondaryReserves=ledger.rejectedSecondaryReserves||{};
+          ledger.rejectedSecondaryReserves[key+":"+input.nonce]=true;
+          await storage.put("credits_v1",ledger);
+          return Response.json({ok:true,canRetire:true,status:"not_reserved"});
+        }
         if(input.type==="credits_reserve"){
+          if(ledger.rejectedSecondaryReserves?.[key+":"+input.nonce])return Response.json({ok:false,reason:"reserve_fenced"});
           if(claims[key])return Response.json({ok:false,reason:"already_claimed"});
           if(balance<=0)return Response.json({ok:false,reason:"empty"});
           claims[key]={status:"reserved",nonce:input.nonce,at:now};
@@ -303,7 +320,7 @@ export class OrderReminder {
       if(settlements){
         for(const [key,entry] of Object.entries(settlements)){
           try{
-            if(entry.ledger==="credits")await credits(this.env,entry.userId,entry.action||"complete",entry.kind,entry.profileId,entry.nonce);
+            if(entry.ledger==="credits")await credits(this.env,entry.userId,entry.action||"complete",entry.kind,entry.profileId,entry.nonce,entry.accountId??null);
             else await dailyLimit(this.env,entry.userId,entry.profileId,entry.action||"complete",entry.kind,entry.nonce,entry.date);
             delete settlements[key];
           }catch{ /* Keep ambiguous financial results for the next alarm. */ }
@@ -347,3 +364,4 @@ export class OrderReminder {
     });
   }
 }
+

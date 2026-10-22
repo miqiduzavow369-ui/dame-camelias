@@ -38,6 +38,7 @@ import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from 
 import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 import {readSecondaryConnection,installSecondaryConnection} from "./secondary_man_connection.js";
+import {reconcileUnstartedSecondaryReservations} from "./secondary_man_credit_bridge.js";
 // ADMIN's verified connection is the same connection used by client operations.
 // A connection is never, by itself, permission to submit a rating or review.
 async function secondaryRatingCabinetConnected(storage,accountId,rawEnv){
@@ -1208,6 +1209,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      userId:uid,accountId,profileId,scope:"rating-draft"})+":rating");
     // A credit reservation may exist even when dispatch failed before
     // writing a publication record. Never create a second reservation.
+    if(!row)await reconcileUnstartedSecondaryReservations(storage,env,{
+     userId:uid,accountId,profileId,kind:"rating"
+    });
     const claims=typeof storage.list==="function"?
      await storage.list({prefix:manStorageKey({
       userId:uid,accountId,profileId,scope:"operation"})+":rating:"}):new Map();
@@ -1343,8 +1347,11 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
       const operationClaims=typeof storage.list==="function"?
        await storage.list({prefix:operationPrefix}):null;
       const publication=await storage.get(publicationKey);
-      if(operationClaims&&operationClaims.size===0&&!publication)
-       return {ok:false,status:409,reason:"secondary_rating_preflight_failed"};
+      const held=operationClaims&&[...operationClaims.values()].some(x=>
+       ["reserving","reserved","settling","reconciliation_required","completed"].includes(x?.status));
+      if(operationClaims&&!held&&!publication)
+       return {ok:false,status:409,reason:String(e?.message)==="rating_credit_empty"?"credits":
+        "secondary_rating_preflight_failed"};
      }catch{
       // Failed reconciliation check: retain the conservative result.
      }
