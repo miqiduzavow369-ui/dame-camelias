@@ -1,10 +1,18 @@
 """Render real ADMIN HTML using synthetic state and intercepted, offline-only requests."""
 import json
+import re
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[1]
 HTML=(ROOT/"admin/preview-v3.html").read_text()
+NAMES=json.loads(re.search(r"const DISPLAY_NAMES = Object.freeze\((\[[\s\S]*?\])\);",
+    (ROOT/"src/man_accounts.js").read_text()).group(1))
+ACCOUNTS=[dict(id="yan_first" if i==0 else "yan_second" if i==1 else f"yan_{i+1:02}",
+    number=i+1,name=name,technicalName=f"member.{i+1}@example.test",
+    displayIp=None if i==0 else f"45.39.104.{i+1}",
+    connection="legacy_active" if i==0 else "not_configured",
+    visibility=dict(visible=True,version=0)) for i,name in enumerate(NAMES)]
 OUT=ROOT/"registration-ui-check"
 OUT.mkdir(exist_ok=True)
 
@@ -34,6 +42,10 @@ with sync_playwright() as p:
             return request_route.fulfill(status=200,content_type="text/html",body=HTML)
         if request.url=="https://telegram.org/js/telegram-web-app.js":
             return request_route.fulfill(status=200,content_type="text/javascript",body="window.Telegram={WebApp:{initData:'synthetic',ready(){},expand(){}}}")
+        portrait=re.fullmatch(r"https://raw\.githubusercontent\.com/miqiduzavow369-ui/dame-camelias/main/assets/admin_men/(dc_man_\d{2}\.webp)",request.url)
+        if portrait:
+            return request_route.fulfill(status=200,content_type="image/webp",
+                body=(ROOT/"assets/admin_men"/portrait.group(1)).read_bytes())
         if request.url=="https://registration.test/api/admin/app":
             data=request.post_data_json
             calls.append(data["action"])
@@ -51,6 +63,34 @@ with sync_playwright() as p:
         raise AssertionError("External network request forbidden: "+request.url)
     page.route("**/*",route)
     page.goto("https://registration.test/",wait_until="networkidle")
+    for width in (320,360,390,430):
+        page.set_viewport_size(dict(width=width,height=900))
+        page.evaluate("""accounts=>{
+            manAccounts=accounts;state.page='men';render();
+            document.querySelectorAll('.sq-photo').forEach(img=>img.loading='eager');
+        }""",ACCOUNTS)
+        page.wait_for_function("Array.from(document.querySelectorAll('.sq-photo')).every(img=>img.complete&&img.naturalWidth>0)")
+        assert page.locator(".men-square").count()==30
+        assert page.locator(".sq-number").count()==0
+        assert page.locator(".sq-ip").first.inner_text()=="176.56.35.167"
+        for i,account in enumerate(ACCOUNTS):
+            tile=page.locator(".men-square").nth(i)
+            assert tile.locator(".sq-name").inner_text()==account["name"]
+            assert tile.locator(".sq-technical").inner_text()==f"member.{i+1}"
+            assert f"dc_man_{i+1:02}.webp" in tile.locator("img").get_attribute("src")
+            if i:assert tile.locator(".sq-ip").inner_text()==account["displayIp"]
+        assert page.evaluate("document.documentElement.scrollWidth<=innerWidth"),"Catalogue horizontal overflow"
+        assert page.evaluate("""Array.from(document.querySelectorAll('.men-square')).every(tile=>
+            tile.scrollWidth<=tile.clientWidth+1&&tile.scrollHeight<=tile.clientHeight+1&&
+            tile.querySelector('.sq-name').getBoundingClientRect().bottom<=
+            tile.querySelector('.sq-technical').getBoundingClientRect().top+1)"""),"Catalogue content overlap"
+        page.screenshot(path=str(OUT/f"men-catalogue-{width}.png"),full_page=True)
+    before=page.locator(".men-square").first.bounding_box()
+    page.locator(".sq-photo").evaluate_all("imgs=>imgs.forEach(img=>img.dispatchEvent(new Event('error')))")
+    after=page.locator(".men-square").first.bounding_box()
+    assert before==after,"Photo failure must preserve card position and size"
+    assert page.locator(".sq-photo").first.evaluate("img=>getComputedStyle(img).visibility") == "hidden"
+    page.screenshot(path=str(OUT/"men-catalogue-photo-failure.png"),full_page=True)
     for width in (320,390):
         page.set_viewport_size(dict(width=width,height=900))
         for phase in range(4):
@@ -84,4 +124,4 @@ with sync_playwright() as p:
     assert not errors,errors
     assert not any(x in calls for x in ("man_proxy_save","man_site_stage","secondary_man_approval_set")),"Opening a card must not save or approve"
     browser.close()
-print("MAN_REGISTRATION_UI: offline mobile rendering and saved-data navigation passed")
+print("MAN_REGISTRATION_UI: all 30 catalogue cards, photo failures, mobile rendering and saved-data navigation passed")
