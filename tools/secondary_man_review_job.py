@@ -16,6 +16,7 @@ import sys
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 from secondary_man_review_publish import validate_secondary_review_grant
+from secondary_man_result_signing import result_signing_key
 
 ACCOUNT=re.compile(r"^(yan_second|yan_(?:0[3-9]|[12][0-9]|30))$")
 IDENTIFIER=re.compile(r"^[a-f0-9]{12}$")
@@ -64,6 +65,7 @@ def main():
     grant=request("/api/secondary-man/review-payload",query={
         "account_id":account,"profile_id":profile,"user_id":user,
         "nonce":nonce,"callback_ticket":token})
+    signing_key=result_signing_key(grant)  # Checked before any publication.
     text=grant.get("approvedText")
     pinned=validate_secondary_review_grant(grant,account,profile,text)
     if pinned!=host or grant.get("userId")!=user or grant.get("nonce")!=nonce or grant.get("callbackTicket")!=token:
@@ -131,7 +133,7 @@ def main():
             str(grant["proxyVersion"]),str(grant["siteVersion"]),str(issued),
             "verified_published",proof_reference,file_id]
     message=":".join(fields).encode()
-    secret=bytes.fromhex(required("SECONDARY_CALLBACK_HMAC_KEY"))
+    secret=signing_key
     if len(secret)!=32:
         raise RuntimeError("Invalid signing key")
     signature=hmac.new(secret,message,hashlib.sha256).hexdigest()

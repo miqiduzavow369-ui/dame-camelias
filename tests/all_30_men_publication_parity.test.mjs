@@ -47,7 +47,7 @@ test("every secondary rating and review use owner's own sealed account records a
   runtime.indexOf('if(event.kind==="mini_review_draft")'));
  const reviewGrant=runtime.slice(runtime.indexOf('if(event.kind==="secondary_man_review_runner_payload")'),
   runtime.indexOf('if(event.kind==="secondary_man_review_submit_boundary")'));
- const ratingGrant=runtime.slice(runtime.indexOf('if(event.kind==="secondary_man_rating_runner_payload")'),
+ const ratingGrant=runtime.slice(runtime.indexOf('if(event.kind==="secondary_man_rating_runner_payload"'),
   runtime.indexOf('if(event.kind==="secondary_man_rating_submit_boundary")'));
  for(const block of [r,v]){
   assert.ok(block.includes('kind:"secondary_publication_account_snapshot"'));

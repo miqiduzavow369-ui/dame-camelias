@@ -7,6 +7,16 @@ const HEX=/^[a-f0-9]{64}$/i;
 const REFERENCE=/^[A-Za-z0-9_-]{6,300}$/;
 const MAX_AGE=8*60*1000;
 const encoder=new TextEncoder();
+export async function deriveSecondaryResultSigningKey(secret,identity,token){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||typeof secret!=="string"||!HEX.test(secret)||
+    !/^[a-f0-9]{32}$/.test(token||""))reject();
+ const key=await crypto.subtle.importKey("raw",Uint8Array.from(secret.match(/../g),h=>parseInt(h,16)),
+  {name:"HMAC",hash:"SHA-256"},false,["sign"]);
+ const message=["secondary-result-key-v1",i.userId,i.accountId,i.profileId,i.kind,i.nonce,token].join(":");
+ const bytes=await crypto.subtle.sign("HMAC",key,encoder.encode(message));
+ return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
 function reject(){throw Error("Secondary callback attestation invalid");}
 function validated(input){
  const identity=createAccountOperation(input?.identity);
@@ -48,7 +58,10 @@ export async function verifySecondaryResultAttestation(storage,{
     !Number.isSafeInteger(at))reject();
  const x=validated(input),i=x.identity;
  if(x.issuedAt>at+30000||at-x.issuedAt>MAX_AGE)reject();
- const actual=await sign(secret,x);
+ const ticket=await storage.get(manStorageKey({...i,scope:"callback"})+":"+i.kind+":"+i.nonce);
+ const signingKey=ticket?.attestationMode==="operation-v1"?
+  await deriveSecondaryResultSigningKey(secret,i,ticket.token):secret;
+ const actual=await sign(signingKey,x);
  const a=Uint8Array.from(actual.match(/../g).map(h=>parseInt(h,16)));
  const b=Uint8Array.from(signature.match(/../g).map(h=>parseInt(h,16)));
  // Constant-work comparison without early exit on the first mismatched byte.
@@ -65,3 +78,4 @@ export async function verifySecondaryResultAttestation(storage,{
  return Object.freeze({identity:i,sitePublicationId:x.sitePublicationId,
   proofFileId:x.proofFileId,verifiedByTrustedExecutor:true,at});
 }
+

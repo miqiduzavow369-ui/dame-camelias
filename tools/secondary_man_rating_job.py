@@ -14,6 +14,7 @@ import time
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 from secondary_man_rating_publish import validate_publish_grant
+from secondary_man_result_signing import result_signing_key, build_rating_result
 
 ACCOUNT=re.compile(r"^(?:yan_second|yan_(?:0[3-9]|[12][0-9]|30))$")
 USER=re.compile(r"^\d{5,16}$")
@@ -61,6 +62,8 @@ def main():
         raise RuntimeError("Private rating grant mismatched")
     if grant.get("siteIdentityVerified") is not True or str(grant.get("verifiedSiteLogin","")).casefold()!=str(grant.get("siteLogin","")).casefold() or grant.get("siteUrl") is None:
         raise RuntimeError("Authenticated site identity missing")
+    result_signing_key(grant)  # Fail before any site action if signing is unavailable.
+    print("SECONDARY_RATING_STAGE: result_signing_ready",flush=True)
     payload=grant["selections"]
     identity={"userId":uid,"accountId":account,"profileId":pid,
               "kind":"rating","nonce":nonce}
@@ -98,32 +101,9 @@ def main():
     if not isinstance(posted,dict) or posted.get("attempted") is not True or posted.get("confirmedBy")!="authenticated-checked-list":
         print("SECONDARY_RATING: outcome uncertain; manual reconciliation required",flush=True)
         return 2
-    proof=posted.get("proof")
-    if not isinstance(proof,dict) or proof.get("account")!=account or proof.get("profile_id")!=pid or proof.get("mime")!="image/jpeg":
-        raise RuntimeError("No account-matched authenticated screenshot")
-    encoded=proof.get("image")
-    if not isinstance(encoded,str):raise RuntimeError("Original proof not returned")
-    jpeg=base64.b64decode(encoded,validate=True)
-    if not 90<=len(jpeg)<=700000 or not jpeg.startswith(b"\xff\xd8\xff") or not jpeg.endswith(b"\xff\xd9"):
-        raise RuntimeError("Invalid original JPEG")
-    checksum=hashlib.sha256(jpeg).hexdigest()
-    file_id="jpeg_"+checksum[:40]
-    reference="proof_"+hashlib.sha256((uid+":"+account+":"+pid+":"+grant["approvedSelectionsSha256"]+":"+checksum).encode()).hexdigest()[:40]
-    at=int(time.time()*1000)
-    fields=["secondary-result-v1",uid,account,pid,"rating",nonce,
-            str(grant["proxyVersion"]),str(grant["siteVersion"]),str(at),
-            "verified_published",reference,file_id]
-    secret=bytes.fromhex(required("SECONDARY_CALLBACK_HMAC_KEY"))
-    if len(secret)!=32:raise RuntimeError("Invalid HMAC key")
-    signature=hmac.new(secret,":".join(fields).encode(),hashlib.sha256).hexdigest()
-    response=call("/api/secondary-man/result",{
-        "identity":identity,"token":ticket,
-        "input":{"identity":identity,"proxyVersion":grant["proxyVersion"],
-                 "siteVersion":grant["siteVersion"],"issuedAt":at,
-                 "status":"verified_published","sitePublicationId":reference,
-                 "proofFileId":file_id},
-        "signature":signature,"originalJpegBase64":encoded
-    })
+    payload=build_rating_result(grant,posted.get("proof"))
+    print("SECONDARY_RATING_STAGE: original_proof_ready",flush=True)
+    response=call("/api/secondary-man/result",payload)
     if response.get("ok") is not True or response.get("status")!="completed":
         raise RuntimeError("Verified proof not fully settled")
     print("SECONDARY_RATING: confirmed archived and credit completed",flush=True)

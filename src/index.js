@@ -879,6 +879,7 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/secondary-man/rating-dryfill-payload") return cabinetEndpoint(request,env,"secondary_man_rating_dryfill_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-dryfill-result") return cabinetEndpoint(request,env,"secondary_man_rating_dryfill_result");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/rating-payload") return cabinetEndpoint(request,env,"secondary_man_rating_runner_payload");
+    if (request.method === "GET" && url.pathname === "/api/secondary-man/rating-proof-recovery") return cabinetEndpoint(request,env,"secondary_man_rating_proof_recovery");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-stage") return cabinetEndpoint(request,env,"secondary_man_rating_submit_boundary");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/review-payload") return cabinetEndpoint(request,env,"secondary_man_review_runner_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/review-stage") return cabinetEndpoint(request,env,"secondary_man_review_submit_boundary");
@@ -899,4 +900,5 @@ export default {
     return new Response("ok");
   }
 };
+
 

@@ -3,6 +3,7 @@
 // Return plaintext only to the existing bearer-authenticated receiver, never UI.
 import {createAccountOperation,manStorageKey,verifyAccountCallback} from "./man_account_isolation.js";
 import {approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
+import {deriveSecondaryResultSigningKey} from "./secondary_man_callback_attestation.js";
 
 const encoder=new TextEncoder();
 const PORT=n=>Number.isSafeInteger(n)&&n>0&&n<=65535;
@@ -34,6 +35,7 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
     typeof token!=="string"||!/^[a-f0-9]{32}$/.test(token)||
     !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function")
   throw Error("Secondary review grant invalid");
+ const resultSigningKey=await deriveSecondaryResultSigningKey(env?.SECONDARY_CALLBACK_HMAC_KEY,i,token);
  const records=await storage.transaction(async tx=>{
   const [operation,credit,ticket,draft,proxy,site,approval,observed,previous]=await Promise.all([
    tx.get(publicationKey(i)),tx.get(creditKey(i)),tx.get(ticketKey(i)),
@@ -65,6 +67,7 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
    throw Error("Unverified secondary review runner preflight");
   const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(draft.text))),b=>b.toString(16).padStart(2,"0")).join("");
   await tx.put(grantKey(i),{identity:i,at,status:"claimed",approvedTextSha256:digest});
+  await tx.put(ticketKey(i),{...ticket,attestationMode:"operation-v1"});
   return {draft,proxy,site,observed};
  });
  const {draft,proxy,site,observed}=records;
@@ -80,7 +83,7 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
    throw Error("Unsealed secondary account configuration inconsistent");
  const digest=Array.from(new Uint8Array(await crypto.subtle.digest(
   "SHA-256",encoder.encode(draft.text))),b=>b.toString(16).padStart(2,"0")).join("");
- return {ok:true,mode:"publish",kind:"review",status:"attempted",
+ return {ok:true,mode:"publish",kind:"review",status:"attempted",resultSigningKey,
   accountId:i.accountId,userId:i.userId,profileId:i.profileId,nonce:i.nonce,
   oneUseClaimConsumed:true,ownerOperationConfirmed:true,
   independentAuthorConfirmed:true,moderatorApproved:true,creditReserved:true,
@@ -126,6 +129,7 @@ export async function claimSecondaryRatingRunnerPayload(storage,env,{identity,to
   typeof token!=="string"||!/^[a-f0-9]{32}$/.test(token)||
   !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function")
   throw Error("Invalid secondary rating grant");
+ const resultSigningKey=await deriveSecondaryResultSigningKey(env?.SECONDARY_CALLBACK_HMAC_KEY,i,token);
  const found=await storage.transaction(async tx=>{
   const [publication,credit,ticket,draft,proxy,site,approval,observed,old]=await Promise.all([
    tx.get(publicationKey(i)),tx.get(creditKey(i)),tx.get(ticketKey(i)),
@@ -169,6 +173,7 @@ export async function claimSecondaryRatingRunnerPayload(storage,env,{identity,to
   if(digest!==publication.ratingSelectionsSha256)
    throw Error("Stored rating selections changed");
   await tx.put(grantKey(i),{identity:i,at,status:"claimed",approvedTextSha256:digest});
+  await tx.put(ticketKey(i),{...ticket,attestationMode:"operation-v1"});
   return {proxy,site,observed,payload,digest};
  });
  const [p,s]=await Promise.all([
@@ -181,7 +186,7 @@ export async function claimSecondaryRatingRunnerPayload(storage,env,{identity,to
     typeof p.host!=="string"||typeof p.username!=="string"||
     typeof p.password!=="string"||typeof s.password!=="string")
   throw Error("Unsealed rating credentials mismatched");
- return {ok:true,mode:"publish",kind:"rating",status:"attempted",
+ return {ok:true,mode:"publish",kind:"rating",status:"attempted",resultSigningKey,
   accountId:i.accountId,userId:i.userId,profileId:i.profileId,nonce:i.nonce,
   oneUseClaimConsumed:true,ownerOperationConfirmed:true,
   independentAuthorConfirmed:true,creditReserved:true,siteIdentityVerified:true,
@@ -215,5 +220,53 @@ export async function recordSecondaryRatingSubmitBoundary(storage,{
   await tx.put(grantKey(i),{...grant,status:"submit_boundary",boundaryAt:at});
   return {ok:true,stage:"rating_submit_boundary"};
  });
+}
+
+// Recovery can read a posted rating's proof, but cannot re-open its submit
+// boundary or publication grant. The old scoped ticket authorizes one recovery.
+export async function claimSecondaryRatingProofRecovery(storage,env,{identity,token,at}={}){
+ const i=createAccountOperation(identity);
+ if(i.accountId==="yan_first"||i.kind!=="rating"||!/^[a-f0-9]{32}$/.test(token||"")||
+    !Number.isSafeInteger(at)||at<0||typeof storage?.transaction!=="function")throw Error("Invalid proof recovery");
+ const nextToken=crypto.randomUUID().replace(/-/g,"");
+ const resultSigningKey=await deriveSecondaryResultSigningKey(env?.SECONDARY_CALLBACK_HMAC_KEY,i,nextToken);
+ const found=await storage.transaction(async tx=>{
+  const [publication,credit,ticket,grant,proxy,site,approval,observed,recovery]=await Promise.all([
+   tx.get(publicationKey(i)),tx.get(creditKey(i)),tx.get(ticketKey(i)),tx.get(grantKey(i)),
+   tx.get("man-proxy-sealed-v1:"+i.accountId),tx.get("man-intimcity-sealed-v1:"+i.accountId),
+   tx.get("man-owner-approval-v1:"+i.accountId),tx.get("secondary-site-identity-v1:"+i.accountId),
+   tx.get(grantKey(i)+":proof-recovery")]);
+  if(recovery||publication?.status!=="attempted"||publication.attempted!==true||
+     !verifyAccountCallback(publication.identity,i)||publication.independentAuthorConfirmed!==true||
+     credit?.status!=="reserved"||credit.accountId!==i.accountId||credit.userId!==i.userId||
+     credit.profileId!==i.profileId||credit.kind!==i.kind||credit.nonce!==i.nonce||
+     ticket?.status!=="issued"||ticket.token!==token||!verifyAccountCallback(ticket.identity,i)||
+     ticket.issuedAt>at||at-ticket.issuedAt>7*24*60*60*1000||
+     grant?.status!=="submit_boundary"||!verifyAccountCallback(grant.identity,i)||
+     proxy?.accountId!==i.accountId||proxy.proxyVerified!==true||proxy.ipVerified!==true||
+     site?.accountId!==i.accountId||site.boundProxyVersion!==proxy.version||
+     publication.proxyVersion!==proxy.version||publication.siteVersion!==site.version||
+     ticket.proxyVersion!==proxy.version||ticket.siteVersion!==site.version||
+     !approvalMatchesConfiguration(approval,i.accountId,proxy.version,site.version)||
+     observed?.accountId!==i.accountId||observed.proxyVersion!==proxy.version||observed.siteVersion!==site.version||
+     !Array.isArray(publication.ratingSelections)||!publication.ratingSelectionsSha256||
+     grant.approvedTextSha256!==publication.ratingSelectionsSha256)
+    throw Error("Submitted rating proof recovery not authorized");
+  await tx.put(grantKey(i)+":proof-recovery",{identity:i,status:"claimed",at,readOnly:true});
+  await tx.put(ticketKey(i),{...ticket,token:nextToken,issuedAt:at,expiresAt:at+480000,attestationMode:"operation-v1"});
+  return {proxy,site,observed,publication};
+ });
+ const [p,s]=await Promise.all([
+  openVault(env?.MAN_PROXY_ENCRYPTION_KEY,found.proxy,i.accountId),
+  openVault(env?.MAN_SITE_ENCRYPTION_KEY,found.site,i.accountId+":intimcity:"+found.proxy.version)]);
+ if(p.protocol!=="http"||!PORT(p.port)||p.expectedIp!==found.proxy.expectedIp||
+    s.siteUrl!==found.site.siteUrl||String(s.login).toLowerCase()!==String(found.observed.siteAccountId).toLowerCase())
+  throw Error("Recovery account binding mismatch");
+ return {ok:true,mode:"proof-recovery",readOnly:true,kind:"rating",accountId:i.accountId,
+  userId:i.userId,profileId:i.profileId,nonce:i.nonce,callbackTicket:nextToken,resultSigningKey,
+  proxyVersion:found.proxy.version,siteVersion:found.site.version,
+  proxyHost:p.host,proxyPort:p.port,proxyUsername:p.username,proxyPassword:p.password,
+  expectedIp:p.expectedIp,siteUrl:s.siteUrl,siteLogin:s.login,sitePassword:s.password,
+  verifiedSiteLogin:found.observed.siteAccountId,approvedSelectionsSha256:found.publication.ratingSelectionsSha256};
 }
 

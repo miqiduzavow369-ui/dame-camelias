@@ -47,7 +47,7 @@ async function seed(tx){
   status:"issued",token:TOK,proxyVersion:2,siteVersion:3,issuedAt:1000,expiresAt:100000});
  return digest;
 }
-const env={MAN_PROXY_ENCRYPTION_KEY:PROXY_KEY,MAN_SITE_ENCRYPTION_KEY:SITE_KEY};
+const env={MAN_PROXY_ENCRYPTION_KEY:PROXY_KEY,MAN_SITE_ENCRYPTION_KEY:SITE_KEY,SECONDARY_CALLBACK_HMAC_KEY:"cd".repeat(32)};
 test("one-use review payload binds exact man, text, site and proxy; boundary is irreversible",async()=>{
  const {tx}=store(),digest=await seed(tx);
  const grant=await claimSecondaryReviewRunnerPayload(tx,env,{identity:i,token:TOK,at:2000});
@@ -84,3 +84,4 @@ test("admin approves only exact draft; duplicate approval cannot bypass changed 
   moderatorApproved:true,at:2000});
  assert.equal(approved.moderated,true);
 });
+

@@ -40,7 +40,6 @@ jobs:
         env:
           ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
           ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
-          SECONDARY_CALLBACK_HMAC_KEY: ${{ secrets.SECONDARY_CALLBACK_HMAC_KEY }}
           SECONDARY_ACCOUNT_ID: ${{ inputs.account_id }}
           SECONDARY_USER_ID: ${{ inputs.user_id }}
           SECONDARY_PROFILE_ID: ${{ inputs.profile_id }}

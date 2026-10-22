@@ -36,7 +36,8 @@ test("rating Chromium runner submits at most once with durable audit and authent
  const runner=fs.readFileSync("tools/secondary_man_rating_job.py","utf8");
  assert.ok(runner.includes('validate_publish_grant('));
  assert.ok(runner.includes('approvedSelectionsSha256'));
- assert.ok(runner.includes('SECONDARY_CALLBACK_HMAC_KEY'));
+ assert.ok(runner.includes('result_signing_key(grant)'));
+ assert.ok(runner.indexOf('result_signing_key(grant)')<runner.indexOf('result=inspect('));
  assert.ok(runner.includes('authenticated-checked-list'));
 });
 test("rating grant and launcher deny Yan First and require owner/account cryptographic binding",()=>{
@@ -51,3 +52,4 @@ test("rating grant and launcher deny Yan First and require owner/account cryptog
  assert.ok(launch.includes('dispatchApprovedSecondaryPublication('));
  assert.ok(launch.includes('ratingSelectionsSha256:fingerprint'));
 });
+
