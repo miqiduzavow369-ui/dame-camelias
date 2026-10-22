@@ -126,7 +126,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .men-square.legacy{border-color:#ad8750;background:linear-gradient(140deg,#463321,#251a10 70%,#17120d);box-shadow:inset 0 1px #f7d7a72b}
 .men-square.planning{border-color:#92734b}
 .men-square .sq-top{display:flex;justify-content:space-between;align-items:center;gap:3px}
-.men-square .sq-number{font:25px/1 Georgia,serif;color:#edcb90}
+.men-square .sq-photo{width:34px;height:42px;object-fit:cover;object-position:center 25%;border-radius:7px;border:1px solid #92734b;background:#211a12;flex:none}
+.men-square .sq-ip{display:block;font-size:10px;line-height:1.3;color:#d9be89;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;margin-top:3px}
 .men-square .sq-icon{font-size:14px;opacity:.88}
 .men-square .sq-name{font-size:12px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
 .men-square .sq-technical{display:block;font-size:11px;font-weight:700;line-height:1.3;color:#f5d999;text-shadow:0 0 7px rgba(224,177,88,.46);overflow-wrap:anywhere;word-break:break-word;max-width:100%;margin-top:3px}
@@ -334,6 +335,17 @@ function menStatus(x){
  return {label:'Не подключён',short:'Отключён',cls:'disabled',icon:'🔒'};
 }
 let manVisibilityBusyId=null;
+function manTileEmail(x){return String(x.technicalName||"").split('@')[0];}
+function manTileIp(x){
+ // Owner-supplied label only; never used to configure or verify the legacy connection.
+ const ip=String(x.displayIp||x.networkStatus?.expectedIp||(x.id==='yan_first'?'176.56.35.167':""));
+ return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)&&ip.split('.').every(n=>Number(n)<=255)?ip:'';
+}
+function manTilePhoto(x){
+ const number=Number(x.number);
+ return Number.isInteger(number)&&number>=1&&number<=30?
+  'https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/admin_men/dc_man_'+String(number).padStart(2,'0')+'.webp':'';
+}
 async function toggleManClientVisibility(accountId){
  const man=manAccounts.find(m=>m.id===accountId);
  if(!man||!man.visibility||manVisibilityBusyId)return;
@@ -359,10 +371,11 @@ function renderMenDashboard(){
   const shown=x.visibility?.visible!==false;
   return '<div class="man-visibility-wrap" style="min-width:0">'+
     '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
-    '<span class="sq-top"><span class="sq-number">'+String(x.number).padStart(2,'0')+'</span><span class="sq-icon">'+st.icon+'</span></span>'+
+    '<span class="sq-top"><span class="sq-icon">'+st.icon+'</span><img class="sq-photo" src="'+manTilePhoto(x)+'" alt="" width="34" height="42" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></span>'+
     '<span class="sq-name">'+esc(x.name)+'</span>'+
      '<span class="sq-technical" title="Техническое имя / Email">'+
-     (x.technicalName?esc(x.technicalName):'Email не задан')+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
+     (x.technicalName?esc(manTileEmail(x)):'Email не задан')+'</span>'+
+     '<span class="sq-ip" aria-label="IP адрес аккаунта">'+(manTileIp(x)||'—')+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
     '<button type="button" class="secondary" style="width:100%;padding:9px 3px;margin-top:5px;font-size:11px" '+
     (manVisibilityBusyId?'disabled':'')+
     ' onclick="toggleManClientVisibility(\''+esc(x.id)+'\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+

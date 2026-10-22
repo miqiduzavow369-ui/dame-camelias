@@ -971,14 +971,17 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      }catch{return [x.id,{version:0,approved:false,recorded:false,publicationAvailable:false}];}
    }));
    // Owner-only: decrypt the existing planning *technicalName* for the
-   // catalogue. Do not include the website login, passwords, proxy or IP.
+   // catalogue, plus the saved IP for display only. Never include logins,
+   // passwords, ports or proxy credentials; this metadata grants no readiness.
    // The privateDraftStatus function enforces actor/cabinet/owner identity.
+   const displayIps=new Map();
    const technicalEntries=await Promise.all(inventory.accounts.map(async x=>{
      try{
        const row=await privateDraftStatus(storage,rawEnv,{
          actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:x.id
        });
        const email=row?.settings?.technicalName;
+       if(x.id!=="yan_first"&&row?.settings?.host)displayIps.set(x.id,row.settings.host);
        return [x.id,typeof email==="string"&&
          /^[^\s@]{1,64}@[^\s@]{1,189}$/.test(email)?email:null];
      }catch{return [x.id,null];}
@@ -992,7 +995,9 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    const visibilityMap=new Map(visibilityEntries);
    const readinessMap=new Map(readinessEntries);
    return {...inventory,accounts:inventory.accounts.map(x=>({
-     ...x,technicalName:technicalMap.get(x.id)??null,setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
+     ...x,technicalName:technicalMap.get(x.id)??null,
+     displayIp:proxyMap.get(x.id)?.expectedIp??displayIps.get(x.id)??null,
+     setup:staged.get(x.id)??null,networkStatus:proxyMap.get(x.id)??null,
      readiness:readinessMap.get(x.id)??null,
      approval:approvalMap.get(x.id)??null,
      visibility:visibilityMap.get(x.id)??{visible:false,version:null},
