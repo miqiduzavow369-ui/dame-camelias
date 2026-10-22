@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from playwright.sync_api import sync_playwright
-from intimcity_authenticated_identity import authenticated_identity_status, observed_authenticated_site_email
+from intimcity_authenticated_identity import authenticated_identity_status, observed_authenticated_site_email, watch_credentialed_login
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
@@ -71,6 +71,7 @@ def login_step(stage, action):
 
 def inspect_login(page,site_url,login_value,password_value):
     """Reuse Yan First's site-specific login selectors and verification."""
+    watch_credentialed_login(page,login_value,password_value)
     login_step("site_open", lambda: page.goto(site_url,wait_until="domcontentloaded",timeout=45000))
     if not safe_host(page.url): return "site_error"
     found=False

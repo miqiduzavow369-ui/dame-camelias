@@ -884,7 +884,7 @@ function renderManSiteForm(){
  '<p class="hint">Chromium проверит вход в кабинет этого мужчины через его личный прокси и сверит аккаунт. Проверка не отправляет оценки или отзывы.</p>'+
  '<button class="secondary" type="button" onclick="startManSiteLoginCheck()" '+(!present||siteLoginBusy||siteLoginRefreshing||siteLoginState?.status==='running'?'disabled':'')+'>'+(siteLoginBusy?'⏳ Запускаем…':'🔐 Проверить вход через Chromium')+'</button>'+
  (siteLoginState?.status==='running'&&siteLoginState?.retryAvailable===true?
- '<button class="secondary" style="margin-top:8px" onclick="startManSiteLoginCheck(true)" '+(siteLoginBusy?'disabled':'')+'>↻ Повторить зависшую проверку без пароля</button>':'')+
+ '<button class="secondary" style="margin-top:8px" onclick="startManSiteLoginCheck(true)" '+(siteLoginBusy?'disabled':'')+'>↻ Повторить запуск без пароля</button>':'')+
  '<button class="secondary" type="button" style="margin-top:8px" onclick="refreshManSiteLoginCheck()" '+(siteLoginBusy||siteLoginRefreshing?'disabled':'')+'>'+(siteLoginRefreshing?'⏳ Обновляем…':'↻ Обновить статус входа')+'</button>'+
  (siteLoginNotice?'<p class="hint" role="status">'+esc(siteLoginNotice)+'</p>':'')+
  (siteLoginState?.accountId===x.id?'<p class="hint" role="status">'+esc(siteLoginStatusText(siteLoginState))+'</p>':'')+
@@ -895,7 +895,7 @@ function renderManSiteForm(){
 
 function siteLoginStatusText(r){
  if(r.status==='running')return r.retryAvailable?
-  'Прежний запуск не забрал данные. Можно повторить без ввода пароля.':
+  'Задание ещё не запросило данные кабинета: возможна подготовка Chromium. Обновите статус позже. Если запуск завершился с ошибкой, его можно повторить без пароля.':
   '⏳ Задание выполняется. Обновите статус через минуту.';
  if(r.status==='timed_out')return 'Прежняя проверка истекла. Можно снова запустить проверку без пароля.';
  if(r.code==='login_authenticated_identity_verified')return '✓ Вход в свой кабинет и соответствие выбранному мужчине подтверждены.';

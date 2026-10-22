@@ -241,6 +241,13 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
             if seen != ipaddress.ip_address(required("EXPECTED_EGRESS_IP")):
                 raise RuntimeError("Proxy egress mismatch")
             print("LOOKUP_STAGE: open-site")
+            # Secondary-only identity evidence. The legacy Yan First path does
+            # not install an observer or change any login action/selector.
+            if os.environ.get("SECONDARY_EXPECTED_SITE_LOGIN"):
+                from intimcity_authenticated_identity import watch_credentialed_login, matches_verified_account
+                if not matches_verified_account(required("SECONDARY_EXPECTED_SITE_LOGIN"), required("INTIMCITY_LOGIN")):
+                    raise RuntimeError("Secondary login binding mismatch")
+                watch_credentialed_login(page, required("INTIMCITY_LOGIN"), required("INTIMCITY_PASSWORD"))
             page.goto(f"https://{OWNER_HOST}/",wait_until="domcontentloaded",timeout=45000)
             print("LOOKUP_STAGE: locate-login")
             found=False
@@ -285,7 +292,7 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
             if not (logout or (account and not password_visible)):
                 raise RuntimeError("Authentication not confirmed")
             # Additional men: never accept merely being logged in. Bind the
-            # live authenticated header to the exact account that owns the
+            # authenticated login session to the exact account that owns the
             # selected private proxy/credentials. Legacy Yan First sets no
             # SECONDARY_EXPECTED_SITE_LOGIN and retains its original behavior.
             secondary_expected = os.environ.get("SECONDARY_EXPECTED_SITE_LOGIN", "")
@@ -897,3 +904,4 @@ def main():
 
 if __name__=="__main__":
     main()
+
