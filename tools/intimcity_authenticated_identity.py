@@ -18,7 +18,7 @@ def matches_verified_account(expected_login, observed_text):
     return bool(EMAIL.fullmatch(expected_login.strip()) and
                 EMAIL.fullmatch(observed_text.strip()) and expected == observed)
 
-def authenticated_identity_status(page, expected_login):
+def authenticated_identity_status(page, expected_login, diagnostic=None):
     """Return a safe status code, not an identity string or page contents.
 
     Strict requirements:
@@ -27,14 +27,19 @@ def authenticated_identity_status(page, expected_login):
     - a distinct account header element visibly states exactly the expected email
     - never use the sign-in form's filled email as evidence
     """
+    def finish(status, reason):
+        # Only fixed status/reason tokens; never email, HTML, URL or form values.
+        if diagnostic is not None:
+            diagnostic(status, reason)
+        return status
     url = urlsplit(page.url)
-    if url.scheme != "https" or url.hostname not in ("a.intimcity.rip", "b.intimcity.rip"):
-        return "identity_unverified"
+    if url.scheme != "https" or url.hostname not in ("a.intimcity.rip", "b.intimcity.rip", "c.intimcity.rip"):
+        return finish("identity_unverified", "unsupported_host")
     logout = page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выход")')
     if not logout.count():
-        return "identity_unverified"
+        return finish("identity_unverified", "logout_marker_missing")
     if page.locator('form input[type="password"]:visible').count():
-        return "identity_unverified"
+        return finish("identity_unverified", "password_form_visible")
     # Explicitly constrain evidence to authenticated account-header widgets.
     selectors = [
         'header [data-account-email]',
@@ -54,9 +59,13 @@ def authenticated_identity_status(page, expected_login):
                      element.inner_text()).strip()
             if value:
                 observed.append(value)
+    if not observed:
+        return finish("identity_unverified", "account_email_missing")
     if len(set(x.casefold() for x in observed)) != 1:
-        return "identity_unverified"
-    return "identity_verified" if matches_verified_account(expected_login, observed[0]) else "identity_mismatch"
+        return finish("identity_unverified", "account_email_ambiguous")
+    if matches_verified_account(expected_login, observed[0]):
+        return finish("identity_verified", "account_email_matches")
+    return finish("identity_mismatch", "account_email_mismatch")
 
 def observed_authenticated_site_email(page, expected_login):
     """Return the distinct real authenticated header email ONLY after full
@@ -84,3 +93,4 @@ def observed_authenticated_site_email(page, expected_login):
     if len(set(v.casefold() for v in values))!=1:
         return None
     return values[0] if matches_verified_account(expected_login,values[0]) else None
+
