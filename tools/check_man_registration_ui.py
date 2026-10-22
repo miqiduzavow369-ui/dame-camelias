@@ -80,11 +80,14 @@ with sync_playwright() as p:
             assert f"dc_man_{i+1:02}.webp" in tile.locator("img").get_attribute("src")
             if i:assert tile.locator(".sq-ip").inner_text()==account["displayIp"]
         assert page.evaluate("document.documentElement.scrollWidth<=innerWidth"),"Catalogue horizontal overflow"
-        assert page.evaluate("""Array.from(document.querySelectorAll('.men-square')).every(tile=>
-            tile.scrollWidth<=tile.clientWidth+1&&tile.scrollHeight<=tile.clientHeight+1&&
-            tile.querySelector('.sq-name').getBoundingClientRect().bottom<=
-            tile.querySelector('.sq-technical').getBoundingClientRect().top+1)"""),"Catalogue content overlap"
         page.screenshot(path=str(OUT/f"men-catalogue-{width}.png"),full_page=True)
+        overlaps=page.evaluate("""Array.from(document.querySelectorAll('.men-square')).map(tile=>({
+            name:tile.querySelector('.sq-name').textContent,
+            horizontal:tile.scrollWidth>tile.clientWidth+1,vertical:tile.scrollHeight>tile.clientHeight+1,
+            labelOverlap:tile.querySelector('.sq-name').getBoundingClientRect().bottom>
+            tile.querySelector('.sq-technical').getBoundingClientRect().top+1
+        })).filter(x=>x.horizontal||x.vertical||x.labelOverlap)""")
+        assert not overlaps,f"Catalogue content overlap at {width}: {overlaps}"
     before=page.locator(".men-square").first.bounding_box()
     page.locator(".sq-photo").evaluate_all("imgs=>imgs.forEach(img=>img.dispatchEvent(new Event('error')))")
     after=page.locator(".men-square").first.bounding_box()
