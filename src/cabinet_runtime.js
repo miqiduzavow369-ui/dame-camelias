@@ -35,7 +35,7 @@ import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary,cl
 import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
 import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryRatingDryfill,completeSecondaryRatingDryfill,requireFreshSecondaryRatingDryfill} from "./secondary_man_rating_dryfill.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
-import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
+import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision,secondaryReviewNoticeKey} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 import {readSecondaryConnection,installSecondaryConnection} from "./secondary_man_connection.js";
 import {deliverSecondaryCompletedResult,secondaryCompletedProof} from "./secondary_man_result_delivery.js";
@@ -1073,26 +1073,96 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    return result;
   }catch{return {ok:false,status:409,reason:"secondary_draft_rejected"};}
  }
- if(event.kind==="admin_secondary_review_group_approve"){
+ if(["admin_secondary_review_group_approve","admin_secondary_review_group_decision",
+     "admin_secondary_review_group_prompt","admin_secondary_review_group_replace"].includes(event.kind)){
+  // The only source of these events is the moderator-authenticated group
+  // callback, routed to the exact client/account/profile Durable Object.
   if(uid===OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
   try{
    const accountId=String(event.accountId||""),profileId=String(event.profileId||"");
+   if(accountId==="yan_first"||!MAN_ACCOUNTS.some(m=>m.id===accountId)||
+      !/^\d{1,9}$/.test(profileId))return {ok:false,status:400};
    const i={userId:uid,accountId,profileId,kind:"review"};
+   const noticeKey=secondaryReviewNoticeKey(i);
+   const draftKey=manStorageKey({userId:uid,accountId,profileId,
+    scope:"review-draft"})+":review";
+   const publicationKey=manStorageKey({userId:uid,accountId,profileId,
+    scope:"publication"})+":review";
+   const approvalKey=manStorageKey({userId:uid,accountId,profileId,
+    scope:"moderation"})+":review";
+   const action=event.kind==="admin_secondary_review_group_approve"?
+    "approve":event.action;
+   if(event.kind==="admin_secondary_review_group_prompt"){
+    if(!Number.isSafeInteger(event.promptId)||event.promptId<1)return {ok:false,status:400};
+    return storage.transaction(async tx=>{
+     const row=await tx.get(noticeKey);
+     if(row?.status!=="editing"||row.version!==event.draftVersion||
+        row.messageId!==event.messageId)return {ok:false,status:409};
+     await tx.put(noticeKey,{...row,promptId:event.promptId});
+     return {ok:true};
+    });
+   }
+   if(event.kind==="admin_secondary_review_group_replace"){
+    const text=String(event.text||"").trim();
+    if(text.length<10||text.length>3000||!Number.isSafeInteger(event.promptId))
+     return {ok:false,status:400};
+    return storage.transaction(async tx=>{
+     const [row,draft,publication,approval]=await Promise.all([
+      tx.get(noticeKey),tx.get(draftKey),tx.get(publicationKey),tx.get(approvalKey)]);
+     if(row?.status!=="editing"||row.version!==event.draftVersion||
+        row.promptId!==event.promptId||draft?.version!==row.version||
+        draft.authorAttested!==true||publication||approval?.approved===true)
+      return {ok:false,status:409};
+     // Never silently attribute moderator's replacement words to the author.
+     // The original client must explicitly save/attest the corrected text.
+     const correctedAt=Date.now();
+     const revision={previousText:draft.text,proposedText:text,
+      moderatorId:event.actorId,at:correctedAt};
+     const next={...draft,originalText:draft.originalText||draft.text,
+      revisions:[...(draft.revisions||[]),revision],
+      text,version:draft.version+1,authorAttested:false};
+     await tx.put(draftKey,next);
+     await tx.put(noticeKey,{...row,status:"corrected",
+      correctedVersion:next.version,correctedAt,
+      revisions:[...(row.revisions||[]),revision]});
+     return {ok:true,requiresAuthorAttestation:true};
+    });
+   }
+   if(!["approve","edit","cancel"].includes(action))return {ok:false,status:400};
    if(!await verifySecondaryReviewGroupDecision(storage,i,{
     version:event.draftVersion,messageId:event.messageId
    }))return {ok:false,status:409,reason:"outdated_moderation_card"};
-   const draft=await storage.get(manStorageKey({
-    userId:uid,accountId,profileId,scope:"review-draft"
-   })+":review");
-   if(draft?.version!==event.draftVersion||draft?.authorAttested!==true)
+   if(action==="edit"||action==="cancel"){
+    return storage.transaction(async tx=>{
+     const [row,draft,publication,approval]=await Promise.all([
+      tx.get(noticeKey),tx.get(draftKey),tx.get(publicationKey),tx.get(approvalKey)]);
+     if(row?.status!=="delivered"||row.version!==event.draftVersion||
+        row.messageId!==event.messageId||draft?.version!==row.version||
+        draft.authorAttested!==true||publication||approval?.approved===true)
+      return {ok:false,status:409};
+     await tx.put(noticeKey,{...row,status:action==="edit"?"editing":"cancelled",
+      decidedAt:Date.now()});
+     return {ok:true};
+    });
+   }
+   // Apply identical text/version checks as the existing owner approval path.
+   const draft=await storage.get(draftKey);
+   if(draft?.version!==event.draftVersion||draft?.authorAttested!==true||
+      await storage.get(publicationKey))
     return {ok:false,status:409,reason:"review_changed"};
    const sha=Array.from(new Uint8Array(await crypto.subtle.digest(
     "SHA-256",new TextEncoder().encode(draft.text))),v=>v.toString(16).padStart(2,"0")).join("");
-   return await approveSecondaryReviewForSubmission(storage,{
+   const result=await approveSecondaryReviewForSubmission(storage,{
     identity:{...i,nonce:crypto.randomUUID().replace(/-/g,"").slice(0,12)},
     draftVersion:draft.version,expectedTextSha256:sha,moderatorApproved:true,at:Date.now()
    });
-  }catch{return {ok:false,status:409,reason:"review_group_approval_unavailable"};}
+   if(result?.ok===true)await storage.transaction(async tx=>{
+    const row=await tx.get(noticeKey);
+    if(row?.version===event.draftVersion&&row.status==="delivered")
+     await tx.put(noticeKey,{...row,status:"approved",decidedAt:Date.now()});
+   });
+   return result;
+  }catch{return {ok:false,status:409,reason:"review_group_decision_unavailable"};}
  }
  if(event.kind==="admin_secondary_review_preview"||event.kind==="admin_secondary_review_approve"){
   // Constructed only by owner-authenticated admin Mini App API.
