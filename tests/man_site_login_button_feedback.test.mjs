@@ -21,6 +21,7 @@ test("login errors stay visible when refreshing server state after failed launch
 test("login action gives visible progress and avoids double presses",()=>{
  assert.match(html,/Отправляем запрос на проверку в Chromium/);
  assert.match(html,/Задание Chromium запущено/);
- assert.match(html,/siteLoginRefreshing\?'⏳ Обновляем…'/);
- assert.match(html,/!present\|\|siteLoginBusy\|\|siteLoginRefreshing/);
+ assert.match(html,/Статус обновляется автоматически/);
+ assert.match(html,/siteLoginBusy\|\|siteLoginRefreshing/);
 });
+

@@ -6,7 +6,8 @@ const html=fs.readFileSync("admin/preview-v3.html","utf8");
 test("ADMIN male account includes read-only diagnostics with explicit client, profile, kind and nonce",()=>{
  for(const id of ["secOperationClient","secOperationProfile","secOperationKind","secOperationNonce"])
   assert.ok(html.includes('id="'+id+'"'));
- assert.ok(html.includes("renderSecondaryOperationDiagnostic(x)+"));
+ const console=html.slice(html.indexOf("function renderManConsole()"),html.indexOf("function renderManSiteForm()"));
+ assert.ok(!console.includes("renderSecondaryOperationDiagnostic("));
  assert.ok(html.includes('callAdmin("secondary_operation_status"'));
  assert.ok(html.includes("secondaryOperationState?.accountId===man.id"));
  assert.ok(html.includes("Вид операции"));
@@ -32,3 +33,4 @@ test("ADMIN JS remains valid and no raw proof or callback secret is displayed",(
  for(const forbidden of ["proofFileId","sitePublicationId","signature","SECONDARY_CALLBACK_HMAC_KEY","callbackToken"])
   assert.ok(!scope.includes(forbidden));
 });
+

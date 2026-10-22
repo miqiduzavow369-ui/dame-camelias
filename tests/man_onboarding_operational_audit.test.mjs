@@ -38,11 +38,11 @@ test("authentication never continues without current verified browser and matchi
  assert.match(executor,/"User-Agent":"DameCameliasBot\/1\.0"/);
 });
 test("already saved credentials do not require re-entry and site indicator is honest",()=>{
- assert.match(ui,/present\?'✓ Сохранено'/);
- assert.match(ui,/Изменить логин или пароль \(сбросит подтверждение входа\)/);
+ assert.match(ui,/✓ Логин и пароль сохранены/);
+ assert.match(ui,/Изменить данные кабинета/);
  assert.match(ui,/x\.readiness\?\.technicalReady===true\?'ok':'unknown'/);
- assert.match(ui,/siteLoginState\?\.retryAvailable===true/);
- assert.match(ui,/Проверить вход через Chromium/);
+ assert.match(ui,/login\.retryAvailable/);
+ assert.match(ui,/🔐 Проверить вход/);
  assert.match(ui,/connectionReady/);
  const script=ui.match(/<script>([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);

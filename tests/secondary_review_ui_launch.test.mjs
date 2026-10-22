@@ -26,7 +26,8 @@ test("owner ADMIN previews exact text and confirms hash for chosen secondary man
  assert.ok(html.includes('secondary_review_approve'));
  assert.ok(html.includes('expectedTextSha256:p.approvedTextSha256'));
  assert.ok(html.includes('confirmExactText:true'));
- assert.ok(html.includes('renderSecondaryRatingReadiness(x)+renderSecondaryReviewApproval()'));
+ const console=html.slice(html.indexOf("function renderManConsole()"),html.indexOf("function renderManSiteForm()"));
+ assert.ok(!console.includes("renderSecondaryReviewApproval("));
  assert.ok(html.includes('selectedManId==="yan_first")return ""'));
 });
 
@@ -44,3 +45,4 @@ test("secondary review client gate checks saved profile list and exact account",
  assert.ok(block.includes('return engine.miniReviewAction('));
  assert.ok(worker.includes('confirmed:body.confirmed===true'));
 });
+

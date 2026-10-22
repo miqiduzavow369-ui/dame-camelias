@@ -12,13 +12,13 @@ test("compact male wizard JS parses",()=>{
 });
 test("wizard uses authoritative browser verification, not transient probe",()=>{
  const block=html.slice(html.indexOf("function renderManConsole(){"),html.indexOf("function renderManSiteForm(){"));
- assert.match(block,/browser\?\.status==='verified'/);
+ assert.match(block,/connection\?\.browserVerified===true/);
  assert.match(block,/browser\?\.version===data\.proxy\.version/);
  assert.doesNotMatch(block,/siteProbeResult\?\.reachable/);
  assert.match(block,/const steps=\[/);
- assert.match(block,/Пройдено:/);
- assert.match(block,/ТЕКУЩИЙ ЭТАП/);
- assert.match(block,/Разрешение ADMIN ниже подтверждает эти данные/);
+ assert.match(block,/registration-step/);
+ assert.match(block,/Текущий шаг/);
+ assert.match(block,/Подтвердите проверенные данные/);
 });
 test("legacy Yan First is immutable and remains on its own screen",()=>{
  const block=html.slice(html.indexOf("function renderManConsole(){"),html.indexOf("function renderManSiteForm(){"));
@@ -29,6 +29,6 @@ test("legacy Yan First is immutable and remains on its own screen",()=>{
 });
 test("wizard refresh loads browser status from authenticated endpoint",()=>{
  const refresh=html.slice(html.indexOf("async function refreshManWizard("),html.indexOf("async function reloadManHistory("));
- assert.match(refresh,/man_browser_status/);
- assert.match(refresh,/browser:get\(3\)/);
+ assert.match(refresh,/man_registration_status/);
+ assert.match(refresh,/wizardData=\{id,\.\.\.data\}/);
 });
