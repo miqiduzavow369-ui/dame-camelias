@@ -46,6 +46,7 @@ with sync_playwright() as p:
             elif action=="man_site_status":result=current["site"]
             elif action=="man_site_login_status":result=current["login"]
             else:raise AssertionError("Unexpected live operation in visual check: "+action)
+            result={"ok":True,**result}
             return request_route.fulfill(status=200,content_type="application/json",body=json.dumps(result))
         raise AssertionError("External network request forbidden: "+request.url)
     page.route("**/*",route)
