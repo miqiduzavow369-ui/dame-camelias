@@ -632,7 +632,7 @@ function renderFinance(){
  const stamp=at=>Number.isFinite(at)?new Date(at).toLocaleString("ru-RU",{timeZone:"Europe/Moscow",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"})+" · МСК":"Дата не сохранена";
  for(const e of filtered){
   if(!e||!Number.isFinite(e.at))continue;
-  const man=history.find(item=>item.id===String(e.profileId)&&item.kind===e.kind)?.account;
+  const man=e.accountId||history.find(item=>item.id===String(e.profileId)&&item.kind===e.kind&&item.account==="yan_first")?.account;
   const manText=man?accountName(man):"Мужчина не указан в финансовом журнале";
   const detail=e.profileId?manText+" · Анкета №"+String(e.profileId):"Корректировка баланса";
   if(e.origin==="registry"){
@@ -705,7 +705,7 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
   const kind=b.dataset.sub,pid=String(selected.id);
   const entry=history.find(x=>x.id===pid&&x.kind===kind&&x.account===selectedAccount);
   let panel=$("detail").querySelector('[data-inline-proof="'+kind+'"]');
-  if(!panel){panel=document.createElement("div");panel.className="card";panel.dataset.inlineProof=kind;
+  if(!panel){panel=document.createElement("div");panel.className="card";panel.hidden=true;panel.dataset.inlineProof=kind;
    panel.append(Object.assign(document.createElement("h2"),{textContent:kind==="rating"?"📸 Подтверждение оценки":"📸 Подтверждение отзыва"}));
    const note=document.createElement("p");note.setAttribute("aria-live","polite");panel.append(note);
    const holder=document.createElement("div");holder.className="proof-image";holder.hidden=true;panel.append(holder);

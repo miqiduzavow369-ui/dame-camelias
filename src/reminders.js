@@ -71,11 +71,22 @@ export class OrderReminder {
         const occupied=Object.keys(used).length;
         if(input.type==="daily_status")
           return Response.json({remaining:Math.max(0,2-occupied),limit:2});
-        const key=String(input.kind)+":"+String(input.profileId)+":"+String(input.userId);
+        const accountId=input.accountId??null;
+        if(accountId!==null&&!/^(yan_second|yan_(?:0[3-9]|[12][0-9]|30))$/.test(accountId))
+          return Response.json({ok:false,reason:"invalid_account"},{status:400});
+        const key=(accountId?accountId+":":"")+String(input.kind)+":"+String(input.profileId)+":"+String(input.userId);
         const nonce=String(input.nonce||"");
         if(!["rating","review"].includes(input.kind)|| !/^\d{5,16}$/.test(String(input.userId)) ||
            !/^[a-f0-9]{12,16}$/.test(nonce))
           return Response.json({ok:false,reason:"invalid"},{status:400});
+        if(input.type==="daily_record_verified"){
+          if(!accountId)return Response.json({ok:false},{status:400});
+          if(used[key]&&used[key].nonce!==nonce)return Response.json({ok:false},{status:409});
+          if(!used[key])used[key]={status:"completed",nonce,at:now,verifiedAt:now};
+          else used[key]={...used[key],status:"completed",verifiedAt:used[key].verifiedAt||now};
+          await storage.put("daily_claims",used);
+          return Response.json({ok:true,remaining:Math.max(0,2-Object.keys(used).length)});
+        }
         if(input.type==="daily_reserve"){
           if(used[key])return Response.json({ok:false,reason:"already_reserved"});
           if(occupied>=2)return Response.json({ok:false,reason:"limit_reached"});

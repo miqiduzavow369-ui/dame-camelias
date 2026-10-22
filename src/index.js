@@ -702,7 +702,7 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
       if(!result?.ok)return new Response("Forbidden",{status:403});
-      return Response.json({men:result.men,profiles:result.profiles,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      return Response.json({men:result.men,profiles:result.profiles,secondaryStatuses:result.secondaryStatuses,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-add"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});
@@ -733,6 +733,10 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_proof",profileId:body?.profileId,publicationKind:body?.kind,account:body?.account});
       if(!result?.ok)return new Response("Proof unavailable",{status:result?.status===403?403:404});
+      if(body.account!=="yan_first"&&typeof result.originalJpegBase64==="string"){
+        const bytes=Uint8Array.from(atob(result.originalJpegBase64),c=>c.charCodeAt(0));
+        return new Response(bytes,{headers:{"Content-Type":"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'"}});
+      }
       const file=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getFile?file_id="+encodeURIComponent(result.fileId),{signal:AbortSignal.timeout(10000)}).then(r=>r.json()).catch(()=>null);
       const path=file?.ok&&file?.result?.file_path;
       if(typeof path!=="string"||(!/^[A-Za-z0-9_./-]{1,240}$/.test(path)||path.split("/").some(part=>!part||part==="."||part===".."))){console.error("Proof getFile unavailable",{reason:!file?.ok?"telegram_getfile_failed":typeof path!=="string"?"file_path_missing_or_not_string":"unsafe_relative_file_path",pathPresent:typeof path==="string",pathLength:typeof path==="string"?path.length:null,hasDotSegment:typeof path==="string"&&path.split("/").some(part=>!part||part==="."||part===".."),account:String(body?.account||""),kind:String(body?.kind||"")});return new Response("Proof temporarily unavailable",{status:502,headers:{"X-Proof-Stage":"get-file","X-Proof-Code":!file?.ok?"TELEGRAM_GETFILE_FAILED":typeof path!=="string"?"FILE_PATH_MISSING":"FILE_PATH_REJECTED","Access-Control-Expose-Headers":"X-Proof-Code"}});}
@@ -883,6 +887,7 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/secondary-man/rating-stage") return cabinetEndpoint(request,env,"secondary_man_rating_submit_boundary");
     if (request.method === "GET" && url.pathname === "/api/secondary-man/review-payload") return cabinetEndpoint(request,env,"secondary_man_review_runner_payload");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/review-stage") return cabinetEndpoint(request,env,"secondary_man_review_submit_boundary");
+    if (request.method === "POST" && url.pathname === "/api/secondary-man/result-delivery") return cabinetEndpoint(request,env,"secondary_man_result_delivery");
     if (request.method === "POST" && url.pathname === "/api/secondary-man/result") return cabinetEndpoint(request,env,"secondary_man_signed_result");
     if (request.method === "GET" && url.pathname === "/api/man-site-login/payload") return cabinetEndpoint(request,env,"man_site_login_payload");
     if (request.method === "POST" && url.pathname === "/api/man-site-login/result") return cabinetEndpoint(request,env,"man_site_login_result");

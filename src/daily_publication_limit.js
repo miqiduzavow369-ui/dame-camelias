@@ -5,7 +5,7 @@ export function moscowDay(at=new Date()){
     timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"
   }).format(at);
 }
-export async function dailyLimit(env,userId,profileId,type,kind="",nonce="",date=moscowDay()){
+export async function dailyLimit(env,userId,profileId,type,kind="",nonce="",date=moscowDay(),accountId=null){
   const id=String(profileId),uid=String(userId);
   if(!env.ORDER_REMINDERS || !/^\d{1,9}$/.test(id) ||
      !/^\d{5,16}$/.test(uid) || !/^\d{4}-\d{2}-\d{2}$/.test(date))
@@ -14,7 +14,7 @@ export async function dailyLimit(env,userId,profileId,type,kind="",nonce="",date
   const settlement={ledger:"daily",action:type,userId:uid,profileId:id,kind,nonce,date};
   if(["complete","release"].includes(type)&&env.__enqueueLedger)await env.__enqueueLedger(settlement);
   const res=await object.fetch("https://reminder.internal/",{
-    method:"POST",body:JSON.stringify({type:"daily_"+type,userId:uid,profileId:id,moscowDate:date,kind,nonce})
+    method:"POST",body:JSON.stringify({type:"daily_"+type,userId:uid,profileId:id,moscowDate:date,kind,nonce,...(accountId?{accountId}:{})})
   });
   if(!res.ok)throw Error("Daily allowance request failed");
   const result=await res.json();
@@ -24,3 +24,4 @@ export async function dailyLimit(env,userId,profileId,type,kind="",nonce="",date
   }
   return result;
 }
+
