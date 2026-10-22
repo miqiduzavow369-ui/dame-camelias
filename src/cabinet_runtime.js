@@ -38,6 +38,7 @@ import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from 
 import {ensureSecondaryReviewGroupNotice,verifySecondaryReviewGroupDecision} from "./secondary_review_moderation_notice.js";
 import {settleSecondaryVerifiedResult} from "./secondary_man_result_settlement.js";
 import {readSecondaryConnection,installSecondaryConnection} from "./secondary_man_connection.js";
+import {deliverSecondaryCompletedResult,secondaryCompletedProof} from "./secondary_man_result_delivery.js";
 import {reconcileUnstartedSecondaryReservations} from "./secondary_man_credit_bridge.js";
 // ADMIN's verified connection is the same connection used by client operations.
 // A connection is never, by itself, permission to submit a rating or review.
@@ -136,7 +137,7 @@ export async function cabinetEndpoint(request,env,kind){
  }else{
   if(!env.ANKETA_CALLBACK_TOKEN||request.headers.get("Authorization")!=="Bearer "+env.ANKETA_CALLBACK_TOKEN)return new Response("Forbidden",{status:403,headers:{"X-DC-Callback-Handler":"token_rejected","Cache-Control":"no-store"}});
   body=request.method==="POST"?await request.clone().json().catch(()=>null):null;
-  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_rating_dryfill_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
+  uid=String(body?.user_id||(kind==="secondary_man_signed_result"||kind==="secondary_man_result_delivery"||kind==="secondary_man_rating_dryfill_result"||kind==="secondary_man_rating_submit_boundary"||kind==="secondary_man_review_submit_boundary"?body?.identity?.userId:null)||new URL(request.url).searchParams.get("user_id")||OWNER_ID);
  }
  if(!validId(uid))return new Response("Invalid user",{status:400});
  const result=await cabinetRPC(env,uid,{kind,url:request.url,method:request.method,headers:{Authorization:request.headers.get("Authorization")||""},body:request.method==="POST"?await request.text():null});
@@ -757,6 +758,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"submit_boundary_rejected"}),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
+ if(event.kind==="secondary_man_result_delivery"){
+  try{
+   const body=JSON.parse(event.body||"null"),identity=requirePublicationIdentity(body?.identity);
+   if(identity.userId!==uid||identity.accountId==="yan_first")throw Error("Wrong result identity");
+   const result=await deliverSecondaryCompletedResult(storage,rawEnv,identity);
+   const snapshot=await cabinetEvent(storage,rawEnv,{userId:uid,event:{kind:"mini_preview"}},send);
+   result.cabinetStatus=snapshot.secondaryStatuses?.[identity.profileId]?.[identity.accountId]?.[identity.kind]||"unknown";
+   result.historyOriginal=snapshot.history?.some(x=>x.id===identity.profileId&&x.account===identity.accountId&&x.kind===identity.kind&&x.hasProof)===true;
+   result.financeAccount=snapshot.finance?.events?.find(x=>x.type==="spend"&&x.profileId===identity.profileId&&x.kind===identity.kind&&x.accountId===identity.accountId)?.accountId||null;
+   return {status:200,body:JSON.stringify(result),headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
+  }catch{return {status:409,body:JSON.stringify({ok:false,reason:"completed_result_required"}),headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
+ }
  if(event.kind==="secondary_man_signed_result"){
   try{
    if(!rawEnv.SECONDARY_CALLBACK_HMAC_KEY)return {status:503,body:"Receiver not configured"};
@@ -792,6 +805,10 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const settled=await settleSecondaryVerifiedResult(storage,rawEnv,{
      original:identity,callback:identity
     });
+    if(settled.status==="completed"){
+     const delivery=await deliverSecondaryCompletedResult(storage,rawEnv,identity).catch(()=>({status:"pending"}));
+     settled.deliveryStatus=delivery.status;
+    }
     return {status:200,body:JSON.stringify(settled),
      headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
    }
@@ -1489,6 +1506,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   if(!/^\d{1,9}$/.test(id)||!["rating","review"].includes(kind)||!MAN_ACCOUNTS.some(man=>man.id===account))return {ok:false,status:400};
   const archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);
   const entry=archive.items.find(item=>String(item.profileId)===id&&item.kind===kind&&item.account===account);
+  if(entry?.fileId&&account!=="yan_first"&&entry.nonce){
+   try{
+    const result=await secondaryCompletedProof(storage,rawEnv,{userId:uid,accountId:account,profileId:id,kind,nonce:entry.nonce});
+    return {ok:true,originalJpegBase64:result.original.base64};
+   }catch{return {ok:false,status:404};}
+  }
   return entry?.fileId?{ok:true,fileId:entry.fileId}:{ok:false,status:404};
  }
  if(event.kind==="mini_preview"){
@@ -1549,7 +1572,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    }
    // Archive-backed completed actions must never be displayed as publishable.
    for(const kind of ["rating","review"]){
-    if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind))
+    if((archive.items||[]).some(item=>String(item.profileId)===String(id)&&item.kind===kind&&item.account==="yan_first"))
      statuses[kind]="published";
    }
    let daily=null;
@@ -1664,6 +1687,16 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
      if(entry.id===pid&&entry.account===mid&&
         (entry.kind===kind||entry.kind===kind+"_draft"))entry.status=stage;
    }catch{ /* A failed status read must never produce a success badge. */ }
+  }));
+  await Promise.all((archive.items||[]).map(async item=>{
+   if(item.account==="yan_first"||!allowed.has(String(item.profileId))||!item.nonce)return;
+   const pid=String(item.profileId),mid=item.account;
+   try{
+    const result=await secondaryPublicationOperationalStatus(storage,{userId:uid,accountId:mid,
+     profileId:pid,kind:item.kind,nonce:item.nonce},{proofKv:rawEnv.VISITORS_KV});
+    secondaryStatuses[pid]??={};secondaryStatuses[pid][mid]??={};
+    secondaryStatuses[pid][mid][item.kind]=result.published?"published":"reconciliation_required";
+   }catch{ /* Never fabricate success for unavailable original evidence. */ }
   }));
   const history=(archive.items||[]).map(item=>({
    id:String(item.profileId),kind:item.kind,account:item.account,

@@ -91,7 +91,7 @@ export async function readPublicationArchive(storage,kv,userId,now=Date.now()){
     const identity=account+":"+id+":"+kind;
     // Keep immutable original proof: no second completed operation overwrites
     // an earlier one in the legacy single-card catalog.
-    if(!entries.has(identity))entries.set(identity,{profileId:id,account,kind,...dt,fileId});
+    if(!entries.has(identity))entries.set(identity,{profileId:id,account,kind,...dt,fileId,nonce:match[5]});
    }
    cursor=page.size===1000?[...page.keys()].at(-1):null;
   }while(cursor);
@@ -125,3 +125,4 @@ export async function readPublicationArchive(storage,kv,userId,now=Date.now()){
 
 export const accountLabel=account=>({yan_first:"Ян Первый",yan_second:"Ян Второй"})[account]||account;
 export const displayArchiveDate=date=>date.slice(6,8)+"."+date.slice(4,6)+"."+date.slice(0,4);
+
