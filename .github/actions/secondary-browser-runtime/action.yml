@@ -1,0 +1,11 @@
+name: Secondary personal browser runtime
+description: Use the pinned image's existing Chromium, without apt or browser downloads
+runs:
+  using: composite
+  steps:
+    - name: Install matching Python packages
+      shell: bash
+      run: python -m pip install --disable-pip-version-check playwright==1.56.0 pillow==11.3.0
+    - name: Check Chromium offline before claiming any personal credentials
+      shell: bash
+      run: python tools/check_secondary_browser_runtime.py

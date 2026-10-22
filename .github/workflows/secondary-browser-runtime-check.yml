@@ -1,0 +1,30 @@
+name: Secondary browser runtime check
+on:
+  pull_request:
+    paths:
+      - '.github/actions/secondary-browser-runtime/**'
+      - '.github/workflows/secondary-browser-runtime-check.yml'
+      - '.github/workflows/man-site-login-preflight.yml'
+      - '.github/workflows/secondary-man-*.yml'
+      - 'tools/check_secondary_browser_runtime.py'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/secondary-browser-runtime/**'
+      - '.github/workflows/secondary-browser-runtime-check.yml'
+      - '.github/workflows/man-site-login-preflight.yml'
+      - '.github/workflows/secondary-man-*.yml'
+      - 'tools/check_secondary_browser_runtime.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/secondary-browser-runtime
