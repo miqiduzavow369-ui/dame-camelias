@@ -1,0 +1,48 @@
+name: Recover already-posted secondary rating proof (read only)
+on:
+  workflow_dispatch:
+    inputs:
+      account_id:
+        required: true
+        type: string
+      user_id:
+        required: true
+        type: string
+      profile_id:
+        required: true
+        type: string
+      nonce:
+        required: true
+        type: string
+      callback_ticket:
+        required: true
+        type: string
+      site_host:
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: secondary-rating-proof-${{ inputs.account_id }}-${{ inputs.user_id }}-${{ inputs.profile_id }}
+  cancel-in-progress: false
+jobs:
+  recover-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/secondary-browser-runtime
+      - name: Read existing authenticated checked-list proof without submitting
+        env:
+          ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+          SECONDARY_ACCOUNT_ID: ${{ inputs.account_id }}
+          SECONDARY_USER_ID: ${{ inputs.user_id }}
+          SECONDARY_PROFILE_ID: ${{ inputs.profile_id }}
+          SECONDARY_RATING_NONCE: ${{ inputs.nonce }}
+          SECONDARY_CALLBACK_TICKET: ${{ inputs.callback_ticket }}
+          SECONDARY_SITE_HOST: ${{ inputs.site_host }}
+        run: python tools/secondary_man_rating_proof_recovery.py

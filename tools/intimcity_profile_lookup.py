@@ -318,6 +318,16 @@ def inspect(pid, mode='profile', *, secondary_review_text=None, secondary_review
                 return profile
             if mode=="proof":
                 return {"profile":{"id":pid},"proof":capture_verified_proof(ctx,pid)}
+            if mode=="secondary_rating_proof":
+                # Recovery reads only the authenticated checked list. It cannot
+                # reach search, rating form filling or either submit boundary.
+                account=os.environ.get("SECONDARY_RATING_ACCOUNT_ID","")
+                if not secondary_expected or not re.fullmatch(r"yan_second|yan_(?:0[3-9]|[12][0-9]|30)",account):
+                    raise RuntimeError("Secondary proof identity unavailable")
+                proof=capture_verified_proof(ctx,pid)
+                if proof:
+                    proof["account"]=account
+                return {"profile":{"id":pid},"proof":proof}
             if mode=="review_proof":
                 # After authentication, inspect the authenticated owner's
                 # «Ваши отзывы» directly. A hidden/unsearchable original

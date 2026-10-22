@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {webcrypto} from "node:crypto";
 import {createAccountOperation,manStorageKey} from "../src/man_account_isolation.js";
-import {signSecondaryResultAttestation,verifySecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
+import {deriveSecondaryResultSigningKey,signSecondaryResultAttestation,verifySecondaryResultAttestation} from "../src/secondary_man_callback_attestation.js";
 import {recordAttestedSecondaryResult,secondaryVerifiedResultStatus} from "../src/secondary_man_result_settlement.js";
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const secret="ab".repeat(32),otherSecret="cd".repeat(32);
@@ -66,4 +66,23 @@ test("signed result writes one verified proof while forged signature cannot crea
  assert.equal(result.status,"proof_saved");
  assert.equal((await secondaryVerifiedResultStatus(db,x.identity)).proofPresent,true);
  await assert.rejects(()=>recordAttestedSecondaryResult(db,{...parameters,signature:sig}),/already claimed/);
+});
+
+
+test("operation key verifies only the issued operation ticket, without copying master to runner",async()=>{
+ const db=storage(),x=input(),token="a".repeat(32);
+ await attempted(db,x);
+ const ticketKey=manStorageKey({...x.identity,scope:"callback"})+":"+x.identity.kind+":"+x.identity.nonce;
+ await db.put(ticketKey,{token,attestationMode:"operation-v1"});
+ const scoped=await deriveSecondaryResultSigningKey(secret,x.identity,token);
+ assert.notEqual(scoped,secret);
+ const signature=await signSecondaryResultAttestation(scoped,x);
+ assert.equal((await verifySecondaryResultAttestation(db,{secret,input:x,signature,at:x.issuedAt})).verifiedByTrustedExecutor,true);
+ const masterSignature=await signSecondaryResultAttestation(secret,x);
+ await assert.rejects(()=>verifySecondaryResultAttestation(db,{secret,input:x,signature:masterSignature,at:x.issuedAt}),/invalid/);
+ for(const i of [{...x.identity,accountId:"yan_03"},{...x.identity,userId:"987654321"},{...x.identity,profileId:"777"},{...x.identity,kind:"rating"},{...x.identity,nonce:"bbbbbb123456"}])
+  assert.notEqual(await deriveSecondaryResultSigningKey(secret,i,token),scoped);
+ assert.notEqual(await deriveSecondaryResultSigningKey(secret,x.identity,"b".repeat(32)),scoped);
+ await db.put(ticketKey,{token:"b".repeat(32),attestationMode:"operation-v1"});
+ await assert.rejects(()=>verifySecondaryResultAttestation(db,{secret,input:x,signature,at:x.issuedAt}),/invalid/);
 });

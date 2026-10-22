@@ -31,7 +31,7 @@ import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js
 import {openSecondaryRatingForm,saveSecondaryRatingForm} from "./secondary_man_rating_form.js";
 import {secondaryPublicationOperationalStatus} from "./secondary_man_publication_status.js";
 import {claimSecondaryReviewRunnerPayload,recordSecondaryReviewSubmitBoundary} from "./secondary_man_review_runner_grant.js";
-import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary} from "./secondary_man_review_runner_grant.js";
+import {claimSecondaryRatingRunnerPayload,recordSecondaryRatingSubmitBoundary,claimSecondaryRatingProofRecovery} from "./secondary_man_review_runner_grant.js";
 import {launchApprovedSecondaryRating,preflightSecondaryRating} from "./secondary_man_rating_launch.js";
 import {secondaryRatingDryfillStatus,startSecondaryRatingDryfill,claimSecondaryRatingDryfill,completeSecondaryRatingDryfill,requireFreshSecondaryRatingDryfill} from "./secondary_man_rating_dryfill.js";
 import {approveSecondaryReviewForSubmission,launchApprovedSecondaryReview} from "./secondary_man_review_launch.js";
@@ -676,7 +676,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"secondary_rating_dryfill_unavailable"}),
     headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};}
  }
- if(event.kind==="secondary_man_rating_runner_payload"){
+ if(event.kind==="secondary_man_rating_runner_payload"||event.kind==="secondary_man_rating_proof_recovery"){
   try{
    const q=new URL(event.url).searchParams;
    const identity={userId:uid,accountId:q.get("account_id"),
@@ -694,7 +694,8 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     });
     if(status?.ok!==true)throw Error("Account owner withdrew or changed approval");
    }
-   const data=await claimSecondaryRatingRunnerPayload(storage,rawEnv,{
+   const claim=event.kind==="secondary_man_rating_proof_recovery"?claimSecondaryRatingProofRecovery:claimSecondaryRatingRunnerPayload;
+   const data=await claim(storage,rawEnv,{
     identity,token:q.get("callback_ticket"),at:Date.now()
    });
    return {status:200,body:JSON.stringify(data),
