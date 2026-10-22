@@ -22,16 +22,14 @@ concurrency:
 jobs:
   login:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
     timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Chromium
-        run: |
-          python -m pip install playwright==1.56.0
-          python -m playwright install --with-deps chromium
+      - name: Prepare existing Chromium runtime
+        uses: ./.github/actions/secondary-browser-runtime
       - name: Attempt credentialed login without identity certification
         env:
           ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
@@ -40,3 +38,4 @@ jobs:
           MAN_SITE_NONCE: ${{ inputs.nonce }}
           MAN_SITE_HOST: ${{ inputs.site_host }}
         run: python tools/man_site_login_preflight.py
+

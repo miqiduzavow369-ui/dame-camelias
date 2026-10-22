@@ -22,15 +22,14 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
     timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: |
-          python -m pip install playwright==1.56.0 pillow==11.3.0
-          python -m playwright install --with-deps chromium
+      - name: Prepare existing Chromium runtime
+        uses: ./.github/actions/secondary-browser-runtime
       - name: Verify rating form without submitting
         env:
           ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
@@ -41,3 +40,4 @@ jobs:
           SECONDARY_DRYFILL_NONCE: ${{ inputs.nonce }}
           SECONDARY_SITE_HOST: ${{ inputs.site_host }}
         run: python tools/secondary_man_rating_dryfill_job.py
+
