@@ -65,11 +65,12 @@ test("ADMIN reflects owner-only individual verified login state, without enablin
  assert.match(cabinet,/canPublish:false/);
  assert.match(html,/x\.readiness\?\.technicalReady===true/);
  assert.match(html,/login\?\.technicalReady===true/);
- assert.match(html,/Подключён · Вход подтверждён/);
- assert.match(html,/callAdmin\('man_site_login_status'/);
+ assert.match(html,/Готов к работе/);
+ assert.match(html,/callAdmin\('man_registration_status'/);
  assert.match(html,/browser\?\.version===data\.proxy\.version/);
  assert.ok(!html.includes("const identityOK=false"));
  const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
  assert.ok(script);
  new vm.Script(script);
 });
+

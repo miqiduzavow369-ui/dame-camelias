@@ -1,0 +1,37 @@
+name: All 29 men registration and rating contract
+on:
+  pull_request:
+    paths: ['src/**', 'admin/**', 'anketa/**', 'tools/**', 'tests/**', 'docs/MAN_REGISTRATION_AND_RATINGS_CONTRACT.md', '.github/workflows/man-registration-contract.yml']
+  push:
+    branches: [main]
+    paths: ['src/**', 'admin/**', 'anketa/**', 'tools/**', 'tests/**', 'docs/MAN_REGISTRATION_AND_RATINGS_CONTRACT.md', '.github/workflows/man-registration-contract.yml']
+permissions:
+  contents: read
+jobs:
+  all-men-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Every personal account and completed-result contract (offline)
+        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/all_secondary_completion_contract.test.mjs tests/secondary_connection_roundtrip.test.mjs tests/man_registration_ui.test.mjs tests/secondary_completed_presentation.test.mjs
+  mobile-registration-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/secondary-browser-runtime
+      - name: Render actual ADMIN HTML with intercepted synthetic requests only
+        run: python tools/check_man_registration_ui.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: man-registration-mobile-views
+          path: registration-ui-check/*.png
+          retention-days: 7

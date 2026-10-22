@@ -20,8 +20,8 @@ test("ADMIN exposes approval state per account and never claims new publishers w
  assert.match(runtime,/approval:approvalMap\.get\(x\.id\)\?\?null/);
  assert.match(runtime,/publicationAvailable:false/);
  assert.match(html,/updateManOwnerApproval\(approved\)/);
- assert.match(html,/Одобрить мужчину в ADMIN/);
- assert.match(html,/Отозвать разрешение/);
+ assert.match(html,/Подтвердить подключение/);
+ assert.match(html,/Отозвать подключение/);
  const js=html.match(/<script>([\s\S]*?)<\/script>/);
  assert.ok(js);
  assert.doesNotThrow(()=>new vm.Script(js[1]));
@@ -38,3 +38,4 @@ test("ADMIN revocation is independent of currently working proxy and site",()=>{
  assert.match(code,/previous\.siteVersion/);
  assert.match(code,/setSecondaryManApproval\(storage/);
 });
+

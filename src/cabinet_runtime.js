@@ -915,6 +915,18 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    return {ok:false,status:409,reason:String(e?.message)==="Visibility version conflict"?"version_conflict":"visibility_change_rejected"};
   }
  }
+ if(event.kind==="admin_man_registration_status"){
+  if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+  try{
+   const accountId=String(event.accountId),params={actorId:OWNER_ID,cabinetId:uid,ownerId:OWNER_ID,accountId};
+   const {connection}=await readSecondaryConnection(storage,rawEnv,accountId,OWNER_ID);
+   const [proxy,site,browser,login,approval]=await Promise.all([
+    proxyStatus(storage,params),readSiteStatus(storage,params),browserCheckStatus(storage,params),
+    siteLoginStatus(storage,params),readSecondaryManApproval(storage,params)]);
+   return {ok:true,accountId,connection,proxy,site,browser,login,
+    approval:{version:approval.version,approved:connection.ownerApproved}};
+  }catch{return {ok:false,status:409,reason:"registration_status_unavailable"};}
+ }
  if(event.kind==="admin_man_registry"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    const inventory=ownerManRegistry(event.actorId,uid,OWNER_ID);
