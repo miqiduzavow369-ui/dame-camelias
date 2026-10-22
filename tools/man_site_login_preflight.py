@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated, owner-triggered Chromium login attempt. No publications or identity certification."""
+"""Isolated personal Chromium login with safe stage diagnostics. No publications."""
 import ipaddress
 import json
 import os
@@ -41,22 +41,50 @@ def safe_host(url):
             (p.hostname=="intimcity.rip" or p.hostname.endswith(".intimcity.rip")) and
             not p.username and not p.password and p.port is None)
 
+LOGIN_FAILURE_CODES = {
+    "site_open": "site_open_failed",
+    "login_form_scan": "login_form_failed",
+    "login_email_fill": "login_fill_failed",
+    "login_password_fill": "login_fill_failed",
+    "login_submit": "login_submit_failed",
+    "login_verify": "login_verify_failed",
+    "login_identity_check": "login_identity_failed",
+}
+
+class LoginStageError(RuntimeError):
+    def __init__(self, stage, error_kind):
+        self.stage = stage
+        self.error_kind = error_kind
+        super().__init__("Personal login stage failed")
+
+def login_step(stage, action):
+    # Never print exception messages: they can contain URLs or form values.
+    if stage not in LOGIN_FAILURE_CODES:
+        raise ValueError("Unknown login stage")
+    print("SITE_LOGIN_STAGE: " + stage, flush=True)
+    try:
+        return action()
+    except Exception as exc:
+        kind = "timeout" if type(exc).__name__ == "TimeoutError" else "operation_error"
+        print("SITE_LOGIN_FAILURE: stage=" + stage + "; kind=" + kind, flush=True)
+        raise LoginStageError(stage, kind) from None
+
 def inspect_login(page,site_url,login_value,password_value):
     """Reuse Yan First's site-specific login selectors and verification."""
-    page.goto(site_url,wait_until="domcontentloaded",timeout=45000)
+    login_step("site_open", lambda: page.goto(site_url,wait_until="domcontentloaded",timeout=45000))
     if not safe_host(page.url): return "site_error"
     found=False
-    for form in page.locator("form").all():
+    for form in login_step("login_form_scan", lambda: page.locator("form").all()):
         email=form.locator('input[name="login"][placeholder="E-mail"]')
         pw=form.locator('input[name="password"][type="password"]')
         if form.is_visible() and email.count() and pw.count() and email.first.is_visible():
-            email.first.fill(login_value)
-            pw.first.fill(password_value)
+            login_step("login_email_fill", lambda: email.first.fill(login_value))
+            login_step("login_password_fill", lambda: pw.first.fill(password_value))
             submit=form.locator('input[type="submit"]')
             if submit.count() and submit.first.is_visible():
-                submit.first.click(timeout=8000)
+                login_step("login_submit", lambda: submit.first.click(timeout=8000))
             else:
-                pw.first.press("Enter")
+                login_step("login_submit", lambda: pw.first.press("Enter"))
             found=True
             break
     if not found: return "login_form_unavailable"
@@ -64,13 +92,13 @@ def inspect_login(page,site_url,login_value,password_value):
         page.wait_for_load_state("networkidle",timeout=10000)
     except Exception:
         pass
-    page.wait_for_timeout(2500)
+    login_step("login_verify", lambda: page.wait_for_timeout(2500))
     if not safe_host(page.url): return "site_error"
     logout=page.locator('a[href*="logout"], a[href*="exit"], button:has-text("Выйти"), a:has-text("Выйти"), a:has-text("Выход")').count()>0
     account=page.locator('a:has-text("Личный кабинет"), a:has-text("Мой профиль")').count()>0
     password_visible=any(el.is_visible() for el in page.locator('input[type="password"]').all())
     if logout or (account and not password_visible):
-        identity=authenticated_identity_status(page,login_value)
+        identity=login_step("login_identity_check", lambda: authenticated_identity_status(page,login_value))
         if identity=="identity_verified":
             return "login_authenticated_identity_verified"
         if identity=="identity_mismatch":
@@ -108,6 +136,8 @@ def main():
     if not safe_host(details["siteUrl"]) or urllib.parse.urlsplit(details["siteUrl"]).hostname!=site_host:
         raise RuntimeError("Invalid target")
     code="executor_error"
+    failure_stage=None
+    browser_stage="chromium_start"
     observed_site_account_id=None
     print("SITE_LOGIN_STAGE: chromium_start",flush=True)
     try:
@@ -119,6 +149,7 @@ def main():
                 context=browser.new_context(locale="ru-RU",service_workers="block")
                 try:
                     page=context.new_page()
+                    browser_stage="proxy_ip_check"
                     page.goto("https://api.ipify.org?format=json",wait_until="domcontentloaded",timeout=30000)
                     ip=ipaddress.ip_address(json.loads(page.locator("body").inner_text())["ip"])
                     print("SITE_LOGIN_STAGE: proxy_ip_checked",flush=True)
@@ -126,22 +157,30 @@ def main():
                         code="ip_mismatch"
                     else:
                         print("SITE_LOGIN_STAGE: site_login_attempt",flush=True)
+                        browser_stage="site_login_attempt"
                         code=inspect_login(page,details["siteUrl"],
                             details["siteLogin"],details["sitePassword"])
                         if code=="login_authenticated_identity_verified":
-                            observed_site_account_id=observed_authenticated_site_email(page,details["siteLogin"])
+                            observed_site_account_id=login_step("login_identity_check", lambda:
+                                observed_authenticated_site_email(page,details["siteLogin"]))
                             if observed_site_account_id is None:
                                 code="login_authenticated_identity_unconfirmed"
                 finally: context.close()
             finally: browser.close()
+    except LoginStageError as exc:
+        failure_stage=exc.stage
+        code=LOGIN_FAILURE_CODES[exc.stage]
     except Exception:
-        # Never log raw exceptions; Playwright errors may contain form values/URLs.
+        # The IP check and site login are different failure domains.
+        # Passing IP verification must never be reported as a proxy failure.
         print("SITE_LOGIN_STAGE: browser_or_site_error",flush=True)
-        code="proxy_error" if code=="executor_error" else "site_error"
+        code={"chromium_start":"browser_start_failed",
+              "proxy_ip_check":"proxy_error",
+              "site_login_attempt":"login_verify_failed"}[browser_stage]
     print("SITE_LOGIN_STAGE: callback_result",flush=True)
     try:
         result=request_json(endpoint("/api/man-site-login/result"),{
-            "account_id":account,"nonce":nonce,"code":code,
+            "account_id":account,"nonce":nonce,"code":code,"failure_stage":failure_stage,
             "observed_site_account_id":observed_site_account_id
             if code=="login_authenticated_identity_verified" else None})
     except urllib.error.HTTPError as exc:
@@ -159,3 +198,4 @@ if __name__=="__main__":
     except Exception:
         print("SITE_LOGIN_PREFLIGHT: unavailable",file=sys.stderr)
         sys.exit(1)
+

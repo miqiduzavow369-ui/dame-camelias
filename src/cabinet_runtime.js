@@ -422,7 +422,7 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
     const params={accountId,nonce,at:Date.now()};
     const result=event.kind==="man_site_login_payload"?
       await claimSiteLoginCheck(storage,rawEnv,params):
-      await completeSiteLoginCheck(storage,{...params,code:src?.code},rawEnv);
+      await completeSiteLoginCheck(storage,{...params,code:src?.code,failureStage:src?.failure_stage},rawEnv);
     return {status:200,body:JSON.stringify(result),
       headers:{"Content-Type":"application/json","Cache-Control":"no-store"}};
   }catch{return {status:409,body:JSON.stringify({ok:false,reason:"invalid_or_stale_check"}),
