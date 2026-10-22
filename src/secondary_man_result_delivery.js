@@ -5,6 +5,7 @@ import {secondaryPublicationOperationalStatus} from "./secondary_man_publication
 import {readVerifiedFeedbackEvidence} from "./secondary_man_feedback_evidence.js";
 import {readSecondaryOriginalJpeg} from "./secondary_man_original_screenshot.js";
 import {MODERATION_CHAT} from "./review_moderation.js";
+import {secondaryReviewNoticeKey,markSecondaryReviewPublished} from "./secondary_review_moderation_notice.js";
 import {MAN_ACCOUNTS} from "./man_accounts.js";
 import {dailyLimit,moscowDay} from "./daily_publication_limit.js";
 
@@ -19,6 +20,7 @@ export async function secondaryCompletedProof(storage,env,source){
 }
 export async function deliverSecondaryCompletedResult(storage,env,source){
  const {identity:i,evidence,original}=await secondaryCompletedProof(storage,env,source);
+ await markSecondaryReviewPublished(storage,env,i);
  const date=moscowDay(new Date(evidence.at));
  const daily=await dailyLimit(env,i.userId,i.profileId,"record_verified",i.kind,i.nonce,date,i.accountId);
  if(daily?.ok!==true)throw Error("Verified daily result not recorded");
@@ -36,8 +38,13 @@ export async function deliverSecondaryCompletedResult(storage,env,source){
   const shownDate=date.split("-").reverse().join(".");
   const caption=i.kind==="rating"?"🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваши оценки опубликованы!\n👨‍💻 Клиент - "+name+
    "\n🆔 Анкета №"+i.profileId+"\n📅 "+shownDate+"\n📸 Подтверждение публикации прилагается.":
-   "🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваш отзыв опубликован!\n👨‍💻 Клиент - "+name+"\n🆔 Анкета №"+i.profileId+"\n📅 "+shownDate+"\n📸 Подтверждение публикации прилагается.";
+   "🌹ПОЗДРАВЛЯЕМ !!!\n✅ Ваш отзыв отправлен на сайт!\n👨‍💻 Клиент - "+name+"\n🆔 Анкета №"+i.profileId+"\n📅 "+shownDate+"\n📸 Подтверждение публикации прилагается.";
   const body=new FormData();body.append("chat_id",MODERATION_CHAT);body.append("caption",caption);
+  if(i.kind==="review"){
+   const notice=await storage.get(secondaryReviewNoticeKey(i));
+   if(Number.isSafeInteger(notice?.messageId))body.append("reply_parameters",JSON.stringify({message_id:notice.messageId}));
+   body.set("caption",caption+"\n⏳ Модерация сайта обычно занимает 1–10 дней.");
+  }
   if(i.userId!=="5866034656")body.append("protect_content","true");
   body.append("photo",new Blob([bytes],{type:"image/jpeg"}),"checked-"+i.profileId+".jpg");
   const response=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/sendPhoto",{method:"POST",body,signal:AbortSignal.timeout(15000)});

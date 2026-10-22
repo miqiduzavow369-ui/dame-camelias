@@ -44,3 +44,13 @@
 - `tests/test_personal_login_evidence.py` — неизменность исходного пути Яна Первого и правила подтверждения входа.
 
 Проверки используют синтетические данные и блокируют внешнюю сеть. Они не подменяют индивидуальную проверку настоящего прокси и кабинета при подключении каждого мужчины.
+
+## Reviews: the same moderation as Yan First
+
+All secondary men's authored reviews go to the existing group with three actions: publish, correct, reject. The owner alone decides. Approve dispatches immediately through the current ADMIN-confirmed connection; the client does not confirm a second publication. A correction is an owner reply to the forced-reply prompt (or original card), retains the original text and revisions, and launches the approved corrected version just like Yan First. Rejection never reserves credits or opens the site. New text after rejection requires a new explicit author submission. Old version buttons, repeated replies, foreign actors and completed attempts cannot dispatch.
+
+Server checks revalidate the active client, agreement, saved profile, visible selected man, current encrypted ADMIN proxy/site binding and observed login, one-use grant, irreversible submit boundary and operation-specific result HMAC. Only verified immutable JPEG evidence settles one debit, updates daily usage, group proof, history and cabinet status. The proof replies to the original moderation card; the card changes in place. An uncertain dispatch, ledger or Telegram result stays locked. Never retry a site POST to repair presentation.
+
+`POST /api/secondary-man/review-notice-refresh` requires the existing server bearer token and exact user/account/profile. It only upgrades an existing moderation card in place, preserves text and revisions, and cannot approve, dispatch, reserve credits or create another message.
+
+Mandatory offline check: `tests/all_secondary_review_contract.test.mjs` executes correction, cancellation, individual credential grants, signed result, one debit and final interface contracts for all 29 men. Primary moderation and its browser implementation remain unchanged.

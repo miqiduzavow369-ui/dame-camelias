@@ -451,7 +451,7 @@ function manStatus(man,kind){
   const stage=kind==="rating"?row?.rating:row?.review;
   return ({draft_saved:kind==="rating"?"✅ Оценки подготовлены":"✅ Отзыв подготовлен",prepared:"🔎 Проверка перед публикацией",
    checking:"⏳ Проверяется результат",published:"✅ Опубликовано",
-   reconciliation_required:"⚠️ Требуется проверка",moderation:"⏳ На модерации"})[stage]||
+   reconciliation_required:"⚠️ Требуется проверка",rejected:"❌ Отзыв отклонён",moderation:"⏳ На модерации"})[stage]||
    (man.cabinetReady?(kind==="rating"?"⭐ Ждёт проставления":"✍️ Ждёт написания"):"🔒 Ожидает подключения");
  }
  if(!man.enabled)return man.cabinetReady?"✓ Кабинет подключён · подготовка":"🔒 Ожидает подключения";const st=workProfile?.capabilities?.[kind]?.state;return ({published:"✅ Опубликовано",checking:"⏳ Проверяется",credits:"🔒 Нет кредитов",daily_limit:"🔒 Дневной лимит",disabled:"🔒 Отключено",check_in_bot:kind==="review"?"📝 Ждёт написания":"⭐ Ждёт проставления",unknown:"⚠️ Требует проверки"})[st]||"⚠️ Требует проверки";}
@@ -687,8 +687,12 @@ function openDetail(p){$("detail").querySelectorAll("[data-inline-proof]").forEa
     selectedProgress.review||(connected?"check_in_bot":"account_disabled")):
    p.capabilities?.[kind]?.state||"unknown";
   $(kind==="rating"?"ratingStatus":"reviewStatus").textContent=state==="draft_saved"&&kind==="review"?"✅ Отзыв подготовлен":messages[state]||messages.unknown;
-  button.hidden=!["published","check_in_bot","draft_saved","prepared","checking","reconciliation_required","moderation"].includes(state);
+  button.hidden=!["published","check_in_bot","draft_saved","prepared","checking","reconciliation_required","moderation",...(selectedAccount!=="yan_first"?["rejected"]:[])].includes(state);
   button.textContent=state==="published"?"📸 Посмотреть подтверждение ›":kind==="rating"?"⭐ Оставить оценки ›":"✍️ Оставить отзыв ›";
+  if(selectedAccount!=="yan_first"&&kind==="review"){
+   $("reviewStatus").textContent=({moderation:"⏳ Отзыв на модерации",checking:"⏳ Проверяется отправка отзыва",rejected:"❌ Отзыв отклонён",published:"✅ Отзыв отправлен на сайт"})[state]||$("reviewStatus").textContent;
+   if(["moderation","checking","prepared","reconciliation_required","draft_saved"].includes(state))button.textContent="🔎 Проверить статус отзыва ›";
+  }
   button.dataset.mode=state==="published"?"proof":"check";
  }
  $("secondaryDraftCard").hidden=true;
@@ -829,13 +833,13 @@ document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{
     if(stage==="published")void refreshCabinetSnapshot();
     const pending=["waiting","unknown","saved","approved"].includes(stage);
     rejection.hidden=stage!=="rejected";
-    editSaved.hidden=stage!=="saved"||selectedAccount==="yan_first";
+    editSaved.hidden=true;
     if(stage==="rejected"){const date=Number.isFinite(info.rejectedAt)&&info.rejectedAt>0?new Date(info.rejectedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"Дата недоступна";rejectionText.textContent="❌ Отзыв не прошёл проверку из-за нарушения правил · "+date;}
     heading.hidden=pending||stage==="published";field.hidden=heading.hidden;counter.hidden=heading.hidden;checkText.hidden=heading.hidden;saveDraft.hidden=heading.hidden;
-    preview.hidden=true;check.hidden=!pending;publishButton.hidden=stage!=="approved";proofButton.hidden=stage!=="published";
+    preview.hidden=true;check.hidden=!pending;publishButton.hidden=stage!=="approved"||selectedAccount!=="yan_first";proofButton.hidden=stage!=="published";
     if(stage!=="published"){proofContainer.hidden=true;proofContainer.replaceChildren();proofFeedback.textContent="";proofButton.textContent="📸 Посмотреть результат";}
     status.style.cssText=["waiting","published"].includes(stage)?"white-space:pre-line;color:#f2d6a3;font-size:15px;line-height:1.65;background:#21180f;border:1px solid #b58e50;border-radius:14px;padding:16px;margin-top:16px":"";
-    status.textContent=stage==="approved"?"✅ Отзыв согласован. Можно опубликовать через выбранного мужчину.":stage==="saved"?"✅ Отзыв сохранён для "+accountName(selectedAccount)+". Ожидает согласования администратором; кредиты пока не списаны.":stage==="waiting"?"🌹 Отзыв передан администратору на модерацию.\n\n⏳ После одобрения отзыв будет опубликован на сайте.\n\nВы можете проверить результат позже — повторно отправлять отзыв не нужно.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв отправлен на сайт. Скриншот подтверждения доступен ниже.\n\n⏳ После отправки отзыв проходит модерацию сайта. Обычно проверка занимает от 1 до 10 дней. Срок зависит от администрации сайта.":"";
+    status.textContent=stage==="approved"?(selectedAccount==="yan_first"?"✅ Отзыв согласован. Можно опубликовать через выбранного мужчину.":"⏳ Ожидаем запуск публикации администратором. Повторно отправлять отзыв не нужно."):stage==="saved"?"✅ Отзыв сохранён для "+accountName(selectedAccount)+". Ожидает согласования администратором; кредиты пока не списаны.":stage==="waiting"?"🌹 Отзыв передан администратору на модерацию.\n\n⏳ После одобрения отзыв будет опубликован на сайте.\n\nВы можете проверить результат позже — повторно отправлять отзыв не нужно.":stage==="unknown"?"⏳ Проверяем передачу отзыва. Повторно отправлять его не нужно.":stage==="rejected"?"🌷 Отзыв не прошёл проверку. Вы можете написать другой текст.":stage==="published"?"✅ Отзыв отправлен на сайт. Скриншот подтверждения доступен ниже.\n\n⏳ После отправки отзыв проходит модерацию сайта. Обычно проверка занимает от 1 до 10 дней. Срок зависит от администрации сайта.":"";
     if(stage==="rejected"){heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;check.hidden=true;status.textContent="";}
   };
   checkText.onclick=()=>{if(field.value.trim().length<10){status.textContent="Введите не менее 10 символов.";return;}status.textContent="";content.textContent=field.value.trim();preview.hidden=false;heading.hidden=true;field.hidden=true;counter.hidden=true;checkText.hidden=true;saveDraft.hidden=true;preview.scrollIntoView({behavior:"smooth",block:"start"});};

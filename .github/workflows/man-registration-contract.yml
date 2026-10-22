@@ -1,4 +1,4 @@
-name: All 29 men registration and rating contract
+name: All 29 men registration and feedback contract
 on:
   pull_request:
     paths: ['src/**', 'admin/**', 'anketa/**', 'tools/**', 'tests/**', 'docs/MAN_REGISTRATION_AND_RATINGS_CONTRACT.md', '.github/workflows/man-registration-contract.yml']
@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '22'
       - name: Every personal account and completed-result contract (offline)
-        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/all_secondary_completion_contract.test.mjs tests/secondary_connection_roundtrip.test.mjs tests/man_registration_ui.test.mjs tests/secondary_completed_presentation.test.mjs
+        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/all_secondary_review_contract.test.mjs tests/all_secondary_completion_contract.test.mjs tests/secondary_connection_roundtrip.test.mjs tests/man_registration_ui.test.mjs tests/secondary_completed_presentation.test.mjs
   mobile-registration-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 7
@@ -29,9 +29,13 @@ jobs:
       - uses: ./.github/actions/secondary-browser-runtime
       - name: Render actual ADMIN HTML with intercepted synthetic requests only
         run: python tools/check_man_registration_ui.py
+      - name: Render actual review states and proof (offline)
+        run: python tools/check_secondary_review_ui.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: man-registration-mobile-views
-          path: registration-ui-check/*.png
+          path: |
+            registration-ui-check/*.png
+            review-ui-check/*.png
           retention-days: 7
