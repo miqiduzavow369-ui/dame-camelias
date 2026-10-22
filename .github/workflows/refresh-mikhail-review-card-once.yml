@@ -1,0 +1,33 @@
+name: Refresh existing Mikhail review card only
+on:
+  push:
+    branches: [ops/refresh-mikhail-review-card-20261022]
+    paths: ['.github/workflows/refresh-mikhail-review-card-once.yml']
+permissions:
+  contents: read
+jobs:
+  refresh-existing-card:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Update existing moderation controls without publication
+        env:
+          CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          token=os.environ.get("CALLBACK_TOKEN")
+          if not token:raise SystemExit("Server callback token unavailable")
+          body=json.dumps({"user_id":"5866034656","accountId":"yan_second","profileId":"690230"}).encode()
+          request=urllib.request.Request("https://dame-camelias.gptjjjgpt.workers.dev/api/secondary-man/review-notice-refresh",
+            data=body,headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"},method="POST")
+          try:
+              with urllib.request.urlopen(request,timeout=45) as response:result=json.load(response)
+          except urllib.error.HTTPError as error:
+              try:result=json.loads(error.read())
+              except Exception:result={}
+              print(json.dumps({"ok":False,"http":error.code,"reason":result.get("reason","existing_card_update_unavailable")}))
+              raise SystemExit(1)
+          print(json.dumps({k:result.get(k) for k in ("ok","already","messageId","status")}))
+          if result.get("ok") is not True:raise SystemExit(1)
+          PY
