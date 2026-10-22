@@ -13,7 +13,7 @@ from intimcity_authenticated_identity import authenticated_identity_status, obse
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
-HOSTS = {"intimcity.rip","a.intimcity.rip","b.intimcity.rip"}
+HOSTS = {"intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"}
 
 def required(name):
     value=os.environ.get(name,"")

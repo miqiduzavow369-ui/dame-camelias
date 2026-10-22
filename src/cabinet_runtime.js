@@ -24,7 +24,7 @@ import {manStorageKey,requirePublicationIdentity} from "./man_account_isolation.
 import {verifyManProxy} from "./man_proxy_verification.js";
 import {checkManSiteThroughProxy} from "./man_proxy_site_check.js";
 import {privateDraftStatus,savePrivateDraft,importPrivateDrafts} from "./man_private_drafts.js";
-import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft} from "./man_site_vault.js";
+import {readSiteStatus,saveSiteCredentials,saveSiteCredentialDraft,updateSiteDomain} from "./man_site_vault.js";
 import {readManDiagnostics,prepareManRetry} from "./man_check_diagnostics.js";
 import {secondaryDraftAction} from "./secondary_man_client_draft.js";
 import {saveSharedCriteria,readSharedCriteria} from "./shared_rating_criteria.js";
@@ -432,6 +432,12 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
    try{return await readSiteStatus(storage,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,accountId:event.accountId});}
    catch{return {ok:false,status:400,reason:"invalid_account"};}
+ }
+ if(event.kind==="admin_man_site_domain_update"){
+   if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};
+   try{return await updateSiteDomain(storage,rawEnv,{actorId:event.actorId,cabinetId:uid,ownerId:OWNER_ID,
+    accountId:event.accountId,expectedVersion:event.expectedVersion,at:Date.now()});}
+   catch{return {ok:false,status:409,reason:"site_domain_update_rejected"};}
  }
  if(event.kind==="admin_man_site_stage"){
    if(uid!==OWNER_ID||event.actorId!==OWNER_ID)return {ok:false,status:403};

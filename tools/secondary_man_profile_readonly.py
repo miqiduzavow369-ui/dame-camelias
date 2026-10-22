@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 SECONDARY_ID = re.compile(r"^(?:yan_second|yan_(?:0[3-9]|[12][0-9]|30))$")
 PROFILE = re.compile(r"^[0-9]{1,9}$")
-SAFE_HOSTS = {"intimcity.rip", "a.intimcity.rip", "b.intimcity.rip"}
+SAFE_HOSTS = {"intimcity.rip", "a.intimcity.rip", "b.intimcity.rip","c.intimcity.rip"}
 
 def validated_readonly_grant(grant, account_id, profile_id, *, expected_mode="profile"):
     if not isinstance(grant, dict) or not SECONDARY_ID.fullmatch(account_id):
@@ -89,3 +89,4 @@ def run_readonly_profile_check(grant, account_id, profile_id, *, mode="ratings",
         for key,value in saved.items():
             if value is None: os.environ.pop(key,None)
             else: os.environ[key]=value
+

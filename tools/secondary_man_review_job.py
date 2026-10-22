@@ -59,7 +59,7 @@ def main():
     host=required("SECONDARY_SITE_HOST")
     if not ACCOUNT.fullmatch(account) or not USER.fullmatch(user) or not PROFILE.fullmatch(profile) or not IDENTIFIER.fullmatch(nonce) or not TICKET.fullmatch(token):
         raise RuntimeError("Invalid isolated review identifiers")
-    if host not in ("intimcity.rip","a.intimcity.rip","b.intimcity.rip"):
+    if host not in ("intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"):
         raise RuntimeError("Untrusted site hostname")
     grant=request("/api/secondary-man/review-payload",query={
         "account_id":account,"profile_id":profile,"user_id":user,
@@ -154,3 +154,4 @@ if __name__=="__main__":
         # No exception text: urllib/Playwright errors could contain secrets.
         print("SECONDARY_REVIEW: unavailable; "+type(e).__name__,file=sys.stderr,flush=True)
         sys.exit(1)
+

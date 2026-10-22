@@ -4,7 +4,7 @@
 import {createAccountOperation,verifyAccountCallback} from "./man_account_isolation.js";
 import {approvalMatchesConfiguration} from "./secondary_man_owner_approval.js";
 
-const HOSTS=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip"]);
+const HOSTS=new Set(["intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"]);
 const positive=n=>Number.isSafeInteger(n)&&n>0;
 
 export function validateSecondaryDispatchContract({
@@ -79,3 +79,4 @@ export async function readSecondaryDispatchPreflight(storage,{
  return validateSecondaryDispatchContract({identity:i,publication,credit,proxy,site,
   approval,verifiedIdentity,selectedHost,ownerOperationConfirmed,independentAuthorConfirmed});
 }
+

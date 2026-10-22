@@ -16,7 +16,7 @@ def sample():
         "kind": "review", "status": "attempted",
         "proxyHost": "127.0.0.1", "proxyPort": 8080,
         "proxyVersion": 3, "siteVersion": 4,
-        "siteUrl": "https://b.intimcity.rip/",
+        "siteUrl": "https://c.intimcity.rip/",
         "expectedIp": "127.0.0.1",
         "proxyUsername": "proxy-user", "proxyPassword": "not-a-real-secret",
         "siteLogin": "author@example.test", "verifiedSiteLogin": "author@example.test",
@@ -64,3 +64,4 @@ class ReviewGrantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

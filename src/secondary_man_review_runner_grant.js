@@ -76,7 +76,7 @@ export async function claimSecondaryReviewRunnerPayload(storage,env,{identity,to
     s.siteUrl!==site.siteUrl||s.login!==observed.siteAccountId||
     typeof p.host!=="string"||typeof p.username!=="string"||
     typeof p.password!=="string"||typeof s.password!=="string"||
-    !["intimcity.rip","a.intimcity.rip","b.intimcity.rip"].includes(new URL(s.siteUrl).hostname))
+    !["intimcity.rip","a.intimcity.rip","b.intimcity.rip","c.intimcity.rip"].includes(new URL(s.siteUrl).hostname))
    throw Error("Unsealed secondary account configuration inconsistent");
  const digest=Array.from(new Uint8Array(await crypto.subtle.digest(
   "SHA-256",encoder.encode(draft.text))),b=>b.toString(16).padStart(2,"0")).join("");
@@ -216,3 +216,4 @@ export async function recordSecondaryRatingSubmitBoundary(storage,{
   return {ok:true,stage:"rating_submit_boundary"};
  });
 }
+

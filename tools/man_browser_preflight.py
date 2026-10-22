@@ -15,7 +15,7 @@ from playwright.sync_api import sync_playwright
 
 ACCOUNT = re.compile(r"^(yan_second|yan_(?:0[3-9]|[12]\d|30))$")
 NONCE = re.compile(r"^[a-f0-9]{32}$")
-ALLOWED_HOSTS = {"intimcity.rip", "a.intimcity.rip", "b.intimcity.rip"}
+ALLOWED_HOSTS = {"intimcity.rip", "a.intimcity.rip", "b.intimcity.rip","c.intimcity.rip"}
 
 def required(name):
     value = os.environ.get(name, "")
@@ -109,3 +109,4 @@ if __name__ == "__main__":
     except Exception:
         print("BROWSER_PREFLIGHT: coordinator or executor unavailable", file=sys.stderr)
         sys.exit(1)
+
