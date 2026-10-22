@@ -1,0 +1,81 @@
+name: Finish Mikhail completed result delivery (no site access)
+on:
+  push:
+    branches: [recovery/mikhail-result-delivery-39817703975]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: delivery-existing-rating-39817703975
+  cancel-in-progress: false
+jobs:
+  recover-existing-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.56.0-noble
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/secondary-browser-runtime
+      - name: Deliver already archived result only (never visit site)
+        env:
+          GH_LOG_READ_TOKEN: ${{ github.token }}
+          ANKETA_CALLBACK_URL: https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result
+          ANKETA_CALLBACK_TOKEN: ${{ secrets.ANKETA_CALLBACK_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, re, sys
+          from urllib.request import Request, build_opener, HTTPRedirectHandler, urlopen
+          from urllib.error import HTTPError
+          from urllib.parse import urlsplit
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          api = "https://api.github.com/repos/miqiduzavow369-ui/dame-camelias"
+          headers = {"Authorization":"Bearer "+os.environ.pop("GH_LOG_READ_TOKEN"),"Accept":"application/vnd.github+json"}
+          def read_json(path):
+              with urlopen(Request(api+path,headers=headers),timeout=25) as response:
+                  return json.load(response)
+          job = read_json("/actions/jobs/119960436093")
+          run = read_json("/actions/runs/39817703975")
+          if (job.get("run_id") != 39817703975 or job.get("conclusion") != "failure" or
+              run.get("head_sha") != "3f50b840a99deb12332c494096070237758d0988" or
+              run.get("path") != ".github/workflows/secondary-man-rating-publish.yml"):
+              raise RuntimeError("Unexpected original publication job")
+          request = Request(api+"/actions/jobs/119960436093/logs",headers=headers)
+          try:
+              response = build_opener(NoRedirect()).open(request,timeout=25)
+          except HTTPError as error:
+              if error.code != 302: raise RuntimeError("Original job log unavailable") from None
+              address = error.headers.get("Location","")
+              host = urlsplit(address)
+              if host.scheme != "https" or not host.hostname or not host.hostname.endswith(".blob.core.windows.net"):
+                  raise RuntimeError("Unexpected GitHub log download host")
+              response = urlopen(address,timeout=25)
+          with response:
+              log = response.read(3000000).decode("utf-8")
+          names = ["SECONDARY_ACCOUNT_ID","SECONDARY_USER_ID","SECONDARY_PROFILE_ID","SECONDARY_RATING_NONCE","SECONDARY_CALLBACK_TICKET","SECONDARY_SITE_HOST"]
+          values = {}
+          for name in names:
+              match = re.search(r"\b"+name+r":\s*([^\s]+)",log)
+              if not match: raise RuntimeError("Original operation metadata missing")
+              values[name] = match.group(1)
+          if any(values[k] != v for k,v in {"SECONDARY_ACCOUNT_ID":"yan_second","SECONDARY_USER_ID":"5866034656","SECONDARY_PROFILE_ID":"690230","SECONDARY_SITE_HOST":"c.intimcity.rip"}.items()):
+              raise RuntimeError("Original personal operation mismatch")
+          for name in ("SECONDARY_RATING_NONCE","SECONDARY_CALLBACK_TICKET"):
+              print("::add-mask::"+values[name],flush=True)
+          print("DELIVERY_SOURCE: exact original operation verified; no browser or site calls",flush=True)
+          os.environ.update(values)
+          sys.path.insert(0,"tools")
+          from secondary_man_rating_job import call
+          identity = {"userId":values["SECONDARY_USER_ID"],"accountId":values["SECONDARY_ACCOUNT_ID"],"profileId":values["SECONDARY_PROFILE_ID"],"kind":"rating","nonce":values["SECONDARY_RATING_NONCE"]}
+          response = call("/api/secondary-man/result-delivery",{"identity":identity})
+          safe = {k:response.get(k) for k in ("ok","status","dailyRemaining","cabinetStatus","historyOriginal","financeAccount")}
+          print("COMPLETED_RESULT_DELIVERY: "+json.dumps(safe),flush=True)
+          if not (response.get("ok") is True and response.get("status") == "sent" and
+                  response.get("cabinetStatus") == "published" and response.get("historyOriginal") is True and
+                  response.get("financeAccount") == "yan_second"):
+              raise RuntimeError("Completed result presentation not fully verified")
+          print("VERIFIED: group screenshot delivered; cabinet published; original archived; correct spend account; no site visit or new debit",flush=True)
+          PY
