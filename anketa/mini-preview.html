@@ -377,6 +377,9 @@ body:has(#tab-ashoo:not([hidden])) .app::before{
   /* City uses width-based sizing, not cover. Fit more of the full body vertically. */
   background-size:100% 100%,100% 100%,100% auto;
   background-repeat:no-repeat;
+  /* Dissolve the artwork before the source image ends, without moving/cropping it. */
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 67%,rgba(0,0,0,.82) 76%,rgba(0,0,0,.35) 87%,transparent 96%);
+  mask-image:linear-gradient(to bottom,#000 0%,#000 67%,rgba(0,0,0,.82) 76%,rgba(0,0,0,.35) 87%,transparent 96%);
 }
 /* The same background starts behind the DAME CAMELIAS header: no black strip. */
 body:has(#tab-ashoo:not([hidden])) .app>header{
