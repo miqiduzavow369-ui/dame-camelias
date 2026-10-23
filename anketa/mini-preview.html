@@ -329,6 +329,30 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 .rating-countdown-bar{height:6px;overflow:hidden;border-radius:20px;background:#53402a;margin:13px 0 12px}
 .rating-countdown-progress{height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,#99703a,#efd19c);transition:width .4s linear}
 .rating-countdown-caption{color:#d3bea0;font-size:12px;line-height:1.5;margin:0}
+
+/* ASHOO phase 1: UI-only and fully scoped. All existing IntimCity styles remain unchanged. */
+#tab-ashoo{--apink:#ff6fcb;--apale:#fff0fa;--alilac:#d29aff;--aframe:#ff8cda;color:var(--apale);position:relative;padding-bottom:22px}
+#tab-ashoo .ashoo-title{font:700 42px Georgia,serif;color:#ff83d3;text-shadow:0 0 18px #f52eb37a;margin:8px 0}
+#tab-ashoo .ashoo-eyebrow{color:#ffbfe5;font-size:12px;letter-spacing:2px}
+#tab-ashoo p{color:#f6d0ea;font-size:13px;line-height:1.55}
+#tab-ashoo .ashoo-card{border:1px solid var(--aframe);border-radius:22px;background:radial-gradient(circle at 100% 0%,#ea2f9c37,transparent 60%),linear-gradient(140deg,#381537,#1b0d2a);box-shadow:0 0 0 1px #ff99d92b,0 0 19px #ef41b33a;padding:17px;margin:15px 0}
+#tab-ashoo .ashoo-card h2{color:#ffe6f5;font-size:19px}
+#tab-ashoo .ashoo-credit{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#tab-ashoo .ashoo-credit strong{display:block;color:white;font-size:31px;margin:5px 0}
+#tab-ashoo .ashoo-meta{color:#ffb8e3;font-size:12px;line-height:1.55}
+#tab-ashoo .ashoo-btn{display:block;width:100%;border-radius:15px;border:1px solid #ff80d0;padding:14px;margin-top:12px;background:linear-gradient(100deg,#f52ba2,#a43bf3);color:white;font-weight:750;font-size:14px}
+#tab-ashoo .ashoo-btn:disabled{opacity:.6;cursor:not-allowed;background:#69345d}
+#tab-ashoo .ashoo-step{border-top:1px solid #fc8ed747;padding:15px 0}
+#tab-ashoo .ashoo-step:first-of-type{border:0}
+#tab-ashoo .ashoo-stage{display:inline-block;color:#ffb4e0;border:1px solid #d66bca;border-radius:30px;padding:3px 9px;margin-bottom:7px;font-size:11px}
+#tab-ashoo .ashoo-warning{border-radius:13px;padding:12px;background:#5d25552b;color:#ffe0f3;font-size:12px;line-height:1.5}
+#tab-ashoo .ashoo-section{font-size:19px;font-weight:750;margin:22px 0 10px;color:#fff0fa}
+#tab-ashoo .ashoo-male{border:1px solid #b65baf;border-radius:14px;padding:12px;margin:8px 0;display:flex;gap:12px;align-items:center;background:#220f2c}
+#tab-ashoo .ashoo-male img{width:43px;height:54px;border-radius:9px;object-fit:cover;flex:none}
+#tab-ashoo .ashoo-male .ashoo-male-copy{flex:1;min-width:0}
+#tab-ashoo .ashoo-male small{display:block;color:#dcb9d5;margin-top:4px}
+#tab-ashoo .ashoo-inactive{font-size:11px;color:#ffd0e9;border:1px solid #9c5986;border-radius:15px;padding:4px 7px}
+#ashoo-nav-entry[hidden]{display:none!important}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
 <section id="tab-profiles">
@@ -346,6 +370,25 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <div id="menCatalog" hidden><input id="manSearch" class="man-search" type="search" placeholder="Поиск мужчины по имени"><div id="menFullList" class="men-grid"></div></div>
 </div>
 <button class="ghost" id="openLegacy" type="button">⬅️ Вернуться в Telegram</button>
+</section>
+<section id="tab-ashoo" hidden aria-label="ASHOO · только макет">
+<div class="ashoo-eyebrow">💗 DAME CAMELIAS · ВАШЕ ПРОСТРАНСТВО</div>
+<h1 class="ashoo-title">ASHOO ✦</h1>
+<p>Отдельное пространство для ваших анкет и отзывов. Без оценок.</p>
+<div class="ashoo-card ashoo-credit"><div><div class="ashoo-meta">💎 ЕДИНЫЙ БАЛАНС ПУБЛИКАЦИЙ</div><strong id="ashooBalance">—</strong><div class="ashoo-meta">Один отзыв ASHOO = 2 публикации</div></div><span style="font-size:37px" aria-hidden="true">💗</span></div>
+<div class="ashoo-warning">🔒 Предварительный интерфейс. ASHOO ещё не подключён. Никаких публикаций, списаний и изменений анкет здесь не происходит.</div>
+<div class="ashoo-section">🌸 Ваши анкеты ASHOO</div>
+<div class="ashoo-card"><h2>Анкеты ещё не добавлены</h2><p>Анкеты IntimCity не переносятся: у ASHOO будет собственный список, добавление, просмотр и удаление.</p><button type="button" class="ashoo-btn" disabled>＋ Добавить анкету · ожидает подключения</button></div>
+<div class="ashoo-section">✍️ Маршрут отзыва</div>
+<div class="ashoo-card">
+<div class="ashoo-step"><span class="ashoo-stage">01 / 04</span><h2>Выбрать анкету</h2><p>Откройте сохранённую анкету ASHOO.</p></div>
+<div class="ashoo-step"><span class="ashoo-stage">02 / 04</span><h2>Выбрать мужчину</h2><p>В будущем доступны только подтверждённые и отдельно активированные мужчины ASHOO.</p></div>
+<div class="ashoo-step"><span class="ashoo-stage">03 / 04</span><h2>Подготовить отзыв</h2><p>Текст подлинного отзыва от соответствующего автора и проверка правила «одна анкета — один отзыв».</p></div>
+<div class="ashoo-step"><span class="ashoo-stage">04 / 04</span><h2>Согласование</h2><p>Администратор принимает решение до отправки. Стоимость — 2 публикации, итог отражается в общей истории.</p></div>
+<button type="button" class="ashoo-btn" disabled>🔒 Начать отзыв · недоступно</button>
+</div>
+<div class="ashoo-section">💗 Мужчины ASHOO</div>
+<div class="ashoo-card"><p>Выбрано 13 существующих карточек. Их фотографии, имена и прокси остаются у исходных мужчин; ASHOO-подключения сейчас неактивны.</p><div class="ashoo-meta">Список активных мужчин появится только после отдельной серверной проверки и активации.</div></div>
 </section>
 <section id="tab-add" hidden>
 <button id="addProfileCancel" type="button" class="back-top">← К моим анкетам</button>
@@ -393,6 +436,7 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <section id="subview" hidden><div class="detailbar subview-back"><button id="subBack">← К карточке мужчины</button></div><div class="subview-context"><span class="subview-context-label">ВЫБРАННАЯ АНКЕТА</span><span id="subId"></span></div><h1 id="subTitle"></h1><div id="subContent"></div></section>
 </div><nav class="nav">
 <button data-tab="profiles" class="active"><span class="ico">🌹</span>IntimCity</button>
+<button id="ashoo-nav-entry" data-tab="ashoo" hidden><span class="ico">💗</span>ASHOO</button>
 <button data-tab="published"><span class="ico">📸</span>История</button>
 <button data-tab="cabinet"><span class="ico">💎</span>Кабинет</button>
 </nav>
@@ -1182,7 +1226,21 @@ $("signedAgreementOpen").onclick=async()=>{
 };
 $("signedAgreementClose").onclick=()=>{$("signedAgreementPanel").hidden=true;$("signedAgreementOpen").hidden=false;};
 $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$("workTopup").onclick=()=>{$("topup").click();};$("close").onclick=()=>tg?.close();$("openLegacy").onclick=()=>tg?.close();
-async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
+
+// Visual-only owner preview. This is not an authorization control.
+// Server-side owner checks are mandatory before any future ASHOO API actions.
+function showAshooOwnerPreview(){
+ const ownerId='5866034656';
+ const user=tg?.initDataUnsafe?.user;
+ const visible=Boolean(tg?.initData&&String(user?.id||'')===ownerId);
+ const entry=$('ashoo-nav-entry');
+ if(entry)entry.hidden=!visible;
+ if(!visible&&lastTab==='ashoo')showTab('profiles');
+ const balance=$('balance');
+ const value=balance?.textContent?.trim()||'—';
+ if($('ashooBalance'))$('ashooBalance').textContent=visible?value:'—';
+}
+async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());showAshooOwnerPreview();return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
 // Refresh read-only cabinet data when users return to the app or navigate tabs.
 let snapshotRefresh=null;
 async function refreshCabinetSnapshot(){
