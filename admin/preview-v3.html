@@ -254,6 +254,15 @@ body.admin-wide .footnav{max-width:1200px}
 
 .client-avatar.avatar{position:relative;width:43px;height:43px;border-radius:50%;overflow:hidden;border-color:#9e7d45;background:radial-gradient(circle at 30% 20%,#40321d,#1c1811);box-shadow:0 2px 8px #0003}
 .client-avatar img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+/* ASHOO companion visual only: scoped to admin male cards; no effect on IntimCity. */
+.ashoo-connection{margin:20px 0;padding:19px 16px;border-radius:21px;border:1px solid #f15cc5;background:radial-gradient(circle at 90% 0%,#d13cff29,transparent 55%),linear-gradient(145deg,#35122f,#220f30);box-shadow:0 0 0 1px #ff8ada24,0 0 25px #e92aba38;color:#fff4fb}
+.ashoo-connection-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ashoo-connection-heading strong{font-size:21px;letter-spacing:.8px;color:#ff83d6;text-shadow:0 0 16px #ff37bb88}
+.ashoo-off{padding:5px 10px;border:1px solid #f49bc6;border-radius:999px;font-size:12px;color:#ffd9eb;background:#511b43}
+.ashoo-connection p{font-size:13px;color:#ffe0f4;line-height:1.6}
+.ashoo-connection-meta{font-size:12px;color:#ffd5ed;margin:9px 0}
+.ashoo-connection button{width:100%;margin-top:12px;border:1px solid #f780c8!important;color:#ffdbf4!important;background:#4e2846!important;opacity:.68}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="head-actions"><button class="layout-toggle" id="admin-layout-toggle" type="button" onclick="toggleAdminLayout()" aria-label="Компьютерная версия" aria-pressed="false" title="Компьютерная версия">▣</button><div class="mark">✦</div></div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 const ADMIN_LAYOUT_PREF = 'dame_admin_wide_layout_v1';
 function setAdminLayout(wide){
@@ -805,6 +814,26 @@ async function approveSecondaryManReview(){
  finally{secondaryReviewBusy=false;render();}
 }
 
+// ASHOO phase 1: visual-only companion on existing male cards.
+// Exact technical prefixes from owner specification. Not account credentials and not activation.
+const ASHOO_PHASE1_TECHNICAL_PREFIXES=Object.freeze([
+ 'sv.gek','eg.egor6','zuev.dmi1','kir.sm1','bog.pop2','ign.egor1',
+ 'kir.log1','and9rez','fed.alin1','ser.kalu','wong32s','ud.ale1','mil.mor1'
+]);
+function ashooSelected(x){
+ const raw=String(x?.technicalName||'').trim().toLowerCase();
+ const key=raw.split('@')[0];
+ return ASHOO_PHASE1_TECHNICAL_PREFIXES.includes(key);
+}
+function renderAshooConnection(x){
+ if(!ashooSelected(x))return '';
+ return '<section class="ashoo-connection" aria-label="ASHOO — отдельное подключение">'+
+ '<div class="ashoo-connection-heading"><strong>💗 ASHOO</strong><span class="ashoo-off">○ Не подключён</span></div>'+
+ '<p>Самостоятельное подключение для отзывов. Карточка и фотография общие, авторизация и действия ASHOO будут отдельными.</p>'+
+ '<div class="ashoo-connection-meta">✍️ Только отзывы · 1 анкета = 1 отзыв · 2 публикации за действие</div>'+
+ '<div class="ashoo-connection-meta">🔒 Данные ASHOO не заданы. Клиенткам недоступно. IntimCity не меняется.</div>'+
+ '<button type="button" class="secondary" disabled aria-label="Подключение ASHOO пока недоступно">＋ Подключить ASHOO · следующий этап</button></section>';
+}
 function renderManConsole(){
  const x=manAccounts.find(a=>a.id===selectedManId);
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
@@ -821,7 +850,7 @@ function renderManConsole(){
    identityHeader+'<div class="note">Действующий аккаунт. Настройки и публикации работают по прежнему маршруту.</div>'+
    '<div class="card"><strong>Техническое имя</strong><p class="hint">'+
    (drafted?'Дополнительный email сохранён.':'Можно сохранить дополнительный технический email.')+'</p>'+
-   '<button class="secondary" onclick="openManPrivate()">Посмотреть / изменить →</button></div>';
+   '<button class="secondary" onclick="openManPrivate()">Посмотреть / изменить →</button></div>'+(typeof renderAshooConnection==='function'?renderAshooConnection(identity):'');
  }
  const loaded=!!data&&!wizardLoading&&!wizardError;
  const connection=data?.connection;
@@ -854,7 +883,7 @@ function renderManConsole(){
   '<button class="secondary" onclick="openManProxy()">🌐 Личный прокси</button>'+
   (proxySaved?'<button class="secondary" onclick="openManSite()">🔐 Кабинет Intimcity</button>':'')+
   (ready?'<button class="secondary danger" onclick="updateManOwnerApproval(false)" '+(manApprovalBusy?'disabled':'')+'>⏸ Отозвать подключение</button>':'')+'</details>')+
- '<button class="secondary man-step-refresh" onclick="refreshManWizard()" '+(wizardLoading?'disabled':'')+'>↻ Обновить состояние</button>';
+ '<button class="secondary man-step-refresh" onclick="refreshManWizard()" '+(wizardLoading?'disabled':'')+'>↻ Обновить состояние</button>'+(typeof renderAshooConnection==='function'?renderAshooConnection(identity):'');
 }
 
 function renderManSiteForm(){

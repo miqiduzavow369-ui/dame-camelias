@@ -703,7 +703,7 @@ export default {
       if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
       const result=await cabinetRPC(env,uid,{kind:"mini_preview"});
       if(!result?.ok)return new Response("Forbidden",{status:403});
-      return Response.json({men:result.men,profiles:result.profiles,secondaryStatuses:result.secondaryStatuses,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      return Response.json({ashooPreviewEnabled:uid==="5866034656",men:result.men,profiles:result.profiles,secondaryStatuses:result.secondaryStatuses,balance:result.balance,history:result.history,activities:result.activities,workflow:result.workflow,finance:result.finance,financeStatus:result.financeStatus},{headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-add"){
       if(Number(request.headers.get("content-length")||0)>16000)return new Response("Too large",{status:413});

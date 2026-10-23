@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DAME CAMELIAS · ASHOO · Дизайн-прототип</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#fff6fd;background:#16081b}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(circle at 85% 8%,#f542b255,transparent 35%),radial-gradient(circle at 0 55%,#a228ff36,transparent 40%),#16081b}
+.app{max-width:540px;margin:0 auto;min-height:100dvh;padding:18px 18px 110px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0 18px}
+.brand{font:bold 17px Georgia,serif;letter-spacing:1.6px}.chip{font-size:11px;color:#ffd6f1;border:1px solid #ff91d8;border-radius:22px;padding:8px 10px;background:#9b24602a}
+.intro small{letter-spacing:2px;color:#ffb5e1}.intro h1{font:normal 42px Georgia,serif;margin:8px 0;color:#ff84d2;text-shadow:0 0 24px #f538a980}.intro p{margin:0 0 20px;color:#f0d3eb;font-size:14px}
+.card,.summary{border:1px solid #fb74d2;border-radius:22px;background:linear-gradient(140deg,#3c163c,#210d30 70%);box-shadow:0 0 0 1px #ff9bd42b,0 0 22px #e7289a31;padding:17px;margin:14px 0}
+.summary{background:linear-gradient(130deg,#4c144c,#1e0b30);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.summary strong{font-size:35px;color:#fff}.summary small{color:#f9b4e1}.section{font-weight:750;font-size:19px;margin:25px 0 8px}
+.note{font-size:12px;color:#e6bedb;line-height:1.6}
+.primary,.secondary{border:1px solid #ff8cd5;border-radius:14px;padding:14px 16px;font-weight:700;font-size:14px;cursor:pointer;color:white}
+.primary{background:linear-gradient(105deg,#ff3faa,#ba46ff);box-shadow:0 0 22px #f52da955}
+.secondary{background:#3b1d45}.primary:disabled,.secondary:disabled{opacity:.52;cursor:not-allowed;box-shadow:none}
+.wide{width:100%;margin-top:12px}.step{display:flex;gap:14px;align-items:center}.step .icon{border:1px solid #f477c7;border-radius:12px;padding:10px;font-size:28px}.step .details{flex:1}.step small{display:block;color:#d9b6d4;margin-top:5px}.arrow{font-size:25px;color:#ff8bda}
+.back{border:0;background:transparent;color:#ffbcdf;font-size:14px;padding:8px 0;cursor:pointer}
+.screen[hidden]{display:none}.badge{border:1px solid #ff93d8;color:#ffe1f2;border-radius:30px;padding:5px 9px;font-size:11px;background:#8c2b6738;display:inline-block}
+label{display:block;margin:15px 0 7px;color:#ffcfec;font-size:12px}
+input,textarea{display:block;width:100%;background:#190e23;color:white;border:1px solid #e375c0;border-radius:14px;padding:13px;font:inherit;resize:vertical}
+input:focus,textarea:focus{outline:2px solid #fc83d3}
+.foot{position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:540px;width:100%;background:#140b19f5;border-top:1px solid #d85eb5;padding:12px 14px calc(12px + env(safe-area-inset-bottom));display:flex;justify-content:space-around;gap:8px}
+.foot button{background:none;border:0;color:#bd9cb9;font-size:12px;padding:7px;cursor:pointer}.foot button.active{color:#ff84d0}
+.notice{padding:10px 12px;background:#4d254b;border-radius:12px;color:#ffdaef;font-size:12px;line-height:1.5}
+</style></head><body><main class="app">
+<header><div class="brand">✦ DAME CAMELIAS</div><span class="chip">ДИЗАЙН-ПРОТОТИП</span></header>
+<section class="screen" id="profiles"><div class="intro"><small>ВАШЕ ПРОСТРАНСТВО</small><h1>ASHOO ✦</h1><p>Ваши анкеты и отзывы. Отдельно от IntimCity.</p></div>
+<div class="summary"><div><small>💎 Общий баланс публикаций</small><br><strong>—</strong><div class="note">Баланс не загружен в прототипе</div></div><span style="font-size:34px">💗</span></div>
+<div class="notice">✍️ Только отзывы. Один отзыв ASHOO расходует 2 публикации. Сейчас отправка на сайт отключена.</div>
+<div class="section">🌸 Ваши анкеты</div>
+<div class="card"><div class="step"><div class="icon">🌸</div><div class="details"><b>Анкеты ASHOO пока не добавлены</b><small>Данные IntimCity сюда не переносятся.</small></div></div></div>
+<button class="primary wide" onclick="show('add')">＋ Добавить анкету</button>
+<div class="section">✍️ Оставить отзыв</div>
+<div class="card"><div class="step"><div class="icon">✍️</div><div class="details"><b>Перейти к отзыву</b><small>Анкета → мужчина → текст → согласование → проверка статуса</small></div><span class="arrow">›</span></div><button class="secondary wide" onclick="show('review')">Посмотреть маршрут</button></div></section>
+<section class="screen" id="add" hidden><button class="back" onclick="show('profiles')">← К анкетам</button><h2>🌸 Добавить анкету ASHOO</h2>
+<div class="card"><label for="url">Ссылка на анкету ASHOO</label><input id="url" type="url" placeholder="Вставьте адрес анкеты" autocomplete="off">
+<p class="note">Поиск и проверка анкеты будут реализованы отдельно. Этот прототип не сохраняет и не отправляет ссылки.</p>
+<button class="primary wide" disabled>🔎 Найти анкету · ещё не подключено</button></div></section>
+<section class="screen" id="review" hidden><button class="back" onclick="show('profiles')">← К анкетам</button><h2>✍️ Отзыв ASHOO</h2>
+<div class="card"><span class="badge">ШАГ 1 ИЗ 4</span><h3>Выберите анкету</h3><p class="note">Сначала клиентка выбирает свою сохранённую анкету ASHOO. Пока список пуст.</p><button class="secondary wide" disabled>Анкета не выбрана</button></div>
+<div class="card"><span class="badge">ШАГ 2 ИЗ 4</span><h3>Выберите мужчину</h3><p class="note">Здесь показываются только мужчины с проверенным и разрешённым подключением ASHOO. Все 13 выбранных сейчас неактивны.</p><button class="secondary wide" disabled>Нет активных мужчин</button></div>
+<div class="card"><span class="badge">ШАГ 3 ИЗ 4</span><h3>Текст отзыва</h3><label for="reviewText">Авторский текст</label><textarea id="reviewText" rows="4" placeholder="Текст реального отзыва, основанного на собственном опыте" disabled></textarea><p class="note">Передача текста станет доступна после проверки анкеты и подключения мужчины.</p></div>
+<div class="card"><span class="badge">ШАГ 4 ИЗ 4</span><h3>Проверка и согласование</h3><p class="note">Стоимость: 2 публикации. Решение модератора записывается отдельно для ASHOO; повторный отзыв к той же анкете блокируется.</p><button class="primary wide" disabled>🔒 Отправить на согласование · недоступно</button></div></section>
+<section class="screen" id="history" hidden><button class="back" onclick="show('profiles')">← Назад</button><h2>📸 История ASHOO</h2><div class="card">Публикаций ASHOO пока нет.<p class="note">В готовом приложении события будут отображаться в общей истории с обозначением площадки.</p></div></section>
+<section class="screen" id="wallet" hidden><button class="back" onclick="show('profiles')">← Назад</button><h2>💎 Кабинет</h2><div class="card">Общий баланс: —<p class="note">Прототип не связан с балансом. Никаких списаний не выполняется.</p></div></section>
+</main><nav class="foot" aria-label="Навигация ASHOO"><button onclick="show('profiles')" data-nav="profiles" class="active">💗<br>ASHOO</button><button onclick="show('history')" data-nav="history">📸<br>История</button><button onclick="show('wallet')" data-nav="wallet">💎<br>Кабинет</button></nav>
+<script>
+function show(id){document.querySelectorAll('.screen').forEach(n=>n.hidden=n.id!==id);document.querySelectorAll('[data-nav]').forEach(n=>n.classList.toggle('active',n.dataset.nav===id));window.scrollTo(0,0)}
+</script></body></html>
