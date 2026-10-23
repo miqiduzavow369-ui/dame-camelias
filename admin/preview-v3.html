@@ -850,7 +850,7 @@ function renderManConsole(){
    identityHeader+'<div class="note">Действующий аккаунт. Настройки и публикации работают по прежнему маршруту.</div>'+
    '<div class="card"><strong>Техническое имя</strong><p class="hint">'+
    (drafted?'Дополнительный email сохранён.':'Можно сохранить дополнительный технический email.')+'</p>'+
-   '<button class="secondary" onclick="openManPrivate()">Посмотреть / изменить →</button></div>'+renderAshooConnection(identity);
+   '<button class="secondary" onclick="openManPrivate()">Посмотреть / изменить →</button></div>'+(typeof renderAshooConnection==='function'?renderAshooConnection(identity):'');
  }
  const loaded=!!data&&!wizardLoading&&!wizardError;
  const connection=data?.connection;
@@ -883,7 +883,7 @@ function renderManConsole(){
   '<button class="secondary" onclick="openManProxy()">🌐 Личный прокси</button>'+
   (proxySaved?'<button class="secondary" onclick="openManSite()">🔐 Кабинет Intimcity</button>':'')+
   (ready?'<button class="secondary danger" onclick="updateManOwnerApproval(false)" '+(manApprovalBusy?'disabled':'')+'>⏸ Отозвать подключение</button>':'')+'</details>')+
- '<button class="secondary man-step-refresh" onclick="refreshManWizard()" '+(wizardLoading?'disabled':'')+'>↻ Обновить состояние</button>'+renderAshooConnection(identity);
+ '<button class="secondary man-step-refresh" onclick="refreshManWizard()" '+(wizardLoading?'disabled':'')+'>↻ Обновить состояние</button>'+(typeof renderAshooConnection==='function'?renderAshooConnection(identity):'');
 }
 
 function renderManSiteForm(){
