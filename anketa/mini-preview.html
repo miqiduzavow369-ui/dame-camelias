@@ -330,28 +330,35 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 .rating-countdown-progress{height:100%;width:0%;border-radius:inherit;background:linear-gradient(90deg,#99703a,#efd19c);transition:width .4s linear}
 .rating-countdown-caption{color:#d3bea0;font-size:12px;line-height:1.5;margin:0}
 
-/* ASHOO phase 1: UI-only and fully scoped. All existing IntimCity styles remain unchanged. */
-#tab-ashoo{--apink:#ff6fcb;--apale:#fff0fa;--alilac:#d29aff;--aframe:#ff8cda;color:var(--apale);position:relative;padding-bottom:22px}
-#tab-ashoo .ashoo-title{font:700 42px Georgia,serif;color:#ff83d3;text-shadow:0 0 18px #f52eb37a;margin:8px 0}
-#tab-ashoo .ashoo-eyebrow{color:#ffbfe5;font-size:12px;letter-spacing:2px}
-#tab-ashoo p{color:#f6d0ea;font-size:13px;line-height:1.55}
-#tab-ashoo .ashoo-card{border:1px solid var(--aframe);border-radius:22px;background:radial-gradient(circle at 100% 0%,#ea2f9c37,transparent 60%),linear-gradient(140deg,#381537,#1b0d2a);box-shadow:0 0 0 1px #ff99d92b,0 0 19px #ef41b33a;padding:17px;margin:15px 0}
-#tab-ashoo .ashoo-card h2{color:#ffe6f5;font-size:19px}
-#tab-ashoo .ashoo-credit{display:flex;align-items:center;justify-content:space-between;gap:12px}
-#tab-ashoo .ashoo-credit strong{display:block;color:white;font-size:31px;margin:5px 0}
-#tab-ashoo .ashoo-meta{color:#ffb8e3;font-size:12px;line-height:1.55}
-#tab-ashoo .ashoo-btn{display:block;width:100%;border-radius:15px;border:1px solid #ff80d0;padding:14px;margin-top:12px;background:linear-gradient(100deg,#f52ba2,#a43bf3);color:white;font-weight:750;font-size:14px}
-#tab-ashoo .ashoo-btn:disabled{opacity:.6;cursor:not-allowed;background:#69345d}
-#tab-ashoo .ashoo-step{border-top:1px solid #fc8ed747;padding:15px 0}
+/* ASHOO light editorial composition, scoped: IntimCity and nav remain untouched. */
+#tab-ashoo{--apink:#df318e;--apale:#fffafc;--aframe:#ed65ad;color:#3c2240;position:relative;isolation:isolate;padding:23px 0 28px}
+#tab-ashoo::before{content:"";position:absolute;pointer-events:none;z-index:-1;inset:0 -17px auto;min-height:740px;background:radial-gradient(ellipse 48% 39% at 88% 20%,#f7a6d7bd,transparent 86%),radial-gradient(ellipse 48% 37% at 76% 64%,#c7a2f48f,transparent 85%),linear-gradient(155deg,#fffdfd 0%,#fff0f9 57%,#f9e9ff 100%);border-radius:0 0 28px 28px}
+#tab-ashoo .ashoo-top-composition{position:relative;min-height:330px;padding-top:2px}
+#tab-ashoo .ashoo-top-composition::after{content:"";pointer-events:none;position:absolute;right:-13px;top:10px;width:41%;height:300px;border-radius:50% 35% 48% 48%;background:radial-gradient(ellipse at 55% 43%,#ffffffb0 0 9%,#f9c8e9bd 29%,#da83c7a0 53%,transparent 74%);filter:blur(2px);opacity:.64;z-index:-1}
+#tab-ashoo .ashoo-intro{position:relative;z-index:1;max-width:74%}
+#tab-ashoo .ashoo-eyebrow{color:#8d4b87;font-size:11px;letter-spacing:1.6px}
+#tab-ashoo .ashoo-title{font:700 clamp(36px,10vw,46px) Georgia,serif;color:#ce308b;text-shadow:0 2px 12px #f5aed87a;margin:9px 0}
+#tab-ashoo p{color:#65415e;font-size:13px;line-height:1.5}
+#tab-ashoo .ashoo-intro p{margin:7px 0 16px}
+#tab-ashoo .ashoo-card{border:1.5px solid var(--aframe);border-radius:22px;background:linear-gradient(130deg,#fffdfef5,#ffe8f7e8);box-shadow:inset 0 1px #fff,0 5px 18px #d23f9752;padding:16px;margin:12px 0}
+#tab-ashoo .ashoo-card h2{color:#662751;font-size:18px}
+#tab-ashoo .ashoo-credit{width:63%;max-width:345px;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:15px 12px;position:relative;z-index:1;margin-top:18px;background:linear-gradient(125deg,#fff8fcf3,#ffe2f4df);backdrop-filter:blur(7px)}
+#tab-ashoo .ashoo-credit strong{display:block;color:#9c246e;font:700 48px Georgia,serif;margin:3px 0;text-shadow:0 1px #fff}
+#tab-ashoo .ashoo-credit>span{font-size:26px!important}
+#tab-ashoo .ashoo-meta{color:#8a5480;font-size:11px;line-height:1.45}
+#tab-ashoo .ashoo-btn{display:block;width:100%;border-radius:14px;border:1px solid #e659a8;padding:13px;margin-top:12px;background:linear-gradient(100deg,#f052a7,#b26beb);color:white;font-weight:750;font-size:13px}
+#tab-ashoo .ashoo-btn:disabled{opacity:1;cursor:not-allowed;background:#f6ddea;color:#916c88;border-color:#d99abe;box-shadow:none}
+#tab-ashoo .ashoo-step{border-top:1px solid #e4b5d3;padding:13px 0}
 #tab-ashoo .ashoo-step:first-of-type{border:0}
-#tab-ashoo .ashoo-stage{display:inline-block;color:#ffb4e0;border:1px solid #d66bca;border-radius:30px;padding:3px 9px;margin-bottom:7px;font-size:11px}
-#tab-ashoo .ashoo-warning{border-radius:13px;padding:12px;background:#5d25552b;color:#ffe0f3;font-size:12px;line-height:1.5}
-#tab-ashoo .ashoo-section{font-size:19px;font-weight:750;margin:22px 0 10px;color:#fff0fa}
-#tab-ashoo .ashoo-male{border:1px solid #b65baf;border-radius:14px;padding:12px;margin:8px 0;display:flex;gap:12px;align-items:center;background:#220f2c}
+#tab-ashoo .ashoo-stage{display:inline-block;color:#ad3787;border:1px solid #e89ac4;border-radius:30px;padding:3px 9px;margin-bottom:5px;font-size:11px}
+#tab-ashoo .ashoo-warning{border:1px solid #f1c7e0;border-radius:14px;padding:12px;background:#fff8fcf2;color:#7c5570;font-size:12px;line-height:1.5;margin:22px 0 26px}
+#tab-ashoo .ashoo-section{font-size:20px;font-weight:750;margin:24px 0 11px;color:#692c5b}
+#tab-ashoo .ashoo-male{border:1px solid #d894c2;border-radius:14px;padding:12px;margin:8px 0;display:flex;gap:12px;align-items:center;background:#fff0f9}
 #tab-ashoo .ashoo-male img{width:43px;height:54px;border-radius:9px;object-fit:cover;flex:none}
 #tab-ashoo .ashoo-male .ashoo-male-copy{flex:1;min-width:0}
-#tab-ashoo .ashoo-male small{display:block;color:#dcb9d5;margin-top:4px}
-#tab-ashoo .ashoo-inactive{font-size:11px;color:#ffd0e9;border:1px solid #9c5986;border-radius:15px;padding:4px 7px}
+#tab-ashoo .ashoo-male small{display:block;color:#8a6486;margin-top:4px}
+#tab-ashoo .ashoo-inactive{font-size:11px;color:#a04e8a;border:1px solid #ce98c0;border-radius:15px;padding:4px 7px}
+@media(max-width:390px){#tab-ashoo .ashoo-credit{width:67%;padding:13px 10px}#tab-ashoo .ashoo-credit strong{font-size:41px}#tab-ashoo .ashoo-meta{font-size:10px}#tab-ashoo .ashoo-top-composition{min-height:310px}}
 #ashoo-nav-entry[hidden]{display:none!important}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
@@ -372,10 +379,11 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 <button class="ghost" id="openLegacy" type="button">⬅️ Вернуться в Telegram</button>
 </section>
 <section id="tab-ashoo" hidden aria-label="ASHOO · только макет">
-<div class="ashoo-eyebrow">💗 DAME CAMELIAS · ВАШЕ ПРОСТРАНСТВО</div>
+<div class="ashoo-top-composition">
+<div class="ashoo-intro"><div class="ashoo-eyebrow">ВАШЕ ПРОСТРАНСТВО</div>
 <h1 class="ashoo-title">ASHOO ✦</h1>
-<p>Отдельное пространство для ваших анкет и отзывов. Без оценок.</p>
-<div class="ashoo-card ashoo-credit"><div><div class="ashoo-meta">💎 ЕДИНЫЙ БАЛАНС ПУБЛИКАЦИЙ</div><strong id="ashooBalance">—</strong><div class="ashoo-meta">Один отзыв ASHOO = 2 публикации</div></div><span style="font-size:37px" aria-hidden="true">💗</span></div>
+<p>Ваши анкеты и отзывы.</p></div>
+<div class="ashoo-card ashoo-credit"><div><div class="ashoo-meta">💎 ЕДИНЫЙ БАЛАНС ПУБЛИКАЦИЙ</div><strong id="ashooBalance">—</strong><div class="ashoo-meta">Один отзыв ASHOO = 2 публикации</div></div><span style="font-size:37px" aria-hidden="true">💗</span></div></div>
 <div class="ashoo-warning">🔒 Предварительный интерфейс. ASHOO ещё не подключён. Никаких публикаций, списаний и изменений анкет здесь не происходит.</div>
 <div class="ashoo-section">🌸 Ваши анкеты ASHOO</div>
 <div class="ashoo-card"><h2>Анкеты ещё не добавлены</h2><p>Анкеты IntimCity не переносятся: у ASHOO будет собственный список, добавление, просмотр и удаление.</p><button type="button" class="ashoo-btn" disabled>＋ Добавить анкету · ожидает подключения</button></div>
