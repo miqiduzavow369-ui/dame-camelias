@@ -368,18 +368,15 @@ body:has(#tab-ashoo:not([hidden])) .app{
 }
 body:has(#tab-ashoo:not([hidden])) .app::before{
   content:"";position:absolute;z-index:-1;pointer-events:none;
-  top:0;left:0;right:0;height:1150px;
+  top:0;left:0;right:0;bottom:0;
+  /* Long artwork is width-fitted like IntimCity, never stretched or cover-cropped. */
   background-image:
    linear-gradient(90deg,rgba(255,249,253,.91) 0%,rgba(255,247,253,.46) 26%,rgba(255,247,253,.04) 49%,transparent 64%),
-   linear-gradient(180deg,rgba(255,247,253,0) 0%,rgba(255,247,253,0) 56%,#fff6fc 96%),
-   url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/ashoo-bg-sakura-luxe-9x16.webp");
+   linear-gradient(180deg,transparent 0px,transparent 790px,rgba(255,246,252,.14) 1020px,rgba(255,246,252,.5) 1260px,rgba(255,246,252,.9) 1470px,#fff6fc 1670px),
+   url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/ashoo-bg-sakura-luxe-long.webp");
   background-position:center top,center top,center -55px;
-  /* City uses width-based sizing, not cover. Fit more of the full body vertically. */
   background-size:100% 100%,100% 100%,100% auto;
   background-repeat:no-repeat;
-  /* Dissolve the artwork before the source image ends, without moving/cropping it. */
-  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 67%,rgba(0,0,0,.82) 76%,rgba(0,0,0,.35) 87%,transparent 96%);
-  mask-image:linear-gradient(to bottom,#000 0%,#000 67%,rgba(0,0,0,.82) 76%,rgba(0,0,0,.35) 87%,transparent 96%);
 }
 /* The same background starts behind the DAME CAMELIAS header: no black strip. */
 body:has(#tab-ashoo:not([hidden])) .app>header{
