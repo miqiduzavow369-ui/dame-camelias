@@ -1,3 +1,5 @@
+import {STATIC_PAGES} from "./generated/static_pages.js";
+import {PUBLIC_MEDIA_BASE,readPublicMedia,isPublicMediaPath} from "./static_media.js";
 import {handleAgreement,agreementStatus,agreementRPC} from "./agreement.js";
 import {handleModeration} from "./review_moderation.js";
 import {handleSecondaryReviewGroupCallback,handleSecondaryReviewCorrection} from "./secondary_review_moderation_notice.js";
@@ -15,7 +17,7 @@ const MAIN = [
   [{ text: "📝 Заказ", callback_data: "order" }, { text: "💬 Менеджер", url: MANAGER_URL }]
 ]
 const back = [[{ text: "← Главное меню", callback_data: "home" }]];
-const MEDIA_BASE = "https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/";
+const MEDIA_BASE = PUBLIC_MEDIA_BASE + "assets/";
 const VISUAL_BASE = MEDIA_BASE + "visual-v2/";
 const MEDIA = {
   welcome: { type: "photo", url: VISUAL_BASE + "01_welcome_square.jpg" },
@@ -91,7 +93,7 @@ async function telegram(env, method, data) {
 }
 async function sendPhotoFile(env, data, url) {
   data = protectOutgoing("sendPhoto", data);
-  const imageResponse = await fetch(url);
+  const imageResponse = await readPublicMedia(env,url);
   if (!imageResponse.ok) throw new Error("Image fetch HTTP " + imageResponse.status);
   const imageData = await imageResponse.arrayBuffer();
   if (!imageData.byteLength || imageData.byteLength > 10 * 1024 * 1024)
@@ -655,10 +657,14 @@ import {BACKUP_PATH, handleLedgerBackup} from "./admin_ledger_backup.js";
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(isPublicMediaPath(url.pathname)){
+      if(url.search)return new Response("Not found",{status:404});
+      return readPublicMedia(env,new URL(url.pathname,PUBLIC_MEDIA_BASE).href,{method:request.method});
+    }
     if (url.pathname === BACKUP_PATH) return handleLedgerBackup(request, env);
     if (request.method === "GET" && url.pathname === "/") return new Response("DAME CAMELIAS bot is ready");
     if (request.method === "GET" && url.pathname === "/order") {
-      const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/order/index.html");
+      const result = new Response(STATIC_PAGES["order/index.html"]);
       if (!result.ok) return new Response("Form unavailable", { status: 502 });
       return new Response(result.body, { headers: { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
     }
@@ -675,12 +681,12 @@ export default {
       if(!await validWebApp(body?.initData,env.BOT_TOKEN,900))return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
       let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(uid!=="5866034656")return new Response("Forbidden",{status:403,headers:{"Cache-Control":"no-store"}});
-      const html=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/admin/preview-v3.html?admin_version=6_20261017_gold_normalwindow",{cache:"no-store"});
+      const html=new Response(STATIC_PAGES["admin/preview-v3.html"]);
       if(!html.ok)return new Response("Admin preview unavailable",{status:503});
       return new Response(await html.text(),{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Robots-Tag":"noindex, nofollow","X-Content-Type-Options":"nosniff"}});
     }
     if(request.method==="GET"&&url.pathname==="/anketa/mini-preview"){
-      const result=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/mini-preview.html?restore="+Date.now(),{cache:"no-store"});
+      const result=new Response(STATIC_PAGES["anketa/mini-preview.html"]);
       if(!result.ok)return new Response("Preview unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src 'self'; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
     }
@@ -853,7 +859,7 @@ export default {
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store"}});
     }
     if (request.method === "GET" && url.pathname === "/anketa/ratings") {
-      const result = await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/ratings.html");
+      const result = new Response(STATIC_PAGES["anketa/ratings.html"]);
       if (!result.ok) return new Response("Form unavailable",{status:502});
       return new Response(result.body,{headers:{"Content-Type":"text/html; charset=utf-8","X-Content-Type-Options":"nosniff","Cache-Control":"no-store"}});
     }

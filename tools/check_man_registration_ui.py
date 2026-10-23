@@ -49,7 +49,8 @@ with sync_playwright() as p:
             return request_route.fulfill(status=200,content_type="text/html",body=HTML)
         if request.url=="https://telegram.org/js/telegram-web-app.js":
             return request_route.fulfill(status=200,content_type="text/javascript",body="window.Telegram={WebApp:{initData:'synthetic',ready(){},expand(){}}}")
-        portrait=re.fullmatch(r"https://raw\.githubusercontent\.com/miqiduzavow369-ui/dame-camelias/main/assets/admin_men/(dc_man_\d{2}\.webp)",request.url)
+        assert "raw.githubusercontent.com" not in request.url,"Browser must not depend on public GitHub"
+        portrait=re.fullmatch(r"https://registration\.test/media/assets/admin_men/(dc_man_\d{2}\.webp)",request.url)
         if portrait:
             return request_route.fulfill(status=200,content_type="image/webp",
                 body=(ROOT/"assets/admin_men"/portrait.group(1)).read_bytes())

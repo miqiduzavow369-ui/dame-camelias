@@ -499,8 +499,8 @@ test("prepared banner uploads valid PNG bytes to the correct chat and fails to c
  const {readFile}=await import("node:fs/promises");
  const png=await readFile(new URL("../assets/balance_cards/balance_03.png",import.meta.url));
  const s=setup();await s.create(a);const original=globalThis.fetch;const photos=[];
+ s.env.ASSETS={fetch:async()=>new Response(png,{headers:{"Content-Type":"image/png"}})};
  globalThis.fetch=async(url,opt)=>{
-  if(String(url).includes("raw.githubusercontent.com"))return new Response(png,{headers:{"Content-Type":"image/png"}});
   if(String(url).endsWith("/sendPhoto")){
    photos.push(opt.body);return Response.json({ok:true,result:{message_id:300}});
   }throw Error("Unexpected network call");
@@ -509,7 +509,7 @@ test("prepared banner uploads valid PNG bytes to the correct chat and fails to c
   await s.login(a);assert.equal(photos.length,1);const form=photos[0];
   assert.equal(form.get("chat_id"),a);assert.equal(form.get("protect_content"),"true");assert.equal(form.get("photo").type,"image/png");
   assert.deepEqual(new Uint8Array(await form.get("photo").arrayBuffer()),new Uint8Array(png));
-  globalThis.fetch=async()=>new Response("invalid bytes",{status:200});await s.run(a,"owner_anketa:open");
+  s.env.ASSETS.fetch=async()=>new Response("invalid bytes",{status:200});await s.run(a,"owner_anketa:open");
   const fallback=s.sent.filter(x=>x.method==="sendMessage"||x.method==="editMessageText").at(-1).payload.text;
   assert.match(fallback,/3 ПУБЛИКАЦИЙ/);assert.doesNotMatch(fallback,/Диагностика|Техническая информация/);
  }finally{globalThis.fetch=original;}

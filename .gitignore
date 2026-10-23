@@ -1,0 +1,19 @@
+# Local credentials, browser sessions, exports and generated deployment media.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.har
+playwright/.auth/
+storage-state*.json
+cookies*.json
+.static-assets/
+.wrangler/
+node_modules/
+__pycache__/
+registration-ui-check/
+review-ui-check/

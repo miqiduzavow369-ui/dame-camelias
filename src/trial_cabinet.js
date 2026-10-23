@@ -1,3 +1,4 @@
+import {PUBLIC_MEDIA_BASE,readPublicMedia} from "./static_media.js";
 import {clientKey} from "./client_isolation.js";
 import {dispatchClientLookup} from "./client_lookup.js";
 import {matchingVerifiedProfile} from "./client_profile_view.js";
@@ -8,7 +9,7 @@ const USER_ID = "5627932577";
 const KEY = "trial_cabinet_v1:" + USER_ID + ":";
 const PIN_SHA256 = "edee29f882543b956620b26d0ee0e7e950399b1c4222f5de05e06425b4c995e9";
 const PROFILE_URL = /^https:\/\/([a-z0-9-]+\.intimcity\.rip)\/indi\/anketa(\d{1,9})\.htm$/i;
-const PREMIUM="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
+const PREMIUM=PUBLIC_MEDIA_BASE+"assets/balance_cards/";
 const menu = {inline_keyboard:[
   [{text:"➕ Ввести новую анкету",callback_data:"trial_cabinet:add"}],
   [{text:"🏠 В начало",callback_data:"trial_cabinet:home"}]
@@ -40,7 +41,7 @@ async function cabinetPage(env,send,text,remaining,buttons){
   if(Number.isInteger(count)&&count>=0&&count<=20&&env.BOT_TOKEN){
     try{
       const url=PREMIUM+"balance_"+String(count).padStart(2,"0")+".png";
-      const img=await fetch(url,{signal:AbortSignal.timeout(8000)});
+      const img=await readPublicMedia(env,url);
       if(!img.ok)throw Error("card fetch");
       const bytes=await img.arrayBuffer();
       const header=new Uint8Array(bytes.slice(0,4));

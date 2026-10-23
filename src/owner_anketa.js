@@ -1,3 +1,4 @@
+import {PUBLIC_MEDIA_BASE,readPublicMedia} from "./static_media.js";
 import {agreementStatus} from "./agreement.js";
 import {moderationRPC,MODERATION_CHAT} from "./review_moderation.js";
 import {sendWithLoadingEmoji} from "./loading_emoji.js";
@@ -427,11 +428,11 @@ const ACCOUNT_CARD_FILES={yan_first:"yan_first.jpg"};
 async function accountCardNavigation(env,send,account,id,text,reply_markup){
   const file=ACCOUNT_CARD_FILES[account];
   if(!file)return navigationSay(env,send,text,reply_markup,"HTML");
-  const url="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/"+file;
+  const url=PUBLIC_MEDIA_BASE+"assets/account_cards/"+file;
   // Check before asking Telegram to fetch the photo, so missing assets
   // do not interrupt the account menu during a staged deployment.
   try{
-    const image=await fetch(url,{method:"HEAD",signal:AbortSignal.timeout(5000)});
+    const image=await readPublicMedia(env,url,{method:"HEAD"});
     if(!image.ok || !String(image.headers.get("content-type")||"").startsWith("image/"))
       return navigationSay(env,send,text,reply_markup,"HTML");
     const rows=reply_markup?.inline_keyboard||[];
@@ -449,11 +450,10 @@ async function accountCardNavigation(env,send,account,id,text,reply_markup){
     return navigationSay(env,send,text,reply_markup,"HTML");
   }
 }
-const PREMIUM_CARDS="https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/balance_cards/";
+const PREMIUM_CARDS=PUBLIC_MEDIA_BASE+"assets/balance_cards/";
 async function sendPreparedCard(env,url,caption,reply_markup){
-  // Download the public static PNG from GitHub in the Worker and upload it
-  // directly to Telegram. Telegram's servers never need to fetch GitHub URLs.
-  const image=await fetch(url,{signal:AbortSignal.timeout(10000)});
+  // Read the packaged decorative PNG and upload the same bytes to Telegram.
+  const image=await readPublicMedia(env,url);
   if(!image.ok)throw Error("Premium PNG HTTP "+image.status);
   const bytes=await image.arrayBuffer();
   if(bytes.byteLength<100 || bytes.byteLength>500000)

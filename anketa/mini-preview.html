@@ -137,7 +137,7 @@ p,.muted,.mini{color:#b6ab99}
 #tab-profiles::before{
  content:"";position:absolute;z-index:-1;pointer-events:none;
  inset:-16px -17px auto;min-height:1100px;opacity:1;
- background-image:linear-gradient(to bottom,#0807060a 0%,#09080608 28%,#0b090841 63%,#090807 97%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/work-main-premium-bg-alt.webp");
+ background-image:linear-gradient(to bottom,#0807060a 0%,#09080608 28%,#0b090841 63%,#090807 97%),url("/media/anketa/work-main-premium-bg-alt.webp");
  background-position:center top,center top;background-repeat:no-repeat;
  background-size:100% 100%,100% auto;
  -webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 67%,transparent 100%);
@@ -170,7 +170,7 @@ body:has(#tab-profiles:not([hidden])) .app{position:relative;isolation:isolate}
 body:has(#tab-profiles:not([hidden])) .app::before{
  content:"";position:absolute;z-index:-1;pointer-events:none;
  top:0;left:0;right:0;height:1250px;
- background-image:linear-gradient(180deg,#09080748 0%,#09080716 24%,#09080716 49%,#090807d9 97%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/work-main-premium-bg-alt.webp");
+ background-image:linear-gradient(180deg,#09080748 0%,#09080716 24%,#09080716 49%,#090807d9 97%),url("/media/anketa/work-main-premium-bg-alt.webp");
  background-repeat:no-repeat;
  background-position:center top,center -60px;
  background-size:100% 100%,100% auto;
@@ -205,14 +205,14 @@ body:has(#tab-cabinet:not([hidden])) .app::before{
  mask-image:linear-gradient(#000 0%,#000 85%,transparent 100%);
 }
 body:has(#tab-published:not([hidden])) .app::before{
- background-image:linear-gradient(180deg,#08070650,#08070630 32%,#080706b8 92%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/history-premium-bg.webp");
+ background-image:linear-gradient(180deg,#08070650,#08070630 32%,#080706b8 92%),url("/media/anketa/history-premium-bg.webp");
 }
 body:has(#detail:not([hidden])) .app::before,
 body:has(#subview:not([hidden])) .app::before{
- background-image:linear-gradient(180deg,#08070655,#08070630 34%,#080706d9 95%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/profile-work-premium-bg.webp");
+ background-image:linear-gradient(180deg,#08070655,#08070630 34%,#080706d9 95%),url("/media/anketa/profile-work-premium-bg.webp");
 }
 body:has(#tab-cabinet:not([hidden])) .app::before{
- background-image:linear-gradient(180deg,#0807064d,#08070635 35%,#080706d5 95%),url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/anketa/cabinet-premium-bg.webp");
+ background-image:linear-gradient(180deg,#0807064d,#08070635 35%,#080706d5 95%),url("/media/anketa/cabinet-premium-bg.webp");
 }
 body:has(#tab-published:not([hidden])) .app>header,
 body:has(#detail:not([hidden])) .app>header,
@@ -425,7 +425,7 @@ async function showDomainRecoveryIfNeeded(target,profileId,onComplete){
 }
 // Client-only account catalogue; only Yan First can be selected for publication.
 const manOrdinals=["Первый","Второй","Третий","Четвёртый","Пятый","Шестой","Седьмой","Восьмой","Девятый","Десятый","Одиннадцатый","Двенадцатый","Тринадцатый","Четырнадцатый","Пятнадцатый","Шестнадцатый","Семнадцатый","Восемнадцатый","Девятнадцатый","Двадцатый","Двадцать первый","Двадцать второй","Двадцать третий","Двадцать четвёртый","Двадцать пятый","Двадцать шестой","Двадцать седьмой","Двадцать восьмой","Двадцать девятый","Тридцатый"];
-let availableMen=manOrdinals.map((ordinal,i)=>({id:i===0?"yan_first":i===1?"yan_second":"yan_"+String(i+1).padStart(2,"0"),name:"Ян "+ordinal,image:"https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/account_cards/dc_man_"+String(i+1).padStart(2,"0")+".webp",enabled:i===0}));
+let availableMen=manOrdinals.map((ordinal,i)=>({id:i===0?"yan_first":i===1?"yan_second":"yan_"+String(i+1).padStart(2,"0"),name:"Ян "+ordinal,image:"/media/assets/account_cards/dc_man_"+String(i+1).padStart(2,"0")+".webp",enabled:i===0}));
 
 // All 30 account IDs, names and readiness are resolved by the server, never
 // from an ADMIN visual status, client-side edit, or static enabledByDefault.

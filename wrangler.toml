@@ -1,7 +1,7 @@
 name = "dame-camelias"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
-# Cloudflare Git-linked rebuild requested for owner-only Telegram client avatars (2026-10-23)
+# HTML and decorative media are packaged with this existing Worker.
 
 # Visitor events are viewed inside ADMINISTRATION. Telegram reports disabled.
 # Profile thumbnails share existing VISITORS_KV namespace (no R2 bucket required).
@@ -24,3 +24,10 @@ CABINET_PUBLICATIONS_ENABLED = "true"
 # Public callback endpoint; authentication remains ANKETA_CALLBACK_TOKEN secret.
 ANKETA_CALLBACK_URL = "https://dame-camelias.gptjjjgpt.workers.dev/api/anketa/result"
 
+
+[build]
+command = "node tools/build_static_files.mjs"
+
+[assets]
+directory = "./.static-assets"
+binding = "ASSETS"

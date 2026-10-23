@@ -365,7 +365,7 @@ function manTileIp(x){
 function manTilePhoto(x){
  const number=Number(x.number);
  return Number.isInteger(number)&&number>=1&&number<=30?
-  'https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/admin_men/dc_man_'+String(number).padStart(2,'0')+'.webp':'';
+  '/media/assets/admin_men/dc_man_'+String(number).padStart(2,'0')+'.webp':'';
 }
 async function toggleManClientVisibility(accountId){
  const man=manAccounts.find(m=>m.id===accountId);

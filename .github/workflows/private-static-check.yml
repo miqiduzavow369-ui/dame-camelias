@@ -1,0 +1,26 @@
+name: Private repository static transport checks
+on:
+  pull_request:
+    paths: ['src/**', 'assets/**', 'admin/**', 'anketa/**', 'order/**', 'config/public_media.json', 'tools/build_static_files.mjs', 'tools/check_static_worker.mjs', 'tests/private_static_transport.test.mjs', 'wrangler.toml', '.github/workflows/private-static-check.yml']
+  push:
+    branches: [main]
+    paths: ['src/**', 'assets/**', 'admin/**', 'anketa/**', 'order/**', 'config/public_media.json', 'tools/build_static_files.mjs', 'tools/check_static_worker.mjs', 'tests/private_static_transport.test.mjs', 'wrangler.toml', '.github/workflows/private-static-check.yml']
+permissions:
+  contents: read
+jobs:
+  package-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check committed HTML and protected routes without external network
+        run: node --import ./tests/helpers/offline_fetch.mjs --test tests/private_static_transport.test.mjs
+      - name: Package the reviewed decorative files and server-only HTML
+        run: node tools/build_static_files.mjs
+      - name: Compile the existing Worker locally without deployment or credentials
+        run: npx --yes wrangler@4.152.0 deploy --dry-run
+      - name: Verify actual local asset routing without production credentials
+        run: node tools/check_static_worker.mjs

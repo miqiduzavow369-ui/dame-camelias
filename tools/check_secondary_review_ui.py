@@ -21,6 +21,7 @@ with sync_playwright() as p:
     page.on("pageerror",lambda e:errors.append(str(e)))
     def route(r):
         req=r.request
+        assert "raw.githubusercontent.com" not in req.url,"Cabinet must not depend on public GitHub"
         if req.url=="https://review.test/":return r.fulfill(status=200,content_type="text/html",body=HTML)
         if req.url=="https://telegram.org/js/telegram-web-app.js":
             return r.fulfill(status=200,content_type="text/javascript",body="window.Telegram={WebApp:{initData:'synthetic',ready(){},expand(){},BackButton:{show(){},hide(){},onClick(){}}}}")
