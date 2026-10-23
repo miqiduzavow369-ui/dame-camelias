@@ -8,7 +8,7 @@ import {mediaType} from './build_static_files.mjs';
 
 const origin='http://127.0.0.1:8790';
 const child=spawn('npx',['--yes','wrangler@4.152.0','dev','--local','--port','8790','--ip','127.0.0.1','--log-level','error'],{
- stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}
+ detached:true,stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}
 });
 let logs='';for(const stream of [child.stdout,child.stderr])stream.on('data',b=>{logs=(logs+b).slice(-4000);});
 const get=path=>fetch(origin+path,{signal:AbortSignal.timeout(3000),redirect:'manual'});
@@ -36,7 +36,9 @@ try{
  }
  console.log('Local Worker: public pages, protected ADMIN, denied internal paths and '+PUBLIC_MEDIA_PATHS.length+' exact media files verified');
 }finally{
- child.kill('SIGTERM');
+ // npx starts Wrangler/workerd descendants: stop this test's entire isolated group.
+ try{process.kill(-child.pid,'SIGTERM');}catch(e){if(e.code!=='ESRCH')throw e;}
  await Promise.race([new Promise(resolve=>child.once('exit',resolve)),new Promise(resolve=>setTimeout(resolve,2000))]);
- if(child.exitCode===null)child.kill('SIGKILL');
+ try{process.kill(-child.pid,'SIGKILL');}catch(e){if(e.code!=='ESRCH')throw e;}
+ child.stdout.destroy();child.stderr.destroy();
 }
