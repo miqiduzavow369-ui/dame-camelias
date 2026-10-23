@@ -13,7 +13,8 @@ ACCOUNTS=[dict(id="yan_first" if i==0 else "yan_second" if i==1 else f"yan_{i+1:
     displayIp=None if i==0 else f"45.39.104.{i+1}",
     connection="legacy_active" if i==0 else "not_configured",
     visibility=dict(visible=True,version=0)) for i,name in enumerate(NAMES)]
-ACCOUNTS[1]["readiness"]=dict(connectionReady=True)
+ACCOUNTS[1]["readiness"]=dict(connectionReady=True,technicalReady=True)
+ACCOUNTS[1]["networkStatus"]=dict(configured=True,proxyVerified=True,ipVerified=True)
 ACCOUNTS[2]["readiness"]=dict(technicalReady=True,siteIdentityVerified=True)
 OUT=ROOT/"registration-ui-check"
 OUT.mkdir(exist_ok=True)
