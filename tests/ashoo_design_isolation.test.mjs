@@ -4,12 +4,15 @@ import {readFileSync} from 'node:fs';
 
 const mini=readFileSync(new URL('../anketa/mini-preview.html',import.meta.url),'utf8');
 const admin=readFileSync(new URL('../admin/preview-v3.html',import.meta.url),'utf8');
+const worker=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
 const ashoo=readFileSync(new URL('../ashoo/design-preview.html',import.meta.url),'utf8');
 
 test('ASHOO preview remains opt-in owner-only in the shared Mini App',()=>{
  assert.match(mini,/id="ashoo-nav-entry"[^>]*hidden/);
  assert.match(mini,/function showAshooOwnerPreview\(\)/);
- assert.match(mini,/String\(user\?\.id\|\|''\)===ownerId/);
+ assert.match(mini,/const visible=ashooPreviewAllowed===true/);
+ assert.match(mini,/snapshot\.ashooPreviewEnabled===true/);
+ assert.match(worker,/ashooPreviewEnabled:uid==="5866034656"/);
  assert.match(mini,/if\(!visible&&lastTab==='ashoo'\)showTab\('profiles'\)/);
  assert.match(mini,/id="tab-profiles"/);
  assert.match(mini,/data-tab="profiles"/);
