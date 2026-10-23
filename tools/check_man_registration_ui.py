@@ -13,6 +13,9 @@ ACCOUNTS=[dict(id="yan_first" if i==0 else "yan_second" if i==1 else f"yan_{i+1:
     displayIp=None if i==0 else f"45.39.104.{i+1}",
     connection="legacy_active" if i==0 else "not_configured",
     visibility=dict(visible=True,version=0)) for i,name in enumerate(NAMES)]
+ACCOUNTS[1]["readiness"]=dict(connectionReady=True,technicalReady=True)
+ACCOUNTS[1]["networkStatus"]=dict(configured=True,proxyVerified=True,ipVerified=True)
+ACCOUNTS[2]["readiness"]=dict(technicalReady=True,siteIdentityVerified=True)
 OUT=ROOT/"registration-ui-check"
 OUT.mkdir(exist_ok=True)
 
@@ -71,6 +74,8 @@ with sync_playwright() as p:
         }""",ACCOUNTS)
         page.wait_for_function("Array.from(document.querySelectorAll('.sq-photo')).every(img=>img.complete&&img.naturalWidth>0)")
         assert page.locator(".men-square").count()==30
+        assert page.locator(".man-visibility-wrap.connected").count()==2
+        assert page.locator(".man-visibility-wrap.connected .sq-name").all_text_contents()==NAMES[:2]
         assert page.locator(".sq-number").count()==0
         assert page.locator(".sq-ip").first.inner_text()=="176.56.35.167"
         for i,account in enumerate(ACCOUNTS):
@@ -88,6 +93,9 @@ with sync_playwright() as p:
             tile.querySelector('.sq-technical').getBoundingClientRect().top+1
         })).filter(x=>x.horizontal||x.vertical||x.labelOverlap)""")
         assert not overlaps,f"Catalogue content overlap at {width}: {overlaps}"
+        heights=page.locator('.man-visibility-wrap').evaluate_all('cards=>cards.map(x=>x.getBoundingClientRect().height)')
+        assert max(heights)<185,f"Cards must be compact at {width}: {max(heights)}"
+        print(f"Compact cards at {width}: maximum height {max(heights):.1f}px")
     before=page.locator(".men-square").first.bounding_box()
     page.locator(".sq-photo").evaluate_all("imgs=>imgs.forEach(img=>img.dispatchEvent(new Event('error')))")
     after=page.locator(".men-square").first.bounding_box()
