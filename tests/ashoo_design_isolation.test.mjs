@@ -12,6 +12,7 @@ test('ASHOO preview remains opt-in owner-only in the shared Mini App',()=>{
  assert.match(mini,/function showAshooOwnerPreview\(\)/);
  assert.match(mini,/let visible=ashooPreviewAllowed===true/);
  assert.match(mini,/action:'man_accounts'/);
+ assert.match(mini,/tg\?\.initDataUnsafe\?\.user\?\.id/);
  assert.match(mini,/visible=response.ok/);
  assert.match(mini,/snapshot\.ashooPreviewEnabled===true/);
  assert.match(worker,/ashooPreviewEnabled:uid==="5866034656"/);
