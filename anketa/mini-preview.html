@@ -1234,7 +1234,7 @@ let ashooPreviewAllowed=false;
 // This is a UI-only preview and does not grant ASHOO actions.
 async function showAshooOwnerPreview(){
  let visible=ashooPreviewAllowed===true;
- if(!visible&&tg?.initData){
+ if(!visible&&tg?.initData&&String(tg?.initDataUnsafe?.user?.id||'')==='5866034656'){
   try{
    const response=await fetch('/api/admin/app',{
     method:'POST',headers:{'Content-Type':'application/json'},
