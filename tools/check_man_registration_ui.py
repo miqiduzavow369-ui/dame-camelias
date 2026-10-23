@@ -107,13 +107,16 @@ with sync_playwright() as p:
         for phase in range(4):
             current=sample(phase)
             page.evaluate("""data=>{
-                manAccounts=[{id:'yan_03',name:'Даниил Оболенский',number:3,technicalName:'daniil@example.test'}];
+                manAccounts=[{id:'yan_03',name:'Даниил Оболенский',number:3,technicalName:'daniil@example.test',displayIp:'45.39.104.3'}];
                 selectedManId='yan_03';wizardData={id:'yan_03',...data};wizardLoading=false;wizardError='';
                 state.page='man-detail';render();
             }""",current)
             assert page.locator(".registration-step").count()==3
             assert page.locator(".registration-step .primary").count()==(1 if phase<3 else 0)
             assert page.locator(".registration-ready").count()==(1 if phase==3 else 0)
+            assert page.locator('.man-identity-email').inner_text()=='daniil'
+            assert page.locator('.man-identity-ip').inner_text()==('8.8.8.8' if phase else '45.39.104.3')
+            page.wait_for_function("document.querySelector('.man-identity-photo').naturalWidth>0")
             body=page.locator("main").inner_text()
             for forbidden in ("nonce","Chromium","Диагностика","Согласовать отзыв","Билет подтверждения"):
                 assert forbidden not in body,forbidden
@@ -132,6 +135,17 @@ with sync_playwright() as p:
     page.get_by_role("button",name="✅ К подтверждению в ADMIN",exact=True).wait_for()
     assert page.locator("#manSitePassword").is_hidden(),"Saved password should not require re-entry"
     page.screenshot(path=str(OUT/"site-verified-390.png"),full_page=True)
+    for width in (320,390):
+        page.set_viewport_size(dict(width=width,height=900))
+        page.evaluate("""()=>{
+            manAccounts=[{id:'yan_first',name:'Ян Первый',number:1,technicalName:'yan.kon1@example.test'}];
+            selectedManId='yan_first';wizardData=null;wizardLoading=false;wizardError='';state.page='man-detail';render();
+        }""")
+        assert page.locator('.man-identity-email').inner_text()=='yan.kon1'
+        assert page.locator('.man-identity-ip').inner_text()=='176.56.35.167'
+        assert page.locator('.registration-step').count()==0
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+        page.screenshot(path=str(OUT/f'legacy-identity-{width}.png'),full_page=True)
     assert not errors,errors
     assert not any(x in calls for x in ("man_proxy_save","man_site_stage","secondary_man_approval_set")),"Opening a card must not save or approve"
     browser.close()

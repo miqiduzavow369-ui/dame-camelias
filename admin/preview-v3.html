@@ -242,6 +242,15 @@ body.admin-wide .footnav{max-width:1200px}
 .man-step-details summary{color:#e7c58c;font-weight:700;cursor:pointer}
 
 .man-registration-heading{position:relative;padding:16px 0 6px}.man-registration-heading h1{font-size:25px;line-height:1.2;margin-bottom:8px}.man-registration-email{font-size:14px;color:var(--gold);overflow-wrap:anywhere;margin:0 0 14px}.registration-steps{list-style:none;padding:0;margin:18px 0}.registration-step{padding:18px 15px;margin:10px 0;border:1px solid var(--line);border-radius:17px;background:linear-gradient(130deg,#201b13,#100f0d)}.registration-step.current{border-color:var(--gold);box-shadow:0 0 16px #d0a55c16}.registration-step.locked{opacity:.65}.registration-step-title{display:flex;align-items:center;gap:10px}.registration-step h2{font:600 15px/1.3 -apple-system,sans-serif;margin:0;flex:1;min-width:0}.registration-number{display:grid;place-items:center;flex:none;border:1px solid #80663a;border-radius:50%;width:28px;height:28px;color:var(--gold);font-size:13px}.registration-step.done .registration-number{color:var(--green);border-color:#638463}.registration-mark{font-size:10px;color:var(--muted);white-space:nowrap}.registration-step .hint{margin:11px 0 0;line-height:1.6}.registration-step .primary{margin-top:15px}.registration-ready{padding:16px;border:1px solid #638463;border-radius:16px;color:var(--green);line-height:1.55}.registration-ready p{font-size:12px;color:var(--muted);margin:8px 0 0}.registration-settings{margin:16px 0;padding:13px 0;color:var(--muted);font-size:12px}.registration-settings summary{cursor:pointer;color:var(--gold);padding:6px 0}.registration-settings .secondary{margin-top:10px}.man-step-refresh{margin-top:14px}.registration-subtitle{line-height:1.6}
+
+/* Display-only account identity; existing registration controls stay separate. */
+.man-identity-hero{display:flex;align-items:flex-start;gap:14px;padding:16px 14px;margin:10px 0 13px;border:1px solid #96713f;border-radius:17px;background:radial-gradient(ellipse at 100% 0%,#6e4b243d,transparent 65%),linear-gradient(135deg,#251e14,#100f0c);box-shadow:inset 0 1px #f5d99d25}
+.man-identity-copy{flex:1;min-width:0}
+.man-identity-hero h1{font-size:23px;line-height:1.2;margin:0 0 10px;overflow-wrap:anywhere;color:#f3e3c5}
+.man-identity-email{font-size:clamp(24px,7.5vw,32px);font-weight:800;line-height:1.15;letter-spacing:.01em;color:#ffe09b;text-shadow:0 0 15px #c69a4755;margin:0 0 9px;overflow-wrap:anywhere}
+.man-identity-ip{font-size:18px;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums;color:#dfc28c;margin:0;overflow-wrap:anywhere}
+.man-identity-photo{width:80px;height:100px;flex:none;object-fit:cover;object-position:center 25%;border:1px solid #c6a065;border-radius:11px;box-shadow:0 4px 15px #0005;background:#211a12}
+@media(max-width:360px){.man-identity-hero{gap:10px;padding:13px 11px}.man-identity-photo{width:68px;height:86px}.man-identity-hero h1{font-size:21px}.man-identity-ip{font-size:16px}}
 </style></head><body><div class="app"><header class="head"><div class="brand"><small>PRIVATE ACCESS · 🌹</small>DAME CAMELIAS</div><div class="head-actions"><button class="layout-toggle" id="admin-layout-toggle" type="button" onclick="toggleAdminLayout()" aria-label="Компьютерная версия" aria-pressed="false" title="Компьютерная версия">▣</button><div class="mark">✦</div></div></header><main class="body" id="app"></main><nav class="footnav"><button class="navbtn active" id="nav-clients" onclick="root('clients')"><span class="symbol">♙</span>Клиентки</button><button class="navbtn" id="nav-men" onclick="root('men')"><span class="symbol">♙</span>Мужчины</button><button class="navbtn" id="nav-reviews" onclick="root('reviews')"><span class="symbol">✉</span>Отзывы</button><button class="navbtn" id="nav-events" onclick="root('events')"><span class="symbol">◷</span>События</button></nav></div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 const ADMIN_LAYOUT_PREF = 'dame_admin_wide_layout_v1';
 function setAdminLayout(wide){
@@ -798,9 +807,15 @@ function renderManConsole(){
  if(!x)return back("go('men')")+'<h1>Аккаунт не найден</h1>';
  const legacy=x.id==='yan_first',data=wizardData?.id===x.id?wizardData:null;
  const drafted=data?.private?.configured===true;
+ const identity={...x,technicalName:data?.private?.settings?.technicalName||x.technicalName,
+  displayIp:!legacy&&data?.proxy?.configured===true?data.proxy.expectedIp||x.displayIp:x.displayIp};
+ const identityHeader='<div class="man-identity-hero"><div class="man-identity-copy"><h1>'+esc(x.name)+'</h1>'+
+  '<p class="man-identity-email">'+(manTileEmail(identity)?esc(manTileEmail(identity)):'Email не задан')+'</p>'+
+  '<p class="man-identity-ip" aria-label="IP адрес аккаунта">'+(manTileIp(identity)||'—')+'</p></div>'+
+  '<img class="man-identity-photo" src="'+manTilePhoto(x)+'" alt="'+esc(x.name)+'" width="80" height="100" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></div>';
  if(legacy){
   return back("go('men')")+'<div class="mini">👑 ADMINISTRATION</div>'+
-   '<h1>'+esc(x.name)+'</h1><div class="note">Действующий аккаунт. Настройки и публикации работают по прежнему маршруту.</div>'+
+   identityHeader+'<div class="note">Действующий аккаунт. Настройки и публикации работают по прежнему маршруту.</div>'+
    '<div class="card"><strong>Техническое имя</strong><p class="hint">'+
    (drafted?'Дополнительный email сохранён.':'Можно сохранить дополнительный технический email.')+'</p>'+
    '<button class="secondary" onclick="openManPrivate()">Посмотреть / изменить →</button></div>';
@@ -821,14 +836,13 @@ function renderManConsole(){
  ];
  const current=steps.findIndex(step=>!step.done);
  const completed=steps.filter(step=>step.done).length;
- const technical=x.technicalName?'<p class="man-registration-email">'+esc(x.technicalName)+'</p>':'';
  const rows=steps.map((step,index)=>{
   const active=index===current,locked=current>=0&&index>current;
   return '<li class="registration-step '+(step.done?'done':active?'current':'locked')+'"><div class="registration-step-title"><span class="registration-number">'+(step.done?'✓':index+1)+'</span><h2>'+esc(step.title)+'</h2><span class="registration-mark">'+(step.done?'Готово':locked?'Далее':'Текущий шаг')+'</span></div><p class="hint">'+esc(step.description)+'</p>'+
    (active?'<button class="primary" onclick="'+step.action+'" '+(manApprovalBusy?'disabled':'')+'>'+esc(manApprovalBusy&&index===2?'⏳ Подтверждаем…':step.button)+'</button>':'')+'</li>';
  }).join('');
  return back("go('men')")+'<div class="mini">🌹 DAME CAMELIAS · ПОДКЛЮЧЕНИЕ</div>'+
- '<div class="man-registration-heading"><h1>'+esc(x.name)+'</h1>'+technical+'<span class="pill">'+(ready?'✓ Готов к работе':'Шаг '+(Math.max(current,0)+1)+' из 3')+'</span></div>'+
+ '<div class="man-registration-heading">'+identityHeader+'<span class="pill">'+(ready?'✓ Готов к работе':'Шаг '+(Math.max(current,0)+1)+' из 3')+'</span></div>'+
  (wizardError?'<p class="error" role="alert">'+esc(wizardError)+'</p>':'')+
  (!loaded?'<div class="note" role="status">Загружаем состояние подключения…</div>':
   '<ol class="registration-steps" aria-label="Этапы подключения">'+rows+'</ol>'+
