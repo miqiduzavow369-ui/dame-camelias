@@ -1230,8 +1230,19 @@ $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$(
 // Visual-only owner preview. This is not an authorization control.
 // Server-side owner checks are mandatory before any future ASHOO API actions.
 let ashooPreviewAllowed=false;
-function showAshooOwnerPreview(){
- const visible=ashooPreviewAllowed===true;
+// Use the existing server-verified ADMIN endpoint until the Worker release is updated.
+// This is a UI-only preview and does not grant ASHOO actions.
+async function showAshooOwnerPreview(){
+ let visible=ashooPreviewAllowed===true;
+ if(!visible&&tg?.initData){
+  try{
+   const response=await fetch('/api/admin/app',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({initData:tg.initData,action:'man_accounts'}),cache:'no-store'
+   });
+   visible=response.ok;
+  }catch{visible=false;}
+ }
  const entry=$('ashoo-nav-entry');
  if(entry)entry.hidden=!visible;
  if(!visible&&lastTab==='ashoo')showTab('profiles');
