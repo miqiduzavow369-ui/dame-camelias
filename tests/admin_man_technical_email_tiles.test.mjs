@@ -45,7 +45,7 @@ test("all 30 tiles show their own short email, numeric IP and matching portrait 
  const ctx=createContext({manAccounts:accounts,menQuery:'',menFilter:'all',menError:'',manVisibilityBusyId:null,
   esc,menStatus:()=>({cls:'disabled',icon:'🔒',label:'Не подключён',short:'Отключён'}),manChecks:()=>'',output:null});
  new Script(helpers+dashboard+'\noutput=renderMenDashboard();').runInContext(ctx);
- const tiles=ctx.output.split('<div class="man-visibility-wrap"').slice(1);
+ const tiles=ctx.output.split('<div class="man-visibility-wrap').slice(1);
  assert.equal(tiles.length,30);
  for(const [i,x] of accounts.entries()){
   assert.ok(tiles[i].includes(esc(x.name)));
@@ -71,7 +71,14 @@ test("all 30 tiles show their own short email, numeric IP and matching portrait 
  new Script('(function(){'+handler+'}).call(photo)').runInNewContext({photo});
  assert.equal(photo.style.visibility,'hidden','failed photo keeps its layout slot');
  assert.equal(photo.hidden,undefined,'failed photo cannot collapse the card');
- assert.match(ctx.output,/width="34" height="42"/);
+ assert.match(ctx.output,/width="28" height="36"/);
+ accounts[1].readiness={connectionReady:true};
+ accounts[2].readiness={technicalReady:true,siteIdentityVerified:true};
+ new Script('output=renderMenDashboard();').runInContext(ctx);
+ const marked=ctx.output.split('<div class="man-visibility-wrap').slice(1);
+ assert.ok(marked[0].startsWith(' connected"'),'legacy working account is highlighted');
+ assert.ok(marked[1].startsWith(' connected"'),'ADMIN confirmed account is highlighted');
+ assert.ok(marked[2].startsWith('"'),'technical checks alone never get the connected highlight');
 });
 test("catalogue IP reads use current configuration before imported IP and never write or activate accounts",async()=>{
  const data=new Map();let writes=0;

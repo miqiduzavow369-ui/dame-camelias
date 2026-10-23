@@ -119,21 +119,29 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .men-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}
 .men-filters button{min-height:43px;padding:7px 2px;border:1px solid #715938;border-radius:11px;background:#1c1813;color:#cbb592;font-size:12px}
 .men-filters button.active{background:linear-gradient(105deg,#b18b4f,#e6c78e);color:#24190d;font-weight:750}
-.men-square-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0 23px}
-.men-square{min-height:184px;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:3px;text-align:left;padding:11px 10px;border:1px solid #625039;border-radius:16px;background:linear-gradient(145deg,#282017,#14120f);color:#f0dfc3;box-shadow:inset 0 1px #ffffff0b}
+.men-square-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 20px}
+.man-visibility-wrap{min-width:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid #625039;border-radius:13px;background:#17140f}
+.men-square{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:flex-start;gap:4px;text-align:left;padding:8px;border:0;border-radius:12px 12px 0 0;background:linear-gradient(145deg,#282017,#14120f);color:#f0dfc3;box-shadow:inset 0 1px #ffffff0b}
 .men-square>span{flex-shrink:0}
 .men-square:active{transform:scale(.97);border-color:#e5bb78}
 .men-square:focus-visible{outline:2px solid #e5bc77;outline-offset:2px}
 .men-square.legacy{border-color:#ad8750;background:linear-gradient(140deg,#463321,#251a10 70%,#17120d);box-shadow:inset 0 1px #f7d7a72b}
 .men-square.planning{border-color:#92734b}
-.men-square .sq-top{display:flex;justify-content:space-between;align-items:center;gap:3px}
-.men-square .sq-photo{width:34px;height:42px;object-fit:cover;object-position:center 25%;border-radius:7px;border:1px solid #92734b;background:#211a12;flex:none}
-.men-square .sq-ip{display:block;font-size:10px;line-height:1.3;color:#d9be89;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;margin-top:3px}
+.men-square .sq-top{display:flex;justify-content:space-between;align-items:flex-start;gap:5px}
+.men-square .sq-identity{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.men-square .sq-photo{width:28px;height:36px;object-fit:cover;object-position:center 25%;border-radius:6px;border:1px solid #92734b;background:#211a12;flex:none}
+.men-square .sq-ip{display:block;font-size:10px;line-height:1.3;color:#d9be89;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .men-square .sq-icon{font-size:14px;opacity:.88}
 .men-square .sq-name{font-size:12px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
-.men-square .sq-technical{display:block;font-size:11px;font-weight:700;line-height:1.3;color:#f5d999;text-shadow:0 0 7px rgba(224,177,88,.46);overflow-wrap:anywhere;word-break:break-word;max-width:100%;margin-top:3px}
+.men-square .sq-technical{display:block;font-size:11px;font-weight:700;line-height:1.3;color:#f5d999;text-shadow:0 0 7px rgba(224,177,88,.46);overflow-wrap:anywhere;word-break:break-word;max-width:100%}
 .men-square .sq-state{font-size:10px;color:#baab94;line-height:1.2}
 .men-square.legacy .sq-state{color:#afd7b5}
+.man-visibility-toggle.secondary{width:100%;min-height:30px;padding:5px 2px;margin:0;font-size:10px;line-height:1.2;border:0;border-top:1px solid #625039;border-radius:0;background:#17140f;box-shadow:none}
+.man-visibility-wrap.connected{border-color:#a9cb8e;box-shadow:0 0 0 1px #a9cb8e22,0 3px 12px #3d7b3820}
+.man-visibility-wrap.connected .men-square{background:linear-gradient(140deg,#293c24,#152217 78%);box-shadow:inset 0 2px #d5e5aa55}
+.man-visibility-wrap.connected .sq-state{color:#bce5a4;font-weight:700}
+.man-visibility-wrap.connected .sq-photo{border-color:#b1cf8a}
+.man-visibility-wrap.connected .man-visibility-toggle{border-top-color:#73935f;background:#192519;color:#cee1b6}
 .men-detail-hero{border:1px solid #997444;background:linear-gradient(130deg,#382918,#1a1610 78%);border-radius:18px;padding:20px 16px;margin:12px 0 15px}
 .men-detail-hero .num{font:40px Georgia,serif;color:#efd2a0}
 .men-detail-hero .state{margin-top:8px;font-size:13px;font-weight:650;color:#f4dcae}
@@ -370,14 +378,15 @@ function renderMenDashboard(){
  const items=list.map(x=>{
   const st=menStatus(x);
   const shown=x.visibility?.visible!==false;
-  return '<div class="man-visibility-wrap" style="min-width:0">'+
+  const connected=x.connection==='legacy_active'||x.readiness?.connectionReady===true;
+  return '<div class="man-visibility-wrap'+(connected?' connected':'')+'">'+
     '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
-    '<span class="sq-top"><span class="sq-icon">'+st.icon+'</span><img class="sq-photo" src="'+manTilePhoto(x)+'" alt="" width="34" height="42" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></span>'+
-    '<span class="sq-name">'+esc(x.name)+'</span>'+
+    '<span class="sq-top"><span class="sq-identity"><span class="sq-name">'+esc(x.name)+'</span>'+
      '<span class="sq-technical" title="Техническое имя / Email">'+
-     (x.technicalName?esc(manTileEmail(x)):'Email не задан')+'</span>'+
+     (x.technicalName?esc(manTileEmail(x)):'Email не задан')+'</span></span>'+
+     '<img class="sq-photo" src="'+manTilePhoto(x)+'" alt="" width="28" height="36" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></span>'+
      '<span class="sq-ip" aria-label="IP адрес аккаунта">'+(manTileIp(x)||'—')+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
-    '<button type="button" class="secondary" style="width:100%;padding:9px 3px;margin-top:5px;font-size:11px" '+
+    '<button type="button" class="secondary man-visibility-toggle" '+
     (manVisibilityBusyId?'disabled':'')+
     ' onclick="toggleManClientVisibility(\''+esc(x.id)+'\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+
     (shown?'◉ Видим · Скрыть':'◯ Скрыт · Показать')+'</button></div>';
