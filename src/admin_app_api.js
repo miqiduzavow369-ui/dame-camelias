@@ -6,6 +6,7 @@ import {credits,adjustCredits,creditHistory} from "./publication_credits.js";
 import {cabinetRPC} from "./cabinet_runtime.js";
 import {agreementStatus} from "./agreement.js";
 import {moderationHistory} from "./review_moderation.js";
+import {readTelegramAvatar} from "./admin_client_avatar.js";
 
 const safeHeaders={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
 const respond=(value,status=200)=>Response.json(value,{status,headers:safeHeaders});
@@ -25,18 +26,21 @@ const usernameCache=new Map();
 async function telegramUsername(env,uid){
  const now=Date.now(),existing=usernameCache.get(uid);
  if(existing&&existing.until>now)return existing.value;
- let value=null;
+ let value=null,avatarFileId=null;
  try{
   const response=await fetch("https://api.telegram.org/bot"+env.BOT_TOKEN+"/getChat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({chat_id:uid}),signal:AbortSignal.timeout(4500)});
   const body=await response.json();
   const raw=body?.ok&&String(body.result?.id)===uid?body.result.username:null;
   if(typeof raw==="string"&&/^[A-Za-z0-9_]{5,32}$/.test(raw))value=raw;
+  const photo=body?.ok&&String(body.result?.id)===uid?body.result.photo?.small_file_id:null;
+  if(typeof photo==="string"&&/^[-\w]{1,300}$/.test(photo))avatarFileId=photo;
  }catch{}
- usernameCache.set(uid,{value,until:now+(value?15*60_000:2*60_000)});
+ usernameCache.set(uid,{value,avatarFileId,until:now+(value||avatarFileId?15*60_000:2*60_000)});
  return value;
 }
 async function enrichClient(env,client,balance){
- return {...summarize(client,balance),username:await telegramUsername(env,String(client.id))};
+ const uid=String(client.id),username=await telegramUsername(env,uid);
+ return {...summarize(client,balance),username,avatarAvailable:!!usernameCache.get(uid)?.avatarFileId};
 }
 function summarize(client,balance){
  return {id:String(client.id),username:null,active:client.active===true,
@@ -314,6 +318,12 @@ export async function handleAdminApi(request,env){
    return respond(result,result?.ok?200:result?.status===403?403:409);
   }
   if(!validId(uid)||uid===OWNER_ID)return bad("invalid_client_id");
+  if(action==="client_avatar"){
+   const {client}=await registry(env,{action:"get",userId:uid});
+   if(!client||String(client.id)!==uid)return bad("missing",404);
+   await telegramUsername(env,uid);
+   return readTelegramAvatar(env,usernameCache.get(uid)?.avatarFileId);
+  }
   if(action==="client"){
    const {client}=await registry(env,{action:"get",userId:uid});
    if(!client)return bad("missing",404);

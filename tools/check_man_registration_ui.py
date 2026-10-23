@@ -16,6 +16,9 @@ ACCOUNTS=[dict(id="yan_first" if i==0 else "yan_second" if i==1 else f"yan_{i+1:
 ACCOUNTS[1]["readiness"]=dict(connectionReady=True,technicalReady=True)
 ACCOUNTS[1]["networkStatus"]=dict(configured=True,proxyVerified=True,ipVerified=True)
 ACCOUNTS[2]["readiness"]=dict(technicalReady=True,siteIdentityVerified=True)
+CLIENTS=[dict(id=f"92000000{i}",username=f"avatar_{name}",active=i!=4,available=4 if i!=4 else 0,
+    spent=1,reserved=0,grant=5,revision=1,avatarAvailable=i!=3)
+    for i,name in enumerate(("alpha","beta","private","missing"),1)]
 OUT=ROOT/"registration-ui-check"
 OUT.mkdir(exist_ok=True)
 
@@ -38,6 +41,7 @@ with sync_playwright() as p:
     errors=[]
     page.on("pageerror",lambda e:errors.append(str(e)))
     calls=[]
+    avatar_calls=[]
     current=sample(0)
     def route(request_route):
         request=request_route.request
@@ -53,7 +57,14 @@ with sync_playwright() as p:
             data=request.post_data_json
             calls.append(data["action"])
             action=data["action"]
-            if action=="clients":result=dict(ok=True,clients=[])
+            if action=="clients":result=dict(ok=True,clients=CLIENTS)
+            elif action=="client_avatar":
+                uid=data["userId"];avatar_calls.append(uid)
+                assert uid in ("920000001","920000002","920000004")
+                if uid=="920000004":return request_route.fulfill(status=204)
+                return request_route.fulfill(status=200,content_type="image/webp",
+                    body=(ROOT/"assets/admin_men"/f"dc_man_{int(uid[-1]):02}.webp").read_bytes())
+            elif action=="client":result=dict(ok=True,client=next(c for c in CLIENTS if c["id"]==data["userId"]))
             elif action=="man_registration_status":result=current
             elif action=="man_private_status":result=dict(ok=True,accountId="yan_03",configured=False)
             elif action=="man_proxy_status":result=current["proxy"]
@@ -66,6 +77,28 @@ with sync_playwright() as p:
         raise AssertionError("External network request forbidden: "+request.url)
     page.route("**/*",route)
     page.goto("https://registration.test/",wait_until="networkidle")
+    page.wait_for_function("Array.from(document.querySelectorAll('.client-avatar img')).length===2&&Array.from(document.querySelectorAll('.client-avatar img')).every(img=>img.naturalWidth>0)")
+    for width in (320,390):
+        page.set_viewport_size(dict(width=width,height=900))
+        assert page.locator('.client-avatar').count()==4
+        for uid in ("920000001","920000002"):
+            slot=page.locator(f'.client-avatar[data-avatar-id="{uid}"]')
+            assert slot.locator('img').get_attribute('src').startswith('blob:')
+            box=slot.bounding_box();assert box['width']==43 and box['height']==43
+        for uid in ("920000003","920000004"):
+            assert page.locator(f'.client-avatar[data-avatar-id="{uid}"] img').count()==0
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),"Client avatars must not overflow"
+        page.screenshot(path=str(OUT/f'client-avatars-{width}.png'),full_page=True)
+    page.locator('#search').fill('avatar_beta')
+    assert page.locator('.client-list-row').count()==1
+    assert page.locator('.client-avatar').get_attribute('data-avatar-id')=='920000002'
+    page.locator('#search').fill('')
+    assert page.locator('.client-list-row').count()==4
+    assert sorted(avatar_calls)==["920000001","920000002","920000004"],"Render/search cannot refetch or mix avatars"
+    assert page.locator('.client-list-row').first.locator('a.client-chat').get_attribute('href')=='https://t.me/avatar_alpha'
+    page.locator('.client-open').first.click()
+    page.wait_for_function("state.page==='client'&&state.client==='920000001'")
+    assert page.locator('.detail-chat').get_attribute('href')=='https://t.me/avatar_alpha'
     for width in (320,360,390,430):
         page.set_viewport_size(dict(width=width,height=900))
         page.evaluate("""accounts=>{
