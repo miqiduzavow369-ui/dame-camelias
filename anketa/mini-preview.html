@@ -359,6 +359,46 @@ body:has(#tab-cabinet:not([hidden])) .app>header{background:#100d09a8;backdrop-f
 #tab-ashoo .ashoo-male small{display:block;color:#8a6486;margin-top:4px}
 #tab-ashoo .ashoo-inactive{font-size:11px;color:#a04e8a;border:1px solid #ce98c0;border-radius:15px;padding:4px 7px}
 @media(max-width:390px){#tab-ashoo .ashoo-credit{width:67%;padding:13px 10px}#tab-ashoo .ashoo-credit strong{font-size:41px}#tab-ashoo .ashoo-meta{font-size:10px}#tab-ashoo .ashoo-top-composition{min-height:310px}}
+
+/* ASHOO Sakura Luxe background: asset can be uploaded independently to assets/.
+   Scoped to active ASHOO only: never modifies IntimCity styles or operations. */
+body:has(#tab-ashoo:not([hidden])){background:#fff5fb}
+body:has(#tab-ashoo:not([hidden])) .app{
+  position:relative;isolation:isolate;background:#fff6fc;
+}
+body:has(#tab-ashoo:not([hidden])) .app::before{
+  content:"";position:absolute;z-index:-1;pointer-events:none;
+  inset:0 0 auto;height:min(1100px,130vh);
+  background-image:
+   linear-gradient(90deg,rgba(255,249,253,.96) 0%,rgba(255,247,253,.76) 37%,rgba(255,247,253,.05) 73%),
+   linear-gradient(180deg,rgba(255,247,253,.04) 0%,rgba(255,247,253,0) 48%,#fff6fc 100%),
+   url("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/main/assets/ashoo-bg-sakura-luxe-9x16.webp");
+  background-position:center top,center top,center top;
+  background-size:100% 100%,100% 100%,cover;
+  background-repeat:no-repeat;
+}
+/* The same background starts behind the DAME CAMELIAS header: no black strip. */
+body:has(#tab-ashoo:not([hidden])) .app>header{
+  position:relative;background:transparent;border-bottom-color:#e5a8c67a;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+body:has(#tab-ashoo:not([hidden])) .app>header .logo{
+  color:#8b315e;text-shadow:0 1px 8px #fff;
+}
+body:has(#tab-ashoo:not([hidden])) .app>header .tag{
+  color:#8b315e;background:#fffafbe8;border-color:#d99cbf;
+}
+#tab-ashoo::before{content:none!important;display:none!important}
+#tab-ashoo .ashoo-top-composition::after{content:none!important;display:none!important}
+#tab-ashoo .ashoo-top-composition{min-height:365px}
+#tab-ashoo .ashoo-credit{background:linear-gradient(120deg,#fffdfcf0,#fff1fae7)}
+#tab-ashoo .ashoo-warning{background:#fff8fced}
+@media(max-width:390px){
+ #tab-ashoo .ashoo-top-composition{min-height:345px}
+ body:has(#tab-ashoo:not([hidden])) .app::before{
+  background-position:center top,center top,57% top;
+ }
+}
 #ashoo-nav-entry[hidden]{display:none!important}
 </style></head><body><div class="app">
 <header><span class="logo">✦ DAME CAMELIAS</span><span class="tag">ЛИЧНЫЙ КАБИНЕТ</span></header>
