@@ -41,6 +41,17 @@ with sync_playwright() as p:
     page.goto("https://review.test/",wait_until="networkidle")
     for width in (320,390):
         page.set_viewport_size(dict(width=width,height=900))
+        page.evaluate("showTab('profiles')")
+        assert page.locator("#tab-profiles > h1").inner_text()=="IntimCity ✦"
+        assert page.locator('.nav [data-tab="profiles"] .ico').inner_text()=="🌹"
+        page.locator('.nav [data-tab="published"]').click()
+        assert page.locator('#tab-published').is_visible()
+        page.locator('.nav [data-tab="cabinet"]').click()
+        assert page.locator('#tab-cabinet').is_visible()
+        page.locator('.nav [data-tab="profiles"]').click()
+        assert page.locator('#tab-profiles').is_visible()
+        assert page.evaluate("document.documentElement.scrollWidth<=innerWidth"),"IntimCity home overflow"
+        page.screenshot(path=str(OUT/f"intimcity-home-{width}.png"),full_page=True)
         for phase in ("moderation","checking","rejected","published"):
             page.evaluate("data=>{render(data);selectedAccount='yan_second';openDetail(profiles[0]);}",snapshot())
             assert page.locator("#detailAccount").inner_text()=="Михаил Корсаков"
