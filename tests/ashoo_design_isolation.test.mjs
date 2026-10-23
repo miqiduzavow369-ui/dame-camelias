@@ -10,7 +10,9 @@ const ashoo=readFileSync(new URL('../ashoo/design-preview.html',import.meta.url)
 test('ASHOO preview remains opt-in owner-only in the shared Mini App',()=>{
  assert.match(mini,/id="ashoo-nav-entry"[^>]*hidden/);
  assert.match(mini,/function showAshooOwnerPreview\(\)/);
- assert.match(mini,/const visible=ashooPreviewAllowed===true/);
+ assert.match(mini,/let visible=ashooPreviewAllowed===true/);
+ assert.match(mini,/action:'man_accounts'/);
+ assert.match(mini,/visible=response.ok/);
  assert.match(mini,/snapshot\.ashooPreviewEnabled===true/);
  assert.match(worker,/ashooPreviewEnabled:uid==="5866034656"/);
  assert.match(mini,/if\(!visible&&lastTab==='ashoo'\)showTab\('profiles'\)/);
