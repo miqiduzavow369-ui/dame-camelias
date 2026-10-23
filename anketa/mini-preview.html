@@ -1229,10 +1229,9 @@ $("topup").onclick=()=>{tg?.openTelegramLink?.("https://t.me/DameCamelias");};$(
 
 // Visual-only owner preview. This is not an authorization control.
 // Server-side owner checks are mandatory before any future ASHOO API actions.
+let ashooPreviewAllowed=false;
 function showAshooOwnerPreview(){
- const ownerId='5866034656';
- const user=tg?.initDataUnsafe?.user;
- const visible=Boolean(tg?.initData&&String(user?.id||'')===ownerId);
+ const visible=ashooPreviewAllowed===true;
  const entry=$('ashoo-nav-entry');
  if(entry)entry.hidden=!visible;
  if(!visible&&lastTab==='ashoo')showTab('profiles');
@@ -1240,7 +1239,7 @@ function showAshooOwnerPreview(){
  const value=balance?.textContent?.trim()||'—';
  if($('ashooBalance'))$('ashooBalance').textContent=visible?value:'—';
 }
-async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");render(await response.json());showAshooOwnerPreview();return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
+async function load(){try{if(!tg?.initData)throw Error("Откройте Mini App из Telegram.");const response=await fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!response.ok)throw Error("Не удалось получить доступ к рабочему кабинету. Проверьте авторизацию Telegram.");const snapshot=await response.json();ashooPreviewAllowed=snapshot.ashooPreviewEnabled===true;render(snapshot);showAshooOwnerPreview();return true;}catch(e){$("profiles").textContent="🌷 "+e.message;return false;}}
 // Refresh read-only cabinet data when users return to the app or navigate tabs.
 let snapshotRefresh=null;
 async function refreshCabinetSnapshot(){
