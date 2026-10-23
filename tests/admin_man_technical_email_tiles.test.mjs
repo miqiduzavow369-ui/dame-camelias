@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {Script} from "node:vm";
+import {Script,createContext} from "node:vm";
+import {MAN_ACCOUNTS} from "../src/man_accounts.js";
+import {cabinetEvent} from "../src/cabinet_runtime.js";
+import {savePrivateDraft} from "../src/man_private_drafts.js";
+import {OWNER_ID} from "../src/client_registry.js";
 
 const runtime=readFileSync("src/cabinet_runtime.js","utf8");
 const html=readFileSync("admin/preview-v3.html","utf8");
@@ -27,8 +31,64 @@ test("each admin man tile labels the email under current name, safely escaped",(
  assert.ok(idx>0&&end>idx);
  assert.match(block,/sq-name.*esc\(x\.name\)/);
  assert.match(block,/sq-technical/);
- assert.match(block,/esc\(x\.technicalName\)/);
+ assert.match(block,/esc\(manTileEmail\(x\)\)/);
  assert.match(block,/Email не задан/);
  assert.match(block,/String\(x\.technicalName\|\|""\)/);
  assert.match(html,/Техническое имя \/ Email/);
+});
+test("all 30 tiles show their own short email, numeric IP and matching portrait without changing controls",()=>{
+ const accounts=MAN_ACCOUNTS.map((x,i)=>({...x,technicalName:`member.${i}@example.test`,
+  displayIp:`45.39.104.${i+1}`,connection:i===0?'legacy_active':'not_configured',visibility:{visible:true}}));
+ const helpers=html.slice(html.indexOf('function manTileEmail('),html.indexOf('async function toggleManClientVisibility('));
+ const dashboard=html.slice(html.indexOf('function renderMenDashboard()'),html.indexOf('function renderManDiagnostic('));
+ const esc=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+ const ctx=createContext({manAccounts:accounts,menQuery:'',menFilter:'all',menError:'',manVisibilityBusyId:null,
+  esc,menStatus:()=>({cls:'disabled',icon:'🔒',label:'Не подключён',short:'Отключён'}),manChecks:()=>'',output:null});
+ new Script(helpers+dashboard+'\noutput=renderMenDashboard();').runInContext(ctx);
+ const tiles=ctx.output.split('<div class="man-visibility-wrap"').slice(1);
+ assert.equal(tiles.length,30);
+ for(const [i,x] of accounts.entries()){
+  assert.ok(tiles[i].includes(esc(x.name)));
+  assert.ok(tiles[i].includes(`>member.${i}</span>`));
+  assert.ok(tiles[i].includes(`>${x.displayIp}</span>`));
+  assert.ok(tiles[i].includes(`dc_man_${String(i+1).padStart(2,'0')}.webp`));
+  assert.ok(tiles[i].includes(`openManDetail('${x.id}')`));
+  assert.ok(tiles[i].includes(`toggleManClientVisibility('${x.id}')`));
+ }
+ assert.doesNotMatch(ctx.output,/@example.test|sq-number/);
+ assert.equal(new Script('manTileIp({displayIp:"user:password@45.39.104.1:6408"})').runInContext(ctx),'');
+ assert.equal(new Script('manTileIp({displayIp:"999.39.104.1"})').runInContext(ctx),'');
+ assert.equal(new Script('manTileIp({})').runInContext(ctx),'');
+ assert.equal(new Script('manTileIp({id:"yan_first"})').runInContext(ctx),'176.56.35.167');
+ assert.equal(new Script('manTileIp({id:"yan_second"})').runInContext(ctx),'');
+ accounts[0].technicalName='<img src=x>@example.test';
+ new Script('output=renderMenDashboard();').runInContext(ctx);
+ assert.ok(ctx.output.includes('&lt;img src=x>'));
+ assert.doesNotMatch(ctx.output,/<img src=x>/);
+ const handler=ctx.output.match(/class="sq-photo"[^>]*onerror="([^"]+)"/)?.[1];
+ assert.ok(handler,'portrait has an isolated failure handler');
+ const photo={style:{}};
+ new Script('(function(){'+handler+'}).call(photo)').runInNewContext({photo});
+ assert.equal(photo.style.visibility,'hidden','failed photo keeps its layout slot');
+ assert.equal(photo.hidden,undefined,'failed photo cannot collapse the card');
+ assert.match(ctx.output,/width="34" height="42"/);
+});
+test("catalogue IP reads use current configuration before imported IP and never write or activate accounts",async()=>{
+ const data=new Map();let writes=0;
+ const storage={get:async k=>structuredClone(data.get(k)),put:async(k,v)=>{writes++;data.set(k,structuredClone(v));},transaction:async fn=>fn(storage)};
+ const env={MAN_PROXY_ENCRYPTION_KEY:'11'.repeat(32)};
+ const params={actorId:OWNER_ID,cabinetId:OWNER_ID,ownerId:OWNER_ID,accountId:'yan_second'};
+ await savePrivateDraft(storage,env,{...params,expectedVersion:0,at:1,settings:{technicalName:'lev.og1@example.test',host:'45.39.104.69',httpPort:6408,socksPort:16408,username:'private-user'}});
+ const read=()=>cabinetEvent(storage,env,{userId:OWNER_ID,event:{kind:'admin_man_registry',actorId:OWNER_ID}});
+ const before=writes,first=await read();
+ assert.equal(first.accounts.find(x=>x.id==='yan_second').displayIp,'45.39.104.69');
+ assert.equal(first.accounts.find(x=>x.id==='yan_first').displayIp,null);
+ data.set('man-proxy-sealed-v1:yan_second',{accountId:'yan_second',version:1,expectedIp:'45.39.104.70'});
+ const result=await read(),man=result.accounts.find(x=>x.id==='yan_second');
+ assert.equal(man.displayIp,'45.39.104.70');
+ assert.notEqual(man.readiness?.connectionReady,true);
+ assert.doesNotMatch(JSON.stringify(result),/private-user|httpPort|socksPort/);
+ assert.equal(writes,before);
+ const forbidden=await cabinetEvent(storage,env,{userId:'123456789',event:{kind:'admin_man_registry',actorId:OWNER_ID}});
+ assert.equal(forbidden.status,403);
 });
