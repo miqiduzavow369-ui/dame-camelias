@@ -127,9 +127,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .men-square:focus-visible{outline:2px solid #e5bc77;outline-offset:2px}
 .men-square.legacy{border-color:#ad8750;background:linear-gradient(140deg,#463321,#251a10 70%,#17120d);box-shadow:inset 0 1px #f7d7a72b}
 .men-square.planning{border-color:#92734b}
-.men-square .sq-top{display:flex;justify-content:space-between;align-items:flex-start;gap:5px}
+.men-square .sq-top{display:flex;justify-content:space-between;align-items:flex-start;gap:4px}
 .men-square .sq-identity{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.men-square .sq-photo{width:28px;height:36px;object-fit:cover;object-position:center 25%;border-radius:6px;border:1px solid #92734b;background:#211a12;flex:none}
+.men-square .sq-photo{width:24px;height:32px;object-fit:cover;object-position:center 25%;border-radius:6px;border:1px solid #92734b;background:#211a12;flex:none}
 .men-square .sq-ip{display:block;font-size:10px;line-height:1.3;color:#d9be89;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .men-square .sq-icon{font-size:14px;opacity:.88}
 .men-square .sq-name{font-size:12px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
@@ -379,13 +379,14 @@ function renderMenDashboard(){
   const st=menStatus(x);
   const shown=x.visibility?.visible!==false;
   const connected=x.connection==='legacy_active'||x.readiness?.connectionReady===true;
+  const shortStatus=connected?st.short:x.readiness?.siteIdentityVerified===true?'Ждёт ADMIN':x.readiness?.technicalReady===true?'Проверка личности':st.short;
   return '<div class="man-visibility-wrap'+(connected?' connected':'')+'">'+
     '<button type="button" class="men-square '+st.cls+'" style="width:100%" onclick="openManDetail(\''+esc(x.id)+'\')" aria-label="'+esc(x.name)+' — '+st.label+'; открыть управление">'+
     '<span class="sq-top"><span class="sq-identity"><span class="sq-name">'+esc(x.name)+'</span>'+
      '<span class="sq-technical" title="Техническое имя / Email">'+
      (x.technicalName?esc(manTileEmail(x)):'Email не задан')+'</span></span>'+
-     '<img class="sq-photo" src="'+manTilePhoto(x)+'" alt="" width="28" height="36" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></span>'+
-     '<span class="sq-ip" aria-label="IP адрес аккаунта">'+(manTileIp(x)||'—')+'</span>'+manChecks(x,true)+'<span class="sq-state">'+st.short+' ›</span></button>'+
+     '<img class="sq-photo" src="'+manTilePhoto(x)+'" alt="" width="24" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'"></span>'+
+     '<span class="sq-ip" aria-label="IP адрес аккаунта">'+(manTileIp(x)||'—')+'</span>'+manChecks(x,true)+'<span class="sq-state" title="'+esc(st.label)+'">'+esc(shortStatus)+' ›</span></button>'+
     '<button type="button" class="secondary man-visibility-toggle" '+
     (manVisibilityBusyId?'disabled':'')+
     ' onclick="toggleManClientVisibility(\''+esc(x.id)+'\')" aria-label="'+(shown?'Скрыть ':'Показать ')+esc(x.name)+' клиенткам">'+

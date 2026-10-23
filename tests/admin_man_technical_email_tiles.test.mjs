@@ -71,7 +71,7 @@ test("all 30 tiles show their own short email, numeric IP and matching portrait 
  new Script('(function(){'+handler+'}).call(photo)').runInNewContext({photo});
  assert.equal(photo.style.visibility,'hidden','failed photo keeps its layout slot');
  assert.equal(photo.hidden,undefined,'failed photo cannot collapse the card');
- assert.match(ctx.output,/width="28" height="36"/);
+ assert.match(ctx.output,/width="24" height="32"/);
  accounts[1].readiness={connectionReady:true};
  accounts[2].readiness={technicalReady:true,siteIdentityVerified:true};
  new Script('output=renderMenDashboard();').runInContext(ctx);
