@@ -3,7 +3,7 @@
 import {CityDiaryStore} from "./city_diary_store.js";
 import {DiaryError} from "./city_diary_model.js";
 
-const ACTIONS=new Set(["list","get","create","edit","cancel"]);
+const ACTIONS=new Set(["list","get","create","batch","edit","cancel"]);
 const PROFILE=/^\d{1,9}$/;
 export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
   if(!request||!ACTIONS.has(request.action))
@@ -29,6 +29,19 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
         id:request.id,operation:request.operation
       });
       return {ok:true,event};
+    }
+    if(request.action==="batch"){
+      if(!Array.isArray(request.items)||request.items.length<1||request.items.length>31)
+        return {ok:false,status:400,reason:"invalid_batch"};
+      for(const item of request.items){
+        const profileId=item?.plan?.profileId;
+        if(profileId!==null&&profileId!==undefined){
+          if(!PROFILE.test(String(profileId))||!await profileOwned(String(profileId)))
+            return {ok:false,status:403,reason:"profile_not_saved"};
+        }
+      }
+      const saved=await store.createBatch(request.items,{operation:request.operation});
+      return {ok:true,events:saved};
     }
     const previous=await store.get(request.id);
     if(!previous)return {ok:false,status:404,reason:"not_found"};
