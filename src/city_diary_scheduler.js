@@ -55,8 +55,14 @@ export class CityDiaryScheduler {
           const old=previousById.get(e.id);
           return !(old&&old.revision>e.revision);
         });
-        await storage.put(EVENTS,copy(accepted));
-        await storage.put(SCHEDULE_REVISION,input.scheduleRevision);
+        // Persist snapshot and its monotonic version atomically; a crash must
+        // never leave a newer cancellation version attached to old events.
+        await storage.transaction(async tx=>{
+          const current=await tx.get(SCHEDULE_REVISION)||0;
+          if(input.scheduleRevision<=current)throw Error("stale_schedule");
+          await tx.put(EVENTS,copy(accepted));
+          await tx.put(SCHEDULE_REVISION,input.scheduleRevision);
+        });
         await this.rearm(accepted,delivered);
         return reply({ok:true,count:accepted.length,scheduleRevision:input.scheduleRevision});
       }
