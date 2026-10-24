@@ -51,7 +51,7 @@ textarea{min-height:92px;resize:vertical}
 <section class="card" id="plansSection">
  <div class="row"><h2>Мои планы</h2><span id="total" class="pill">0 событий</span></div>
  <div class="segment" style="grid-template-columns:repeat(3,1fr)"><button id="dayView" class="active" type="button">День</button><button id="allView" type="button">Все планы</button><button id="archiveView" type="button">Архив</button></div>
- <div id="plans"></div>
+ <div id="plans"></div><div id="archivePagination" class="row" hidden><button class="ghost" id="archivePrev" type="button">‹ Ранее</button><span id="archivePageLabel" class="hint"></span><button class="ghost" id="archiveNext" type="button">Далее ›</button></div>
 </section>
 <section class="card" id="monthSection">
  <h2>План на месяц</h2><p class="hint">Массовое сохранение пока доступно для напоминаний. Для публикаций потребуется отдельная подготовка каждой заявки.</p><p class="hint">Отметьте даты в календаре, затем выберите общий шаблон ниже. Каждую созданную запись можно изменить отдельно.</p>
@@ -90,6 +90,7 @@ const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],men=[],secondaryStatuses={},mode="reminder",editing=null,loading=false;
 let draftTimer=null,draftWrite=Promise.resolve(),restoringDraft=true;
+let archiveOffset=0,archiveTotal=0,archiveHasMore=false;
 let archivedEvents=[];let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
@@ -152,6 +153,10 @@ function renderPlans(){
  $("dayView").classList.toggle("active",plansView==="day");
  $("allView").classList.toggle("active",plansView==="all");
  $("archiveView").classList.toggle("active",plansView==="archive");
+ $("archivePagination").hidden=plansView!=="archive";
+ $("archivePageLabel").textContent=archiveTotal?(archiveOffset+1)+"–"+(archiveOffset+archivedEvents.length)+" из "+archiveTotal:"Нет записей";
+ $("archivePrev").disabled=archiveOffset===0;
+ $("archiveNext").disabled=!archiveHasMore;
  $("total").textContent=events.filter(e=>e.status!=="cancelled").length+" событий";
  const el=$("plans");el.replaceChildren();
  if(!dayEvents.length){appendText(el,"p","На выбранную дату пока ничего не запланировано.");return;}
@@ -407,7 +412,8 @@ async function saveBatch(){
 async function refresh(){
  const response=await api("list");events=response.events||[];
  if(plansView==="archive"){
-   const archived=await api("list_archive");archivedEvents=archived.events||[];
+   const archived=await api("archive_page",{filters:{offset:archiveOffset,limit:30}});
+   archivedEvents=archived.events||[];archiveTotal=archived.total||0;archiveHasMore=archived.hasMore===true;
  }
  renderCalendar();renderPlans();
 }
@@ -427,7 +433,9 @@ $("batchClear").onclick=()=>{batchDates.clear();pendingBatch=null;renderBatch();
 $("batchSave").onclick=saveBatch;
 $("dayView").onclick=()=>{plansView="day";renderPlans();};
 $("allView").onclick=()=>{plansView="all";renderPlans();};
-$("archiveView").onclick=async()=>{plansView="archive";try{await refresh();}catch(e){say(e.message);}};
+$("archiveView").onclick=async()=>{plansView="archive";archiveOffset=0;try{await refresh();}catch(e){say(e.message);}};
+$("archivePrev").onclick=async()=>{archiveOffset=Math.max(0,archiveOffset-30);try{await refresh();}catch(e){say(e.message);}};
+$("archiveNext").onclick=async()=>{if(!archiveHasMore)return;archiveOffset+=30;try{await refresh();}catch(e){archiveOffset-=30;say(e.message);}};
 $("prev").onclick=()=>moveMonth(-1);
 $("next").onclick=()=>moveMonth(1);
 $("date").onchange=()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test($("date").value))return;selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;renderCalendar();renderPlans();};
