@@ -2,7 +2,7 @@
 // NOT registered in wrangler.toml and NOT reachable from production routes.
 // The manual City's OrderReminder alarm is intentionally untouched.
 import {nextDiaryAlarm,dueDiaryNotifications,claimDiaryDelivery,
-  settleDiaryDelivery,acknowledgeDiaryDelivery,recordDiaryMessageCleanup,diaryReminderMessage,diaryThanksCallback} from "./city_diary_delivery.js";
+  settleDiaryDelivery,acknowledgeDiaryDelivery,claimDiaryMessageCleanup,recordDiaryMessageCleanup,diaryReminderMessage,diaryThanksCallback} from "./city_diary_delivery.js";
 
 const EVENTS="diary_scheduler_events_v1",DELIVERIES="diary_scheduler_deliveries_v1";
 const USER="diary_scheduler_owner_v1", SCHEDULE_REVISION="diary_scheduler_revision_v1";
@@ -71,6 +71,17 @@ export class CityDiaryScheduler {
         const deliveries=await storage.get(DELIVERIES)||{};
         const record=deliveries[input.eventId];
         return reply({ok:true,record:record?copy(record):null});
+      }
+      if(input.type==="claim_cleanup"){
+        if(!TOKEN.test(String(input.eventId||""))||
+           !Number.isSafeInteger(input.messageId)||input.messageId<1)
+          return reply({ok:false,reason:"bad_request"},400);
+        const deliveries=await storage.get(DELIVERIES)||{};
+        try{
+          const result=claimDiaryMessageCleanup(deliveries,input.eventId,input.messageId);
+          if(result.claimed)await storage.put(DELIVERIES,result.deliveries);
+          return reply({ok:true,claimed:result.claimed,record:result.record});
+        }catch{return reply({ok:false,reason:"cleanup_rejected"},409);}
       }
       if(input.type==="record_cleanup"){
         if(!TOKEN.test(String(input.eventId||""))||
