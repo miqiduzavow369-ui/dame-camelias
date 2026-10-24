@@ -1,0 +1,55 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {CityDiaryStore} from "../src/city_diary_store.js";
+
+const NOW=Date.parse("2026-10-24T10:00:00.000Z");
+const ID="0123456789abcdef", OP="1111111111111111";
+const plan={mode:"publication",action:"review",at:"2026-10-28T15:30:00.000Z",
+  profileId:"652282",reviewText:"Мой проверяемый личный опыт"};
+function storage(){
+  const db=new Map();
+  return {db,async get(key){return structuredClone(db.get(key));},
+    async put(key,value){db.set(key,structuredClone(value));}};
+}
+test("isolated stores cannot read other client's private events",async()=>{
+ const alice=new CityDiaryStore(storage()),bob=new CityDiaryStore(storage());
+ await alice.create(plan,{id:ID,operation:OP,now:NOW});
+ assert.equal((await alice.list()).length,1);
+ assert.deepEqual(await bob.list(),[]);
+ assert.equal(await bob.get(ID),null);
+});
+test("idempotent retry returns same result and never duplicates an event",async()=>{
+ const store=new CityDiaryStore(storage());
+ const first=await store.create(plan,{id:ID,operation:OP,now:NOW});
+ const retry=await store.create(plan,{id:ID,operation:OP,now:NOW+1});
+ assert.deepEqual(retry,first);
+ assert.equal((await store.list()).length,1);
+ await assert.rejects(()=>store.create({...plan,reviewText:"other"},{id:ID,operation:OP,now:NOW}),/operation_conflict/);
+});
+test("edit and cancellation require fresh revision and private operation ID",async()=>{
+ const store=new CityDiaryStore(storage());
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ const edited=await store.edit(ID,{at:"2026-10-29T15:30:00.000Z"},
+  {expectedRevision:1,operation:"2222222222222222",now:NOW});
+ assert.equal(edited.revision,2);
+ const repeat=await store.edit(ID,{at:"2026-10-29T15:30:00.000Z"},
+  {expectedRevision:1,operation:"2222222222222222",now:NOW});
+ assert.deepEqual(repeat,edited);
+ await assert.rejects(()=>store.edit(ID,{note:"old"},{expectedRevision:1,operation:"3333333333333333",now:NOW}),/revision_conflict/);
+ const cancelled=await store.transition(ID,"cancelled",{expectedRevision:2,operation:"4444444444444444",now:NOW});
+ assert.equal(cancelled.status,"cancelled");
+ await assert.rejects(()=>store.edit(ID,{note:"new"},{expectedRevision:3,operation:"5555555555555555",now:NOW}),/event_locked/);
+});
+test("a failed validation never adds events or receipts",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await assert.rejects(()=>store.create({...plan,at:"2025-01-01T00:00:00.000Z"},
+  {id:ID,operation:OP,now:NOW}),/time_out_of_range/);
+ assert.deepEqual(await store.list(),[]);
+ assert.equal(backing.db.has("city_diary_operation_receipts_v1"),false);
+});
+test("create and edits do not reserve credits, send Telegram messages or reach ADMIN",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ assert.deepEqual([...backing.db.keys()].sort(),
+  ["city_diary_events_v1","city_diary_operation_receipts_v1"].sort());
+});
