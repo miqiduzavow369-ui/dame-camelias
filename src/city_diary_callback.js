@@ -38,6 +38,15 @@ export async function handleCityDiaryThanks(update,{trustedWebhook=false,schedul
     data.record?.telegramMessageId!==messageId||
     data.record?.state!=="acknowledged")
    return {handled:true,ok:false,reason:"ack_rejected"};
+ if(data.record?.cleanupStatus==="deleted")
+   return {handled:true,ok:true,acknowledged:true,replay:true,
+     answered:false,deleted:true,cleanupRecorded:true,cleanupStatus:"deleted",
+     cleanupLimit:false,cleanupRequired:false};
+ if((data.record?.cleanupAttempts||0)>=3)
+   return {handled:true,ok:true,acknowledged:true,replay:true,
+     answered:false,deleted:false,cleanupRecorded:true,
+     cleanupStatus:data.record?.cleanupStatus||"unknown",
+     cleanupLimit:true,cleanupRequired:true};
  let answered=false,deleted=false;
  try{answered=(await telegram.answerCallbackQuery(callbackId,"Спасибо ✨"))===true;}
  catch{/* Telegram may time out after accepting the answer. */}
