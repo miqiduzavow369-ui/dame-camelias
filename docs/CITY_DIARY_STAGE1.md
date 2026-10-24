@@ -310,3 +310,14 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Before deployment, require a hardened webhook dispatcher, a dedicated scheduler binding and token, cancellation/claim race testing, retryable cleanup reconciliation with bounded retention, and real Telegram sandbox/staging validation.
 
 **Isolation:** Existing manual City, ADMIN, credits, Yan First and all secondary male accounts, legacy OrderReminder, ASHOO, main branch and production remain unchanged.
+
+## Checkpoint 24 — private, bounded post-acknowledgement Telegram cleanup receipts (2026-10-24)
+
+- Added pure `recordDiaryMessageCleanup(deliveries,eventId,telegramMessageId,deleted)` in the diary delivery engine. It accepts only the exact previously acknowledged event and Telegram message. An acknowledgement remains `acknowledged` even if the Telegram delete call fails.
+- New isolated internal scheduler action `record_cleanup` persists the cleanup outcome in the private delivery record: `cleanupStatus` (`failed`/`deleted`), `cleanupAttempts`, and `cleanupUpdatedAt`. Cleanup attempts are bounded to three. A previously confirmed `deleted` result is idempotent and cannot regress to failed.
+- The dormant trusted callback adapter now reports the actual delete outcome to the scheduler. If Telegram or recording the receipt is uncertain, it returns `cleanupRequired:true` and does not claim that cleanup was successfully recorded. A callback replay after a stored deleted receipt skips another Telegram delete. No automatic background retry is enabled.
+- Tests cover cleanup after a verified Thanks callback, refusal before acknowledgement, wrong message, failure followed by success, replay, attempts cap, no alarm requeue, and scheduler-side receipt preservation.
+- Verified isolated CI at https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40101203329.
+- **Remaining before activation:** provision an isolated scheduler Durable Object and secret, call the dormant coordinator only from the authorized cabinet path, wire trusted webhook integration, real Telegram staging verification, and implement a bounded, independently authenticated cleanup reconciliation workflow for failed/unknown deletions. No message has been sent or deleted in production.
+
+**Isolation guarantees:** no modification to existing OrderReminder, manual City posting/moderation, credit ledger, ADMIN, Yan First and other men, ASHOO, main, or deployed Worker. PR #284 only.
