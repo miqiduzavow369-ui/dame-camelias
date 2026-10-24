@@ -82,3 +82,14 @@ test("rescheduling updates the local date and timezone together",()=>{
  assert.equal(updated.localDate,"2026-10-29");
  assert.equal(updated.revision,2);
 });
+
+test("all existing City men account IDs are accepted without accepting invented IDs",()=>{
+ for(let number=1;number<=30;number++){
+  const accountId=number===1?"yan_first":number===2?"yan_second":"yan_"+String(number).padStart(2,"0");
+  const event=createDiaryEvent({...plan,accountId},{id,now:NOW});
+  assert.equal(event.accountId,accountId);
+ }
+ for(const accountId of ["yan_01","yan_02","yan_31","yan_99","yan_abc"]){
+  assert.throws(()=>createDiaryEvent({...plan,accountId},{id,now:NOW}),/invalid_account/);
+ }
+});
