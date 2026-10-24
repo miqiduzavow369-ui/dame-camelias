@@ -180,3 +180,13 @@ This stage introduces a **read-only recheck**, not a publication executor.
 **Important remaining gaps**: Read-only statuses such as `unknown` do NOT authorize execution. Existing manual City atomic publication claim, current domain/profile/credentials version and applicable per-man runner readiness MUST be rechecked when implementing the final approval route. Conflict-free planning is not publication permission. No live scheduling is enabled.
 
 **Manual City guarantee:** No modifications to manual rating/review flows, order/moderation, credit accounting, existing alarms, ASHOO, or deployed Worker. Feature branch PR #284 only.
+
+## Checkpoint 12 — fail-closed website/version diagnostics (2026-10-24)
+
+- Added `src/city_diary_preflight.js`: pure connection-diagnostic evaluator, with negative checks for changed domain, unconfirmed profile, unverified current version, male identity and owner approval. A positive diagnostic explicitly returns `publicationAuthorized:false`.
+- The signed, read-only diary `recheck` now reports `siteReady:false` and `siteReason:"connection_unavailable"` until the trusted owner-side read-only site/proxy/identity status source is wired. The interface distinguishes manual publication history from unverified live website readiness; absence of a conflict is NOT a green light.
+- Added `tests/city_diary_preflight.test.mjs` and included it in isolated CI. GitHub Actions **passed**: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40087305181.
+- No website requests, login, publication, Telegram sending, credit reservation or manual City modification are performed.
+- Before any actual scheduling of publication confirmations, wire authenticated owner-DO readiness snapshots with version binding and strict origin rules; re-check at the final atomic City publication guard. For Yan First, do not infer a site grant from secondary accounts or change the legacy route.
+
+**Remain on draft PR #284; do not merge/deploy.**
