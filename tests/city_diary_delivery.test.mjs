@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {nextDiaryAlarm,dueDiaryNotifications,claimDiaryDelivery,
-  settleDiaryDelivery,acknowledgeDiaryDelivery,diaryReminderMessage,diaryThanksCallback,parseDiaryThanksCallback}
+  settleDiaryDelivery,acknowledgeDiaryDelivery,recordDiaryMessageCleanup,diaryReminderMessage,diaryThanksCallback,parseDiaryThanksCallback}
   from "../src/city_diary_delivery.js";
 
 const NOW=Date.parse("2026-10-24T10:00:00Z");
@@ -71,4 +71,30 @@ test("replay acknowledgement rejects forged callback even after it was acknowled
  const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,good,{now:NOW+20});
  assert.throws(()=>acknowledgeDiaryDelivery(c.deliveries,id,6789,
    diaryThanksCallback(id,"ffffffffffffffff"),{now:NOW+30}),/invalid_acknowledgement/);
+});
+
+test("cleanup receipts never re-send reminders and preserve acknowledged delivery",()=>{
+ const a=claimDiaryDelivery({},reminder(),{attemptId,now:NOW});
+ const b=settleDiaryDelivery(a.deliveries,id,attemptId,
+   {state:"sent",telegramMessageId:6789},{now:NOW+1});
+ const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,diaryThanksCallback(id,attemptId),{now:NOW+2});
+ const failed=recordDiaryMessageCleanup(c.deliveries,id,6789,false,{now:NOW+3});
+ assert.equal(failed.record.cleanupStatus,"failed");
+ assert.equal(failed.record.state,"acknowledged");
+ const deleted=recordDiaryMessageCleanup(failed.deliveries,id,6789,true,{now:NOW+4});
+ assert.equal(deleted.record.cleanupStatus,"deleted");
+ assert.equal(deleted.record.cleanupAttempts,2);
+ assert.equal(recordDiaryMessageCleanup(deleted.deliveries,id,6789,false,{now:NOW+5}).replay,true);
+ assert.equal(nextDiaryAlarm([reminder()],deleted.deliveries),null);
+});
+test("cleanup requires acknowledged matching delivery and has bounded failures",()=>{
+ const a=claimDiaryDelivery({},reminder(),{attemptId,now:NOW});
+ assert.throws(()=>recordDiaryMessageCleanup(a.deliveries,id,6789,true,{now:NOW}),/invalid_cleanup/);
+ const b=settleDiaryDelivery(a.deliveries,id,attemptId,
+   {state:"sent",telegramMessageId:6789},{now:NOW+1});
+ const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,diaryThanksCallback(id,attemptId),{now:NOW+2});
+ assert.throws(()=>recordDiaryMessageCleanup(c.deliveries,id,1,true,{now:NOW+3}),/invalid_cleanup/);
+ let state=c.deliveries;
+ for(let i=0;i<3;i++)state=recordDiaryMessageCleanup(state,id,6789,false,{now:NOW+3+i}).deliveries;
+ assert.throws(()=>recordDiaryMessageCleanup(state,id,6789,true,{now:NOW+9}),/cleanup_limit/);
 });
