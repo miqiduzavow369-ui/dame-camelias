@@ -26,3 +26,20 @@ test("text content is inserted through DOM APIs rather than user-supplied HTML",
   assert.ok(!page.includes("innerHTML="));
   assert.ok(!page.includes("localStorage"));
 });
+
+test("month navigation keeps selected date in displayed month",()=>{
+ assert.ok(page.includes('function moveMonth(delta)'));
+ assert.ok(page.includes('selected=[year,String(month+1).padStart(2,"0"),"01"].join("-")'));
+ assert.ok(page.includes('renderCalendar();renderPlans();'));
+});
+test("mutating retries reuse the same event and operation IDs",()=>{
+ assert.ok(page.includes("pendingSave.operation"));
+ assert.ok(page.includes("pendingSave.id"));
+ assert.ok(page.includes("pendingCancel.get(key)"));
+ assert.ok(page.includes("pendingSave.fingerprint!==fingerprint"));
+});
+test("calendar saves the intended local day and timezone",()=>{
+ assert.ok(page.includes("timezone,profileId"));
+ assert.ok(page.includes("localDate:date"));
+ assert.ok(page.includes("function dayKey(e)"));
+});
