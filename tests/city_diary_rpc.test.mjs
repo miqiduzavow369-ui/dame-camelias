@@ -163,3 +163,37 @@ test("recheck refuses a stale version and never accepts a reminder as publicatio
  const stale=await cityDiaryRequest(backing,{action:"recheck",id:other,expectedRevision:99},opts);
  assert.equal(stale.reason,"revision_conflict");
 });
+
+test("only cancelled reminders can be archived through signed planning adapter",async()=>{
+ const backing=storage();
+ const planData={mode:"reminder",action:"profile",at:at(),reviewText:""};
+ const opts={profileOwned:owned};
+ const created=await cityDiaryRequest(backing,{action:"create",id:ID,operation:OP,plan:planData},opts);
+ assert.equal(created.ok,true);
+ const active=await cityDiaryRequest(backing,{action:"archive_cancelled_reminders",operation:"8888888888888888",
+   items:[{id:ID,revision:1}]},opts);
+ assert.equal(active.reason,"archive_not_safe");
+ const cancelled=await cityDiaryRequest(backing,{action:"cancel",id:ID,operation:"6666666666666666",
+   expectedRevision:1},opts);
+ assert.equal(cancelled.ok,true);
+ const archived=await cityDiaryRequest(backing,{action:"archive_cancelled_reminders",operation:"8888888888888888",
+   items:[{id:ID,revision:2}]},opts);
+ assert.equal(archived.ok,true);
+ assert.equal(archived.count,1);
+ assert.equal((await cityDiaryRequest(backing,{action:"list"},opts)).events.length,0);
+ assert.equal((await cityDiaryRequest(backing,{action:"list_archive"},opts)).events.length,1);
+ assert.equal((await cityDiaryRequest(backing,{action:"get",id:ID},opts)).event.status,"cancelled");
+});
+test("a cancelled publication cannot be archived through reminder-only public action",async()=>{
+ const backing=storage();
+ const draft={mode:"publication",action:"review",accountId:"yan_second",profileId:"652282",
+   at:at(),reviewText:"Подлинный текст"};
+ const opts={profileOwned:owned,manualStatus:async()=>({archive:[],statuses:{}})};
+ const created=await cityDiaryRequest(backing,{action:"create",id:ID,operation:OP,plan:draft},opts);
+ assert.equal(created.ok,true);
+ await cityDiaryRequest(backing,{action:"cancel",id:ID,operation:"6666666666666666",expectedRevision:1},opts);
+ const attempted=await cityDiaryRequest(backing,{action:"archive_cancelled_reminders",
+   operation:"8888888888888888",items:[{id:ID,revision:2}]},opts);
+ assert.equal(attempted.reason,"archive_not_safe");
+ assert.equal((await cityDiaryRequest(backing,{action:"list_archive"},opts)).events.length,0);
+});
