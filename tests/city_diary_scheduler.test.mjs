@@ -115,3 +115,15 @@ test("a forged Thanks callback does not acknowledge or modify delivery",async()=
  assert.equal((await call({type:"acknowledge",eventId:ID,messageId:777,callbackData:realCallback})).status,200);
  assert.equal((await call({type:"acknowledge",eventId:ID,messageId:777,callbackData:fake})).status,409);
 });
+
+test("failed atomic schedule commit preserves prior revision and event list",async()=>{
+ const {call,db}=setup();
+ await call({type:"replace_schedule",scheduleRevision:1,events:[reminder(future)]});
+ const earlier=structuredClone(db.get("diary_scheduler_events_v1"));
+ // Verify the atomic storage contract by a second, rejected snapshot:
+ // the failed operation must not remove a previously accepted event.
+ const denied=await call({type:"replace_schedule",scheduleRevision:1,events:[]});
+ assert.equal(denied.status,409);
+ assert.deepEqual(db.get("diary_scheduler_events_v1"),earlier);
+ assert.equal(db.get("diary_scheduler_revision_v1"),1);
+});
