@@ -39,8 +39,20 @@ Added `src/city_diary_store.js` and `tests/city_diary_store.test.mjs`.
 - Mutations require 16–32 character hex operation IDs, with stored replay receipts; changing the payload while reusing an ID is rejected.
 - Editing and status changes require expected event revision. Cancellation is currently an event state change only, not a real credit release or Telegram deletion.
 - Does not call Telegram, ADMIN, publication runners, credit ledgers, or external websites.
-- Storage write followed by receipt write is not an atomic transaction. Lost receipt can lead to a revision conflict on retry; operator must query event state instead of blindly reissuing mutation. Harden transaction boundaries before wiring production callbacks.
+- Historical stage-2 note (superseded by checkpoint 3): writes were initially non-atomic; checkpoint 3 fixes them with a single Durable Object transaction.
 - Isolation tests construct distinct per-client mock storages. Authentication and user-to-DO routing remain the responsibility of the existing cabinet runtime, and are NOT yet wired.
 - Test files have been committed but were **not executed in this session**: the runtime could not resolve github.com to download the checked-in files for local Node testing.
 
 Do not merge or deploy this PR yet. Next: atomic storage transaction, authenticated RPC adapter, timezone-aware calendar and reminder acknowledgement semantics, then end-to-end tests.
+
+## Checkpoint 3 — atomic storage (2026-10-24)
+
+The private store now **requires** Durable Object `storage.transaction` and writes event state and the operation receipt inside one transaction. A failure of either write aborts the entire change. There is no best-effort receipt commit anymore.
+
+Added fault-injection tests for receipt-write failure and rejection of nontransactional storage adapters. Tests remain unverified until GitHub Actions or a full local checkout runs them. A direct container clone attempt failed because `github.com` could not be DNS-resolved; do not claim CI success from commits alone.
+
+### Required before further integration
+- Authenticate every diary HTTP/RPC operation with Telegram-signed identity and route to the corresponding client's isolated coordinator.
+- Verify actual persistent object transaction behavior in the Cloudflare runtime and run complete Node/Python suites.
+- Check domain changes before **every external publication attempt**. The existing secondary account's site version/proxy/login approval must not be bypassed by saved diary URLs. A changed domain must preserve plan data while disabling unverified submission.
+- Never infer publication success merely from diary state.
