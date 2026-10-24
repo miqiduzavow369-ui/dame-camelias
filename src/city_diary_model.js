@@ -32,7 +32,7 @@ function checkPlan(plan, now) {
   const result = {mode:plan.mode,action:plan.action,at:plan.at,profileId,reviewText};
   // Identity of the existing City male account; never save login/proxy/site URL.
   if(plan.accountId!==undefined&&plan.accountId!==null){
-    if(typeof plan.accountId!=="string"||!/^yan_(?:first|second|\\d{2})$/.test(plan.accountId))
+    if(typeof plan.accountId!=="string"||!/^yan_(?:first|second|(?:0[3-9]|[12][0-9]|30))$/.test(plan.accountId))
       fail("invalid_account");
     result.accountId=plan.accountId;
   }
