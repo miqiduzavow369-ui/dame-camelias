@@ -105,3 +105,18 @@ test("draft requests use a server revision and stop after cross-device conflict"
  assert.ok(page.includes('if(restoringDraft||loading||draftConflict)return'));
  assert.ok(page.includes('draftRevision=record?.revision||0'));
 });
+
+test("draft conflict provides explicit choices and never auto-overwrites newest server copy",()=>{
+ for(const token of ['id="draftConflictPanel"','id="copyLocalDraft"','id="loadRemoteDraft"',
+ 'id="overwriteRemoteDraft"','showDraftConflict(','draftConflict=true',
+ 'await api("get_form_draft")','confirm("Заменить сохранённый черновик',
+ 'expectedRevision:current.draft?.revision||0','const local=formSnapshot();']){
+  assert.ok(page.includes(token),token);
+ }
+ assert.ok(page.includes('if(restoringDraft||loading||draftConflict)return'));
+ assert.ok(page.includes('$("draftConflictPanel").hidden=true'));
+});
+test("stale editing draft cannot silently rewrite a cancelled event",()=>{
+ assert.ok(page.includes('events.find(e=>e.id===d.editingId&&e.status==="scheduled")'));
+ assert.ok(page.includes('Исходное событие уже недоступно для редактирования'));
+});
