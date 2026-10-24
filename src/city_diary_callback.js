@@ -47,6 +47,23 @@ export async function handleCityDiaryThanks(update,{trustedWebhook=false,schedul
      answered:false,deleted:false,cleanupRecorded:true,
      cleanupStatus:data.record?.cleanupStatus||"unknown",
      cleanupLimit:true,cleanupRequired:true};
+ let claim;
+ try{
+   const claimResponse=await stub.fetch("https://city-diary.internal/claim-cleanup",{
+     method:"POST",
+     headers:{"Authorization":"Bearer "+internalToken,"Content-Type":"application/json"},
+     body:JSON.stringify({type:"claim_cleanup",userId:from,eventId:parsed.eventId,messageId})
+   });
+   claim=await claimResponse.json();
+   if(!claimResponse.ok||!claim?.ok||claim.record?.eventId!==parsed.eventId||
+      claim.record?.telegramMessageId!==messageId)
+     return {handled:true,ok:true,acknowledged:true,cleanupRequired:true,
+       deleted:false,reason:"cleanup_claim_rejected"};
+   if(!claim.claimed)
+     return {handled:true,ok:true,acknowledged:true,cleanupRequired:claim.record.cleanupStatus!=="deleted",
+       deleted:claim.record.cleanupStatus==="deleted",reason:"cleanup_already_claimed"};
+ }catch{return {handled:true,ok:true,acknowledged:true,deleted:false,
+   cleanupRequired:true,reason:"cleanup_claim_unknown"};}
  let answered=false,deleted=false;
  try{answered=(await telegram.answerCallbackQuery(callbackId,"Спасибо ✨"))===true;}
  catch{/* Telegram may time out after accepting the answer. */}
