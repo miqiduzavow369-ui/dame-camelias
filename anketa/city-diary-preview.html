@@ -48,7 +48,21 @@ textarea{min-height:92px;resize:vertical}
  <div class="days" id="days"></div>
  <div class="row" style="margin-top:12px"><span class="legend"><i></i> Дни с событиями</span><span class="hint" id="chosen"></span></div>
 </section>
-<section class="card" id="plansSection"><div class="row"><h2>Мои планы</h2><span id="total" class="pill">0 событий</span></div><div id="plans"></div></section>
+<section class="card" id="plansSection">
+ <div class="row"><h2>Мои планы</h2><span id="total" class="pill">0 событий</span></div>
+ <div class="segment"><button id="dayView" class="active" type="button">Выбранный день</button><button id="allView" type="button">Все планы</button></div>
+ <div id="plans"></div>
+</section>
+<section class="card" id="monthSection">
+ <h2>План на месяц</h2><p class="hint">Отметьте даты в календаре, затем выберите общий шаблон ниже. Каждую созданную запись можно изменить отдельно.</p>
+ <button class="ghost" id="batchToggle" type="button" style="width:100%">✦ Выбрать несколько дат</button>
+ <div id="batchPanel" hidden>
+  <p class="hint">Выбрано дней: <strong id="batchCount">0</strong>. Нажимайте дни календаря, чтобы включать и исключать их из плана.</p>
+  <div id="batchDates" class="hint"></div>
+  <button id="batchSave" class="btn" type="button">✦ Сохранить выбранные даты</button>
+  <button id="batchClear" class="ghost" type="button" style="width:100%;margin-top:10px">Очистить выбор</button>
+ </div>
+</section>
 <section class="card">
  <h2 id="formHeading">Новое событие</h2>
  <div class="segment"><button id="reminderMode" class="active" type="button">🔔 Напоминание</button><button id="publicationMode" type="button">✦ Публикация</button></div>
@@ -71,7 +85,7 @@ if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],mode="reminder",editing=null,loading=false;
-let pendingSave=null;const pendingCancel=new Map();const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
+let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 function localTime(d){return [String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");}
@@ -108,20 +122,31 @@ function renderCalendar(){
   b.setAttribute("aria-label",date);b.setAttribute("aria-pressed",String(date===selected));
   if(date===selected)b.classList.add("selected");if(date===todayKey)b.classList.add("today");
   if(events.some(e=>e.status!=="cancelled"&&dayKey(e)===date)){const dot=document.createElement("span");dot.className="dot";b.append(dot);}
-  b.onclick=()=>{selected=date;$("date").value=date;renderCalendar();renderPlans();};
+  if(batchDates.has(date))b.classList.add("selected");
+  b.onclick=()=>{
+    if(batchMode){
+      if(batchDates.has(date))batchDates.delete(date);
+      else if(batchDates.size<31)batchDates.add(date);
+      else {say("За один раз можно выбрать не более 31 даты.");return;}
+      pendingBatch=null;renderBatch();renderCalendar();return;
+    }
+    selected=date;$("date").value=date;renderCalendar();renderPlans();
+  };
   $("days").append(b);
  }
  $("chosen").textContent=selected.split("-").reverse().join(".");
 }
 function appendText(parent,tag,value,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=value;parent.append(node);return node;}
 function renderPlans(){
- const dayEvents=events.filter(e=>e.status!=="cancelled"&&dayKey(e)===selected).sort((a,b)=>a.at.localeCompare(b.at));
+ const dayEvents=events.filter(e=>e.status!=="cancelled"&&(plansView==="all"||dayKey(e)===selected)).sort((a,b)=>a.at.localeCompare(b.at));
+ $("dayView").classList.toggle("active",plansView==="day");
+ $("allView").classList.toggle("active",plansView==="all");
  $("total").textContent=events.filter(e=>e.status!=="cancelled").length+" событий";
  const el=$("plans");el.replaceChildren();
  if(!dayEvents.length){appendText(el,"p","На выбранную дату пока ничего не запланировано.");return;}
  for(const e of dayEvents){
   const item=document.createElement("div");item.className="item";
-  appendText(item,"strong",(e.mode==="reminder"?"🔔 Напоминание":"✦ Публикация")+" · "+localTime(new Date(e.at)));
+  appendText(item,"strong",(e.mode==="reminder"?"🔔 Напоминание":"✦ Публикация")+" · "+dayKey(e).split("-").reverse().join(".")+" · "+localTime(new Date(e.at)));
   appendText(item,"p",({profile:"Проверить анкету",rating:"Оценки",review:"Отзыв",rating_review:"Отзыв и оценки"})[e.action]+" · "+(e.profileId?"Анкета №"+e.profileId:"Без анкеты"));
   appendText(item,"span",statusText(e.status),"pill");
   if(e.note)appendText(item,"p",e.note);
@@ -187,6 +212,42 @@ async function save(){
  }catch(error){say(error.message+" Если ответ не пришёл, повторите сохранение без изменения формы.");}
  finally{loading=false;$("save").disabled=false;}
 }
+function renderBatch(){
+ const sorted=[...batchDates].sort();
+ $("batchCount").textContent=String(sorted.length);
+ $("batchDates").textContent=sorted.length?sorted.map(v=>v.split("-").reverse().join(".")).join(" · "):"Даты пока не выбраны.";
+ $("batchPanel").hidden=!batchMode;
+ $("batchToggle").textContent=batchMode?"✦ Завершить выбор дат":"✦ Выбрать несколько дат";
+}
+function batchPlans(){
+ if(!batchDates.size)throw Error("Отметьте хотя бы одну дату.");
+ const selectedDate=$("date").value;
+ const result=[];
+ for(const date of [...batchDates].sort()){
+   $("date").value=date;
+   try{result.push({id:hexId(),plan:planFromForm()});}
+   finally{$("date").value=selectedDate;}
+ }
+ return result;
+}
+async function saveBatch(){
+ if(loading)return;
+ loading=true;$("batchSave").disabled=true;
+ try{
+   const template={mode,action:$("action").value,profileId:$("profile").value||null,
+     time:$("time").value,reviewText:$("reviewText").value,note:$("note").value};
+   const dates=[...batchDates].sort();
+   const fingerprint=JSON.stringify({dates,template});
+   if(!pendingBatch||pendingBatch.fingerprint!==fingerprint)
+     pendingBatch={fingerprint,operation:hexId(),items:batchPlans()};
+   const result=await api("batch",{operation:pendingBatch.operation,items:pendingBatch.items});
+   const count=result.events?.length||0;
+   pendingBatch=null;batchDates.clear();batchMode=false;renderBatch();
+   await refresh();
+   say("✦ Сохранено событий: "+count+". Это только записи в ежедневнике.");
+ }catch(error){say(error.message+" При сбое связи повторите сохранение без изменения плана.");}
+ finally{loading=false;$("batchSave").disabled=false;}
+}
 async function refresh(){
  const response=await api("list");events=response.events||[];renderCalendar();renderPlans();
 }
@@ -199,11 +260,16 @@ async function boot(){
   else say("Не удалось загрузить анкеты. Проверьте доступ в личный кабинет.");
  }catch(error){say(error.message);}
 }
+$("batchToggle").onclick=()=>{batchMode=!batchMode;if(!batchMode)batchDates.clear();pendingBatch=null;renderBatch();renderCalendar();};
+$("batchClear").onclick=()=>{batchDates.clear();pendingBatch=null;renderBatch();renderCalendar();};
+$("batchSave").onclick=saveBatch;
+$("dayView").onclick=()=>{plansView="day";renderPlans();};
+$("allView").onclick=()=>{plansView="all";renderPlans();};
 $("prev").onclick=()=>moveMonth(-1);
 $("next").onclick=()=>moveMonth(1);
 $("date").onchange=()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test($("date").value))return;selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;renderCalendar();renderPlans();};
 $("reminderMode").onclick=()=>changeMode("reminder");
 $("publicationMode").onclick=()=>changeMode("publication");
 $("reset").onclick=resetForm;$("save").onclick=save;
-renderCalendar();boot();
+renderBatch();renderCalendar();boot();
 </script></body></html>
