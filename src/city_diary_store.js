@@ -41,7 +41,7 @@ export class CityDiaryStore {
     if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail("invalid_draft_revision");
     return this.storage.transaction(async tx=>{
       const previous=await tx.get(DRAFT);
-      const actual=previous&&previous.expiresAt>now?previous.revision:0;
+      const actual=previous&&previous.expiresAt>now?(previous.revision??0):0;
       if(actual!==expectedRevision)fail("draft_revision_conflict");
       const revision=actual+1;
       const record={form:snapshot(form),revision,updatedAt:now,expiresAt:now+DRAFT_TTL};
@@ -53,7 +53,7 @@ export class CityDiaryStore {
     if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail("invalid_draft_revision");
     return this.storage.transaction(async tx=>{
       const previous=await tx.get(DRAFT);
-      const actual=previous&&previous.expiresAt>now?previous.revision:0;
+      const actual=previous&&previous.expiresAt>now?(previous.revision??0):0;
       if(actual!==expectedRevision)fail("draft_revision_conflict");
       if(previous)await tx.delete(DRAFT);
       return {cleared:true,revision:0};
