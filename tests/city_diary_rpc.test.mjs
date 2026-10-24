@@ -88,3 +88,28 @@ test("male identities come only from existing City registry",async()=>{
    plan:{...base,accountId:"yan_second"}},allow);
  assert.equal(valid.ok,true);assert.equal(valid.event.accountId,"yan_second");
 });
+
+test("publication planning rejects manually published review for same man",async()=>{
+ const store=storage(),draft={mode:"publication",action:"review",accountId:"yan_second",
+   profileId:"652282",at:at(),reviewText:"Подлинный личный текст"};
+ const manualStatus=async()=>({archive:[{account:"yan_second",profileId:"652282",kind:"review"}],statuses:{}});
+ const result=await cityDiaryRequest(store,{action:"create",id:ID,operation:OP,plan:draft},
+   {profileOwned:owned,manualStatus});
+ assert.equal(result.ok,false);assert.equal(result.reason,"already_published");
+ assert.deepEqual((await cityDiaryRequest(store,{action:"list"},allow)).events,[]);
+});
+test("published review does not block planning an unrelated rating",async()=>{
+ const store=storage(),draft={mode:"publication",action:"rating",accountId:"yan_second",
+   profileId:"652282",at:at(),reviewText:""};
+ const manualStatus=async()=>({archive:[{account:"yan_second",profileId:"652282",kind:"review"}],statuses:{}});
+ const result=await cityDiaryRequest(store,{action:"create",id:ID,operation:OP,plan:draft},
+   {profileOwned:owned,manualStatus});
+ assert.equal(result.ok,true);assert.equal(result.event.action,"rating");
+});
+test("publication planning fails closed without authoritative City status adapter",async()=>{
+ const store=storage(),draft={mode:"publication",action:"review",accountId:"yan_second",
+   profileId:"652282",at:at(),reviewText:"Подлинный личный текст"};
+ const result=await cityDiaryRequest(store,{action:"create",id:ID,operation:OP,plan:draft},allow);
+ assert.equal(result.reason,"eligibility_unavailable");
+ assert.deepEqual((await cityDiaryRequest(store,{action:"list"},allow)).events,[]);
+});
