@@ -332,3 +332,15 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Telegram's official Bot API documents the `secret_token` value supplied in the `X-Telegram-Bot-Api-Secret-Token` HTTP header for webhook requests. No real `setWebhook` call or actual Telegram message dispatch occurred.
 
 **Still pending:** independent staging resources, authenticated live webhook wiring, durable callback update-ID replay accounting, bounded cleanup reconciliation, real send/delete evidence, Cloudflare migration review and explicit production approval. Existing City/ADMIN/credits/reviews, all men, ASHOO, main and deployed Worker untouched.
+
+## Checkpoint 26 — no test bots; offline-only update-id replay protection (2026-10-24)
+
+**Explicit owner requirement: no additional or test Telegram bots.** The prior staging runbook has been rewritten as `docs/CITY_DIARY_STAGING_RUNBOOK.md` for offline validation only. No bot registration, BotFather setup, test bot token, setWebhook, Cloudflare environment migration, or production deployment is authorized or performed.
+
+- The isolated callback adapter forwards the trusted webhook's numeric `update_id` to the per-owner scheduler's internal acknowledgement path. The scheduler atomically records a bounded history (256) of update IDs paired with the exact event ID, Telegram message ID and callback data alongside the delivery acknowledgement.
+- Replaying the same update with the same payload is idempotent; reusing the same update ID for a different message or callback proof is rejected with 409 and does not alter acknowledgement receipts. Invalid negative/noninteger update IDs are rejected.
+- Existing privacy rule remains: per-user scheduler DO, authenticated Telegram sender equal to private chat owner, nonce and exact message ID, callback cleanup separately tracked. The update-id cache supplements but does not replace Telegram identity checks. Cache is bounded and is not an indefinite global update ledger.
+- Tests added for identical replay, update-ID collision attempt, persisted receipt and invalid update IDs. City diary CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40116211330.
+- Code remains dormant under draft PR #284. No changes to `wrangler.toml`, `src/index.js`, live `/webhook`, existing OrderReminder, City manual flows, ADMIN, men, credits, ASHOO or `main`.
+
+**Remaining before any real activation:** peer review of trusted webhook integration in the existing bot, cross-device/out-of-order update tests, privacy/retention auditing and explicit owner approval. Continue offline until then; do not propose a separate test bot.
