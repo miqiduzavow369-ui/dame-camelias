@@ -5,6 +5,7 @@ import {DiaryError, createDiaryEvent, addDiaryEvent, editDiaryEvent,
         transitionDiaryEvent, listDiaryEvents} from "./city_diary_model.js";
 
 const KEY="city_diary_events_v1";
+const SCHEDULE_REV="city_diary_schedule_revision_v1";
 const RECEIPTS="city_diary_operation_receipts_v1";
 const ARCHIVE="city_diary_archive_v1";
 const DRAFT="city_diary_form_draft_v1";
@@ -57,6 +58,19 @@ export class CityDiaryStore {
       if(actual!==expectedRevision)fail("draft_revision_conflict");
       if(previous)await tx.delete(DRAFT);
       return {cleared:true,revision:0};
+    });
+  }
+  // Authoritative *private* coordinator snapshot. Caller must map the
+  // resulting user ID to its own scheduler object; never take one from HTTP.
+  // No network request, Telegram send or scheduler alarm is started here.
+  async reminderSnapshot() {
+    return this.storage.transaction(async tx=>{
+      const events=(await tx.get(KEY))||[];
+      const revision=(await tx.get(SCHEDULE_REV))||0;
+      if(!Array.isArray(events)||!Number.isSafeInteger(revision)||revision<0)
+        fail("corrupt_diary");
+      return {scheduleRevision:revision,events:snapshot(events.filter(e=>
+        e.mode==="reminder"&&e.status==="scheduled"))};
     });
   }
   async list(filters={}) {
@@ -119,6 +133,10 @@ export class CityDiaryStore {
       await tx.put(ARCHIVE,nextArchive);
       await tx.put(KEY,retained);
       await tx.put(RECEIPTS,nextReceipts);
+      const previousRevision=await tx.get(SCHEDULE_REV)||0;
+      if(!Number.isSafeInteger(previousRevision)||previousRevision>=Number.MAX_SAFE_INTEGER)
+        fail("schedule_revision_unavailable");
+      await tx.put(SCHEDULE_REV,previousRevision+1);
       return snapshot(result);
     });
   }
@@ -162,6 +180,10 @@ export class CityDiaryStore {
       next[operation]={signature,result:result.event};
       await tx.put(KEY,result.events);
       await tx.put(RECEIPTS,next);
+      const previousRevision=await tx.get(SCHEDULE_REV)||0;
+      if(!Number.isSafeInteger(previousRevision)||previousRevision>=Number.MAX_SAFE_INTEGER)
+        fail("schedule_revision_unavailable");
+      await tx.put(SCHEDULE_REV,previousRevision+1);
       return snapshot(result.event);
     });
   }
