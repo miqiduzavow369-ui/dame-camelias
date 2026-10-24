@@ -129,3 +129,13 @@ Implementation boundary:
 - Prior to live scheduling choose and test dedicated per-client scheduler DO instances or a centralised multi-purpose alarm arbiter; never override existing DO alarms.
 - On actual claim persist the record transactionally **before** invoking Telegram. If its result is unknown, retain `delivery_unknown` and reconcile or inform operators instead of blind retry. Only acknowledge a message using its stored Telegram message ID and verified owner callback. Preserve event/audit record after dismiss.
 - Differentiate free reminders from publication confirmation notices. Publication timing must not submit anything without client action, current verified site/domain/profile, permissions, ADMIN moderation and credit safeguards.
+
+## Critical invariant — manual City publication history wins (owner requirement, 2026-10-24)
+
+A diary event is **never** permission to repeat an action already performed manually in City.
+
+- The authoritative key for conflict detection is **male account + profile ID + publication kind** (rating or review), not merely profile ID. Treat both `published` and in-flight/reserved/moderated/verifying states as blocking, subject to the existing City semantics.
+- Check against existing manual publication history and current claim/moderation states **at plan creation, before scheduled confirmation, and at the final submit boundary**. The final check must use the existing atomic guard. The diary must never maintain a parallel authority that overwrites City.
+- If a review is already published or in progress, only a still-eligible rating may be planned; vice versa. A combined rating+review request is invalid unless both are available. Other men do not inherit this particular man's per-profile publication claim, but applicable shared profile limits remain enforced.
+- If manual City completes an action after a diary plan was saved, mark the conflicting planned action unavailable and explain it to the client. Do not silently repeat it, consume a credit, or delete unrelated events.
+- This is a **required future integration**. Current diary model uses profileId and kind but does NOT yet persist an explicit male account identifier. The preview's planning UI is therefore insufficient for final per-man eligibility checks. Do NOT enable scheduled publication/credit holds until this is implemented and tested. Manual City must remain unmodified.
