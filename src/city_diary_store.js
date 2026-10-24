@@ -52,6 +52,14 @@ export class CityDiaryStore {
   async listArchive(filters={}) {
     return listDiaryEvents(await this.#archive(),filters);
   }
+  async archivePage({offset=0,limit=30}={}) {
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000||
+       !Number.isSafeInteger(limit)||limit<1||limit>50)fail("invalid_archive_page");
+    const all=await this.#archive();
+    const sorted=all.slice().sort((a,b)=>b.archivedAt-a.archivedAt||a.id.localeCompare(b.id));
+    return {events:snapshot(sorted.slice(offset,offset+limit)),total:sorted.length,
+      offset,limit,hasMore:offset+limit<sorted.length};
+  }
   async #archive() {
     const entries=await this.storage.get(ARCHIVE);
     if(entries==null)return [];
