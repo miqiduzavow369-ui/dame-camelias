@@ -91,6 +91,9 @@ let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let bat
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 function localTime(d){return [String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");}
+function timeInZone(value,zone){
+ return new Intl.DateTimeFormat("en-GB",{timeZone:zone||timezone,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(value));
+}
 function displayDate(iso){return new Date(iso).toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"});}
 function hexId(){return [...crypto.getRandomValues(new Uint8Array(12))].map(n=>n.toString(16).padStart(2,"0")).join("");}
 function dayKey(e){return e.localDate||localDate(new Date(e.at));}
@@ -148,7 +151,7 @@ function renderPlans(){
  if(!dayEvents.length){appendText(el,"p","На выбранную дату пока ничего не запланировано.");return;}
  for(const e of dayEvents){
   const item=document.createElement("div");item.className="item";
-  appendText(item,"strong",(e.mode==="reminder"?"🔔 Напоминание":"✦ Публикация")+" · "+dayKey(e).split("-").reverse().join(".")+" · "+localTime(new Date(e.at)));
+  appendText(item,"strong",(e.mode==="reminder"?"🔔 Напоминание":"✦ Публикация")+" · "+dayKey(e).split("-").reverse().join(".")+" · "+timeInZone(e.at,e.timezone));
   const selectedMan=men.find(m=>m.id===e.accountId);
   appendText(item,"p",({profile:"Проверить анкету",rating:"Оценки",review:"Отзыв",rating_review:"Отзыв и оценки"})[e.action]+" · "+(e.profileId?"Анкета №"+e.profileId:"Без анкеты")+
     (e.accountId?" · "+(selectedMan?.name||e.accountId):""));
@@ -211,7 +214,11 @@ function resetForm(){
 }
 function startEdit(e){
  pendingSave=null;editing=e;$("formHeading").textContent="Изменить событие";$("reset").hidden=false;
- const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=localTime(date);
+ if(e.timezone&&e.timezone!==timezone){
+   say("План создан в часовом поясе "+e.timezone+". Чтобы не сдвинуть время, измените часовой пояс устройства на исходный перед редактированием.");
+   return;
+ }
+ const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=timeInZone(e.at,e.timezone);
  $("profile").value=e.profileId||"";$("account").value=e.accountId||"";updateAccountStatus();$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -237,7 +244,12 @@ async function cancelEvent(e){
  const key=e.id+":"+e.revision;
  if(!pendingCancel.has(key))pendingCancel.set(key,hexId());
  loading=true;
- try{await api("cancel",{id:e.id,expectedRevision:e.revision,operation:pendingCancel.get(key)});pendingCancel.delete(key);await refresh();say("Событие отменено.");}
+ try{
+   await api("cancel",{id:e.id,expectedRevision:e.revision,operation:pendingCancel.get(key)});
+   pendingCancel.delete(key);
+   try{await refresh();say("Событие отменено.");}
+   catch{say("Событие отменено, но список не обновился. Повторная отмена не требуется.");}
+ }
  catch(error){say(error.message+" Если связь прервалась, повторите отмену: дубликат не создастся.");}
  finally{loading=false;}
 }
@@ -269,6 +281,7 @@ function planFromForm(){
 }
 async function save(){
  if(loading)return;loading=true;$("save").disabled=true;
+ let accepted=false;
  try{
   const plan=planFromForm();
   const payload=editing?{action:"edit",id:editing.id,expectedRevision:editing.revision,patch:plan}:
@@ -280,10 +293,14 @@ async function save(){
     {id:editing.id,expectedRevision:editing.revision,patch:plan,operation:pendingSave.operation}:
     {id:pendingSave.id,operation:pendingSave.operation,plan};
   await api(editing?"edit":"create",request);
+  accepted=true;
+  // A successful write must not become another CREATE if the subsequent LIST fails.
   pendingSave=null;
   selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;
-  await refresh();resetForm();say("✦ План сохранён. Пока это только запись в ежедневнике.");
- }catch(error){say(error.message+" Если ответ не пришёл, повторите сохранение без изменения формы.");}
+  resetForm();
+  try{await refresh();say("✦ План сохранён. Пока это только запись в ежедневнике.");}
+  catch{say("✦ План сохранён, но список пока не обновился. Обновите экран; повторно сохранять не нужно.");}
+ }catch(error){if(!accepted)say(error.message+" Если ответ не пришёл, повторите сохранение без изменения формы.");}
  finally{loading=false;$("save").disabled=false;}
 }
 function renderBatch(){
@@ -308,6 +325,7 @@ async function saveBatch(){
  if(loading)return;
  if(mode!=="reminder"){say("Массовое планирование публикаций появится после подключения индивидуальных текстов, оценок и резервирования кредитов. Пока выбирайте напоминания.");return;}
  loading=true;$("batchSave").disabled=true;
+ let accepted=false;
  try{
    const template={mode,action:$("action").value,profileId:$("profile").value||null,
      time:$("time").value,accountId:$("account").value,reviewText:$("reviewText").value,note:$("note").value};
@@ -316,11 +334,12 @@ async function saveBatch(){
    if(!pendingBatch||pendingBatch.fingerprint!==fingerprint)
      pendingBatch={fingerprint,operation:hexId(),items:batchPlans()};
    const result=await api("batch",{operation:pendingBatch.operation,items:pendingBatch.items});
+   accepted=true;
    const count=result.events?.length||0;
-   pendingBatch=null;batchDates.clear();batchMode=false;renderBatch();
-   await refresh();
-   say("✦ Сохранено событий: "+count+". Это только записи в ежедневнике.");
- }catch(error){say(error.message+" При сбое связи повторите сохранение без изменения плана.");}
+   pendingBatch=null;batchDates.clear();batchMode=false;renderBatch();renderCalendar();
+   try{await refresh();say("✦ Сохранено событий: "+count+". Это только записи в ежедневнике.");}
+   catch{say("✦ Сохранено событий: "+count+". Список пока не обновился; повторно сохранять не нужно.");}
+ }catch(error){if(!accepted)say(error.message+" При сбое связи повторите сохранение без изменения плана.");}
  finally{loading=false;$("batchSave").disabled=false;}
 }
 async function refresh(){
