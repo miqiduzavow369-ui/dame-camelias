@@ -17,6 +17,7 @@ function storage({failReceipt=false}={}) {
     async transaction(fn) {
       const pending=new Map([...db].map(([k,v])=>[k,copy(v)]));
       const tx={
+        async delete(key){pending.delete(key);},
         async get(key){return copy(pending.get(key));},
         async put(key,value){
           if(failReceipt&&key==="city_diary_operation_receipts_v1")
@@ -172,20 +173,20 @@ test("private unfinished form survives client restart, expires and clears",async
  const form={mode:"publication",date:"2026-10-30",time:"17:20",
   profileId:"652282",accountId:"yan_second",action:"review",
   reviewText:"Мой личный опыт",note:"Проверить",editingId:""};
- await first.saveFormDraft(form,{now:NOW});
+ await first.saveFormDraft(form,{expectedRevision:0,now:NOW});
  const reopened=new CityDiaryStore(backing);
  assert.deepEqual((await reopened.readFormDraft({now:NOW+5000})).form,form);
  assert.equal(await reopened.readFormDraft({now:NOW+31*86400000}),null);
- assert.deepEqual(await reopened.clearFormDraft(),{cleared:true});
+ assert.deepEqual(await reopened.clearFormDraft({expectedRevision:1,now:NOW+5000}),{cleared:true,revision:0});
  assert.equal(await reopened.readFormDraft({now:NOW+5000}),null);
 });
 test("private form cannot contain credentials or oversized text",async()=>{
  const store=new CityDiaryStore(storage());
  const form={mode:"reminder",date:"2026-10-30",time:"12:00",profileId:"",
   accountId:"",action:"profile",reviewText:"",note:"",editingId:""};
- await assert.rejects(()=>store.saveFormDraft({...form,proxy:"secret"},{now:NOW}),/invalid_form_draft/);
- await assert.rejects(()=>store.saveFormDraft({...form,reviewText:"x".repeat(4001)},{now:NOW}),/invalid_form_draft/);
- await store.saveFormDraft(form,{now:NOW});
+ await assert.rejects(()=>store.saveFormDraft({...form,proxy:"secret"},{expectedRevision:0,now:NOW}),/invalid_form_draft/);
+ await assert.rejects(()=>store.saveFormDraft({...form,reviewText:"x".repeat(4001)},{expectedRevision:0,now:NOW}),/invalid_form_draft/);
+ await store.saveFormDraft(form,{expectedRevision:0,now:NOW});
  assert.equal((await store.readFormDraft({now:NOW+1})).form.action,"profile");
 });
 test("draft is isolated from active event ledger and other clients",async()=>{
@@ -193,7 +194,7 @@ test("draft is isolated from active event ledger and other clients",async()=>{
  const first=new CityDiaryStore(a),second=new CityDiaryStore(b);
  const form={mode:"reminder",date:"2026-10-30",time:"12:00",profileId:"",
   accountId:"",action:"profile",reviewText:"",note:"",editingId:""};
- await first.saveFormDraft(form,{now:NOW});
+ await first.saveFormDraft(form,{expectedRevision:0,now:NOW});
  assert.equal(await second.readFormDraft({now:NOW+1}),null);
  assert.deepEqual(await first.list(),[]);
 });
@@ -218,4 +219,15 @@ test("archive pagination returns bounded stable pages without losing history",as
  assert.notEqual(page1.events[0].id,page2.events[0].id);
  await assert.rejects(()=>store.archivePage({offset:-1,limit:30}),/invalid_archive_page/);
  await assert.rejects(()=>store.archivePage({offset:0,limit:51}),/invalid_archive_page/);
+});
+
+test("two devices cannot overwrite or clear newer form draft",async()=>{
+ const backing=storage(),one=new CityDiaryStore(backing),two=new CityDiaryStore(backing);
+ const form={mode:"reminder",date:"2026-10-30",time:"12:00",profileId:"",
+  accountId:"",action:"profile",reviewText:"first",note:"",editingId:""};
+ assert.equal((await one.saveFormDraft(form,{expectedRevision:0,now:NOW})).revision,1);
+ assert.equal((await two.saveFormDraft({...form,reviewText:"second"},{expectedRevision:1,now:NOW+1})).revision,2);
+ await assert.rejects(()=>one.saveFormDraft({...form,reviewText:"stale"},{expectedRevision:1,now:NOW+2}),/draft_revision_conflict/);
+ await assert.rejects(()=>one.clearFormDraft({expectedRevision:1,now:NOW+2}),/draft_revision_conflict/);
+ assert.equal((await two.readFormDraft({now:NOW+3})).form.reviewText,"second");
 });
