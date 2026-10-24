@@ -26,7 +26,8 @@ jobs:
           node --check src/city_diary_model.js
           node --check src/city_diary_store.js
           node --check src/city_diary_rpc.js
+          node --check src/city_diary_delivery.js
           node --check src/cabinet_runtime.js
           node --check src/index.js
       - name: Diary unit tests
-        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs
+        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs tests/city_diary_delivery.test.mjs
