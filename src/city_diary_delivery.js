@@ -84,6 +84,19 @@ export function acknowledgeDiaryDelivery(deliveries,eventId,telegramMessageId,ca
   const record={...old,state:"acknowledged",acknowledgedAt:now,updatedAt:now};
   return {deliveries:{...clone(deliveries),[eventId]:record},record:clone(record),replay:false};
 }
+export function claimDiaryMessageCleanup(deliveries,eventId,telegramMessageId,{now=Date.now()}={}) {
+  const old=deliveries?.[eventId];
+  if(!old||old.state!=="acknowledged"||old.telegramMessageId!==telegramMessageId||
+     !Number.isSafeInteger(now))fail("invalid_cleanup");
+  if(old.cleanupStatus==="deleted"||old.cleanupStatus==="in_progress")
+    return {deliveries:clone(deliveries),record:clone(old),claimed:false};
+  const attempts=old.cleanupAttempts||0;
+  if(attempts>=3)fail("cleanup_limit");
+  const record={...old,cleanupStatus:"in_progress",cleanupAttempts:attempts+1,
+    cleanupUpdatedAt:now,updatedAt:now};
+  return {deliveries:{...clone(deliveries),[eventId]:record},
+    record:clone(record),claimed:true};
+}
 export function recordDiaryMessageCleanup(deliveries,eventId,telegramMessageId,deleted,{now=Date.now()}={}) {
   const old=deliveries?.[eventId];
   if(!old||old.state!=="acknowledged"||
@@ -92,10 +105,9 @@ export function recordDiaryMessageCleanup(deliveries,eventId,telegramMessageId,d
     fail("invalid_cleanup");
   if(old.cleanupStatus==="deleted")
     return {deliveries:clone(deliveries),record:clone(old),replay:true};
-  const attempts=old.cleanupAttempts||0;
-  if(attempts>=3)fail("cleanup_limit");
+  if(old.cleanupStatus!=="in_progress")fail("cleanup_not_claimed");
   const record={...old,cleanupStatus:deleted?"deleted":"failed",
-    cleanupAttempts:attempts+1,cleanupUpdatedAt:now,updatedAt:now};
+    cleanupUpdatedAt:now,updatedAt:now};
   return {deliveries:{...clone(deliveries),[eventId]:record},
     record:clone(record),replay:false};
 }
