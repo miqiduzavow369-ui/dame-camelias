@@ -8,7 +8,7 @@ const EVENT="0123456789abcdef", ATTEMPT="2222222222222222";
 const CALLBACK=diaryThanksCallback(EVENT,ATTEMPT);
 function fixture(){
  const calls={scheduler:0,answer:0,delete:0};
- let allowed=true,deleteOk=true;
+ let allowed=true,deleteOk=true,cleanupStatus=null,cleanupAttempts=0;
  const schedulerNamespace={
   idFromName(id){assert.equal(id,USER);return id;},
   get(id){assert.equal(id,USER);return {
@@ -17,9 +17,17 @@ function fixture(){
     const body=JSON.parse(init.body);
     assert.equal(body.userId,USER);
     assert.equal(init.headers.Authorization,"Bearer "+TOKEN);
+    if(body.type==="record_cleanup"){
+      if(body.deleted===true)cleanupStatus="deleted";
+      else cleanupStatus="failed";
+      cleanupAttempts++;
+      return Response.json({ok:true,record:{eventId:EVENT,telegramMessageId:777,
+        state:"acknowledged",cleanupStatus,cleanupAttempts}});
+    }
     if(!allowed)return Response.json({ok:false,reason:"invalid_acknowledgement"},{status:409});
     return Response.json({ok:true,replay:calls.scheduler>1,
-      record:{eventId:EVENT,telegramMessageId:777,state:"acknowledged"}});
+      record:{eventId:EVENT,telegramMessageId:777,state:"acknowledged",
+        cleanupStatus,cleanupAttempts}});
    }
   };}
  };
@@ -39,7 +47,9 @@ test("valid private owner Thanks click authenticates before deletion",async()=>{
  assert.equal(result.ok,true);
  assert.equal(result.acknowledged,true);
  assert.equal(result.deleted,true);
- assert.deepEqual(x.calls,{scheduler:1,answer:1,delete:1});
+ assert.deepEqual(x.calls,{scheduler:2,answer:1,delete:1});
+ assert.equal(result.cleanupRecorded,true);
+ assert.equal(result.cleanupStatus,"deleted");
 });
 test("untrusted webhook, foreign sender, and group callback never touch private scheduler",async()=>{
  const x=fixture();
@@ -67,12 +77,15 @@ test("Telegram delete failure leaves truthful acknowledged cleanup state",async(
  assert.equal(result.deleted,false);
  assert.equal(result.cleanupRequired,true);
  assert.equal(result.acknowledged,true);
+ assert.equal(result.cleanupRecorded,true);
+ assert.equal(result.cleanupStatus,"failed");
 });
 test("duplicate verified clicks are idempotent acknowledgements",async()=>{
  const x=fixture();
  assert.equal((await x.run()).replay,false);
  assert.equal((await x.run()).replay,true);
- assert.equal(x.calls.scheduler,2);
+ assert.equal(x.calls.scheduler,3);
+ assert.equal(x.calls.delete,1);
 });
 test("unrelated Telegram callbacks bypass this adapter",async()=>{
  const x=fixture();
