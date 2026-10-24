@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {nextDiaryAlarm,dueDiaryNotifications,claimDiaryDelivery,
-  settleDiaryDelivery,acknowledgeDiaryDelivery,diaryReminderMessage}
+  settleDiaryDelivery,acknowledgeDiaryDelivery,diaryReminderMessage,diaryThanksCallback,parseDiaryThanksCallback}
   from "../src/city_diary_delivery.js";
 
 const NOW=Date.parse("2026-10-24T10:00:00Z");
@@ -44,14 +44,31 @@ test("acknowledgment requires exact delivered message and is idempotent",()=>{
  const a=claimDiaryDelivery({},reminder(),{attemptId,now:NOW});
  const b=settleDiaryDelivery(a.deliveries,id,attemptId,
   {state:"sent",telegramMessageId:6789},{now:NOW+10});
- assert.throws(()=>acknowledgeDiaryDelivery(b.deliveries,id,999,{now:NOW+20}),/invalid_acknowledgement/);
- const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,{now:NOW+20});
+ assert.throws(()=>acknowledgeDiaryDelivery(b.deliveries,id,999,diaryThanksCallback(id,attemptId),{now:NOW+20}),/invalid_acknowledgement/);
+ const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,diaryThanksCallback(id,attemptId),{now:NOW+20});
  assert.equal(c.record.state,"acknowledged");
- assert.equal(acknowledgeDiaryDelivery(c.deliveries,id,6789,{now:NOW+30}).replay,true);
+ assert.equal(acknowledgeDiaryDelivery(c.deliveries,id,6789,diaryThanksCallback(id,attemptId),{now:NOW+30}).replay,true);
 });
 test("a reminder message is safe plain text and publication mode cannot masquerade",()=>{
  const e=reminder();const message=diaryReminderMessage(e);
  assert.ok(message.includes("Анкета №12345"));
  assert.ok(message.includes("Личный отзыв"));
  assert.throws(()=>diaryReminderMessage({...e,mode:"publication"}),/not_reminder/);
+});
+
+test("Telegram callback carries an unpredictable attempt nonce within 64 bytes",()=>{
+ const callback=diaryThanksCallback(id,attemptId);
+ assert.ok(callback.length<=64);
+ assert.deepEqual(parseDiaryThanksCallback(callback),{eventId:id,nonce:attemptId.slice(0,12)});
+ assert.equal(parseDiaryThanksCallback(callback+"garbage"),null);
+ assert.equal(parseDiaryThanksCallback("citydiary:thanks:"+id),null);
+});
+test("replay acknowledgement rejects forged callback even after it was acknowledged",()=>{
+ const a=claimDiaryDelivery({},reminder(),{attemptId,now:NOW});
+ const b=settleDiaryDelivery(a.deliveries,id,attemptId,
+  {state:"sent",telegramMessageId:6789},{now:NOW+10});
+ const good=diaryThanksCallback(id,attemptId);
+ const c=acknowledgeDiaryDelivery(b.deliveries,id,6789,good,{now:NOW+20});
+ assert.throws(()=>acknowledgeDiaryDelivery(c.deliveries,id,6789,
+   diaryThanksCallback(id,"ffffffffffffffff"),{now:NOW+30}),/invalid_acknowledgement/);
 });
