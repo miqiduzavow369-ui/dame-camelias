@@ -43,6 +43,23 @@ export async function handleCityDiaryThanks(update,{trustedWebhook=false,schedul
  catch{/* Telegram may time out after accepting the answer. */}
  try{deleted=(await telegram.deleteMessage(from,messageId))===true;}
  catch{/* Message remains acknowledged; manual or later cleanup may be required. */}
+ let cleanupRecorded=false,cleanupStatus="unknown",cleanupLimit=false;
+ try{
+   const cleanupResponse=await stub.fetch("https://city-diary.internal/cleanup",{
+     method:"POST",
+     headers:{"Authorization":"Bearer "+internalToken,"Content-Type":"application/json"},
+     body:JSON.stringify({type:"record_cleanup",userId:from,eventId:parsed.eventId,
+       messageId,deleted})
+   });
+   const receipt=await cleanupResponse.json().catch(()=>null);
+   if(cleanupResponse.ok&&receipt?.ok&&
+      receipt.record?.eventId===parsed.eventId&&
+      receipt.record?.telegramMessageId===messageId&&
+      receipt.record?.cleanupStatus===(deleted?"deleted":"failed")){
+     cleanupRecorded=true;cleanupStatus=receipt.record.cleanupStatus;
+   }else if(receipt?.reason==="cleanup_rejected")cleanupLimit=true;
+ }catch{/* Reporting may be ambiguous: leave status unconfirmed. */}
  return {handled:true,ok:true,acknowledged:true,replay:data.replay===true,
-   answered,deleted,cleanupRequired:!deleted};
+   answered,deleted,cleanupRecorded,cleanupStatus,cleanupLimit,
+   cleanupRequired:!deleted||!cleanupRecorded};
 }
