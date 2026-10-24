@@ -1,3 +1,4 @@
+import {cityDiaryRequest} from "./city_diary_rpc.js";
 import {agreementStatus,agreementLabel} from "./agreement.js";
 import {LOADING_EMOJI_KEY,selectedLoadingEmoji} from "./loading_emoji.js";
 import {validWebApp} from "./telegram_auth.js";
@@ -1057,6 +1058,43 @@ export async function cabinetEvent(storage,rawEnv,input,send=telegram,verifyTele
    // The HTTP endpoint validates signed Telegram initData; no legacy PIN session is needed.
   }
   return engine.miniDomainRecovery(env,String(event.profileId||""),event.action,event.url);
+ }
+ if(event.kind==="mini_diary"){
+  // The HTTP Mini App route verifies signed Telegram initData before cabinetRPC
+  // chooses the private per-user coordinator. Never accept userId from its body.
+  if(uid!==OWNER_ID&&(!client?.active||rawEnv.CABINET_CLIENTS_ENABLED==="false"||
+     (await agreementStatus(env,uid)).status!=="accepted"))
+    return {ok:false,status:403,reason:"cabinet_unavailable"};
+  const profileOwned=async profileId=>{
+    const ids=await env.VISITORS_KV.get("owner_anketa_library:"+uid,"json");
+    if(!Array.isArray(ids)||!ids.some(x=>String(x)===profileId))return false;
+    const saved=await env.VISITORS_KV.get("owner_anketa_saved:"+uid+":"+profileId,"json");
+    return saved?.confirmed===true&&String(saved.profile?.id)===profileId;
+  };
+  const manualStatus=async(accountId,profileId)=>{
+    // Read-only archive and current progress from the existing manual City.
+    // Never write to manual publication, credits, or moderation keys.
+    const archive=await readPublicationArchive(storage,rawEnv.VISITORS_KV,uid);
+    if(accountId==="yan_first"){
+      const statuses={};
+      for(const kind of ["rating","review"]){
+        const item=await env.VISITORS_KV.get("owner_anketa_publication_v1:"+kind+":"+profileId,"json");
+        statuses[kind]=item?.status||"unknown";
+      }
+      const ticket=await env.VISITORS_KV.get("mini_review_ticket_v1:"+profileId,"json");
+      if(ticket?.ticket&&statuses.review!=="published"){
+        const review=await env.VISITORS_KV.get("cabinet_review_moderation:"+uid+":"+ticket.ticket,"json");
+        if(review?.status!=="cancelled")statuses.review="moderation";
+      }
+      return {archive:archive.items,statuses};
+    }
+    const key=String(profileId)+":"+accountId;
+    const rating=(await storage.get("secondary-rating-progress-v1:"+uid))?.[key];
+    const review=(await storage.get("secondary-review-progress-v1:"+uid))?.[key];
+    const statuses={rating:rating?.stage||"unknown",review:review?.stage||"unknown"};
+    return {archive:archive.items,statuses};
+  };
+  return cityDiaryRequest(storage,event.request,{profileOwned,manualStatus});
  }
  if(event.kind==="mini_secondary_draft"){
   if(uid!==OWNER_ID){

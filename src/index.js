@@ -786,6 +786,51 @@ export default {
       const result=await cabinetRPC(env,uid,{kind:"mini_domain_recovery",profileId:String(body.profileId),action:body.action,url:body.url});
       return Response.json(result,{status:result?.status===403?403:result?.ok?200:409,headers:{"Cache-Control":"no-store"}});
     }
+    // Isolated diary preview. No main cabinet navigation changes and no live publication.
+    if(request.method==="GET"&&url.pathname==="/anketa/diary-preview"){
+      const html='<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>City · Ежедневник</title><script src="https://telegram.org/js/telegram-web-app.js"></script></head><body style="background:#080808;color:#d9b46e;font:15px system-ui;padding:28px;text-align:center"><main id="status">✦ Проверяем доступ к ежедневнику…</main><script>(async()=>{const el=document.getElementById("status");try{const tg=window.Telegram?.WebApp;if(!tg?.initData)throw Error("Откройте ежедневник через Telegram.");tg.ready();tg.expand();const res=await fetch("/api/anketa/diary-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"});if(!res.ok)throw Error("Не удалось открыть ежедневник. Проверьте доступ в кабинет.");const html=await res.text();document.open();document.write(html);document.close();}catch(e){el.textContent=e.message;}})();</script></body></html>';
+      return new Response(html,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow"}});
+    }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/diary-preview"){
+      if(Number(request.headers.get("content-length")||0)>12000)return new Response("Too large",{status:413});
+      const body=await request.json().catch(()=>null);
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))return new Response("Forbidden",{status:403});
+      let uid;try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))return new Response("Forbidden",{status:403});
+      const access=await cabinetRPC(env,uid,{kind:"mini_preview"});
+      if(!access?.ok)return new Response("Forbidden",{status:403});
+      // Preview pinned to this feature branch, never an untrusted user URL.
+      const source=await fetch("https://raw.githubusercontent.com/miqiduzavow369-ui/dame-camelias/feature/city-premium-diary-20261024/anketa/city-diary-preview.html",{cache:"no-store"});
+      if(!source.ok)return new Response("Diary preview unavailable",{status:502});
+      return new Response(source.body,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","X-Robots-Tag":"noindex, nofollow","Content-Security-Policy":"default-src 'none'; script-src 'unsafe-inline' https://telegram.org; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors https://web.telegram.org https://*.telegram.org"}});
+    }
+    if(request.method==="POST"&&url.pathname==="/api/anketa/mini-diary"){
+      // Signed private Mini App planning API, no automatic publication capability.
+      if(Number(request.headers.get("content-length")||0)>24000)
+        return new Response("Too large",{status:413});
+      const raw=await request.text();
+      if(raw.length>24000)return new Response("Too large",{status:413});
+      let body;try{body=JSON.parse(raw);}catch{return new Response("Invalid JSON",{status:400});}
+      if(!await validWebApp(body?.initData,env.BOT_TOKEN,3600))
+        return new Response("Forbidden",{status:403});
+      let uid;
+      try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))
+        return new Response("Forbidden",{status:403});
+      const allowed=new Set(["list","list_archive","archive_page","get","create","batch","edit","cancel","recheck","archive_cancelled_reminders","get_form_draft","save_form_draft","clear_form_draft"]);
+      if(!allowed.has(body?.action))
+        return new Response("Invalid action",{status:400});
+      const result=await cabinetRPC(env,uid,{kind:"mini_diary",request:{
+        action:body.action,id:body.id,operation:body.operation,
+        plan:body.plan,form:body.form,items:body.items,patch:body.patch,expectedRevision:body.expectedRevision,
+        filters:body.filters
+      }});
+      const status=result?.ok?200:
+        [400,403,404,409,503].includes(result?.status)?result.status:503;
+      return Response.json(result,{status,headers:{
+        "Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"
+      }});
+    }
     if(request.method==="POST"&&url.pathname==="/api/anketa/mini-secondary-draft"){
       if(Number(request.headers.get("content-length")||0)>16000)
        return new Response("Too large",{status:413});

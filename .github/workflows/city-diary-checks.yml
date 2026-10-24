@@ -1,0 +1,40 @@
+name: City diary isolated checks
+on:
+  push:
+    branches:
+      - feature/city-premium-diary-20261024
+  pull_request:
+    paths:
+      - 'src/city_diary_*.js'
+      - 'tests/city_diary_*.test.mjs'
+      - 'anketa/city-diary-preview.html'
+      - '.github/workflows/city-diary-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check src/city_diary_model.js
+          node --check src/city_diary_store.js
+          node --check src/city_diary_rpc.js
+          node --check src/city_diary_delivery.js
+          node --check src/city_diary_scheduler.js
+          node --check src/city_diary_bridge.js
+          node --check src/city_diary_coordinator.js
+          node --check src/city_diary_callback.js
+          node --check src/city_diary_webhook_gate.js
+          node --check src/city_diary_eligibility.js
+          node --check src/city_diary_preflight.js
+          node --check src/cabinet_runtime.js
+          node --check src/index.js
+      - name: Diary unit tests
+        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs tests/city_diary_delivery.test.mjs tests/city_diary_scheduler.test.mjs tests/city_diary_bridge.test.mjs tests/city_diary_coordinator.test.mjs tests/city_diary_callback.test.mjs tests/city_diary_webhook_gate.test.mjs tests/city_diary_eligibility.test.mjs tests/city_diary_preflight.test.mjs
