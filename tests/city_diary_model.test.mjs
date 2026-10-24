@@ -56,3 +56,29 @@ test("due and range queries are sorted without mutating source",()=>{
  assert.deepEqual(listDiaryEvents(original,{from:"2026-10-28T00:00:00.000Z",to:"2026-11-01T00:00:00.000Z"}).map(e=>e.id),[id,b.id]);
  assert.equal(original[0].id,b.id);
 });
+
+test("an IANA timezone and original calendar day are persisted with UTC",()=>{
+ const event=createDiaryEvent({...plan,
+   at:"2026-10-24T22:30:00.000Z",
+   timezone:"Europe/Stockholm",localDate:"2026-10-25"},{id,now:NOW});
+ assert.equal(event.localDate,"2026-10-25");
+ assert.equal(event.timezone,"Europe/Stockholm");
+ assert.equal(event.at,"2026-10-24T22:30:00.000Z");
+});
+test("inconsistent local day or unknown timezone fails closed",()=>{
+ assert.throws(()=>createDiaryEvent({...plan,
+   timezone:"Europe/Stockholm",localDate:"2026-10-24",
+   at:"2026-10-24T22:30:00.000Z"},{id,now:NOW}),/local_date_mismatch/);
+ assert.throws(()=>createDiaryEvent({...plan,
+   timezone:"Unknown/Somewhere",localDate:"2026-10-25",
+   at:"2026-10-24T22:30:00.000Z"},{id,now:NOW}),/invalid_timezone/);
+});
+test("rescheduling updates the local date and timezone together",()=>{
+ const event=createDiaryEvent({...plan,timezone:"Europe/Stockholm",localDate:"2026-10-28"},
+ {id,now:NOW});
+ const updated=editDiaryEvent(event,{
+   at:"2026-10-29T15:30:00.000Z",localDate:"2026-10-29"
+ },{expectedRevision:1,now:NOW});
+ assert.equal(updated.localDate,"2026-10-29");
+ assert.equal(updated.revision,2);
+});
