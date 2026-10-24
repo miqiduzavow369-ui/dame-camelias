@@ -71,7 +71,7 @@ test("create and edits do not reserve credits, send Telegram messages or reach A
  const backing=storage(),store=new CityDiaryStore(backing);
  await store.create(plan,{id:ID,operation:OP,now:NOW});
  assert.deepEqual([...backing.db.keys()].sort(),
-  ["city_diary_events_v1","city_diary_operation_receipts_v1"].sort());
+  ["city_diary_events_v1","city_diary_operation_receipts_v1","city_diary_schedule_revision_v1"].sort());
 });
 
 test("atomic transaction rolls back both event and receipt on write failure",async()=>{
