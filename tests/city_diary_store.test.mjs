@@ -231,3 +231,22 @@ test("two devices cannot overwrite or clear newer form draft",async()=>{
  await assert.rejects(()=>one.clearFormDraft({expectedRevision:1,now:NOW+2}),/draft_revision_conflict/);
  assert.equal((await two.readFormDraft({now:NOW+3})).form.reviewText,"second");
 });
+
+test("pre-revision legacy form drafts migrate without losing contents",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ const form={mode:"reminder",date:"2026-10-31",time:"12:00",
+  profileId:"",accountId:"",action:"profile",reviewText:"old",note:"legacy",editingId:""};
+ backing.db.set("city_diary_form_draft_v1",{form,updatedAt:NOW,expiresAt:NOW+86400000});
+ assert.equal((await store.readFormDraft({now:NOW+1})).form.note,"legacy");
+ const updated=await store.saveFormDraft({...form,note:"migrated"},{expectedRevision:0,now:NOW+2});
+ assert.equal(updated.revision,1);
+ assert.equal((await store.readFormDraft({now:NOW+3})).form.note,"migrated");
+});
+test("legacy form draft can be cleared only with its current revision",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ const form={mode:"reminder",date:"2026-10-31",time:"12:00",
+  profileId:"",accountId:"",action:"profile",reviewText:"",note:"old",editingId:""};
+ backing.db.set("city_diary_form_draft_v1",{form,updatedAt:NOW,expiresAt:NOW+86400000});
+ assert.deepEqual(await store.clearFormDraft({expectedRevision:0,now:NOW+1}),{cleared:true,revision:0});
+ assert.equal(await store.readFormDraft({now:NOW+2}),null);
+});
