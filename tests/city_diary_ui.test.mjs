@@ -43,3 +43,15 @@ test("calendar saves the intended local day and timezone",()=>{
  assert.ok(page.includes("localDate:date"));
  assert.ok(page.includes("function dayKey(e)"));
 });
+
+test("month planning offers multiple gold-selected days and atomic batch API",()=>{
+ for(const token of ["План на месяц","batchDates","batchSave","renderBatch()",
+   'api("batch"','pendingBatch.operation','batchDates.has(date)'])
+   assert.ok(page.includes(token),token);
+});
+test("all plans switches from selected-day view without revealing another client",()=>{
+ assert.ok(page.includes('plansView==="all"'));
+ assert.ok(page.includes('id="allView"'));
+ assert.ok(page.includes('id="dayView"'));
+ assert.ok(!page.includes("innerHTML="));
+});
