@@ -249,3 +249,13 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Known limitations: network ambiguity also stops autosave pending manual refresh, and there is no full three-way merge between devices. Clearing a draft after an event commit may fail due to a concurrent newer draft, in which case the newer draft is preserved. A full active-form recovery UX and per-field merge are future enhancements.
 
 **Invariants:** This change touches only diary files, not manual City execution, ratings, reviews, moderation, existing men's access, credit balance, ASHOO, or deployed Cloudflare. Remain in PR #284 without merging/deploying.
+
+## Checkpoint 18 — explicit draft conflict resolution and migration (2026-10-24)
+
+- In the isolated calendar preview, failed concurrent draft autosaves now reveal an explicit resolution panel. The local unsaved form stays intact. The client can copy the current personal text, deliberately load the latest signed server draft, or explicitly confirm replacing the server draft with the current form. There is **no automatic overwrite** of another device's draft.
+- The overwrite route performs a fresh `get_form_draft` followed by revision-checked `save_form_draft` using the current on-screen form (including changes entered since the conflict). Concurrent writes between those calls fail closed. A network failure retains the conflict panel instead of silently claiming a save.
+- Reloading the server draft clears stale editing mode, and a stored `editingId` for an already-cancelled/completed event is not accepted as edit authority; the content remains a *new* unscheduled draft only.
+- The store now treats legacy unversioned (stage 16) form drafts as revision 0, permitting safe first-save migration or revision-checked clearing without losing the old content.
+- Tests cover choice controls, cross-device version guard, stale edit restore and migration. Isolated CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40093425972 — success.
+
+**Remaining constraints:** This is an explicit overwrite choice, not automatic merge of two devices' edits. Browser clipboard availability varies; the form remains editable if clipboard copying fails. A draft still cannot authorize real publication, dispatch Telegram reminders, reserve credits, or affect ADMIN. No production Worker deploy or merge; manual City and ASHOO untouched.
