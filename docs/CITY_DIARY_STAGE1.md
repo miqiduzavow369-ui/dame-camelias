@@ -155,3 +155,14 @@ A diary event is **never** permission to repeat an action already performed manu
 **Critical scheduler hardening remaining:** authoritative identity enforcement at the coordinator-to-scheduler boundary (internal secret alone does not prove that a caller-supplied userId matches its DO ID), revision-safe delivery snapshots, stale/cancelled-event races, storage alarm and transaction crash testing, Telegram callback identity verification, deleteMessage fallback, transparent reconciliation of uncertain sends, scheduler registration/migration and feature gating. Do not connect until these are tested. Code review must confirm all of this before first real dispatch.
 
 **Next:** enforce shared male+profile+kind eligibility through *read-only* authoritative City status and existing atomic publication guard without changing any manual system code; prepare individually authored per-event publication drafts, domain-change preflight, credit holds; finish reminders in isolated safe staging and test all City regressions before deployment.
+
+## Checkpoint 10 — read-only manual City publication eligibility (2026-10-24)
+
+- New `src/city_diary_eligibility.js` checks the combination **male City account + saved profile ID + action kind (review/rating)** against the existing manual City publication archive, current states, and other non-cancelled future diary publication plans.
+- Existing `src/cabinet_runtime.js` `mini_diary` handler now supplies an authenticated, read-only adapter to `readPublicationArchive`, the canonical `owner_anketa_publication_v1` records for Yan First, and per-male secondary rating/review progress. It does not edit the manual publication code.
+- `src/city_diary_rpc.js` checks conflicts for publication plan **create/edit**, before the private DO stores the event. Rejections are `already_published`, `action_in_progress`, `already_planned`, or `eligibility_unavailable`. Ratings remain independently plannable when only review was published.
+- New tests: `tests/city_diary_eligibility.test.mjs` and API regression coverage in `tests/city_diary_rpc.test.mjs`. Confirmed passing GitHub Actions: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40086707212 (job 120851019871).
+
+**Safety boundary:** Read-only state at creation is **not** an atomic execution permission. Before any future live publication, verify manual City state AGAIN immediately before scheduled confirmation and the final existing atomic submit/credit guard. Unknown or outdated review/rating status, secondary runner claims, external site/domain/config versions, profile disablement, and concurrent manual actions require fail-closed final execution. No scheduler-triggered submissions, credits, or ADMIN paths enabled.
+
+**No changes to production:** Manual City rating/review routes, Yan First and 29 other men, ADMIN, credit modules, ASHOO, `wrangler.toml`, main, and live Cloudflare deployment remain untouched. PR #284 is an isolated feature branch.
