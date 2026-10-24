@@ -114,3 +114,18 @@ Pending before a real launch:
 3. Address suspended/deleted profiles, changed IntimCity domains and current site version/preflight before any external operation.
 4. Implement end-to-end authenticated Cloudflare/Telegram testing, client preview, regressions and final owner approval.
 5. Keep PR #284 as draft; do not merge, touch ADMIN, ASHOO, Yan First or production.
+
+## Checkpoint 8 — isolated reminder-delivery state machine (2026-10-24)
+
+Inspected `src/reminders.js`: the existing `OrderReminder` Durable Object contains order follow-up alarms, moderation outbox and financial settlement retry alarms. A naive new `setAlarm` in the same object would risk overwriting another workflow's next alarm. **No existing alarm, ADMIN, or credit workflow was modified.**
+
+Added:
+- `src/city_diary_delivery.js`: pure sorted next-due/due-list selectors; at-most-once delivery attempt claiming by event and nonce; delivery states `claimed`, `sent`, `delivery_unknown`, `delivery_failed`, `acknowledged`, and plain-text reminder message formatting. Uncertain Telegram results are NOT blindly resubmitted.
+- `tests/city_diary_delivery.test.mjs`: ordering, claimed suppression, repeated claims, unknown outcomes, message-bound acknowledgements, no publication-mode impersonation.
+- CI now runs the delivery tests; **passed**: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40083538965 (job `120841763420`).
+
+Implementation boundary:
+- This is a pure, tested planning/notification **state machine**, NOT a live scheduler: no Durable Object alarm registration, Telegram network sends, callback handler or «Спасибо» message removal is connected yet.
+- Prior to live scheduling choose and test dedicated per-client scheduler DO instances or a centralised multi-purpose alarm arbiter; never override existing DO alarms.
+- On actual claim persist the record transactionally **before** invoking Telegram. If its result is unknown, retain `delivery_unknown` and reconcile or inform operators instead of blind retry. Only acknowledge a message using its stored Telegram message ID and verified owner callback. Preserve event/audit record after dismiss.
+- Differentiate free reminders from publication confirmation notices. Publication timing must not submit anything without client action, current verified site/domain/profile, permissions, ADMIN moderation and credit safeguards.
