@@ -77,3 +77,14 @@ test("batch creates two owned reminders without publication side effects",async(
  assert.deepEqual(again,reply);
  assert.equal((await cityDiaryRequest(s,{action:"list"},allow)).events.length,2);
 });
+
+test("male identities come only from existing City registry",async()=>{
+ const s=storage();
+ const base=plan();
+ const invalid=await cityDiaryRequest(s,{action:"create",id:ID,operation:OP,
+   plan:{...base,accountId:"invented_man"}},allow);
+ assert.equal(invalid.status,400);assert.equal(invalid.reason,"invalid_account");
+ const valid=await cityDiaryRequest(s,{action:"create",id:ID,operation:OP,
+   plan:{...base,accountId:"yan_second"}},allow);
+ assert.equal(valid.ok,true);assert.equal(valid.event.accountId,"yan_second");
+});
