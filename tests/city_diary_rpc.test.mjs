@@ -113,3 +113,53 @@ test("publication planning fails closed without authoritative City status adapte
  assert.equal(result.reason,"eligibility_unavailable");
  assert.deepEqual((await cityDiaryRequest(store,{action:"list"},allow)).events,[]);
 });
+
+test("recheck sees manual City review published after a plan was saved, without submitting",async()=>{
+ const backing=storage();
+ const draft={mode:"publication",action:"review",accountId:"yan_second",profileId:"652282",
+   at:at(),reviewText:"Мой реальный личный опыт"};
+ let published=false;
+ const manualStatus=async()=>({
+   archive:published?[{account:"yan_second",profileId:"652282",kind:"review"}]:[],
+   statuses:{review:published?"published":"unknown",rating:"unknown"}
+ });
+ const opts={profileOwned:owned,manualStatus};
+ const created=await cityDiaryRequest(backing,{action:"create",id:ID,operation:OP,plan:draft},opts);
+ assert.equal(created.ok,true);
+ published=true;
+ const checked=await cityDiaryRequest(backing,{action:"recheck",id:ID,
+   expectedRevision:created.event.revision},opts);
+ assert.equal(checked.ok,true);
+ assert.equal(checked.eligibleForPlanning,false);
+ assert.equal(checked.reason,"already_published");
+ assert.equal(checked.publicationAuthorized,false);
+ assert.equal(checked.siteCheckRequired,true);
+ assert.equal((await cityDiaryRequest(backing,{action:"get",id:ID},opts)).event.status,"scheduled");
+});
+test("recheck is read-only and never authorizes publication when no conflict exists",async()=>{
+ const backing=storage(),opts={profileOwned:owned,manualStatus:async()=>({archive:[],statuses:{}})};
+ const draft={mode:"publication",action:"rating",accountId:"yan_second",
+   profileId:"652282",at:at(),reviewText:""};
+ const created=await cityDiaryRequest(backing,{action:"create",id:ID,operation:OP,plan:draft},opts);
+ assert.equal(created.ok,true);
+ const result=await cityDiaryRequest(backing,{action:"recheck",id:ID,expectedRevision:1},opts);
+ assert.equal(result.eligibleForPlanning,true);
+ assert.equal(result.publicationAuthorized,false);
+ assert.equal(result.requiresClientConfirmation,true);
+ assert.equal(result.requiresExistingCityGuard,true);
+ assert.equal((await cityDiaryRequest(backing,{action:"get",id:ID},opts)).event.revision,1);
+});
+test("recheck refuses a stale version and never accepts a reminder as publication",async()=>{
+ const backing=storage(),opts={profileOwned:owned,manualStatus:async()=>({archive:[],statuses:{}})};
+ await cityDiaryRequest(backing,{action:"create",id:ID,operation:OP,plan:plan()},opts);
+ const reminder=await cityDiaryRequest(backing,{action:"recheck",id:ID,expectedRevision:1},opts);
+ assert.equal(reminder.reason,"not_publication");
+ const draft={mode:"publication",action:"rating",accountId:"yan_second",
+  profileId:"652282",at:at(),reviewText:""};
+ const other="fedcba9876543210";
+ const created=await cityDiaryRequest(backing,{action:"create",id:other,
+    operation:"3333333333333333",plan:draft},opts);
+ assert.equal(created.ok,true);
+ const stale=await cityDiaryRequest(backing,{action:"recheck",id:other,expectedRevision:99},opts);
+ assert.equal(stale.reason,"revision_conflict");
+});
