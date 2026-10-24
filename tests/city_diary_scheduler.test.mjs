@@ -139,3 +139,29 @@ test("cancel accepted before alarm prevents Telegram send",async()=>{
  assert.equal(messages,0);
  assert.deepEqual(db.get("diary_scheduler_events_v1"),[]);
 });
+
+test("scheduler records cleanup separately and keeps verified acknowledgement",async()=>{
+ const {obj,call,db}=setup();
+ await call({type:"replace_schedule",scheduleRevision:1,events:[reminder()]});
+ const original=globalThis.fetch;let callbackData="";
+ globalThis.fetch=async(_url,init)=>{
+  callbackData=JSON.parse(init.body).reply_markup.inline_keyboard[0][0].callback_data;
+  return Response.json({ok:true,result:{message_id:777}});
+ };
+ try{await obj.alarm();}finally{globalThis.fetch=original;}
+ const ack=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData});
+ assert.equal(ack.body.record.state,"acknowledged");
+ const failed=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:false});
+ assert.equal(failed.body.record.cleanupStatus,"failed");
+ const cleaned=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:true});
+ assert.equal(cleaned.body.record.cleanupStatus,"deleted");
+ assert.equal(cleaned.body.record.state,"acknowledged");
+ const repeated=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:true});
+ assert.equal(repeated.body.replay,true);
+ assert.equal(db.get("diary_scheduler_deliveries_v1")[ID].cleanupAttempts,2);
+});
+test("scheduler rejects cleanup without verified acknowledgement",async()=>{
+ const {call}=setup();
+ const denied=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:true});
+ assert.equal(denied.status,409);
+});
