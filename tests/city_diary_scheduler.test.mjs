@@ -127,3 +127,15 @@ test("failed atomic schedule commit preserves prior revision and event list",asy
  assert.deepEqual(db.get("diary_scheduler_events_v1"),earlier);
  assert.equal(db.get("diary_scheduler_revision_v1"),1);
 });
+
+test("cancel accepted before alarm prevents Telegram send",async()=>{
+ const {obj,call,db}=setup();
+ await call({type:"replace_schedule",scheduleRevision:1,events:[reminder()]});
+ const cancelled=await call({type:"replace_schedule",scheduleRevision:2,events:[]});
+ assert.equal(cancelled.status,200);
+ const original=globalThis.fetch;let messages=0;
+ globalThis.fetch=async()=>{messages++;return Response.json({ok:true,result:{message_id:777}});};
+ try{await obj.alarm();}finally{globalThis.fetch=original;}
+ assert.equal(messages,0);
+ assert.deepEqual(db.get("diary_scheduler_events_v1"),[]);
+});
