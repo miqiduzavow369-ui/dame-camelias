@@ -73,7 +73,12 @@ export class CityDiaryStore {
   async createBatch(items,{operation,now=Date.now()}={}) {
     if(!Array.isArray(items)||items.length<1||items.length>31)fail("invalid_batch");
     if(items.some(item=>!item||typeof item!=="object"))fail("invalid_batch");
-    for(const item of items)assertId(item.id);
+    for(const item of items){
+      assertId(item.id);
+      // Bulk publication must not clone one review text/ratings across dates.
+      // Enable it only after per-event payloads, credit holds and preflight are implemented.
+      if(item.plan?.mode!=="reminder")fail("batch_publication_unavailable");
+    }
     if(new Set(items.map(item=>item.id)).size!==items.length)fail("duplicate_event");
     const signature=JSON.stringify(["batch",items]);
     return this.#mutate(operation,signature,events=>{
