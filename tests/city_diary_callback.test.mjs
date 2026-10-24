@@ -102,3 +102,24 @@ test("unrelated Telegram callbacks bypass this adapter",async()=>{
  assert.equal(result.handled,false);
  assert.equal(x.calls.scheduler,0);
 });
+
+test("two simultaneous Thanks callbacks reserve only one delete",async()=>{
+ const x=fixture();
+ let release;
+ const barrier=new Promise(resolve=>{release=resolve;});
+ let started;
+ const entered=new Promise(resolve=>{started=resolve;});
+ let deletions=0;
+ const telegram={answerCallbackQuery:async()=>true,
+   deleteMessage:async()=>{deletions++;started();await barrier;return true;}};
+ const first=x.run({telegram});
+ await entered;
+ const second=await x.run({telegram});
+ assert.equal(second.deleted,false);
+ assert.equal(second.reason,"cleanup_already_claimed");
+ assert.equal(deletions,1);
+ release();
+ const result=await first;
+ assert.equal(result.deleted,true);
+ assert.equal(result.cleanupRecorded,true);
+});
