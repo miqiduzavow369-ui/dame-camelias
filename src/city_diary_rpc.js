@@ -5,7 +5,7 @@ import {DiaryError} from "./city_diary_model.js";
 import {isKnownManAccount} from "./man_accounts.js";
 import {checkDiaryManualHistory} from "./city_diary_eligibility.js";
 
-const ACTIONS=new Set(["list","get","create","batch","edit","cancel"]);
+const ACTIONS=new Set(["list","get","create","batch","edit","cancel","recheck"]);
 const PROFILE=/^\d{1,9}$/;
 export async function cityDiaryRequest(storage,request,{profileOwned,manualStatus}={}) {
   if(!request||!ACTIONS.has(request.action))
@@ -60,6 +60,32 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
     }
     const previous=await store.get(request.id);
     if(!previous)return {ok:false,status:404,reason:"not_found"};
+    if(request.action==="recheck"){
+      // Read-only pre-confirmation check. Even an apparently free action
+      // CANNOT be submitted without the original City's atomic execution guard.
+      if(previous.mode!=="publication")
+        return {ok:false,status:400,reason:"not_publication"};
+      if(!isKnownManAccount(previous.accountId)||!manualStatus)
+        return {ok:false,status:409,reason:"eligibility_unavailable"};
+      if(previous.status!=="scheduled"&&previous.status!=="awaiting_confirmation")
+        return {ok:false,status:409,reason:"event_not_pending"};
+      if(request.expectedRevision!==undefined&&request.expectedRevision!==previous.revision)
+        return {ok:false,status:409,reason:"revision_conflict"};
+      if(!previous.profileId||!await profileOwned(String(previous.profileId)))
+        return {ok:false,status:403,reason:"profile_not_saved"};
+      const manual=await manualStatus(previous.accountId,previous.profileId);
+      const verdict=checkDiaryManualHistory({
+        accountId:previous.accountId,profileId:previous.profileId,
+        action:previous.action,archive:manual?.archive,
+        statuses:manual?.statuses,existingPlans:await store.list(),
+        excludeEventId:previous.id
+      });
+      return {ok:true,eventId:previous.id,revision:previous.revision,
+        eligibleForPlanning:verdict.ok,
+        reason:verdict.reason,kind:verdict.kind||null,
+        publicationAuthorized:false,siteCheckRequired:true,
+        requiresClientConfirmation:true,requiresExistingCityGuard:true};
+    }
     if(request.action==="edit"){
       if(request.patch?.accountId!=null&&!isKnownManAccount(request.patch.accountId))return {ok:false,status:400,reason:"invalid_account"};
       const proposed=request.patch?.profileId===undefined?previous.profileId:request.patch.profileId;
