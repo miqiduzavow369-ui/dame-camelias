@@ -266,7 +266,7 @@ async function overwriteServerDraft(){
  try{
   await draftWrite.catch(()=>{});
   const current=await api("get_form_draft");
-  const local=draftConflictSnapshot||formSnapshot();
+  const local=formSnapshot();
   const result=await api("save_form_draft",{form:local,expectedRevision:current.draft?.revision||0});
   draftRevision=result.revision;
   dismissDraftConflict();
@@ -307,6 +307,10 @@ function restoreFormDraft(record){
  if(d.editingId){
    const found=events.find(e=>e.id===d.editingId&&e.status==="scheduled");
    if(found){editing=found;$("formHeading").textContent="Изменить событие";$("reset").hidden=false;}
+  else {
+    editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
+    $("draftStatus").textContent="Исходное событие уже недоступно для редактирования. Текст сохранён как новый черновик.";
+  }
  }
  $("date").value=d.date||selected;$("time").value=d.time||"12:00";
  if(d.accountId&&men.some(m=>m.id===d.accountId))$("account").value=d.accountId;
@@ -315,7 +319,7 @@ function restoreFormDraft(record){
  $("reviewText").value=d.reviewText||"";$("note").value=d.note||"";
  changeMode(d.mode==="publication"?"publication":"reminder");
  updateAccountStatus();
- $("draftStatus").textContent="Восстановлен ваш сохранённый черновик.";
+ if(!d.editingId||editing)$("draftStatus").textContent="Восстановлен ваш сохранённый черновик.";
 }
 function resetForm(){
  pendingSave=null;editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
