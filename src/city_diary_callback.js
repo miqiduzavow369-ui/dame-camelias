@@ -29,7 +29,7 @@ export async function handleCityDiaryThanks(update,{trustedWebhook=false,schedul
      method:"POST",
      headers:{"Authorization":"Bearer "+internalToken,"Content-Type":"application/json"},
      body:JSON.stringify({type:"acknowledge",userId:from,eventId:parsed.eventId,
-       messageId,callbackData:query.data})
+       messageId,callbackData:query.data,updateId:update?.update_id})
    });
  }catch{return {handled:true,ok:false,reason:"ack_unknown"};}
  const data=await response.json().catch(()=>null);
