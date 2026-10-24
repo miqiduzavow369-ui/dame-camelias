@@ -265,3 +265,16 @@ test("source revision and reminder snapshot track cancelled events without repla
  assert.equal(after.scheduleRevision,2);
  assert.deepEqual(after.events,[]);
 });
+
+test("private coordinator never exports publication plans or form drafts",async()=>{
+ const store=new CityDiaryStore(storage());
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ const snapshot=await store.reminderSnapshot();
+ assert.equal(snapshot.scheduleRevision,1);
+ assert.deepEqual(snapshot.events,[]);
+});
+test("failed private write leaves coordinator revision unchanged",async()=>{
+ const store=new CityDiaryStore(storage({failReceipt:true}));
+ await assert.rejects(()=>store.create({...plan,mode:"reminder"},{id:ID,operation:OP,now:NOW}));
+ assert.equal((await store.reminderSnapshot()).scheduleRevision,0);
+});
