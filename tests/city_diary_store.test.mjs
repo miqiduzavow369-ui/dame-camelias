@@ -6,10 +6,28 @@ const NOW=Date.parse("2026-10-24T10:00:00.000Z");
 const ID="0123456789abcdef", OP="1111111111111111";
 const plan={mode:"publication",action:"review",at:"2026-10-28T15:30:00.000Z",
   profileId:"652282",reviewText:"Мой проверяемый личный опыт"};
-function storage(){
+function storage({failReceipt=false}={}) {
   const db=new Map();
-  return {db,async get(key){return structuredClone(db.get(key));},
-    async put(key,value){db.set(key,structuredClone(value));}};
+  const copy=x=>x===undefined?undefined:structuredClone(x);
+  return {
+    db,
+    async get(key){return copy(db.get(key));},
+    async put(key,value){db.set(key,copy(value));},
+    async transaction(fn) {
+      const pending=new Map([...db].map(([k,v])=>[k,copy(v)]));
+      const tx={
+        async get(key){return copy(pending.get(key));},
+        async put(key,value){
+          if(failReceipt&&key==="city_diary_operation_receipts_v1")
+            throw Error("simulated_receipt_failure");
+          pending.set(key,copy(value));
+        }
+      };
+      const value=await fn(tx);
+      db.clear();for(const [k,v] of pending)db.set(k,v);
+      return value;
+    }
+  };
 }
 test("isolated stores cannot read other client's private events",async()=>{
  const alice=new CityDiaryStore(storage()),bob=new CityDiaryStore(storage());
@@ -52,4 +70,14 @@ test("create and edits do not reserve credits, send Telegram messages or reach A
  await store.create(plan,{id:ID,operation:OP,now:NOW});
  assert.deepEqual([...backing.db.keys()].sort(),
   ["city_diary_events_v1","city_diary_operation_receipts_v1"].sort());
+});
+
+test("atomic transaction rolls back both event and receipt on write failure",async()=>{
+  const backing=storage({failReceipt:true}),store=new CityDiaryStore(backing);
+  await assert.rejects(()=>store.create(plan,{id:ID,operation:OP,now:NOW}),/simulated_receipt_failure/);
+  assert.deepEqual(await store.list(),[]);
+  assert.equal(backing.db.size,0);
+});
+test("a transaction-capable storage is mandatory",()=>{
+  assert.throws(()=>new CityDiaryStore({async get(){},async put(){}}),/invalid_storage/);
 });
