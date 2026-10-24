@@ -81,3 +81,33 @@ test("atomic transaction rolls back both event and receipt on write failure",asy
 test("a transaction-capable storage is mandatory",()=>{
   assert.throws(()=>new CityDiaryStore({async get(){},async put(){}}),/invalid_storage/);
 });
+
+test("atomic month batch creates independent dates and retries idempotently",async()=>{
+ const store=new CityDiaryStore(storage());
+ const items=[{id:ID,plan},{id:"fedcba9876543210",plan:{...plan,at:"2026-10-30T15:30:00.000Z"}}];
+ const first=await store.createBatch(items,{operation:OP,now:NOW});
+ assert.equal(first.length,2);
+ assert.equal(first[0].at,items[0].plan.at);
+ const retry=await store.createBatch(items,{operation:OP,now:NOW+1000});
+ assert.deepEqual(retry,first);
+ assert.equal((await store.list()).length,2);
+ const changed=await store.edit(ID,{note:"Только эта запись"},{expectedRevision:1,operation:"aaaaaaaaaaaaaaaa",now:NOW});
+ assert.equal(changed.note,"Только эта запись");
+ assert.equal((await store.get(items[1].id)).note,undefined);
+});
+test("month batch rolls back entirely when any event is invalid",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await assert.rejects(()=>store.createBatch([
+  {id:ID,plan},
+  {id:"fedcba9876543210",plan:{...plan,at:"2026-01-01T00:00:00.000Z"}}
+ ],{operation:OP,now:NOW}),/time_out_of_range/);
+ assert.deepEqual(await store.list(),[]);
+ assert.equal(backing.db.size,0);
+});
+test("month batch rejects duplicate IDs and excess dates before writes",async()=>{
+ const store=new CityDiaryStore(storage());
+ await assert.rejects(()=>store.createBatch([{id:ID,plan},{id:ID,plan}],{operation:OP,now:NOW}),/duplicate_event/);
+ await assert.rejects(()=>store.createBatch(Array.from({length:32},(_,i)=>({
+  id:i.toString(16).padStart(16,"0"),plan
+ })),{operation:OP,now:NOW}),/invalid_batch/);
+});
