@@ -234,3 +234,9 @@ No live publication, credit, moderator, site login, Telegram alarm registration,
 - No Telegram live alarms, real posting, credit manipulation, ADMIN edit, or change to manual City orders/ratings/reviews. Feature remains draft PR #284; no production merge/deploy.
 
 **Known limitations:** There is no durable operation nonce rehydration across restart; double-post protection is presently the server's exact active schedule conflict guard. Draft-save request races across multiple open devices still need server-side revision control. Old editingId drafts may be invalid if the original event was completed/cancelled meanwhile. Archive paging is not full off-site backup. DST and final-site preflight remain guarded, not launched.
+
+## Stage 16 CI verification
+
+The isolated diary checks passed with the added private draft and bounded archive page tests:
+https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40091667944
+The first newly added RPC draft-clear test detected a missing `storage.delete` method **in the test fake only**, which was repaired before the passing run. Do not infer a production deployment or real Telegram smoke test. Full City regressions remain independent checks.
