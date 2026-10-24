@@ -289,3 +289,14 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Further necessary design: secure server-side trigger after confirmed private diary mutations; cancellation-vs-alarm delivery race reconciliation; dedicated registered DO and secret; callback ownership verification, answerCallbackQuery, message removal; separate retries and monitoring. None enabled here.
 
 **City invariants:** Manual IntimCity/City, existing OrderReminder alarm, ADMIN, all 30 men, credits, ASHOO, main and production unchanged. PR #284 remains isolated.
+
+## Checkpoint 22 — optional post-mutation synchronization coordinator (2026-10-24)
+
+- Added dormant `src/city_diary_coordinator.js` and offline tests. It composes the existing authenticated `cityDiaryRequest` with the stage-21 private `syncCityDiaryReminders` bridge **after a successful write**. The returned response distinguishes a committed diary plan from remote scheduler status: `reminderSync.status` is `synced` or `pending`. A failed/uncertain transport cannot misrepresent a committed event as a failed creation and trigger duplicates.
+- The optional coordinator is not routed through `src/index.js` or `src/cabinet_runtime.js`, and there is no live DO binding, Telegram call, or background retry. The read-only and form-draft actions never initiate synchronization; failed diary mutations never start it. Cancellation snapshots send an empty set of reminders; publication plans remain excluded.
+- Tests: success, lost response, exact operation replay, read-only isolation, invalid mutation, cancellation, and a scheduler-specific test that an acknowledged cancellation **before alarm handling** suppresses the send. Tests use private simulated storage/objects.
+- **Known race boundary:** If the alarm has already claimed a reminder and begun the external Telegram call, a later cancellation cannot guarantee unsending the message. At-most-once claims prevent blind duplicate sends, but no unconditional cancellation guarantee is claimed.
+- Isolated diary CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40100425402 — success.
+- Remaining before activation: provision the dedicated scheduler DO binding/secret, wire the optional coordinator to trusted owner-scoped mutation entrypoint, establish reliable reconciliation when the transport is pending, separately authenticate webhook callbacks, implement callback answering and message deletion, and conduct staging tests. Nothing is deployed.
+
+**Scope:** no change to production `OrderReminder`, existing manual City/ADMIN, credit flows, men's accounts or ASHOO, no merge to main.
