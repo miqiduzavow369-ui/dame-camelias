@@ -71,11 +71,14 @@ if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],mode="reminder",editing=null,loading=false;
+let pendingSave=null;const pendingCancel=new Map();const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 function localTime(d){return [String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");}
 function displayDate(iso){return new Date(iso).toLocaleString("ru-RU",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"});}
 function hexId(){return [...crypto.getRandomValues(new Uint8Array(12))].map(n=>n.toString(16).padStart(2,"0")).join("");}
+function dayKey(e){return e.localDate||localDate(new Date(e.at));}
+function moveMonth(delta){month+=delta;if(month<0){month=11;year--;}if(month>11){month=0;year++;}selected=[year,String(month+1).padStart(2,"0"),"01"].join("-");if(!editing)$("date").value=selected;renderCalendar();renderPlans();}
 function statusText(s){return ({scheduled:"Запланировано",cancelled:"Отменено",awaiting_confirmation:"Ожидает подтверждения",submitted:"В работе",completed:"Выполнено",failed:"Не выполнено"})[s]||s;}
 function api(action,fields={}){
  if(!tg?.initData)throw Error("Откройте ежедневник через Telegram.");
@@ -104,7 +107,7 @@ function renderCalendar(){
   const b=document.createElement("button");b.type="button";b.className="day";b.textContent=day;
   b.setAttribute("aria-label",date);b.setAttribute("aria-pressed",String(date===selected));
   if(date===selected)b.classList.add("selected");if(date===todayKey)b.classList.add("today");
-  if(events.some(e=>e.status!=="cancelled"&&localDate(new Date(e.at))===date)){const dot=document.createElement("span");dot.className="dot";b.append(dot);}
+  if(events.some(e=>e.status!=="cancelled"&&dayKey(e)===date)){const dot=document.createElement("span");dot.className="dot";b.append(dot);}
   b.onclick=()=>{selected=date;$("date").value=date;renderCalendar();renderPlans();};
   $("days").append(b);
  }
@@ -112,7 +115,7 @@ function renderCalendar(){
 }
 function appendText(parent,tag,value,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=value;parent.append(node);return node;}
 function renderPlans(){
- const dayEvents=events.filter(e=>e.status!=="cancelled"&&localDate(new Date(e.at))===selected).sort((a,b)=>a.at.localeCompare(b.at));
+ const dayEvents=events.filter(e=>e.status!=="cancelled"&&dayKey(e)===selected).sort((a,b)=>a.at.localeCompare(b.at));
  $("total").textContent=events.filter(e=>e.status!=="cancelled").length+" событий";
  const el=$("plans");el.replaceChildren();
  if(!dayEvents.length){appendText(el,"p","На выбранную дату пока ничего не запланировано.");return;}
@@ -137,19 +140,23 @@ function setProfileOptions(){
  for(const p of profiles){const option=document.createElement("option");option.value=String(p.id);option.textContent=(p.name||"Анкета")+" · №"+p.id;$("profile").append(option);}
 }
 function resetForm(){
- editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
+ pendingSave=null;editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
  $("time").value="12:00";$("date").value=selected;$("profile").value="";$("action").value="profile";$("reviewText").value="";$("note").value="";changeMode("reminder");say("");
 }
 function startEdit(e){
- editing=e;$("formHeading").textContent="Изменить событие";$("reset").hidden=false;
- const date=new Date(e.at);$("date").value=localDate(date);$("time").value=localTime(date);
+ pendingSave=null;editing=e;$("formHeading").textContent="Изменить событие";$("reset").hidden=false;
+ const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=localTime(date);
  $("profile").value=e.profileId||"";$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function cancelEvent(e){
  if(loading||!confirm("Убрать событие из запланированных?"))return;
- loading=true;try{await api("cancel",{id:e.id,expectedRevision:e.revision,operation:hexId()});await refresh();say("Событие отменено.");}
- catch(error){say(error.message);}finally{loading=false;}
+ const key=e.id+":"+e.revision;
+ if(!pendingCancel.has(key))pendingCancel.set(key,hexId());
+ loading=true;
+ try{await api("cancel",{id:e.id,expectedRevision:e.revision,operation:pendingCancel.get(key)});pendingCancel.delete(key);await refresh();say("Событие отменено.");}
+ catch(error){say(error.message+" Если связь прервалась, повторите отмену: дубликат не создастся.");}
+ finally{loading=false;}
 }
 function planFromForm(){
  const date=$("date").value,time=$("time").value;
@@ -159,19 +166,25 @@ function planFromForm(){
  const action=$("action").value,profileId=$("profile").value||null;
  if(mode==="publication"&&!profileId)throw Error("Выберите сохранённую анкету.");
  if(mode==="publication"&&(action==="review"||action==="rating_review")&&!$("reviewText").value.trim())throw Error("Введите текст отзыва.");
- return {mode,action,at:local.toISOString(),profileId,reviewText:$("reviewText").value,note:$("note").value};
+ return {mode,action,at:local.toISOString(),localDate:date,timezone,profileId,reviewText:$("reviewText").value,note:$("note").value};
 }
 async function save(){
  if(loading)return;loading=true;$("save").disabled=true;
  try{
   const plan=planFromForm();
-  if(editing){
-   const patch={...plan};
-   await api("edit",{id:editing.id,expectedRevision:editing.revision,patch,operation:hexId()});
-  }else await api("create",{id:hexId(),operation:hexId(),plan});
+  const payload=editing?{action:"edit",id:editing.id,expectedRevision:editing.revision,patch:plan}:
+    {action:"create",plan};
+  const fingerprint=JSON.stringify(payload);
+  if(!pendingSave||pendingSave.fingerprint!==fingerprint)
+    pendingSave={fingerprint,id:editing?.id||hexId(),operation:hexId()};
+  const request=editing?
+    {id:editing.id,expectedRevision:editing.revision,patch:plan,operation:pendingSave.operation}:
+    {id:pendingSave.id,operation:pendingSave.operation,plan};
+  await api(editing?"edit":"create",request);
+  pendingSave=null;
   selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;
   await refresh();resetForm();say("✦ План сохранён. Пока это только запись в ежедневнике.");
- }catch(error){say(error.message);}
+ }catch(error){say(error.message+" Если ответ не пришёл, повторите сохранение без изменения формы.");}
  finally{loading=false;$("save").disabled=false;}
 }
 async function refresh(){
@@ -186,8 +199,8 @@ async function boot(){
   else say("Не удалось загрузить анкеты. Проверьте доступ в личный кабинет.");
  }catch(error){say(error.message);}
 }
-$("prev").onclick=()=>{month--;if(month<0){month=11;year--;}renderCalendar();};
-$("next").onclick=()=>{month++;if(month>11){month=0;year++;}renderCalendar();};
+$("prev").onclick=()=>moveMonth(-1);
+$("next").onclick=()=>moveMonth(1);
 $("date").onchange=()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test($("date").value))return;selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;renderCalendar();renderPlans();};
 $("reminderMode").onclick=()=>changeMode("reminder");
 $("publicationMode").onclick=()=>changeMode("publication");
