@@ -30,9 +30,10 @@ jobs:
           node --check src/city_diary_scheduler.js
           node --check src/city_diary_bridge.js
           node --check src/city_diary_coordinator.js
+          node --check src/city_diary_callback.js
           node --check src/city_diary_eligibility.js
           node --check src/city_diary_preflight.js
           node --check src/cabinet_runtime.js
           node --check src/index.js
       - name: Diary unit tests
-        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs tests/city_diary_delivery.test.mjs tests/city_diary_scheduler.test.mjs tests/city_diary_bridge.test.mjs tests/city_diary_coordinator.test.mjs tests/city_diary_eligibility.test.mjs tests/city_diary_preflight.test.mjs
+        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs tests/city_diary_delivery.test.mjs tests/city_diary_scheduler.test.mjs tests/city_diary_bridge.test.mjs tests/city_diary_coordinator.test.mjs tests/city_diary_callback.test.mjs tests/city_diary_eligibility.test.mjs tests/city_diary_preflight.test.mjs
