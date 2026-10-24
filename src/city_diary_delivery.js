@@ -84,6 +84,21 @@ export function acknowledgeDiaryDelivery(deliveries,eventId,telegramMessageId,ca
   const record={...old,state:"acknowledged",acknowledgedAt:now,updatedAt:now};
   return {deliveries:{...clone(deliveries),[eventId]:record},record:clone(record),replay:false};
 }
+export function recordDiaryMessageCleanup(deliveries,eventId,telegramMessageId,deleted,{now=Date.now()}={}) {
+  const old=deliveries?.[eventId];
+  if(!old||old.state!=="acknowledged"||
+     old.telegramMessageId!==telegramMessageId||
+     typeof deleted!=="boolean"||!Number.isSafeInteger(now))
+    fail("invalid_cleanup");
+  if(old.cleanupStatus==="deleted")
+    return {deliveries:clone(deliveries),record:clone(old),replay:true};
+  const attempts=old.cleanupAttempts||0;
+  if(attempts>=3)fail("cleanup_limit");
+  const record={...old,cleanupStatus:deleted?"deleted":"failed",
+    cleanupAttempts:attempts+1,cleanupUpdatedAt:now,updatedAt:now};
+  return {deliveries:{...clone(deliveries),[eventId]:record},
+    record:clone(record),replay:false};
+}
 export function diaryReminderMessage(event) {
   if(!event||event.mode!=="reminder")fail("not_reminder");
   const action={
