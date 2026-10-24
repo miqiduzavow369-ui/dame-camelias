@@ -151,8 +151,11 @@ test("scheduler records cleanup separately and keeps verified acknowledgement",a
  try{await obj.alarm();}finally{globalThis.fetch=original;}
  const ack=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData});
  assert.equal(ack.body.record.state,"acknowledged");
+ const lease=await call({type:"claim_cleanup",eventId:ID,messageId:777});
+ assert.equal(lease.body.claimed,true);
  const failed=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:false});
  assert.equal(failed.body.record.cleanupStatus,"failed");
+ await call({type:"claim_cleanup",eventId:ID,messageId:777});
  const cleaned=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:true});
  assert.equal(cleaned.body.record.cleanupStatus,"deleted");
  assert.equal(cleaned.body.record.state,"acknowledged");
@@ -193,4 +196,19 @@ test("invalid Telegram update IDs are refused before recording acknowledgement",
   callbackData:"citydiary:thanks:"+ID+":aaaaaaaaaaaa",updateId:-3});
  assert.equal(response.status,400);
  assert.equal(db.has("diary_scheduler_ack_updates_v1"),false);
+});
+
+test("one cleanup lease prevents concurrent Telegram message deletion",async()=>{
+ const {obj,call}=setup();
+ await call({type:"replace_schedule",scheduleRevision:1,events:[reminder()]});
+ const original=globalThis.fetch;let callbackData="";
+ globalThis.fetch=async(_url,init)=>{callbackData=JSON.parse(init.body).reply_markup.inline_keyboard[0][0].callback_data;
+  return Response.json({ok:true,result:{message_id:777}});};
+ try{await obj.alarm();}finally{globalThis.fetch=original;}
+ await call({type:"acknowledge",eventId:ID,messageId:777,callbackData});
+ const first=await call({type:"claim_cleanup",eventId:ID,messageId:777});
+ const second=await call({type:"claim_cleanup",eventId:ID,messageId:777});
+ assert.equal(first.body.claimed,true);
+ assert.equal(second.body.claimed,false);
+ assert.equal(second.body.record.cleanupStatus,"in_progress");
 });
