@@ -4,6 +4,7 @@ import {CityDiaryStore} from "./city_diary_store.js";
 import {DiaryError} from "./city_diary_model.js";
 import {isKnownManAccount} from "./man_accounts.js";
 import {checkDiaryManualHistory} from "./city_diary_eligibility.js";
+import {assessDiaryConnection} from "./city_diary_preflight.js";
 
 const ACTIONS=new Set(["list","get","create","batch","edit","cancel","recheck"]);
 const PROFILE=/^\d{1,9}$/;
@@ -80,7 +81,10 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
         statuses:manual?.statuses,existingPlans:await store.list(),
         excludeEventId:previous.id
       });
+      // Read-only site diagnostics never authorize execution.
+      const site=assessDiaryConnection();
       return {ok:true,eventId:previous.id,revision:previous.revision,
+        siteReady:site.ready,siteReason:site.reason,
         eligibleForPlanning:verdict.ok,
         reason:verdict.reason,kind:verdict.kind||null,
         publicationAuthorized:false,siteCheckRequired:true,
