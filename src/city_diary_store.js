@@ -6,6 +6,8 @@ import {DiaryError, createDiaryEvent, addDiaryEvent, editDiaryEvent,
 
 const KEY="city_diary_events_v1";
 const RECEIPTS="city_diary_operation_receipts_v1";
+const ARCHIVE="city_diary_archive_v1";
+const TERMINAL=new Set(["completed","cancelled","failed"]);
 const ID=/^[a-f0-9]{16,32}$/;
 const MAX_RECEIPTS=256;
 const fail=code=>{throw new DiaryError(code);};
@@ -20,6 +22,58 @@ export class CityDiaryStore {
   }
   async list(filters={}) {
     return listDiaryEvents(await this.#events(),filters);
+  }
+  async listArchive(filters={}) {
+    return listDiaryEvents(await this.#archive(),filters);
+  }
+  async #archive() {
+    const entries=await this.storage.get(ARCHIVE);
+    if(entries==null)return [];
+    if(!Array.isArray(entries))fail("corrupt_diary");
+    return entries;
+  }
+  async archiveTerminal({operation,expectedRevisions,now=Date.now()}={}) {
+    assertId(operation);
+    if(!Array.isArray(expectedRevisions)||expectedRevisions.length<1||expectedRevisions.length>120||
+       expectedRevisions.some(x=>!x||typeof x!=="object"||
+         typeof x.id!=="string"||!ID.test(x.id)||
+         !Number.isSafeInteger(x.revision)||x.revision<1)||
+       new Set(expectedRevisions.map(x=>x.id)).size!==expectedRevisions.length)
+      fail("invalid_archive_request");
+    if(!Number.isSafeInteger(now))fail("invalid_now");
+    const signature=JSON.stringify(["archive",expectedRevisions]);
+    return this.storage.transaction(async tx=>{
+      const receipts=(await tx.get(RECEIPTS))||{};
+      if(Object.hasOwn(receipts,operation)){
+        const old=receipts[operation];
+        if(old.signature!==signature)fail("operation_conflict");
+        return snapshot(old.result);
+      }
+      const events=(await tx.get(KEY))||[];
+      const archive=(await tx.get(ARCHIVE))||[];
+      if(!Array.isArray(events)||!Array.isArray(archive))fail("corrupt_diary");
+      const selected=new Set(expectedRevisions.map(x=>x.id));
+      const retained=[],moving=[];
+      for(const event of events){
+        if(!selected.has(event.id)){retained.push(event);continue;}
+        const expected=expectedRevisions.find(x=>x.id===event.id);
+        if(event.revision!==expected.revision)fail("revision_conflict");
+        if(!TERMINAL.has(event.status))fail("archive_not_terminal");
+        if(event.mode==="publication"&&!["cancelled"].includes(event.status))
+          fail("archive_requires_verified_result");
+        if(archive.some(x=>x.id===event.id))fail("archive_conflict");
+        moving.push({...event,archivedAt:now});
+      }
+      if(moving.length!==selected.size)fail("event_missing");
+      const nextArchive=[...archive,...moving];
+      const result={archived:moving.map(x=>({id:x.id,status:x.status,archivedAt:now})),count:moving.length};
+      const nextReceipts=Object.fromEntries(Object.entries(receipts).slice(-(MAX_RECEIPTS-1)));
+      nextReceipts[operation]={signature,result};
+      await tx.put(ARCHIVE,nextArchive);
+      await tx.put(KEY,retained);
+      await tx.put(RECEIPTS,nextReceipts);
+      return snapshot(result);
+    });
   }
   async #events() {
     const events=await this.storage.get(KEY);
@@ -36,7 +90,7 @@ export class CityDiaryStore {
   // A read-only detail does not require an idempotency token.
   async get(id) {
     assertId(id);
-    const event=(await this.#events()).find(x=>x.id===id);
+    const event=(await this.#events()).find(x=>x.id===id)||(await this.#archive()).find(x=>x.id===id);
     return event?snapshot(event):null;
   }
   async #mutate(operation,signature,work) {
@@ -53,7 +107,10 @@ export class CityDiaryStore {
       }
       const events=(await tx.get(KEY))||[];
       if(!Array.isArray(events))fail("corrupt_diary");
+      const archive=(await tx.get(ARCHIVE))||[];
+      if(!Array.isArray(archive))fail("corrupt_diary");
       const result=await work(events);
+      if(result.events.some(x=>archive.some(a=>a.id===x.id)))fail("duplicate_event");
       const next=Object.fromEntries(Object.entries(receipts).slice(-(MAX_RECEIPTS-1)));
       next[operation]={signature,result:result.event};
       await tx.put(KEY,result.events);
