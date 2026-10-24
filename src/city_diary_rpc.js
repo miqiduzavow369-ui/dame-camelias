@@ -6,7 +6,7 @@ import {isKnownManAccount} from "./man_accounts.js";
 import {checkDiaryManualHistory} from "./city_diary_eligibility.js";
 import {assessDiaryConnection} from "./city_diary_preflight.js";
 
-const ACTIONS=new Set(["list","list_archive","get","create","batch","edit","cancel","recheck","archive_cancelled_reminders"]);
+const ACTIONS=new Set(["list","list_archive","get","create","batch","edit","cancel","recheck","archive_cancelled_reminders","get_form_draft","save_form_draft","clear_form_draft"]);
 const PROFILE=/^\d{1,9}$/;
 export async function cityDiaryRequest(storage,request,{profileOwned,manualStatus}={}) {
   if(!request||!ACTIONS.has(request.action))
@@ -15,6 +15,12 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
     return {ok:false,status:403,reason:"ownership_unavailable"};
   const store=new CityDiaryStore(storage);
   try{
+    if(request.action==="get_form_draft")
+      return {ok:true,draft:await store.readFormDraft()};
+    if(request.action==="save_form_draft")
+      return {ok:true,...await store.saveFormDraft(request.form)};
+    if(request.action==="clear_form_draft")
+      return {ok:true,...await store.clearFormDraft()};
     if(request.action==="list")
       return {ok:true,events:await store.list(request.filters||{})};
     if(request.action==="list_archive")
