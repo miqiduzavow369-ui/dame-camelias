@@ -89,7 +89,7 @@ if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],men=[],secondaryStatuses={},mode="reminder",editing=null,loading=false;
-let draftTimer=null,draftWrite=Promise.resolve(),restoringDraft=true;
+let draftTimer=null,draftWrite=Promise.resolve(),restoringDraft=true,draftRevision=0,draftConflict=false;
 let archiveOffset=0,archiveTotal=0,archiveHasMore=false;
 let archivedEvents=[];let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
@@ -231,24 +231,26 @@ function formSnapshot(){
   note:$("note").value,editingId:editing?.id||""};
 }
 async function persistDraft(){
- if(restoringDraft||loading)return;
+ if(restoringDraft||loading||draftConflict)return;
  const form=formSnapshot();
- draftWrite=draftWrite.catch(()=>{}).then(()=>api("save_form_draft",{form}));
+ draftWrite=draftWrite.catch(()=>{}).then(()=>api("save_form_draft",{form,expectedRevision:draftRevision})).then(response=>{draftRevision=response.revision;return response;});
  try{await draftWrite;$("draftStatus").textContent="Черновик сохранён для следующего открытия.";}
- catch{$("draftStatus").textContent="Черновик пока не сохранён. Используйте кнопку «Сохранить черновик».";}
+ catch{draftConflict=true;$("draftStatus").textContent="Черновик изменён на другом устройстве или соединение прервалось. Обновите ежедневник для сверки; новые изменения не перезаписаны.";}
 }
 function queueDraft(){
- if(restoringDraft||loading)return;
+ if(restoringDraft||loading||draftConflict)return;
  if(draftTimer)clearTimeout(draftTimer);
  draftTimer=setTimeout(()=>{draftTimer=null;persistDraft();},1000);
 }
 async function discardDraft(){
  if(draftTimer){clearTimeout(draftTimer);draftTimer=null;}
  await draftWrite.catch(()=>{});
- await api("clear_form_draft");
+ await api("clear_form_draft",{expectedRevision:draftRevision});
+ draftRevision=0;draftConflict=false;
  $("draftStatus").textContent="Черновик очищен.";
 }
 function restoreFormDraft(record){
+ draftRevision=record?.revision||0;
  const d=record?.form;
  if(!d||typeof d!=="object")return;
  if(d.editingId){
