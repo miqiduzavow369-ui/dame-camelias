@@ -275,8 +275,8 @@ async function overwriteServerDraft(){
  finally{loading=false;}
 }
 async function copyCurrentDraftText(){
- const d=draftConflictSnapshot||formSnapshot();
- const text=[d.reviewText,d.note].filter(Boolean).join("\\n\\n");
+ const d=formSnapshot();
+ const text=[d.reviewText,d.note].filter(Boolean).join("\n\n");
  if(!text){$("draftStatus").textContent="В этом черновике нет текста для копирования.";return;}
  try{await navigator.clipboard.writeText(text);$("draftStatus").textContent="Текст скопирован. Выберите версию черновика.";}
  catch{$("draftStatus").textContent="Не удалось скопировать автоматически. Выделите текст в поле формы и скопируйте вручную.";}
@@ -302,6 +302,7 @@ async function discardDraft(){
 }
 function restoreFormDraft(record){
  draftRevision=record?.revision||0;
+ editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
  const d=record?.form;
  if(!d||typeof d!=="object")return;
  if(d.editingId){
