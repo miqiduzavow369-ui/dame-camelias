@@ -84,7 +84,7 @@ test("a transaction-capable storage is mandatory",()=>{
 
 test("atomic month batch creates independent dates and retries idempotently",async()=>{
  const store=new CityDiaryStore(storage());
- const items=[{id:ID,plan},{id:"fedcba9876543210",plan:{...plan,at:"2026-10-30T15:30:00.000Z"}}];
+ const items=[{id:ID,plan:{...plan,mode:"reminder"}},{id:"fedcba9876543210",plan:{...plan,mode:"reminder",at:"2026-10-30T15:30:00.000Z"}}];
  const first=await store.createBatch(items,{operation:OP,now:NOW});
  assert.equal(first.length,2);
  assert.equal(first[0].at,items[0].plan.at);
@@ -98,16 +98,22 @@ test("atomic month batch creates independent dates and retries idempotently",asy
 test("month batch rolls back entirely when any event is invalid",async()=>{
  const backing=storage(),store=new CityDiaryStore(backing);
  await assert.rejects(()=>store.createBatch([
-  {id:ID,plan},
-  {id:"fedcba9876543210",plan:{...plan,at:"2026-01-01T00:00:00.000Z"}}
+  {id:ID,plan:{...plan,mode:"reminder"}},
+  {id:"fedcba9876543210",plan:{...plan,mode:"reminder",at:"2026-01-01T00:00:00.000Z"}}
  ],{operation:OP,now:NOW}),/time_out_of_range/);
  assert.deepEqual(await store.list(),[]);
  assert.equal(backing.db.size,0);
 });
 test("month batch rejects duplicate IDs and excess dates before writes",async()=>{
  const store=new CityDiaryStore(storage());
- await assert.rejects(()=>store.createBatch([{id:ID,plan},{id:ID,plan}],{operation:OP,now:NOW}),/duplicate_event/);
+ await assert.rejects(()=>store.createBatch([{id:ID,plan:{...plan,mode:"reminder"}},{id:ID,plan:{...plan,mode:"reminder"}}],{operation:OP,now:NOW}),/duplicate_event/);
  await assert.rejects(()=>store.createBatch(Array.from({length:32},(_,i)=>({
   id:i.toString(16).padStart(16,"0"),plan
  })),{operation:OP,now:NOW}),/invalid_batch/);
+});
+
+test("bulk publications are refused until individual authoring and financial holds are implemented",async()=>{
+ const store=new CityDiaryStore(storage());
+ await assert.rejects(()=>store.createBatch([{id:ID,plan}],{operation:OP,now:NOW}),/batch_publication_unavailable/);
+ assert.deepEqual(await store.list(),[]);
 });
