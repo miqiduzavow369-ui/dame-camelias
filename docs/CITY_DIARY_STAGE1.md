@@ -215,3 +215,12 @@ GitHub Actions: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/
 **Boundary:** This is server-side duplicate prevention, not complete client-side restoration of an interrupted edit form or pending operation nonce. Full archive/retention of terminal events is still pending. The active storage limit remains 120 events including historical ones. Do not purge completed/failed/cancelled records without a separate transactional archive and audit policy.
 
 No live publication, credit, moderator, site login, Telegram alarm registration, main merge or production deployment. Manual City/Yan First/29 other men/ADMIN/ASHOO are unmodified.
+
+## Checkpoint 15 — transactional cancelled-reminder archive (2026-10-24)
+
+- Added separate `city_diary_archive_v1` storage within the same signed per-client Durable Object. `CityDiaryStore.archiveTerminal` transactionally transfers eligible terminal records, keeps their original event contents, revision and status, adds `archivedAt`, removes them from the **active** 120-entry collection, and commits an operation replay receipt together. Archive records remain retrievable by `get` and `listArchive`.
+- The only **publicly exposed archive mutation** is `archive_cancelled_reminders`. It explicitly checks that every selected event is a cancelled **reminder**, not a publication. Active/in-flight orders and completed publication records are never archived by this API. Publications require separate proven outcome/credit-reconciliation rules before a future archive.
+- The preview adds an Archive tab and a deliberate «Перенести в архив» button on cancelled reminders in «Все планы». The history is preserved. No automatic pruning or deletions were added.
+- Tests cover transactional rollback when a receipt write fails, idempotent replay, stale revisions, safe retrieval, denial of active events/publications, and reuse of archived IDs. GitHub Actions isolated diary checks: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40090937869 — success.
+
+**Remaining caveats:** the archival collection is append-only with no retention limit/pagination yet. It is not an off-platform backup. Full client restart/edit recovery and reconciliation of uncertain Telegram delivery remain future work. No real Telegram messages are sent. No manual City publication/admin/credit code, legacy Yan First, other men, ASHOO, main or deployed Worker changed.
