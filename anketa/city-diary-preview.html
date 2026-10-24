@@ -103,7 +103,7 @@ function api(action,fields={}){
  if(!tg?.initData)throw Error("Откройте ежедневник через Telegram.");
  return fetch("/api/anketa/mini-diary",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
   body:JSON.stringify({initData:tg.initData,action,...fields})})
-  .then(async r=>{const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw Error(({profile_not_saved:"Анкета не найдена в вашем кабинете.",revision_conflict:"Событие изменилось. Обновите список.",invalid_time:"Проверьте дату и время.",time_out_of_range:"Выберите будущую дату не далее одного года.",event_locked:"Это событие уже нельзя менять."})[data.reason]||"Не удалось выполнить действие. Попробуйте обновить данные.");return data;});
+  .then(async r=>{const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw Error(({profile_not_saved:"Анкета не найдена в вашем кабинете.",duplicate_schedule:"Такое событие уже есть в ежедневнике. Откройте «Все планы» и проверьте его.",ambiguous_local_time:"Выбранное время повторяется при переводе часов. Укажите другое время.",local_time_mismatch:"Дата и время не совпали с часовым поясом. Проверьте время.",revision_conflict:"Событие изменилось. Обновите список.",invalid_time:"Проверьте дату и время.",time_out_of_range:"Выберите будущую дату не далее одного года.",event_locked:"Это событие уже нельзя менять."})[data.reason]||"Не удалось выполнить действие. Попробуйте обновить данные.");return data;});
 }
 function say(text){$("message").textContent=text;}
 function changeMode(next){
