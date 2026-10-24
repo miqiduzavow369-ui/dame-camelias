@@ -3,10 +3,11 @@
 import {CityDiaryStore} from "./city_diary_store.js";
 import {DiaryError} from "./city_diary_model.js";
 import {isKnownManAccount} from "./man_accounts.js";
+import {checkDiaryManualHistory} from "./city_diary_eligibility.js";
 
 const ACTIONS=new Set(["list","get","create","batch","edit","cancel"]);
 const PROFILE=/^\d{1,9}$/;
-export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
+export async function cityDiaryRequest(storage,request,{profileOwned,manualStatus}={}) {
   if(!request||!ACTIONS.has(request.action))
     return {ok:false,status:400,reason:"invalid_action"};
   if(typeof profileOwned!=="function")
@@ -26,6 +27,17 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
         const profileId=String(plan.profileId);
         if(!PROFILE.test(profileId)||!await profileOwned(profileId))
           return {ok:false,status:403,reason:"profile_not_saved"};
+      }
+      if(plan?.mode==="publication"){
+        if(!isKnownManAccount(plan.accountId)||!manualStatus)
+          return {ok:false,status:409,reason:"eligibility_unavailable"};
+        const status=await manualStatus(plan.accountId,plan.profileId);
+        const eligibility=checkDiaryManualHistory({
+          accountId:plan.accountId,profileId:plan.profileId,action:plan.action,
+          archive:status?.archive,statuses:status?.statuses,
+          existingPlans:await store.list()
+        });
+        if(!eligibility.ok)return {ok:false,status:409,reason:eligibility.reason,kind:eligibility.kind};
       }
       const event=await store.create(plan,{
         id:request.id,operation:request.operation
@@ -55,6 +67,18 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
         const profileId=String(proposed);
         if(!PROFILE.test(profileId)||!await profileOwned(profileId))
           return {ok:false,status:403,reason:"profile_not_saved"};
+      }
+      const revised={...previous,...request.patch};
+      if(revised.mode==="publication"){
+        if(!isKnownManAccount(revised.accountId)||!manualStatus)
+          return {ok:false,status:409,reason:"eligibility_unavailable"};
+        const status=await manualStatus(revised.accountId,revised.profileId);
+        const eligibility=checkDiaryManualHistory({
+          accountId:revised.accountId,profileId:revised.profileId,action:revised.action,
+          archive:status?.archive,statuses:status?.statuses,
+          existingPlans:await store.list(),excludeEventId:request.id
+        });
+        if(!eligibility.ok)return {ok:false,status:409,reason:eligibility.reason,kind:eligibility.kind};
       }
       const event=await store.edit(request.id,request.patch,{
         operation:request.operation,expectedRevision:request.expectedRevision
