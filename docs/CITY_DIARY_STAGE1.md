@@ -321,3 +321,14 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - **Remaining before activation:** provision an isolated scheduler Durable Object and secret, call the dormant coordinator only from the authorized cabinet path, wire trusted webhook integration, real Telegram staging verification, and implement a bounded, independently authenticated cleanup reconciliation workflow for failed/unknown deletions. No message has been sent or deleted in production.
 
 **Isolation guarantees:** no modification to existing OrderReminder, manual City posting/moderation, credit ledger, ADMIN, Yan First and other men, ASHOO, main, or deployed Worker. PR #284 only.
+
+## Checkpoint 25 — dormant authenticated Telegram webhook gate and staging isolation (2026-10-24)
+
+- Verified the existing `wrangler.toml`: production registers only `ORDER_REMINDERS` / `OrderReminder`. There is no diary scheduler DO binding and no need to change it during isolated development.
+- Added `src/city_diary_webhook_gate.js`. It verifies an independently configured `X-Telegram-Bot-Api-Secret-Token` header before parsing a size-limited JSON Telegram Update and invoking the dormant Thanks callback adapter. The gate accepts only POST, JSON bodies up to 64 KiB, and valid non-negative integer `update_id`; invalid requests fail before any scheduler access or Telegram deletion.
+- The webhook secret follows Telegram's allowed characters but requires at least 32 characters. Tokens never appear in repository contents. The gate derives `trustedWebhook:true` itself only after header verification; no caller-supplied JSON flag is accepted.
+- Added isolated tests for valid callback routing, missing/incorrect secret, malformed update, oversized body, invalid method and unrelated Telegram updates; wired to City diary CI. Isolated diary check: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40115730611 — passed.
+- Added `docs/CITY_DIARY_STAGING_RUNBOOK.md` describing a completely separate test Worker/bot, secret setup and go/no-go verification. This is a plan, **not** a staging deployment and **not** approval to change production.
+- Telegram's official Bot API documents the `secret_token` value supplied in the `X-Telegram-Bot-Api-Secret-Token` HTTP header for webhook requests. No real `setWebhook` call or actual Telegram message dispatch occurred.
+
+**Still pending:** independent staging resources, authenticated live webhook wiring, durable callback update-ID replay accounting, bounded cleanup reconciliation, real send/delete evidence, Cloudflare migration review and explicit production approval. Existing City/ADMIN/credits/reviews, all men, ASHOO, main and deployed Worker untouched.
