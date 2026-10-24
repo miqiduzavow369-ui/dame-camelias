@@ -56,7 +56,10 @@ function checkPlan(plan, now) {
         const time=[p.hour,p.minute].join(":");
         return date===plan.localDate&&(plan.localTime===undefined||time===plan.localTime);
       };
-      if(!matches(partsAt(at)))fail("local_time_mismatch");
+      const actual=partsAt(at);
+      if([actual.year,actual.month,actual.day].join("-")!==plan.localDate)
+        fail("local_date_mismatch");
+      if(!matches(actual))fail("local_time_mismatch");
       if(plan.localTime!==undefined){
         // Fall-back DST folds are ambiguous: the same wall-clock minute exists
         // at two different instants. Refuse rather than silently pick one.
