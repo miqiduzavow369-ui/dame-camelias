@@ -56,3 +56,20 @@ Added fault-injection tests for receipt-write failure and rejection of nontransa
 - Verify actual persistent object transaction behavior in the Cloudflare runtime and run complete Node/Python suites.
 - Check domain changes before **every external publication attempt**. The existing secondary account's site version/proxy/login approval must not be bypassed by saved diary URLs. A changed domain must preserve plan data while disabling unverified submission.
 - Never infer publication success merely from diary state.
+
+## Checkpoint 4 — authenticated client planning API (2026-10-24)
+
+Implemented:
+- `src/city_diary_rpc.js`: allowlisted list/get/create/edit/cancel planning adapter. A newly planned or re-targeted profile is checked against the signed-in client's confirmed saved profile list. No publish/submit or credit actions.
+- `src/cabinet_runtime.js`: `mini_diary` dispatch executes inside the already selected private per-client Durable Object, with client-active and agreement checks.
+- `src/index.js`: `POST /api/anketa/mini-diary` validates signed Telegram Web App initData before looking up the private user ID, enforces payload size limits and disables caching.
+- `tests/city_diary_rpc.test.mjs`: ownership, edit/cancel, idempotence, no publication transition.
+- `.github/workflows/city-diary-checks.yml`: Node 22 syntax checks and isolated diary model/storage/API tests.
+
+**Verified GitHub Actions success** for workflow run `40080685593` (job `120833409206`): both syntax and diary unit test steps concluded success.
+
+### No live integration or rollout yet
+- This branch is an open draft PR and is not deployed. The API is not visible to real clients yet.
+- No Telegram reminders/alarms, interactive black/gold calendar, credit holds, publication workflow or ADMIN routing have been implemented.
+- Ownership and signed-auth tests are not yet full HTTP integration tests; a future test must exercise the Worker endpoint with invalid/valid initData and the per-user cabinet coordinator.
+- In particular, a changed IntimCity domain or changed site-account version must be revalidated before any eventual publication. A diary record is never sufficient authority to submit a review.
