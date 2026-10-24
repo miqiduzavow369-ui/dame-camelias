@@ -56,3 +56,24 @@ test("adapter cannot expose publication transitions",async()=>{
  assert.equal((await cityDiaryRequest(s,{action:"transition",id:ID},allow)).status,400);
  assert.equal((await cityDiaryRequest(s,{action:"list"},{})).status,403);
 });
+
+test("batch forbids any unowned profile before writing the first event",async()=>{
+ const s=storage(),date=at(),base={mode:"reminder",action:"review",at:date,reviewText:"Личный текст"};
+ const reply=await cityDiaryRequest(s,{action:"batch",operation:OP,items:[
+  {id:ID,plan:{...base,profileId:"652282"}},
+  {id:"fedcba9876543210",plan:{...base,profileId:"652283"}}
+ ]},allow);
+ assert.equal(reply.status,403);
+ assert.deepEqual((await cityDiaryRequest(s,{action:"list"},allow)).events,[]);
+});
+test("batch creates two owned reminders without publication side effects",async()=>{
+ const s=storage(),base=plan(),items=[
+  {id:ID,plan:base},
+  {id:"fedcba9876543210",plan:{...base,at:new Date(Date.now()+86400000*6).toISOString()}}
+ ];
+ const reply=await cityDiaryRequest(s,{action:"batch",operation:OP,items},allow);
+ assert.equal(reply.ok,true);assert.equal(reply.events.length,2);
+ const again=await cityDiaryRequest(s,{action:"batch",operation:OP,items},allow);
+ assert.deepEqual(again,reply);
+ assert.equal((await cityDiaryRequest(s,{action:"list"},allow)).events.length,2);
+});
