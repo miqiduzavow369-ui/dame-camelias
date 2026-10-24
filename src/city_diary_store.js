@@ -14,7 +14,7 @@ const assertId=(id)=>{if(typeof id!=="string"||!ID.test(id))fail("invalid_id");}
 
 export class CityDiaryStore {
   constructor(storage) {
-    if(!storage||typeof storage.get!=="function"||typeof storage.put!=="function")
+    if(!storage||typeof storage.get!=="function"||typeof storage.put!=="function"||typeof storage.transaction!=="function")
       fail("invalid_storage");
     this.storage=storage;
   }
@@ -41,24 +41,25 @@ export class CityDiaryStore {
   }
   async #mutate(operation,signature,work) {
     assertId(operation);
-    const receipts=await this.#receipts();
-    if(Object.hasOwn(receipts,operation)) {
-      const old=receipts[operation];
-      if(old.signature!==signature)fail("operation_conflict");
-      return snapshot(old.result);
-    }
-    const events=await this.#events();
-    const result=await work(events);
-    // Persist plan before receipt: concurrent/mid-failure retries are fenced by
-    // caller's deterministic event ID / expected revision, not by guessing success.
-    await this.storage.put(KEY,result.events);
-    // Receipt insertion is best-effort: an event mutation is never reversed if
-    // the receipt write fails. Callers can query by event ID and revision.
-    const saved=result.event;
-    const next=Object.fromEntries(Object.entries(receipts).slice(-(MAX_RECEIPTS-1)));
-    next[operation]={signature,result:saved};
-    try { await this.storage.put(RECEIPTS,next); } catch { /* recover via read */ }
-    return snapshot(saved);
+    // One Durable Object transaction commits event data and replay receipt together.
+    // Never silently swallow a failed receipt write: it must roll back the event.
+    return this.storage.transaction(async tx => {
+      const receipts=(await tx.get(RECEIPTS))||{};
+      if(typeof receipts!=="object"||Array.isArray(receipts))fail("corrupt_diary");
+      if(Object.hasOwn(receipts,operation)) {
+        const old=receipts[operation];
+        if(old.signature!==signature)fail("operation_conflict");
+        return snapshot(old.result);
+      }
+      const events=(await tx.get(KEY))||[];
+      if(!Array.isArray(events))fail("corrupt_diary");
+      const result=await work(events);
+      const next=Object.fromEntries(Object.entries(receipts).slice(-(MAX_RECEIPTS-1)));
+      next[operation]={signature,result:result.event};
+      await tx.put(KEY,result.events);
+      await tx.put(RECEIPTS,next);
+      return snapshot(result.event);
+    });
   }
   async create(plan,{id,operation,now=Date.now()}={}) {
     assertId(id);
