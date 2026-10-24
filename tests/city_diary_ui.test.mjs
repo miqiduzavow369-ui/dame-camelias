@@ -81,8 +81,19 @@ test("editing plans in a different device timezone is blocked rather than silent
 
 test("archive UI handles cancelled reminders without touching publications or deleting history",()=>{
  assert.ok(page.includes('id="archiveView"'));
- assert.ok(page.includes('api("list_archive"'));
+ assert.ok(page.includes('api("archive_page"'));
  assert.ok(page.includes('api("archive_cancelled_reminders"'));
  assert.ok(page.includes('e.mode==="reminder"&&e.status==="cancelled"'));
  assert.ok(page.includes("История сохранится"));
+});
+
+test("form draft restores in a new Mini App session without browser storage",()=>{
+ for(const snippet of ['api("save_form_draft"','api("get_form_draft"','api("clear_form_draft"','restoreFormDraft(saved.draft)','draftTimer=setTimeout','id="saveDraft"'])
+  assert.ok(page.includes(snippet),snippet);
+ assert.ok(!page.includes("localStorage"));
+});
+test("archive paging restricts client-side history to bounded pages",()=>{
+ assert.ok(page.includes('id="archivePagination"'));
+ assert.ok(page.includes('limit:30'));
+ assert.ok(page.includes('archiveHasMore'));
 });
