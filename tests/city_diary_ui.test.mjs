@@ -55,3 +55,10 @@ test("all plans switches from selected-day view without revealing another client
  assert.ok(page.includes('id="dayView"'));
  assert.ok(!page.includes("innerHTML="));
 });
+
+test("publication readiness button is read-only and makes no site submissions",()=>{
+ assert.ok(page.includes("Проверить готовность"));
+ assert.ok(page.includes('api("recheck"'));
+ assert.ok(page.includes("Публикация не запущена."));
+ assert.ok(!page.includes('api("publish"'));
+});
