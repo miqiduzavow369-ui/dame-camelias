@@ -2,6 +2,7 @@
 // Deliberately has no publication, moderation or credit operations.
 import {CityDiaryStore} from "./city_diary_store.js";
 import {DiaryError} from "./city_diary_model.js";
+import {isKnownManAccount} from "./man_accounts.js";
 
 const ACTIONS=new Set(["list","get","create","batch","edit","cancel"]);
 const PROFILE=/^\d{1,9}$/;
@@ -20,6 +21,7 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
     }
     if(request.action==="create"){
       const plan=request.plan;
+      if(plan?.accountId!=null&&!isKnownManAccount(plan.accountId))return {ok:false,status:400,reason:"invalid_account"};
       if(plan?.profileId!=null){
         const profileId=String(plan.profileId);
         if(!PROFILE.test(profileId)||!await profileOwned(profileId))
@@ -34,6 +36,7 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
       if(!Array.isArray(request.items)||request.items.length<1||request.items.length>31)
         return {ok:false,status:400,reason:"invalid_batch"};
       for(const item of request.items){
+        if(item?.plan?.accountId!=null&&!isKnownManAccount(item.plan.accountId))return {ok:false,status:400,reason:"invalid_account"};
         const profileId=item?.plan?.profileId;
         if(profileId!==null&&profileId!==undefined){
           if(!PROFILE.test(String(profileId))||!await profileOwned(String(profileId)))
@@ -46,6 +49,7 @@ export async function cityDiaryRequest(storage,request,{profileOwned}={}) {
     const previous=await store.get(request.id);
     if(!previous)return {ok:false,status:404,reason:"not_found"};
     if(request.action==="edit"){
+      if(request.patch?.accountId!=null&&!isKnownManAccount(request.patch.accountId))return {ok:false,status:400,reason:"invalid_account"};
       const proposed=request.patch?.profileId===undefined?previous.profileId:request.patch.profileId;
       if(proposed!=null){
         const profileId=String(proposed);
