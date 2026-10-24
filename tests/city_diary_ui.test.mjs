@@ -78,3 +78,11 @@ test("editing plans in a different device timezone is blocked rather than silent
  assert.ok(page.includes("timeInZone(e.at,e.timezone)"));
  assert.ok(page.includes("Чтобы не сдвинуть время"));
 });
+
+test("archive UI handles cancelled reminders without touching publications or deleting history",()=>{
+ assert.ok(page.includes('id="archiveView"'));
+ assert.ok(page.includes('api("list_archive"'));
+ assert.ok(page.includes('api("archive_cancelled_reminders"'));
+ assert.ok(page.includes('e.mode==="reminder"&&e.status==="cancelled"'));
+ assert.ok(page.includes("История сохранится"));
+});
