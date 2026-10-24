@@ -63,7 +63,7 @@ export class CityDiaryStore {
   async create(plan,{id,operation,now=Date.now()}={}) {
     assertId(id);
     // A unique operation token cannot be reused for a different event.
-    const signature="create:"+id;
+    const signature=JSON.stringify(["create",id,plan]);
     return this.#mutate(operation,signature,events=>{
       const event=createDiaryEvent(plan,{id,now});
       return {events:addDiaryEvent(events,event),event};
@@ -72,7 +72,7 @@ export class CityDiaryStore {
   async edit(id,patch,{operation,expectedRevision,now=Date.now()}={}) {
     assertId(id);
     if(!Number.isSafeInteger(expectedRevision)||expectedRevision<1)fail("invalid_revision");
-    const signature="edit:"+id+":"+expectedRevision;
+    const signature=JSON.stringify(["edit",id,expectedRevision,patch]);
     return this.#mutate(operation,signature,events=>{
       const index=events.findIndex(e=>e.id===id);
       if(index<0)fail("event_missing");
