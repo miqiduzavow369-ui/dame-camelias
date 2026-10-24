@@ -54,7 +54,7 @@ textarea{min-height:92px;resize:vertical}
  <div id="plans"></div>
 </section>
 <section class="card" id="monthSection">
- <h2>План на месяц</h2><p class="hint">Отметьте даты в календаре, затем выберите общий шаблон ниже. Каждую созданную запись можно изменить отдельно.</p>
+ <h2>План на месяц</h2><p class="hint">Массовое сохранение пока доступно для напоминаний. Для публикаций потребуется отдельная подготовка каждой заявки.</p><p class="hint">Отметьте даты в календаре, затем выберите общий шаблон ниже. Каждую созданную запись можно изменить отдельно.</p>
  <button class="ghost" id="batchToggle" type="button" style="width:100%">✦ Выбрать несколько дат</button>
  <div id="batchPanel" hidden>
   <p class="hint">Выбрано дней: <strong id="batchCount">0</strong>. Нажимайте дни календаря, чтобы включать и исключать их из плана.</p>
@@ -232,6 +232,7 @@ function batchPlans(){
 }
 async function saveBatch(){
  if(loading)return;
+ if(mode!=="reminder"){say("Массовое планирование публикаций появится после подключения индивидуальных текстов, оценок и резервирования кредитов. Пока выбирайте напоминания.");return;}
  loading=true;$("batchSave").disabled=true;
  try{
    const template={mode,action:$("action").value,profileId:$("profile").value||null,
