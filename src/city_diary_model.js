@@ -30,6 +30,22 @@ function checkPlan(plan, now) {
   // Rating values must be collected by the existing City ratings workflow;
   // a scheduled event must never be interpreted as publication authorization.
   const result = {mode:plan.mode,action:plan.action,at:plan.at,profileId,reviewText};
+  // Keep the original calendar day and IANA timezone: UTC alone cannot express
+  // the intended wall-clock day if the client later travels or changes devices.
+  if(plan.timezone!==undefined || plan.localDate!==undefined){
+    if(typeof plan.timezone!=="string"||plan.timezone.length>64||
+       typeof plan.localDate!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(plan.localDate))
+      fail("invalid_timezone");
+    try{
+      const fmt=new Intl.DateTimeFormat("en-CA",{timeZone:plan.timezone,
+        year:"numeric",month:"2-digit",day:"2-digit"});
+      const parts=Object.fromEntries(fmt.formatToParts(new Date(at))
+        .filter(p=>["year","month","day"].includes(p.type)).map(p=>[p.type,p.value]));
+      if([parts.year,parts.month,parts.day].join("-")!==plan.localDate)fail("local_date_mismatch");
+    }catch(e){if(e instanceof DiaryError)throw e;fail("invalid_timezone");}
+    result.timezone=plan.timezone;
+    result.localDate=plan.localDate;
+  }
   if (plan.note != null) {
     if (typeof plan.note !== "string" || plan.note.length > 500) fail("invalid_note");
     result.note = plan.note;
@@ -50,7 +66,7 @@ export function editDiaryEvent(event,patch,{expectedRevision,now=Date.now()}={})
   if (!event || event.revision !== expectedRevision) fail("revision_conflict");
   if (event.status !== "scheduled") fail("event_locked");
   if (!patch || typeof patch !== "object" || Array.isArray(patch) ||
-      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note"].includes(k))) fail("invalid_patch");
+      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note","localDate","timezone"].includes(k))) fail("invalid_patch");
   const updated=checkPlan({...event,...patch},now);
   return {...event,...updated,revision:event.revision+1,updatedAt:now};
 }
