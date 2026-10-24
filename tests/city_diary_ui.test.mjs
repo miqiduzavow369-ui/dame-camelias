@@ -97,3 +97,11 @@ test("archive paging restricts client-side history to bounded pages",()=>{
  assert.ok(page.includes('limit:30'));
  assert.ok(page.includes('archiveHasMore'));
 });
+
+test("draft requests use a server revision and stop after cross-device conflict",()=>{
+ assert.ok(page.includes('expectedRevision:draftRevision'));
+ assert.ok(page.includes('draftRevision=response.revision'));
+ assert.ok(page.includes('draftConflict=true'));
+ assert.ok(page.includes('if(restoringDraft||loading||draftConflict)return'));
+ assert.ok(page.includes('draftRevision=record?.revision||0'));
+});
