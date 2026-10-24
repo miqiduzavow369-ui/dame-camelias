@@ -38,19 +38,36 @@ function checkPlan(plan, now) {
   }
   // Keep the original calendar day and IANA timezone: UTC alone cannot express
   // the intended wall-clock day if the client later travels or changes devices.
-  if(plan.timezone!==undefined || plan.localDate!==undefined){
+  if(plan.timezone!==undefined || plan.localDate!==undefined || plan.localTime!==undefined){
     if(typeof plan.timezone!=="string"||plan.timezone.length>64||
-       typeof plan.localDate!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(plan.localDate))
+       typeof plan.localDate!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(plan.localDate)||
+       (plan.localTime!==undefined&&(typeof plan.localTime!=="string"||
+        !/^\\d{2}:\\d{2}$/.test(plan.localTime))))
       fail("invalid_timezone");
     try{
-      const fmt=new Intl.DateTimeFormat("en-CA",{timeZone:plan.timezone,
-        year:"numeric",month:"2-digit",day:"2-digit"});
-      const parts=Object.fromEntries(fmt.formatToParts(new Date(at))
-        .filter(p=>["year","month","day"].includes(p.type)).map(p=>[p.type,p.value]));
-      if([parts.year,parts.month,parts.day].join("-")!==plan.localDate)fail("local_date_mismatch");
+      const format=new Intl.DateTimeFormat("en-GB",{timeZone:plan.timezone,
+        year:"numeric",month:"2-digit",day:"2-digit",
+        hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+      const partsAt=ms=>Object.fromEntries(format.formatToParts(new Date(ms))
+        .filter(p=>["year","month","day","hour","minute"].includes(p.type))
+        .map(p=>[p.type,p.value]));
+      const matches=p=>{
+        const date=[p.year,p.month,p.day].join("-");
+        const time=[p.hour,p.minute].join(":");
+        return date===plan.localDate&&(plan.localTime===undefined||time===plan.localTime);
+      };
+      if(!matches(partsAt(at)))fail("local_time_mismatch");
+      if(plan.localTime!==undefined){
+        // Fall-back DST folds are ambiguous: the same wall-clock minute exists
+        // at two different instants. Refuse rather than silently pick one.
+        for(const delta of [-3600000,3600000]){
+          if(matches(partsAt(at+delta)))fail("ambiguous_local_time");
+        }
+      }
     }catch(e){if(e instanceof DiaryError)throw e;fail("invalid_timezone");}
     result.timezone=plan.timezone;
     result.localDate=plan.localDate;
+    if(plan.localTime!==undefined)result.localTime=plan.localTime;
   }
   if (plan.note != null) {
     if (typeof plan.note !== "string" || plan.note.length > 500) fail("invalid_note");
@@ -72,7 +89,7 @@ export function editDiaryEvent(event,patch,{expectedRevision,now=Date.now()}={})
   if (!event || event.revision !== expectedRevision) fail("revision_conflict");
   if (event.status !== "scheduled") fail("event_locked");
   if (!patch || typeof patch !== "object" || Array.isArray(patch) ||
-      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note","localDate","timezone","accountId"].includes(k))) fail("invalid_patch");
+      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note","localDate","localTime","timezone","accountId"].includes(k))) fail("invalid_patch");
   const updated=checkPlan({...event,...patch},now);
   return {...event,...updated,revision:event.revision+1,updatedAt:now};
 }
