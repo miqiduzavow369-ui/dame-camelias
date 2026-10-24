@@ -165,3 +165,32 @@ test("scheduler rejects cleanup without verified acknowledgement",async()=>{
  const denied=await call({type:"record_cleanup",eventId:ID,messageId:777,deleted:true});
  assert.equal(denied.status,409);
 });
+
+test("same Telegram update ID cannot be reused with a different acknowledgement",async()=>{
+ const {obj,call,db}=setup();
+ await call({type:"replace_schedule",scheduleRevision:1,events:[reminder()]});
+ let callbackData="";
+ const original=globalThis.fetch;
+ globalThis.fetch=async(_url,init)=>{
+  callbackData=JSON.parse(init.body).reply_markup.inline_keyboard[0][0].callback_data;
+  return Response.json({ok:true,result:{message_id:777}});
+ };
+ try{await obj.alarm();}finally{globalThis.fetch=original;}
+ const first=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData,updateId:901});
+ assert.equal(first.status,200);
+ const repeated=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData,updateId:901});
+ assert.equal(repeated.status,200);
+ assert.equal(repeated.body.replay,true);
+ const forged=await call({type:"acknowledge",eventId:ID,messageId:778,callbackData,updateId:901});
+ assert.equal(forged.status,409);
+ assert.equal(db.get("diary_scheduler_ack_updates_v1")["901"],
+   JSON.stringify([ID,777,callbackData]));
+ assert.equal(db.get("diary_scheduler_deliveries_v1")[ID].state,"acknowledged");
+});
+test("invalid Telegram update IDs are refused before recording acknowledgement",async()=>{
+ const {call,db}=setup();
+ const response=await call({type:"acknowledge",eventId:ID,messageId:777,
+  callbackData:"citydiary:thanks:"+ID+":aaaaaaaaaaaa",updateId:-3});
+ assert.equal(response.status,400);
+ assert.equal(db.has("diary_scheduler_ack_updates_v1"),false);
+});
