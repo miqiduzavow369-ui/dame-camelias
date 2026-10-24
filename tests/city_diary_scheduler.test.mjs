@@ -65,7 +65,7 @@ test("delivered message is recorded and not re-sent by a repeated alarm",async()
  assert.equal(db.get("diary_scheduler_deliveries_v1")[ID].state,"sent");
  const a=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData});
  assert.equal(a.body.record.state,"acknowledged");
- const b=await call({type:"acknowledge",eventId:ID,messageId:777});
+ const b=await call({type:"acknowledge",eventId:ID,messageId:777,callbackData});
  assert.equal(b.body.replay,true);
 });
 test("unknown Telegram result is never retried after another alarm",async()=>{
