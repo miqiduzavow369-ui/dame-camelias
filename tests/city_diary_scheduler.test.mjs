@@ -15,6 +15,14 @@ function setup(){
  const storage={
   async get(k){return copy(db.get(k));},
   async put(k,v){db.set(k,copy(v));},
+  async transaction(fn){
+    const pending=new Map([...db].map(([k,v])=>[k,copy(v)]));
+    const tx={get:async k=>copy(pending.get(k)),
+      put:async(k,v)=>pending.set(k,copy(v))};
+    const result=await fn(tx);
+    db.clear();for(const [k,v] of pending)db.set(k,v);
+    return result;
+  },
   async deleteAlarm(){alarms.push(["delete"]);},
   async setAlarm(at){alarms.push(["set",at]);}
  };
