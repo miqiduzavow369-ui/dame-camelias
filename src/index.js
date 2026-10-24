@@ -817,7 +817,7 @@ export default {
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))
         return new Response("Forbidden",{status:403});
-      const allowed=new Set(["list","get","create","batch","edit","cancel"]);
+      const allowed=new Set(["list","get","create","batch","edit","cancel","recheck"]);
       if(!allowed.has(body?.action))
         return new Response("Invalid action",{status:400});
       const result=await cabinetRPC(env,uid,{kind:"mini_diary",request:{
