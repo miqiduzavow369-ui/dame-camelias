@@ -98,3 +98,19 @@ After comparing the product specification and memory handoff with the branch cod
 **Critical**: The signed preview uses browser timezone; timezone preference, DST ambiguity resolution, explicit notice before reminders and stable schedule semantics must be implemented before any notification dispatcher is turned on.
 
 **Critical domain-change rule:** planned events reference confirmed profile ID, not a fixed domain. On eventual execution require verified current profile location and renewed site identity/proxy/permission proofs for changed IntimCity domain. Never retry an uncertain external submission.
+
+## Checkpoint 7 — monthly planning and all-plans screen (2026-10-24)
+
+Implemented on the isolated draft branch:
+- Private `CityDiaryStore.createBatch`: up to 31 independent events per operation, written atomically with one operation receipt. If any event is invalid or an ID duplicates another, none of the events are committed. Repeating the same operation ID and exact payload returns the prior outcome.
+- `cityDiaryRequest` validates ownership of **every** profile in the batch before calling the store. Public signed `/api/anketa/mini-diary` forwards the `batch` action and items, routed into the existing per-client coordinator.
+- Standalone preview now supports toggling multiple gold-highlighted calendar days, count/summary, bulk save, and switching between selected-day and all-plans lists.
+- Crucial safety boundary: bulk creation is currently **reminder-only**. Publishing 5–15 identical reviews through a shared template is disallowed until per-event authoring, ratings and financial reservations exist. Single future publication records are still planning-only, never live submissions.
+- New store/RPC/UI tests cover rollback, idempotency, ownership and UI controls. The isolated City diary workflow succeeded in GitHub Actions run `40082962989`.
+
+Pending before a real launch:
+1. Design per-date publication drafts, individual rating choices and separate credit reservation/release.
+2. Implement reliable reminder alarms, delivery, acknowledgments, retry/reconciliation and explicit IANA timezone semantics.
+3. Address suspended/deleted profiles, changed IntimCity domains and current site version/preflight before any external operation.
+4. Implement end-to-end authenticated Cloudflare/Telegram testing, client preview, regressions and final owner approval.
+5. Keep PR #284 as draft; do not merge, touch ADMIN, ASHOO, Yan First or production.
