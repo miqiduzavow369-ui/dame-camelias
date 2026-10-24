@@ -197,3 +197,25 @@ test("draft is isolated from active event ledger and other clients",async()=>{
  assert.equal(await second.readFormDraft({now:NOW+1}),null);
  assert.deepEqual(await first.list(),[]);
 });
+
+test("archive pagination returns bounded stable pages without losing history",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ for(let i=0;i<65;i++){
+  const id=i.toString(16).padStart(16,"0");
+  backing.db.set("city_diary_archive_v1",[
+   ...(backing.db.get("city_diary_archive_v1")||[]),
+   {id,mode:"reminder",status:"cancelled",action:"profile",
+    at:"2026-10-28T15:30:00.000Z",archivedAt:NOW+i,
+    revision:2,profileId:null,reviewText:""}
+  ]);
+ }
+ const page1=await store.archivePage({offset:0,limit:30});
+ const page2=await store.archivePage({offset:30,limit:30});
+ const page3=await store.archivePage({offset:60,limit:30});
+ assert.equal(page1.total,65);assert.equal(page1.events.length,30);
+ assert.equal(page2.events.length,30);assert.equal(page3.events.length,5);
+ assert.equal(page1.hasMore,true);assert.equal(page3.hasMore,false);
+ assert.notEqual(page1.events[0].id,page2.events[0].id);
+ await assert.rejects(()=>store.archivePage({offset:-1,limit:30}),/invalid_archive_page/);
+ await assert.rejects(()=>store.archivePage({offset:0,limit:51}),/invalid_archive_page/);
+});
