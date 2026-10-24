@@ -76,6 +76,12 @@ textarea{min-height:92px;resize:vertical}
  <label for="reviewText">Ваш текст отзыва (если нужен)</label><textarea id="reviewText" maxlength="4000" placeholder="Текст, который вы хотите сохранить к выбранной дате"></textarea>
  <label for="note">Заметка для себя</label><textarea id="note" maxlength="500" placeholder="Необязательно" style="min-height:65px"></textarea>
  <p id="draftStatus" class="hint">Черновик формы сохраняется приватно и доступен 30 дней.</p>
+ <div id="draftConflictPanel" class="item" hidden>
+  <strong>⚠ Несовпадение черновиков</strong>
+  <p class="hint">Текущий текст остаётся на экране. Сначала сохраните себе копию, затем выберите версию. Никаких публикаций или списаний не происходит.</p>
+  <div class="row"><button class="ghost" id="copyLocalDraft" type="button">Скопировать мой текст</button><button class="ghost" id="loadRemoteDraft" type="button">Загрузить серверную версию</button></div>
+  <button class="ghost" id="overwriteRemoteDraft" type="button">Сохранить мою версию вместо серверной</button>
+ </div>
  <button class="ghost" id="saveDraft" style="width:100%" type="button">Сохранить черновик</button>
  <button class="btn" id="save">✦ Сохранить в ежедневнике</button><button class="ghost" id="reset" style="width:100%;margin-top:10px" hidden>Отменить редактирование</button>
  <div id="message" role="status" aria-live="polite"></div>
@@ -89,7 +95,7 @@ if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],men=[],secondaryStatuses={},mode="reminder",editing=null,loading=false;
-let draftTimer=null,draftWrite=Promise.resolve(),restoringDraft=true,draftRevision=0,draftConflict=false;
+let draftTimer=null,draftWrite=Promise.resolve(),restoringDraft=true,draftRevision=0,draftConflict=false,draftConflictSnapshot=null;
 let archiveOffset=0,archiveTotal=0,archiveHasMore=false;
 let archivedEvents=[];let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
@@ -230,12 +236,57 @@ function formSnapshot(){
   accountId:$("account").value,action:$("action").value,reviewText:$("reviewText").value,
   note:$("note").value,editingId:editing?.id||""};
 }
+function showDraftConflict(message){
+ draftConflict=true;
+ draftConflictSnapshot=formSnapshot();
+ $("draftConflictPanel").hidden=false;
+ $("draftStatus").textContent=message;
+}
+function dismissDraftConflict(){
+ draftConflict=false;draftConflictSnapshot=null;
+ $("draftConflictPanel").hidden=true;
+}
+async function loadServerDraft(){
+ if(loading)return;
+ loading=true;
+ try{
+  await draftWrite.catch(()=>{});
+  const result=await api("get_form_draft");
+  restoringDraft=true;
+  restoreFormDraft(result.draft);
+  dismissDraftConflict();
+  $("draftStatus").textContent=result.draft?"Загружена серверная версия черновика.":"На сервере нет черновика.";
+ }catch(e){$("draftStatus").textContent="Не удалось загрузить черновик: "+e.message;}
+ finally{restoringDraft=false;loading=false;}
+}
+async function overwriteServerDraft(){
+ if(loading||!draftConflict)return;
+ if(!confirm("Заменить сохранённый черновик своей текущей версией? Последние изменения другого устройства будут заменены."))return;
+ loading=true;
+ try{
+  await draftWrite.catch(()=>{});
+  const current=await api("get_form_draft");
+  const local=draftConflictSnapshot||formSnapshot();
+  const result=await api("save_form_draft",{form:local,expectedRevision:current.draft?.revision||0});
+  draftRevision=result.revision;
+  dismissDraftConflict();
+  $("draftStatus").textContent="Ваша версия сохранена. На другом устройстве потребуется обновить черновик.";
+ }catch(e){showDraftConflict("Сохранение не выполнено. Серверный черновик не перезаписан: "+e.message);}
+ finally{loading=false;}
+}
+async function copyCurrentDraftText(){
+ const d=draftConflictSnapshot||formSnapshot();
+ const text=[d.reviewText,d.note].filter(Boolean).join("\\n\\n");
+ if(!text){$("draftStatus").textContent="В этом черновике нет текста для копирования.";return;}
+ try{await navigator.clipboard.writeText(text);$("draftStatus").textContent="Текст скопирован. Выберите версию черновика.";}
+ catch{$("draftStatus").textContent="Не удалось скопировать автоматически. Выделите текст в поле формы и скопируйте вручную.";}
+}
 async function persistDraft(){
  if(restoringDraft||loading||draftConflict)return;
  const form=formSnapshot();
  draftWrite=draftWrite.catch(()=>{}).then(()=>api("save_form_draft",{form,expectedRevision:draftRevision})).then(response=>{draftRevision=response.revision;return response;});
  try{await draftWrite;$("draftStatus").textContent="Черновик сохранён для следующего открытия.";}
- catch{draftConflict=true;$("draftStatus").textContent="Черновик изменён на другом устройстве или соединение прервалось. Обновите ежедневник для сверки; новые изменения не перезаписаны.";}
+ catch{showDraftConflict("Черновик изменён на другом устройстве или соединение прервалось. Ваша форма остаётся открытой. Сверьте версии перед сохранением.");}
 }
 function queueDraft(){
  if(restoringDraft||loading||draftConflict)return;
@@ -246,7 +297,7 @@ async function discardDraft(){
  if(draftTimer){clearTimeout(draftTimer);draftTimer=null;}
  await draftWrite.catch(()=>{});
  await api("clear_form_draft",{expectedRevision:draftRevision});
- draftRevision=0;draftConflict=false;
+ draftRevision=0;dismissDraftConflict();
  $("draftStatus").textContent="Черновик очищен.";
 }
 function restoreFormDraft(record){
@@ -448,6 +499,9 @@ $("publicationMode").onclick=()=>changeMode("publication");
 $("reset").onclick=async()=>{resetForm();try{await discardDraft();}catch(e){say(e.message);}};
 $("save").onclick=save;
 $("saveDraft").onclick=()=>persistDraft();
+$("copyLocalDraft").onclick=copyCurrentDraftText;
+$("loadRemoteDraft").onclick=loadServerDraft;
+$("overwriteRemoteDraft").onclick=overwriteServerDraft;
 $("diaryFormCard").addEventListener("input",queueDraft);
 $("diaryFormCard").addEventListener("change",queueDraft);
 $("reminderMode").addEventListener("click",queueDraft);
