@@ -13,6 +13,7 @@ function storage({failReceipt=false}={}) {
     db,
     async get(key){return copy(db.get(key));},
     async put(key,value){db.set(key,copy(value));},
+    async delete(key){db.delete(key);},
     async transaction(fn) {
       const pending=new Map([...db].map(([k,v])=>[k,copy(v)]));
       const tx={
@@ -164,4 +165,35 @@ test("archived identifiers cannot be reused to create a new event",async()=>{
  await store.transition(ID,"cancelled",{operation:"2222222222222222",expectedRevision:1,now:NOW});
  await store.archiveTerminal({operation:"3333333333333333",expectedRevisions:[{id:ID,revision:2}],now:NOW});
  await assert.rejects(()=>store.create(plan,{id:ID,operation:"4444444444444444",now:NOW}),/duplicate_event/);
+});
+
+test("private unfinished form survives client restart, expires and clears",async()=>{
+ const backing=storage(),first=new CityDiaryStore(backing);
+ const form={mode:"publication",date:"2026-10-30",time:"17:20",
+  profileId:"652282",accountId:"yan_second",action:"review",
+  reviewText:"Мой личный опыт",note:"Проверить",editingId:""};
+ await first.saveFormDraft(form,{now:NOW});
+ const reopened=new CityDiaryStore(backing);
+ assert.deepEqual((await reopened.readFormDraft({now:NOW+5000})).form,form);
+ assert.equal(await reopened.readFormDraft({now:NOW+31*86400000}),null);
+ assert.deepEqual(await reopened.clearFormDraft(),{cleared:true});
+ assert.equal(await reopened.readFormDraft({now:NOW+5000}),null);
+});
+test("private form cannot contain credentials or oversized text",async()=>{
+ const store=new CityDiaryStore(storage());
+ const form={mode:"reminder",date:"2026-10-30",time:"12:00",profileId:"",
+  accountId:"",action:"profile",reviewText:"",note:"",editingId:""};
+ await assert.rejects(()=>store.saveFormDraft({...form,proxy:"secret"},{now:NOW}),/invalid_form_draft/);
+ await assert.rejects(()=>store.saveFormDraft({...form,reviewText:"x".repeat(4001)},{now:NOW}),/invalid_form_draft/);
+ await store.saveFormDraft(form,{now:NOW});
+ assert.equal((await store.readFormDraft({now:NOW+1})).form.action,"profile");
+});
+test("draft is isolated from active event ledger and other clients",async()=>{
+ const a=storage(),b=storage();
+ const first=new CityDiaryStore(a),second=new CityDiaryStore(b);
+ const form={mode:"reminder",date:"2026-10-30",time:"12:00",profileId:"",
+  accountId:"",action:"profile",reviewText:"",note:"",editingId:""};
+ await first.saveFormDraft(form,{now:NOW});
+ assert.equal(await second.readFormDraft({now:NOW+1}),null);
+ assert.deepEqual(await first.list(),[]);
 });
