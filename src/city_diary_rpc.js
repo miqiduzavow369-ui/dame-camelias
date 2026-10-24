@@ -18,9 +18,9 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
     if(request.action==="get_form_draft")
       return {ok:true,draft:await store.readFormDraft()};
     if(request.action==="save_form_draft")
-      return {ok:true,...await store.saveFormDraft(request.form)};
+      return {ok:true,...await store.saveFormDraft(request.form,{expectedRevision:request.expectedRevision})};
     if(request.action==="clear_form_draft")
-      return {ok:true,...await store.clearFormDraft()};
+      return {ok:true,...await store.clearFormDraft({expectedRevision:request.expectedRevision})};
     if(request.action==="list")
       return {ok:true,events:await store.list(request.filters||{})};
     if(request.action==="archive_page")
@@ -147,7 +147,7 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
   }catch(error){
     if(error instanceof DiaryError){
       const conflict=["operation_conflict","revision_conflict","event_locked","invalid_transition",
-        "duplicate_event","duplicate_schedule","diary_full","archive_not_terminal","archive_not_safe","archive_conflict"].includes(error.code);
+        "duplicate_event","duplicate_schedule","diary_full","archive_not_terminal","archive_not_safe","archive_conflict","draft_revision_conflict"].includes(error.code);
       return {ok:false,status:conflict?409:400,reason:error.code};
     }
     return {ok:false,status:503,reason:"diary_unavailable"};
