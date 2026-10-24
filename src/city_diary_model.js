@@ -40,9 +40,9 @@ function checkPlan(plan, now) {
   // the intended wall-clock day if the client later travels or changes devices.
   if(plan.timezone!==undefined || plan.localDate!==undefined || plan.localTime!==undefined){
     if(typeof plan.timezone!=="string"||plan.timezone.length>64||
-       typeof plan.localDate!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(plan.localDate)||
+       typeof plan.localDate!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(plan.localDate)||
        (plan.localTime!==undefined&&(typeof plan.localTime!=="string"||
-        !/^\\d{2}:\\d{2}$/.test(plan.localTime))))
+        !/^\d{2}:\d{2}$/.test(plan.localTime))))
       fail("invalid_timezone");
     try{
       const format=new Intl.DateTimeFormat("en-GB",{timeZone:plan.timezone,
