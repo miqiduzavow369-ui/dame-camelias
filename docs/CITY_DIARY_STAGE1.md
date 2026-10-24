@@ -202,3 +202,16 @@ An end-to-end specification-to-branch audit identified and repaired three concre
 GitHub Actions: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40089456182 — diary unit/syntax checks passed. Existing cabinet, Mini App, isolation, review and secondary runner checks also passed for the same branch commit. Do not claim device-level E2E or full time/DST correctness.
 
 **Still required:** durable client-side idempotency after Web App reload, authoritative recheck of every manual City claim at actual execution, DST-fold/gap UX tests, a sustainable archive/active-plan quota model, runtime scheduler wiring with owner-safe callback handling, credit holds/returns and existing ADMIN integration. Manual City, ADMIN, Yan First, all other men, ASHOO, wrangler.toml, main and Cloudflare deployment remain unchanged.
+
+## Checkpoint 14 — DST safety and identical-event replay guard (2026-10-24)
+
+- Added `localTime` to newly created diary plans, stored alongside UTC `at`, original `localDate`, and IANA `timezone`.
+- Server checks that the intended wall-clock time matches its UTC instant. Ambiguous fall-back DST minutes (e.g. 02:30 in Stockholm on 2026-10-25) are refused with `ambiguous_local_time`, not silently rounded to one of two instants. Spring-forward missing minutes fail the wall-clock check; UI offers a clear error. Legacy saved events without `localTime` remain supported.
+- `addDiaryEvent` now rejects an **indistinguishable active event** with the same mode, action, UTC timestamp, profile, male account, review text and note, even if a restarted Mini App generates a new ID or operation token. Different times/actions/men/notes and multiple events on the same date remain allowed. Cancelled events can be rescheduled deliberately.
+- The authenticated planning adapter returns `duplicate_schedule` as 409 Conflict, and the calendar explains that the existing entry can be found in «Все планы».
+- Added tests for 2026/2027 Stockholm DST fold/gap, legacy time compatibility, restart duplicates and independent plans.
+- GitHub isolated diary CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40090211980 — **success**.
+
+**Boundary:** This is server-side duplicate prevention, not complete client-side restoration of an interrupted edit form or pending operation nonce. Full archive/retention of terminal events is still pending. The active storage limit remains 120 events including historical ones. Do not purge completed/failed/cancelled records without a separate transactional archive and audit policy.
+
+No live publication, credit, moderator, site login, Telegram alarm registration, main merge or production deployment. Manual City/Yan First/29 other men/ADMIN/ASHOO are unmodified.
