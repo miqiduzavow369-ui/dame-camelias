@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/city_diary_*.js'
       - 'tests/city_diary_*.test.mjs'
+      - 'anketa/city-diary-preview.html'
       - '.github/workflows/city-diary-checks.yml'
   workflow_dispatch:
 permissions:
@@ -28,4 +29,4 @@ jobs:
           node --check src/cabinet_runtime.js
           node --check src/index.js
       - name: Diary unit tests
-        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs
+        run: node --test tests/city_diary_model.test.mjs tests/city_diary_store.test.mjs tests/city_diary_rpc.test.mjs tests/city_diary_ui.test.mjs
