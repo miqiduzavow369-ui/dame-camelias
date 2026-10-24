@@ -86,6 +86,14 @@ export function createDiaryEvent(plan, {id, now=Date.now()}={}) {
 export function addDiaryEvent(events,event) {
   if (!Array.isArray(events) || events.length >= MAX_EVENTS) fail("diary_full");
   if (events.some(e=>e.id===event.id)) fail("duplicate_event");
+  // A client may restart after a committed write but before receiving its
+  // receipt. Reject an indistinguishable active event despite a new random ID.
+  // Different actions, times, men, profiles, texts and notes remain independent.
+  if(events.some(e=>e.status==="scheduled"&&event.status==="scheduled"&&
+     e.mode===event.mode&&e.action===event.action&&e.at===event.at&&
+     e.profileId===event.profileId&&(e.accountId||null)===(event.accountId||null)&&
+     e.reviewText===event.reviewText&&(e.note||"")===(event.note||"")))
+    fail("duplicate_schedule");
   return [...events,clone(event)];
 }
 export function editDiaryEvent(event,patch,{expectedRevision,now=Date.now()}={}) {
