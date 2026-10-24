@@ -50,7 +50,7 @@ textarea{min-height:92px;resize:vertical}
 </section>
 <section class="card" id="plansSection">
  <div class="row"><h2>Мои планы</h2><span id="total" class="pill">0 событий</span></div>
- <div class="segment"><button id="dayView" class="active" type="button">Выбранный день</button><button id="allView" type="button">Все планы</button></div>
+ <div class="segment" style="grid-template-columns:repeat(3,1fr)"><button id="dayView" class="active" type="button">День</button><button id="allView" type="button">Все планы</button><button id="archiveView" type="button">Архив</button></div>
  <div id="plans"></div>
 </section>
 <section class="card" id="monthSection">
@@ -87,7 +87,7 @@ if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
 let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],men=[],secondaryStatuses={},mode="reminder",editing=null,loading=false;
-let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
+let archivedEvents=[];let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
 function localTime(d){return [String(d.getHours()).padStart(2,"0"),String(d.getMinutes()).padStart(2,"0")].join(":");}
@@ -143,9 +143,12 @@ function renderCalendar(){
 }
 function appendText(parent,tag,value,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=value;parent.append(node);return node;}
 function renderPlans(){
- const dayEvents=events.filter(e=>e.status!=="cancelled"&&(plansView==="all"||dayKey(e)===selected)).sort((a,b)=>a.at.localeCompare(b.at));
+ const source=plansView==="archive"?archivedEvents:events;
+ const dayEvents=source.filter(e=>plansView==="archive"||plansView==="all"||
+   (e.status!=="cancelled"&&dayKey(e)===selected)).sort((a,b)=>a.at.localeCompare(b.at));
  $("dayView").classList.toggle("active",plansView==="day");
  $("allView").classList.toggle("active",plansView==="all");
+ $("archiveView").classList.toggle("active",plansView==="archive");
  $("total").textContent=events.filter(e=>e.status!=="cancelled").length+" событий";
  const el=$("plans");el.replaceChildren();
  if(!dayEvents.length){appendText(el,"p","На выбранную дату пока ничего не запланировано.");return;}
@@ -157,6 +160,12 @@ function renderPlans(){
     (e.accountId?" · "+(selectedMan?.name||e.accountId):""));
   appendText(item,"span",statusText(e.status),"pill");
   if(e.note)appendText(item,"p",e.note);
+  if(e.mode==="reminder"&&e.status==="cancelled"&&plansView==="all"){
+    const archiveButton=document.createElement("button");
+    archiveButton.className="ghost";archiveButton.textContent="Перенести в архив";
+    archiveButton.onclick=()=>archiveCancelledReminder(e);
+    item.append(archiveButton);
+  }
   if(e.status==="scheduled"){
    const buttons=document.createElement("div");buttons.className="row";
    const edit=document.createElement("button");edit.className="ghost";edit.textContent="Изменить";edit.onclick=()=>startEdit(e);
@@ -221,6 +230,16 @@ function startEdit(e){
  const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=e.localTime||timeInZone(e.at,e.timezone);
  $("profile").value=e.profileId||"";$("account").value=e.accountId||"";updateAccountStatus();$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function archiveCancelledReminder(e){
+ if(loading||!confirm("Перенести отменённое напоминание в архив? История сохранится."))return;
+ loading=true;
+ try{
+   await api("archive_cancelled_reminders",{operation:hexId(),items:[{id:e.id,revision:e.revision}]});
+   await refresh();
+   say("Напоминание перенесено в архив. История сохранена.");
+ }catch(error){say(error.message);}
+ finally{loading=false;}
 }
 async function recheckEvent(e){
  if(loading)return;loading=true;
@@ -343,7 +362,11 @@ async function saveBatch(){
  finally{loading=false;$("batchSave").disabled=false;}
 }
 async function refresh(){
- const response=await api("list");events=response.events||[];renderCalendar();renderPlans();
+ const response=await api("list");events=response.events||[];
+ if(plansView==="archive"){
+   const archived=await api("list_archive");archivedEvents=archived.events||[];
+ }
+ renderCalendar();renderPlans();
 }
 async function boot(){
  $("date").value=selected;
@@ -359,6 +382,7 @@ $("batchClear").onclick=()=>{batchDates.clear();pendingBatch=null;renderBatch();
 $("batchSave").onclick=saveBatch;
 $("dayView").onclick=()=>{plansView="day";renderPlans();};
 $("allView").onclick=()=>{plansView="all";renderPlans();};
+$("archiveView").onclick=async()=>{plansView="archive";try{await refresh();}catch(e){say(e.message);}};
 $("prev").onclick=()=>moveMonth(-1);
 $("next").onclick=()=>moveMonth(1);
 $("date").onchange=()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test($("date").value))return;selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;renderCalendar();renderPlans();};
