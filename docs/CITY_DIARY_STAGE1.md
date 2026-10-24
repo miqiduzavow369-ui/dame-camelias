@@ -278,3 +278,14 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - **Not yet built:** trusted binding/coordinator connecting private user DO to scheduler DO, retry/reconciliation protocol after ambiguous sync responses, end-to-end callback ownership, message deletion/answerCallbackQuery and runtime deployment. Never register scheduler or send real Telegram messages prematurely.
 
 **Safety:** PR #284 feature branch only. No edits to manual City flows, existing OrderReminder alarm, 30 men, ADMIN, credits, ASHOO, `wrangler.toml`, main or production deployment.
+
+## Checkpoint 21 — dormant trusted per-user synchronization bridge (2026-10-24)
+
+- Added standalone `src/city_diary_bridge.js`, with `syncCityDiaryReminders({storage,authenticatedUserId,schedulerNamespace,internalToken})`. It takes an authenticated user identity only from the trusted caller, obtains a transactional reminder-only snapshot from that user's private diary DO, derives a stable personalized scheduler DO identity with `idFromName(userId)`, and signs an internal request using the dedicated internal bearer token.
+- This bridge has no public HTTP route and is NOT called from `cabinet_runtime.js` or `src/index.js`. No Cloudflare scheduler binding, real Telegram notification or deployment has been added.
+- Snapshot transport preserves its source `scheduleRevision`. The scheduler returns 409 stale with `currentRevision` if the same version was already installed. The bridge regards **only exact equality** as a successful replay; if the target is ahead it reports a mismatch instead of attempting to overwrite or allocating a new revision. Unknown network outcome remains explicitly uncertain and can be retried with the unchanged source version.
+- Test suite `tests/city_diary_bridge.test.mjs` verifies reminder-only sync and cancellation, protected user ID selection, unavailable config rejection, replay, response-loss recovery and exclusion of publication plans. Tests run in an isolated fake scheduler with no Telegram send or real credentials.
+- Isolated GitHub CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40100018764 — SUCCESS.
+- Further necessary design: secure server-side trigger after confirmed private diary mutations; cancellation-vs-alarm delivery race reconciliation; dedicated registered DO and secret; callback ownership verification, answerCallbackQuery, message removal; separate retries and monitoring. None enabled here.
+
+**City invariants:** Manual IntimCity/City, existing OrderReminder alarm, ADMIN, all 30 men, credits, ASHOO, main and production unchanged. PR #284 remains isolated.
