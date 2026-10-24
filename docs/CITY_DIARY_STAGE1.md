@@ -240,3 +240,12 @@ No live publication, credit, moderator, site login, Telegram alarm registration,
 The isolated diary checks passed with the added private draft and bounded archive page tests:
 https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40091667944
 The first newly added RPC draft-clear test detected a missing `storage.delete` method **in the test fake only**, which was repaired before the passing run. Do not infer a production deployment or real Telegram smoke test. Full City regressions remain independent checks.
+
+## Checkpoint 17 — multi-device draft concurrency guard (2026-10-24)
+
+- `CityDiaryStore.saveFormDraft` and `clearFormDraft` now require an `expectedRevision`. An atomic Durable Object transaction checks it and increments the draft revision on save. Expired or missing drafts have revision 0. A stale phone/browser receives `draft_revision_conflict` instead of silently overwriting or deleting a newer draft from another device.
+- Signed planning RPC forwards this revision. The isolated Mini App stores the current revision from the server; on a failed draft write it stops subsequent automatic overwrites and instructs the client to reopen/reconcile the draft. A draft never permits publication or financial activity.
+- Tests: two-device saves and stale deletion, API 409 conflict and preservation of the most recent note, version-aware UI controls. Isolated CI succeeded: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40092492611.
+- Known limitations: network ambiguity also stops autosave pending manual refresh, and there is no full three-way merge between devices. Clearing a draft after an event commit may fail due to a concurrent newer draft, in which case the newer draft is preserved. A full active-form recovery UX and per-field merge are future enhancements.
+
+**Invariants:** This change touches only diary files, not manual City execution, ratings, reviews, moderation, existing men's access, credit balance, ASHOO, or deployed Cloudflare. Remain in PR #284 without merging/deploying.
