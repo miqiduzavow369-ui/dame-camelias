@@ -817,12 +817,12 @@ export default {
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
       if(!/^[1-9]\d{4,15}$/.test(uid||""))
         return new Response("Forbidden",{status:403});
-      const allowed=new Set(["list","get","create","edit","cancel"]);
+      const allowed=new Set(["list","get","create","batch","edit","cancel"]);
       if(!allowed.has(body?.action))
         return new Response("Invalid action",{status:400});
       const result=await cabinetRPC(env,uid,{kind:"mini_diary",request:{
         action:body.action,id:body.id,operation:body.operation,
-        plan:body.plan,patch:body.patch,expectedRevision:body.expectedRevision,
+        plan:body.plan,items:body.items,patch:body.patch,expectedRevision:body.expectedRevision,
         filters:body.filters
       }});
       const status=result?.ok?200:
