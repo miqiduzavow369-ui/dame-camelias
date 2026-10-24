@@ -62,3 +62,19 @@ test("publication readiness button is read-only and makes no site submissions",(
  assert.ok(page.includes("Публикация не запущена."));
  assert.ok(!page.includes('api("publish"'));
 });
+
+test("successful write cannot be repeated merely because the following list refresh fails",()=>{
+ const save=page.slice(page.indexOf("async function save(){"),page.indexOf("function renderBatch(){"));
+ const batch=page.slice(page.indexOf("async function saveBatch(){"),page.indexOf("async function refresh(){"));
+ for(const chunk of [save,batch]){
+  assert.ok(chunk.includes("accepted=true"));
+  assert.ok(chunk.includes("try{await refresh();"));
+  assert.ok(chunk.includes("повторно сохранять не нужно"));
+  assert.ok(chunk.indexOf("pendingSave=null")!==-1||chunk.indexOf("pendingBatch=null")!==-1);
+ }
+});
+test("editing plans in a different device timezone is blocked rather than silently shifted",()=>{
+ assert.ok(page.includes("e.timezone!==timezone"));
+ assert.ok(page.includes("timeInZone(e.at,e.timezone)"));
+ assert.ok(page.includes("Чтобы не сдвинуть время"));
+});
