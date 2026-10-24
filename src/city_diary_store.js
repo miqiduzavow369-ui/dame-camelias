@@ -70,6 +70,23 @@ export class CityDiaryStore {
       return {events:addDiaryEvent(events,event),event};
     });
   }
+  async createBatch(items,{operation,now=Date.now()}={}) {
+    if(!Array.isArray(items)||items.length<1||items.length>31)fail("invalid_batch");
+    if(items.some(item=>!item||typeof item!=="object"))fail("invalid_batch");
+    for(const item of items)assertId(item.id);
+    if(new Set(items.map(item=>item.id)).size!==items.length)fail("duplicate_event");
+    const signature=JSON.stringify(["batch",items]);
+    return this.#mutate(operation,signature,events=>{
+      let next=events;
+      const saved=[];
+      for(const item of items){
+        const event=createDiaryEvent(item.plan,{id:item.id,now});
+        next=addDiaryEvent(next,event);
+        saved.push(event);
+      }
+      return {events:next,event:saved};
+    });
+  }
   async edit(id,patch,{operation,expectedRevision,now=Date.now()}={}) {
     assertId(id);
     if(!Number.isSafeInteger(expectedRevision)||expectedRevision<1)fail("invalid_revision");
