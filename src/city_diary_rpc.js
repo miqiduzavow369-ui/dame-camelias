@@ -6,7 +6,7 @@ import {isKnownManAccount} from "./man_accounts.js";
 import {checkDiaryManualHistory} from "./city_diary_eligibility.js";
 import {assessDiaryConnection} from "./city_diary_preflight.js";
 
-const ACTIONS=new Set(["list","list_archive","get","create","batch","edit","cancel","recheck","archive_cancelled_reminders","get_form_draft","save_form_draft","clear_form_draft"]);
+const ACTIONS=new Set(["list","list_archive","archive_page","get","create","batch","edit","cancel","recheck","archive_cancelled_reminders","get_form_draft","save_form_draft","clear_form_draft"]);
 const PROFILE=/^\d{1,9}$/;
 export async function cityDiaryRequest(storage,request,{profileOwned,manualStatus}={}) {
   if(!request||!ACTIONS.has(request.action))
@@ -23,6 +23,8 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
       return {ok:true,...await store.clearFormDraft()};
     if(request.action==="list")
       return {ok:true,events:await store.list(request.filters||{})};
+    if(request.action==="archive_page")
+      return {ok:true,...await store.archivePage(request.filters||{})};
     if(request.action==="list_archive")
       return {ok:true,events:await store.listArchive(request.filters||{})};
     if(request.action==="archive_cancelled_reminders"){
