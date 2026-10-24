@@ -117,3 +117,51 @@ test("bulk publications are refused until individual authoring and financial hol
  await assert.rejects(()=>store.createBatch([{id:ID,plan}],{operation:OP,now:NOW}),/batch_publication_unavailable/);
  assert.deepEqual(await store.list(),[]);
 });
+
+test("terminal cancellation transfers to archive atomically and preserves get/history",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ await store.transition(ID,"cancelled",{operation:"2222222222222222",expectedRevision:1,now:NOW+5});
+ const args={operation:"3333333333333333",expectedRevisions:[{id:ID,revision:2}],now:NOW+10};
+ const first=await store.archiveTerminal(args);
+ assert.equal(first.count,1);
+ assert.deepEqual(await store.list(),[]);
+ assert.equal((await store.listArchive()).length,1);
+ assert.equal((await store.get(ID)).status,"cancelled");
+ assert.equal((await store.get(ID)).archivedAt,NOW+10);
+ assert.deepEqual(await store.archiveTerminal({...args,now:NOW+20}),first);
+});
+test("active and unverified completed publication records cannot be archived",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ const op="3333333333333333";
+ await assert.rejects(()=>store.archiveTerminal({operation:op,expectedRevisions:[{id:ID,revision:1}],now:NOW}),/archive_not_terminal/);
+ assert.equal((await store.list()).length,1);
+ const a=await store.transition(ID,"awaiting_confirmation",{operation:"2222222222222222",expectedRevision:1,now:NOW});
+ const b=await store.transition(ID,"submitted",{operation:"4444444444444444",expectedRevision:a.revision,now:NOW});
+ await store.transition(ID,"completed",{operation:"5555555555555555",expectedRevision:b.revision,now:NOW});
+ await assert.rejects(()=>store.archiveTerminal({operation:op,expectedRevisions:[{id:ID,revision:4}],now:NOW}),/archive_requires_verified_result/);
+ assert.equal((await store.listArchive()).length,0);
+});
+test("archive rejects stale revisions without partial moves",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ await store.transition(ID,"cancelled",{operation:"2222222222222222",expectedRevision:1,now:NOW});
+ await assert.rejects(()=>store.archiveTerminal({operation:"3333333333333333",expectedRevisions:[{id:ID,revision:1}],now:NOW}),/revision_conflict/);
+ assert.equal((await store.list()).length,1);
+ assert.equal((await store.listArchive()).length,0);
+});
+test("archive transaction rollback leaves original record intact",async()=>{
+ const backing=storage({failReceipt:true}),store=new CityDiaryStore(backing);
+ backing.db.set("city_diary_events_v1",[{id:ID,revision:2,status:"cancelled",mode:"reminder",action:"profile",at:"2026-10-28T15:30:00.000Z",profileId:null,reviewText:"",createdAt:NOW,updatedAt:NOW}]);
+ await assert.rejects(()=>store.archiveTerminal({operation:OP,expectedRevisions:[{id:ID,revision:2}],now:NOW}),/simulated_receipt_failure/);
+ assert.equal((await store.list()).length,1);
+ assert.equal((await store.listArchive()).length,0);
+});
+test("archived identifiers cannot be reused to create a new event",async()=>{
+ const backing=storage(),store=new CityDiaryStore(backing);
+ await store.create(plan,{id:ID,operation:OP,now:NOW});
+ await store.transition(ID,"cancelled",{operation:"2222222222222222",expectedRevision:1,now:NOW});
+ await store.archiveTerminal({operation:"3333333333333333",expectedRevisions:[{id:ID,revision:2}],now:NOW});
+ await assert.rejects(()=>store.create(plan,{id:ID,operation:"4444444444444444",now:NOW}),/duplicate_event/);
+});
