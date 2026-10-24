@@ -28,3 +28,19 @@ This branch is deliberately **not** ready for deployment. Main/production is unc
 
 Local test command: `node --test tests/city_diary_model.test.mjs`.
 No live publication, credit adjustment, Telegram send or ADMIN operation is performed by these additions.
+
+
+## Checkpoint 2 — private event persistence (2026-10-24)
+
+Added `src/city_diary_store.js` and `tests/city_diary_store.test.mjs`.
+
+- Storage adapter is designed to run inside one **already authenticated and serialized per-client** Durable Object coordinator. It is NOT exposed as a public HTTP endpoint.
+- Reads, creates, edits and state changes use a separate `city_diary_*` namespace; existing cabinet, credit and publication keys are untouched.
+- Mutations require 16–32 character hex operation IDs, with stored replay receipts; changing the payload while reusing an ID is rejected.
+- Editing and status changes require expected event revision. Cancellation is currently an event state change only, not a real credit release or Telegram deletion.
+- Does not call Telegram, ADMIN, publication runners, credit ledgers, or external websites.
+- Storage write followed by receipt write is not an atomic transaction. Lost receipt can lead to a revision conflict on retry; operator must query event state instead of blindly reissuing mutation. Harden transaction boundaries before wiring production callbacks.
+- Isolation tests construct distinct per-client mock storages. Authentication and user-to-DO routing remain the responsibility of the existing cabinet runtime, and are NOT yet wired.
+- Test files have been committed but were **not executed in this session**: the runtime could not resolve github.com to download the checked-in files for local Node testing.
+
+Do not merge or deploy this PR yet. Next: atomic storage transaction, authenticated RPC adapter, timezone-aware calendar and reminder acknowledgement semantics, then end-to-end tests.
