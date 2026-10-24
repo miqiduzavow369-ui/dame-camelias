@@ -11,7 +11,7 @@ function storage(){
     async delete(key){db.delete(key);},
     async transaction(fn){
       const working=new Map([...db].map(([key,value])=>[key,copy(value)]));
-      const tx={get:async key=>copy(working.get(key)),put:async(key,value)=>working.set(key,copy(value))};
+      const tx={get:async key=>copy(working.get(key)),put:async(key,value)=>working.set(key,copy(value)),delete:async key=>working.delete(key)};
       const result=await fn(tx);
       db.clear();for(const [key,value] of working)db.set(key,value);
       return result;
@@ -203,13 +203,24 @@ test("signed planning API restores form drafts without giving publication author
  const backing=storage(),opts={profileOwned:owned};
  const form={mode:"publication",date:"2026-11-04",time:"13:30",profileId:"652282",
   accountId:"yan_second",action:"review",reviewText:"Мой личный опыт",note:"",editingId:""};
- const saved=await cityDiaryRequest(backing,{action:"save_form_draft",form},opts);
+ const saved=await cityDiaryRequest(backing,{action:"save_form_draft",form,expectedRevision:0},opts);
  assert.equal(saved.ok,true);
  const restored=await cityDiaryRequest(backing,{action:"get_form_draft"},opts);
  assert.equal(restored.ok,true);
  assert.deepEqual(restored.draft.form,form);
  assert.equal((await cityDiaryRequest(backing,{action:"list"},opts)).events.length,0);
- const cleared=await cityDiaryRequest(backing,{action:"clear_form_draft"},opts);
+ const cleared=await cityDiaryRequest(backing,{action:"clear_form_draft",expectedRevision:1},opts);
  assert.equal(cleared.ok,true);
  assert.equal((await cityDiaryRequest(backing,{action:"get_form_draft"},opts)).draft,null);
+});
+
+test("API refuses a stale draft revision and preserves newest form",async()=>{
+ const backing=storage(),opts={profileOwned:owned};
+ const form={mode:"reminder",date:"2026-11-04",time:"13:30",profileId:"",
+  accountId:"",action:"profile",reviewText:"",note:"first",editingId:""};
+ assert.equal((await cityDiaryRequest(backing,{action:"save_form_draft",form,expectedRevision:0},opts)).revision,1);
+ assert.equal((await cityDiaryRequest(backing,{action:"save_form_draft",form:{...form,note:"second"},expectedRevision:1},opts)).revision,2);
+ const denied=await cityDiaryRequest(backing,{action:"clear_form_draft",expectedRevision:1},opts);
+ assert.equal(denied.status,409);
+ assert.equal((await cityDiaryRequest(backing,{action:"get_form_draft"},opts)).draft.form.note,"second");
 });
