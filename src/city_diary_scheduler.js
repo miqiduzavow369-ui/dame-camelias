@@ -6,6 +6,7 @@ import {nextDiaryAlarm,dueDiaryNotifications,claimDiaryDelivery,
 
 const EVENTS="diary_scheduler_events_v1",DELIVERIES="diary_scheduler_deliveries_v1";
 const USER="diary_scheduler_owner_v1", SCHEDULE_REVISION="diary_scheduler_revision_v1";
+const ACK_UPDATES="diary_scheduler_ack_updates_v1";
 const SAFE_USER=/^[1-9]\d{4,15}$/;
 const TOKEN=/^[a-f0-9]{16,32}$/;
 const reply=(value,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store"}});
@@ -87,10 +88,25 @@ export class CityDiaryScheduler {
       if(input.type==="acknowledge"){
         if(!TOKEN.test(String(input.eventId||""))||
            !Number.isSafeInteger(input.messageId)||typeof input.callbackData!=="string")return reply({ok:false,reason:"bad_request"},400);
-        const deliveries=await storage.get(DELIVERIES)||{};
+        if(input.updateId!==undefined&&
+           (!Number.isSafeInteger(input.updateId)||input.updateId<0))
+          return reply({ok:false,reason:"invalid_update_id"},400);
         try{
-          const result=acknowledgeDiaryDelivery(deliveries,input.eventId,input.messageId,input.callbackData);
-          await storage.put(DELIVERIES,result.deliveries);
+          const result=await storage.transaction(async tx=>{
+            const deliveries=await tx.get(DELIVERIES)||{};
+            const updates=await tx.get(ACK_UPDATES)||{};
+            const key=input.updateId===undefined?null:String(input.updateId);
+            const signature=JSON.stringify([input.eventId,input.messageId,input.callbackData]);
+            if(key!==null&&Object.hasOwn(updates,key)&&updates[key]!==signature)
+              throw Error("update_id_conflict");
+            const next=acknowledgeDiaryDelivery(deliveries,
+              input.eventId,input.messageId,input.callbackData);
+            const receipts=Object.fromEntries(Object.entries(updates).slice(-255));
+            if(key!==null)receipts[key]=signature;
+            await tx.put(DELIVERIES,next.deliveries);
+            if(key!==null)await tx.put(ACK_UPDATES,receipts);
+            return next;
+          });
           return reply({ok:true,replay:result.replay===true,record:result.record});
         }catch{return reply({ok:false,reason:"invalid_acknowledgement"},409);}
       }
