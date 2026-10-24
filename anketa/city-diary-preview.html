@@ -158,7 +158,14 @@ function renderPlans(){
    const buttons=document.createElement("div");buttons.className="row";
    const edit=document.createElement("button");edit.className="ghost";edit.textContent="Изменить";edit.onclick=()=>startEdit(e);
    const cancel=document.createElement("button");cancel.className="ghost";cancel.textContent="Отменить";cancel.onclick=()=>cancelEvent(e);
-   buttons.append(edit,cancel);item.append(buttons);
+   buttons.append(edit,cancel);
+   if(e.mode==="publication"){
+     const check=document.createElement("button");check.className="ghost";
+     check.textContent="Проверить готовность";
+     check.onclick=()=>recheckEvent(e);
+     buttons.append(check);
+   }
+   item.append(buttons);
   }
   el.append(item);
  }
@@ -207,6 +214,23 @@ function startEdit(e){
  const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=localTime(date);
  $("profile").value=e.profileId||"";$("account").value=e.accountId||"";updateAccountStatus();$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function recheckEvent(e){
+ if(loading)return;loading=true;
+ try{
+   const result=await api("recheck",{id:e.id,expectedRevision:e.revision});
+   if(result.eligibleForPlanning){
+     say("По текущей истории City явного конфликта нет. Перед публикацией всё равно обязательны новая проверка сайта, подтверждение девушки и действующий механизм City. Публикация не запущена.");
+   }else{
+     say("План требует внимания: "+({
+       already_published:"это действие уже опубликовано вручную",
+       action_in_progress:"действие уже выполняется или проверяется",
+       already_planned:"аналогичное действие уже запланировано",
+       eligibility_unavailable:"историю не удалось подтвердить"
+     }[result.reason]||"проверьте историю публикаций в City")+". Никаких действий на сайте не выполнялось.");
+   }
+ }catch(error){say("Проверку выполнить не удалось: "+error.message);}
+ finally{loading=false;}
 }
 async function cancelEvent(e){
  if(loading||!confirm("Убрать событие из запланированных?"))return;
