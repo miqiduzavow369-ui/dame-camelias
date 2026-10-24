@@ -7,6 +7,8 @@ import {DiaryError, createDiaryEvent, addDiaryEvent, editDiaryEvent,
 const KEY="city_diary_events_v1";
 const RECEIPTS="city_diary_operation_receipts_v1";
 const ARCHIVE="city_diary_archive_v1";
+const DRAFT="city_diary_form_draft_v1";
+const DRAFT_TTL=30*86400000;
 const TERMINAL=new Set(["completed","cancelled","failed"]);
 const ID=/^[a-f0-9]{16,32}$/;
 const MAX_RECEIPTS=256;
@@ -19,6 +21,30 @@ export class CityDiaryStore {
     if(!storage||typeof storage.get!=="function"||typeof storage.put!=="function"||typeof storage.transaction!=="function")
       fail("invalid_storage");
     this.storage=storage;
+  }
+  async readFormDraft({now=Date.now()}={}) {
+    const record=await this.storage.get(DRAFT);
+    if(!record||record.expiresAt<=now)return null;
+    return snapshot(record);
+  }
+  async saveFormDraft(form,{now=Date.now()}={}) {
+    if(!form||typeof form!=="object"||Array.isArray(form)||
+       Object.keys(form).some(k=>!["mode","date","time","profileId","accountId","action","reviewText","note","editingId"].includes(k))||
+       !["reminder","publication"].includes(form.mode)||
+       typeof form.date!=="string"||form.date.length>10||
+       typeof form.time!=="string"||form.time.length>5||
+       typeof form.reviewText!=="string"||form.reviewText.length>4000||
+       typeof form.note!=="string"||form.note.length>500||
+       ["profileId","accountId","action","editingId"].some(k=>typeof (form[k]??"")!=="string"||(form[k]??"").length>64))
+      fail("invalid_form_draft");
+    if(!Number.isSafeInteger(now))fail("invalid_now");
+    const record={form:snapshot(form),updatedAt:now,expiresAt:now+DRAFT_TTL};
+    await this.storage.put(DRAFT,record);
+    return {updatedAt:now};
+  }
+  async clearFormDraft() {
+    await this.storage.delete(DRAFT);
+    return {cleared:true};
   }
   async list(filters={}) {
     return listDiaryEvents(await this.#events(),filters);
