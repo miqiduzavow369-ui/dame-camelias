@@ -93,3 +93,28 @@ test("all existing City men account IDs are accepted without accepting invented 
   assert.throws(()=>createDiaryEvent({...plan,accountId},{id,now:NOW}),/invalid_account/);
  }
 });
+
+test("winter DST fold at Stockholm 02:30 is rejected rather than guessed",()=>{
+ for(const at of ["2026-10-25T00:30:00.000Z","2026-10-25T01:30:00.000Z"]){
+  assert.throws(()=>createDiaryEvent({...plan,at,localDate:"2026-10-25",
+    localTime:"02:30",timezone:"Europe/Stockholm"},{id,now:NOW}),/ambiguous_local_time/);
+ }
+});
+test("spring DST missing local hour and mismatched displayed time are rejected",()=>{
+ const springNow=Date.parse("2027-03-27T10:00:00.000Z");
+ assert.throws(()=>createDiaryEvent({...plan,at:"2027-03-28T01:30:00.000Z",
+   localDate:"2027-03-28",localTime:"02:30",timezone:"Europe/Stockholm"},
+   {id,now:springNow}),/local_time_mismatch/);
+});
+test("unique local clock time across DST boundary is accepted and preserved",()=>{
+ const event=createDiaryEvent({...plan,at:"2026-10-25T02:30:00.000Z",
+   localDate:"2026-10-25",localTime:"03:30",timezone:"Europe/Stockholm"},{id,now:NOW});
+ assert.equal(event.localTime,"03:30");
+ assert.equal(event.localDate,"2026-10-25");
+});
+test("legacy plans without localTime remain editable for backward compatibility",()=>{
+ const event=make();
+ const updated=editDiaryEvent(event,{note:"old event"},{expectedRevision:1,now:NOW});
+ assert.equal(updated.note,"old event");
+ assert.equal(updated.localTime,undefined);
+});
