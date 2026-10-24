@@ -69,6 +69,8 @@ textarea{min-height:92px;resize:vertical}
  <p id="modeHint" class="hint">Подготовьте текст для себя. Напоминания подключим следующим этапом.</p>
  <label for="date">Дата</label><input id="date" type="date" required>
  <label for="time">Время</label><input id="time" type="time" required value="12:00">
+ <label for="account">Мужчина City</label><select id="account"><option value="">Выберите мужчину</option></select>
+ <p id="accountStatus" class="hint">Мужчины и статусы берутся из действующего City.</p>
  <label for="profile">Ваша анкета</label><select id="profile"><option value="">Без анкеты</option></select>
  <label for="action">Действие</label><select id="action"><option value="profile">Проверить анкету</option><option value="review">Подготовить отзыв</option><option value="rating">Подготовить оценки</option><option value="rating_review">Отзыв и оценки</option></select>
  <label for="reviewText">Ваш текст отзыва (если нужен)</label><textarea id="reviewText" maxlength="4000" placeholder="Текст, который вы хотите сохранить к выбранной дате"></textarea>
@@ -84,7 +86,7 @@ const tg=window.Telegram?.WebApp;
 if(tg){tg.ready();tg.expand();}
 const $=id=>document.getElementById(id);
 const now=new Date(),todayKey=localDate(now);
-let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],mode="reminder",editing=null,loading=false;
+let year=now.getFullYear(),month=now.getMonth(),selected=todayKey,events=[],profiles=[],men=[],secondaryStatuses={},mode="reminder",editing=null,loading=false;
 let pendingSave=null;let pendingBatch=null;const pendingCancel=new Map();let batchMode=false;const batchDates=new Set();let plansView="day";const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 $("tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"местное время";
 function localDate(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");}
@@ -147,7 +149,9 @@ function renderPlans(){
  for(const e of dayEvents){
   const item=document.createElement("div");item.className="item";
   appendText(item,"strong",(e.mode==="reminder"?"🔔 Напоминание":"✦ Публикация")+" · "+dayKey(e).split("-").reverse().join(".")+" · "+localTime(new Date(e.at)));
-  appendText(item,"p",({profile:"Проверить анкету",rating:"Оценки",review:"Отзыв",rating_review:"Отзыв и оценки"})[e.action]+" · "+(e.profileId?"Анкета №"+e.profileId:"Без анкеты"));
+  const selectedMan=men.find(m=>m.id===e.accountId);
+  appendText(item,"p",({profile:"Проверить анкету",rating:"Оценки",review:"Отзыв",rating_review:"Отзыв и оценки"})[e.action]+" · "+(e.profileId?"Анкета №"+e.profileId:"Без анкеты")+
+    (e.accountId?" · "+(selectedMan?.name||e.accountId):""));
   appendText(item,"span",statusText(e.status),"pill");
   if(e.note)appendText(item,"p",e.note);
   if(e.status==="scheduled"){
@@ -159,6 +163,36 @@ function renderPlans(){
   el.append(item);
  }
 }
+function updateAccountStatus(){
+ const man=men.find(m=>m.id===$("account").value);
+ const id=$("profile").value;
+ if(!man){$("accountStatus").textContent="Выберите мужчину из общего списка City.";return;}
+ if(!id){$("accountStatus").textContent="Выберите анкету, чтобы проверить историю мужчины.";return;}
+ const p=profiles.find(v=>String(v.id)===id);
+ const row=man.id==="yan_first"?
+   {rating:p?.statuses?.rating||"unknown",review:p?.statuses?.review||"unknown"}:
+   secondaryStatuses[id]?.[man.id]||{};
+ const status=k=>{
+   const v=row[k]||"unknown";
+   if(v==="published")return "опубликовано";
+   if(["checking","moderation","prepared","reconciliation_required"].includes(v))return "в работе / требует проверки";
+   if(v==="draft_saved")return "есть черновик";
+   return "нужно проверить в City";
+ };
+ $("accountStatus").textContent="История City для этой анкеты: оценки — "+status("rating")+"; отзыв — "+status("review")+
+   ". Окончательное разрешение подтверждается действующим City перед публикацией.";
+}
+function setManOptions(){
+ $("account").replaceChildren();
+ const empty=document.createElement("option");empty.value="";empty.textContent="Выберите мужчину";$("account").append(empty);
+ for(const man of men){
+   if(man.visible===false)continue;
+   const opt=document.createElement("option");opt.value=man.id;opt.textContent=man.name;
+   // Do not infer publishability from a display flag alone.
+   $("account").append(opt);
+ }
+ updateAccountStatus();
+}
 function setProfileOptions(){
  $("profile").replaceChildren();
  const empty=document.createElement("option");empty.value="";empty.textContent="Без анкеты";$("profile").append(empty);
@@ -166,12 +200,12 @@ function setProfileOptions(){
 }
 function resetForm(){
  pendingSave=null;editing=null;$("formHeading").textContent="Новое событие";$("reset").hidden=true;
- $("time").value="12:00";$("date").value=selected;$("profile").value="";$("action").value="profile";$("reviewText").value="";$("note").value="";changeMode("reminder");say("");
+ $("time").value="12:00";$("date").value=selected;$("profile").value="";$("account").value="";$("action").value="profile";$("reviewText").value="";$("note").value="";changeMode("reminder");say("");
 }
 function startEdit(e){
  pendingSave=null;editing=e;$("formHeading").textContent="Изменить событие";$("reset").hidden=false;
  const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=localTime(date);
- $("profile").value=e.profileId||"";$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
+ $("profile").value=e.profileId||"";$("account").value=e.accountId||"";updateAccountStatus();$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function cancelEvent(e){
@@ -188,10 +222,26 @@ function planFromForm(){
  if(!date||!time)throw Error("Укажите дату и время.");
  const local=new Date(date+"T"+time+":00");
  if(!Number.isFinite(local.getTime())||localDate(local)!==date||localTime(local)!==time)throw Error("Недопустимое местное время.");
- const action=$("action").value,profileId=$("profile").value||null;
+ const action=$("action").value,profileId=$("profile").value||null,accountId=$("account").value||null;
  if(mode==="publication"&&!profileId)throw Error("Выберите сохранённую анкету.");
+ if(mode==="publication"&&!accountId)throw Error("Выберите мужчину City.");
+ const man=men.find(x=>x.id===accountId&&x.visible!==false);
+ if(accountId&&!man)throw Error("Мужчина недоступен в текущем списке City.");
+ if(mode==="publication"&&man?.cabinetReady===false)throw Error("Личный кабинет мужчины ещё не готов.");
+ const p=profiles.find(x=>String(x.id)===profileId);
+ const row=man?.id==="yan_first"?
+   {rating:p?.statuses?.rating,review:p?.statuses?.review}:
+   secondaryStatuses[profileId]?.[accountId]||{};
+ if(mode==="publication"){
+   const kinds=action==="rating_review"?["rating","review"]:[action];
+   for(const kind of kinds){
+     const state=row?.[kind];
+     if(["published","checking","moderation","prepared","reconciliation_required","draft_saved"].includes(state))
+       throw Error(kind==="review"?"Отзыв у этого мужчины уже опубликован или находится в работе.":"Оценки у этого мужчины уже опубликованы или находятся в работе.");
+   }
+ }
  if(mode==="publication"&&(action==="review"||action==="rating_review")&&!$("reviewText").value.trim())throw Error("Введите текст отзыва.");
- return {mode,action,at:local.toISOString(),localDate:date,timezone,profileId,reviewText:$("reviewText").value,note:$("note").value};
+ return {mode,action,at:local.toISOString(),localDate:date,timezone,profileId,accountId,reviewText:$("reviewText").value,note:$("note").value};
 }
 async function save(){
  if(loading)return;loading=true;$("save").disabled=true;
@@ -236,7 +286,7 @@ async function saveBatch(){
  loading=true;$("batchSave").disabled=true;
  try{
    const template={mode,action:$("action").value,profileId:$("profile").value||null,
-     time:$("time").value,reviewText:$("reviewText").value,note:$("note").value};
+     time:$("time").value,accountId:$("account").value,reviewText:$("reviewText").value,note:$("note").value};
    const dates=[...batchDates].sort();
    const fingerprint=JSON.stringify({dates,template});
    if(!pendingBatch||pendingBatch.fingerprint!==fingerprint)
@@ -257,7 +307,7 @@ async function boot(){
  try{
   if(!tg?.initData)throw Error("Для просмотра откройте ежедневник из Telegram.");
   const [res]=await Promise.all([fetch("/api/anketa/mini-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData:tg.initData}),cache:"no-store"}),refresh()]);
-  if(res.ok){const data=await res.json();profiles=Array.isArray(data.profiles)?data.profiles:[];setProfileOptions();}
+  if(res.ok){const data=await res.json();profiles=Array.isArray(data.profiles)?data.profiles:[];men=Array.isArray(data.men)?data.men:[];secondaryStatuses=data.secondaryStatuses||{};setProfileOptions();setManOptions();}
   else say("Не удалось загрузить анкеты. Проверьте доступ в личный кабинет.");
  }catch(error){say(error.message);}
 }
@@ -269,6 +319,8 @@ $("allView").onclick=()=>{plansView="all";renderPlans();};
 $("prev").onclick=()=>moveMonth(-1);
 $("next").onclick=()=>moveMonth(1);
 $("date").onchange=()=>{if(!/^\d{4}-\d{2}-\d{2}$/.test($("date").value))return;selected=$("date").value;year=Number(selected.slice(0,4));month=Number(selected.slice(5,7))-1;renderCalendar();renderPlans();};
+$("account").onchange=updateAccountStatus;
+$("profile").onchange=updateAccountStatus;
 $("reminderMode").onclick=()=>changeMode("reminder");
 $("publicationMode").onclick=()=>changeMode("publication");
 $("reset").onclick=resetForm;$("save").onclick=save;
