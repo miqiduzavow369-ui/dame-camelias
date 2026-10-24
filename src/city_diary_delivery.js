@@ -55,12 +55,32 @@ export function settleDiaryDelivery(deliveries,eventId,attemptId,result,{now=Dat
   const record={...old,state:result.state,telegramMessageId:msg,updatedAt:now};
   return {deliveries:{...clone(deliveries),[eventId]:record},record:clone(record)};
 }
-export function acknowledgeDiaryDelivery(deliveries,eventId,telegramMessageId,{now=Date.now()}={}) {
+export function diaryThanksCallback(eventId,attemptId) {
+  if(typeof eventId!=="string"||!/^[a-f0-9]{16,32}$/.test(eventId)||
+     typeof attemptId!=="string"||!/^[a-f0-9]{16,32}$/.test(attemptId))
+    fail("invalid_callback");
+  // Telegram callback_data must fit 64 bytes. 32-char ID + 12-char nonce = 62.
+  return "citydiary:thanks:"+eventId+":"+attemptId.slice(0,12);
+}
+export function parseDiaryThanksCallback(data) {
+  if(typeof data!=="string"||data.length>64)return null;
+  const m=/^citydiary:thanks:([a-f0-9]{16,32}):([a-f0-9]{12})$/.exec(data);
+  return m?{eventId:m[1],nonce:m[2]}:null;
+}
+export function acknowledgeDiaryDelivery(deliveries,eventId,telegramMessageId,callbackData,{now=Date.now()}={}) {
   const old=deliveries[eventId];
   if(!old)fail("delivery_claim_missing");
-  if(old.state==="acknowledged")return {deliveries:clone(deliveries),record:clone(old),replay:true};
+  if(old.state==="acknowledged") {
+    const parsed=parseDiaryThanksCallback(callbackData);
+    if(old.telegramMessageId!==telegramMessageId||!parsed||parsed.eventId!==eventId||
+       parsed.nonce!==old.attemptId?.slice(0,12))fail("invalid_acknowledgement");
+    return {deliveries:clone(deliveries),record:clone(old),replay:true};
+  }
+  const parsed=parseDiaryThanksCallback(callbackData);
   if(old.state!=="sent"||old.telegramMessageId!==telegramMessageId||
-     !Number.isSafeInteger(now))fail("invalid_acknowledgement");
+     !parsed||parsed.eventId!==eventId||
+     parsed.nonce!==old.attemptId?.slice(0,12)||!Number.isSafeInteger(now))
+    fail("invalid_acknowledgement");
   const record={...old,state:"acknowledged",acknowledgedAt:now,updatedAt:now};
   return {deliveries:{...clone(deliveries),[eventId]:record},record:clone(record),replay:false};
 }
