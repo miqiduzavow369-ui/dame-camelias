@@ -73,3 +73,13 @@ Implemented:
 - No Telegram reminders/alarms, interactive black/gold calendar, credit holds, publication workflow or ADMIN routing have been implemented.
 - Ownership and signed-auth tests are not yet full HTTP integration tests; a future test must exercise the Worker endpoint with invalid/valid initData and the per-user cabinet coordinator.
 - In particular, a changed IntimCity domain or changed site-account version must be revalidated before any eventual publication. A diary record is never sufficient authority to submit a review.
+
+## Checkpoint 5 — black-and-gold calendar prototype (2026-10-24)
+
+- `anketa/city-diary-preview.html`: standalone City-style black-and-gold Telegram Mini App calendar. Date selection is immediately gold, month navigation, selected-day plan cards, profile selector from `mini-preview`, reminder/publication planning modes, edit and cancel, local-date/UTC storage conversion.
+- `GET /anketa/diary-preview` serves a no-data Telegram login bootstrap; signed `POST /api/anketa/diary-preview` verifies access to the private Mini App and loads only the pinned feature-branch HTML. This is an isolated preview, **not linked from the existing client navigation**.
+- The calendar uses existing `POST /api/anketa/mini-diary` storage APIs. No message scheduling, publishing or credit mutations. Preview banner explicitly states these are not yet active.
+- `tests/city_diary_ui.test.mjs` checks syntax of embedded JS, expected City black/gold tokens, DOM-safe text insertion and absence of external publication commands.
+- CI result: isolated diary workflow **success** at https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40081113880 (job 120834699107).
+- The code has NOT been deployed or tested in a real Telegram client; visual device testing, authenticated end-to-end Worker tests, DST scenarios, persistent reminders and full monthly-batch planner remain pending.
+- Explicit requirement: before real execution of a scheduled task, resolve IntimCity site/profile freshness and invalidate outdated account/proxy approvals. This calendar deliberately stores stable profile IDs, not pinned site hostnames.
