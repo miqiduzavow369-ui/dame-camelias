@@ -259,3 +259,12 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Tests cover choice controls, cross-device version guard, stale edit restore and migration. Isolated CI: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40093425972 — success.
 
 **Remaining constraints:** This is an explicit overwrite choice, not automatic merge of two devices' edits. Browser clipboard availability varies; the form remains editable if clipboard copying fails. A draft still cannot authorize real publication, dispatch Telegram reminders, reserve credits, or affect ADMIN. No production Worker deploy or merge; manual City and ASHOO untouched.
+
+## Checkpoint 19 — isolated Telegram scheduling replay and button authorization (2026-10-24)
+
+- `CityDiaryScheduler.replace_schedule` now accepts only strictly increasing `scheduleRevision` values. Out-of-order and repeated snapshots are rejected (409) so that a delayed old snapshot cannot revive a cancelled reminder. The snapshot and revision are written in one Durable Object transaction. **Coordinator integration must generate those revisions authoritatively**; it is not wired yet.
+- Individual Telegram delivery attempts generate a random 96-bit `attemptId`. The button data is `citydiary:thanks:<eventId>:<12-hex-nonce>` and fits Telegram's 64-byte callback limit. The internal acknowledgement validates the full callback data, correct event ID, nonce and sent message ID. Forged callbacks fail even on replay.
+- Existing claim-before-send at-most-once behaviour stays: uncertain Telegram outcomes are not retried blindly.
+- Test coverage: out-of-order cancellation snapshots; bound callback and forgery; replay with valid nonce; atomically versioned events and preservation on rejected stale snapshots. Isolated City diary CI passed: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40096257705.
+- **NOT CONNECTED:** Telegram webhook callback parsing, answerCallbackQuery, deleteMessage/close-on-Thanks, private coordinator authority for owner/userId and revision, real Cloudflare Durable Object binding, real bot token sending and signed delivery receipts. Thus the visible Thanks button is still a scheduler prototype; do not claim live Telegram reminders are ready.
+- **Invariants:** The scheduler remains unregistered in wrangler and not exported as a live DO. Nothing touches the existing OrderReminder alarm, manual City publication, credits, ADMIN, 30 men, ASHOO, main or production.
