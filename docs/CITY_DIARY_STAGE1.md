@@ -300,3 +300,13 @@ The first newly added RPC draft-clear test detected a missing `storage.delete` m
 - Remaining before activation: provision the dedicated scheduler DO binding/secret, wire the optional coordinator to trusted owner-scoped mutation entrypoint, establish reliable reconciliation when the transport is pending, separately authenticate webhook callbacks, implement callback answering and message deletion, and conduct staging tests. Nothing is deployed.
 
 **Scope:** no change to production `OrderReminder`, existing manual City/ADMIN, credit flows, men's accounts or ASHOO, no merge to main.
+
+## Checkpoint 23 — dormant, owner-verified «Спасибо ✨» callback (2026-10-24)
+
+- Added isolated `src/city_diary_callback.js` with `handleCityDiaryThanks(update,{trustedWebhook,schedulerNamespace,internalToken,telegram})`. It handles only a parseable `citydiary:thanks` callback from a trusted, independently authenticated Telegram webhook context. The same numeric user must appear as callback sender and owner of the **private** callback message; groups, foreign actors, missing/invalid callback IDs or unknown message IDs are rejected before accessing a scheduler.
+- The scheduler DO name is derived from this validated Telegram identity, not the event payload. Internal `acknowledge` verifies event ID, delivery attempt nonce and exact Telegram message ID before returning an acknowledged receipt. Only then does the adapter call injected `answerCallbackQuery` and `deleteMessage`. Failure to delete is explicitly `cleanupRequired:true`; there is no false claim of message deletion or a second send.
+- Added offline tests for genuine private callback, untrusted webhook, wrong user/group, invalid acknowledgement, duplicate click, failed Telegram delete and non-diary callback. New test path wired to diary CI. Isolated test run: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40100816976 — success.
+- **Still dormant:** the live Telegram webhook does not dispatch diary callbacks; actual production Telegram API methods are not connected and there is no Cloudflare scheduler DO registration. The trustedWebhook flag must be set ONLY by an independently authenticated server webhook, never from caller-provided input. Real Telegram callbacks, delivery outcomes and message removal have not been observed.
+- Before deployment, require a hardened webhook dispatcher, a dedicated scheduler binding and token, cancellation/claim race testing, retryable cleanup reconciliation with bounded retention, and real Telegram sandbox/staging validation.
+
+**Isolation:** Existing manual City, ADMIN, credits, Yan First and all secondary male accounts, legacy OrderReminder, ASHOO, main branch and production remain unchanged.
