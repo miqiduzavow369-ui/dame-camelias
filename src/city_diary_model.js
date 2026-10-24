@@ -30,6 +30,12 @@ function checkPlan(plan, now) {
   // Rating values must be collected by the existing City ratings workflow;
   // a scheduled event must never be interpreted as publication authorization.
   const result = {mode:plan.mode,action:plan.action,at:plan.at,profileId,reviewText};
+  // Identity of the existing City male account; never save login/proxy/site URL.
+  if(plan.accountId!==undefined&&plan.accountId!==null){
+    if(typeof plan.accountId!=="string"||!/^yan_(?:first|second|\\d{2})$/.test(plan.accountId))
+      fail("invalid_account");
+    result.accountId=plan.accountId;
+  }
   // Keep the original calendar day and IANA timezone: UTC alone cannot express
   // the intended wall-clock day if the client later travels or changes devices.
   if(plan.timezone!==undefined || plan.localDate!==undefined){
@@ -66,7 +72,7 @@ export function editDiaryEvent(event,patch,{expectedRevision,now=Date.now()}={})
   if (!event || event.revision !== expectedRevision) fail("revision_conflict");
   if (event.status !== "scheduled") fail("event_locked");
   if (!patch || typeof patch !== "object" || Array.isArray(patch) ||
-      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note","localDate","timezone"].includes(k))) fail("invalid_patch");
+      Object.keys(patch).some(k=>!["mode","action","at","profileId","reviewText","note","localDate","timezone","accountId"].includes(k))) fail("invalid_patch");
   const updated=checkPlan({...event,...patch},now);
   return {...event,...updated,revision:event.revision+1,updatedAt:now};
 }
