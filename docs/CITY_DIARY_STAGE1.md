@@ -190,3 +190,15 @@ This stage introduces a **read-only recheck**, not a publication executor.
 - Before any actual scheduling of publication confirmations, wire authenticated owner-DO readiness snapshots with version binding and strict origin rules; re-check at the final atomic City publication guard. For Yan First, do not infer a site grant from secondary accounts or change the legacy route.
 
 **Remain on draft PR #284; do not merge/deploy.**
+
+## Checkpoint 13 — audit corrections (2026-10-24)
+
+An end-to-end specification-to-branch audit identified and repaired three concrete issues, without editing manual City paths:
+
+1. **Male IDs 03–30:** `src/city_diary_model.js` mistakenly used a double-escaped `\\d` inside a JavaScript regex literal. Replaced with a bounded identifier pattern accepting the original existing City IDs `yan_first`, `yan_second` and `yan_03` through `yan_30`. Added model coverage for all 30 accounts and invalid IDs.
+2. **Write success followed by refresh failure:** In `anketa/city-diary-preview.html`, successful create/edit/batch writes are now definitively acknowledged *before* the next list refresh. If refreshing fails, UI tells the user the write succeeded and **not** to save it again. Failed/unknown write responses retain stable retry operation tokens. Cancellation similarly distinguishes a successful cancel from refresh failure.
+3. **Cross-timezone editing:** cards display the saved IANA timezone's clock time rather than the new device timezone. Editing an event whose original IANA timezone differs from the current device timezone is blocked with an explicit warning, preventing silent rescheduling. This is a safety stop, not a full cross-timezone editor.
+
+GitHub Actions: https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40089456182 — diary unit/syntax checks passed. Existing cabinet, Mini App, isolation, review and secondary runner checks also passed for the same branch commit. Do not claim device-level E2E or full time/DST correctness.
+
+**Still required:** durable client-side idempotency after Web App reload, authoritative recheck of every manual City claim at actual execution, DST-fold/gap UX tests, a sustainable archive/active-plan quota model, runtime scheduler wiring with owner-safe callback handling, credit holds/returns and existing ADMIN integration. Manual City, ADMIN, Yan First, all other men, ASHOO, wrangler.toml, main and Cloudflare deployment remain unchanged.
