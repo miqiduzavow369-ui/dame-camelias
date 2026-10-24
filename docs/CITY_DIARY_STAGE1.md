@@ -166,3 +166,17 @@ A diary event is **never** permission to repeat an action already performed manu
 **Safety boundary:** Read-only state at creation is **not** an atomic execution permission. Before any future live publication, verify manual City state AGAIN immediately before scheduled confirmation and the final existing atomic submit/credit guard. Unknown or outdated review/rating status, secondary runner claims, external site/domain/config versions, profile disablement, and concurrent manual actions require fail-closed final execution. No scheduler-triggered submissions, credits, or ADMIN paths enabled.
 
 **No changes to production:** Manual City rating/review routes, Yan First and 29 other men, ADMIN, credit modules, ASHOO, `wrangler.toml`, main, and live Cloudflare deployment remain untouched. PR #284 is an isolated feature branch.
+
+## Checkpoint 11 — manual City recheck before publication confirmation (2026-10-24)
+
+This stage introduces a **read-only recheck**, not a publication executor.
+
+- Signed Telegram `POST /api/anketa/mini-diary` now accepts `action:"recheck"`. The existing private per-client Durable Object routes it to `cityDiaryRequest`.
+- For a saved future publication, it checks an optional expected revision, current ownership of the same saved profile, and the latest manual City archive/progress for the selected male account and each relevant action kind; it excludes the current diary event from duplicate-plan checks. A manual review published after planning is detected here.
+- The response always returns `publicationAuthorized:false`, `siteCheckRequired:true`, `requiresClientConfirmation:true` and `requiresExistingCityGuard:true`. It cannot initiate payment, moderation, login or publication. No automatic status transition or cancellation is performed by this read-only action.
+- The preview calendar now shows a separate `Проверить готовность` control on future publication cards; it explains that no actual publication occurred.
+- Added API/UI regression tests for changed manual publication history, stale revision and read-only semantics.
+
+**Important remaining gaps**: Read-only statuses such as `unknown` do NOT authorize execution. Existing manual City atomic publication claim, current domain/profile/credentials version and applicable per-man runner readiness MUST be rechecked when implementing the final approval route. Conflict-free planning is not publication permission. No live scheduling is enabled.
+
+**Manual City guarantee:** No modifications to manual rating/review flows, order/moderation, credit accounting, existing alarms, ASHOO, or deployed Worker. Feature branch PR #284 only.
