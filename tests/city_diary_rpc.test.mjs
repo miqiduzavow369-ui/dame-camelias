@@ -8,6 +8,7 @@ function storage(){
   return {
     async get(key){return copy(db.get(key));},
     async put(key,value){db.set(key,copy(value));},
+    async delete(key){db.delete(key);},
     async transaction(fn){
       const working=new Map([...db].map(([key,value])=>[key,copy(value)]));
       const tx={get:async key=>copy(working.get(key)),put:async(key,value)=>working.set(key,copy(value))};
