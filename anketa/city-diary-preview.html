@@ -218,7 +218,7 @@ function startEdit(e){
    say("План создан в часовом поясе "+e.timezone+". Чтобы не сдвинуть время, измените часовой пояс устройства на исходный перед редактированием.");
    return;
  }
- const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=timeInZone(e.at,e.timezone);
+ const date=new Date(e.at);$("date").value=dayKey(e);$("time").value=e.localTime||timeInZone(e.at,e.timezone);
  $("profile").value=e.profileId||"";$("account").value=e.accountId||"";updateAccountStatus();$("action").value=e.action;$("reviewText").value=e.reviewText||"";$("note").value=e.note||"";
  changeMode(e.mode);$("formHeading").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -277,7 +277,7 @@ function planFromForm(){
    }
  }
  if(mode==="publication"&&(action==="review"||action==="rating_review")&&!$("reviewText").value.trim())throw Error("Введите текст отзыва.");
- return {mode,action,at:local.toISOString(),localDate:date,timezone,profileId,accountId,reviewText:$("reviewText").value,note:$("note").value};
+ return {mode,action,at:local.toISOString(),localDate:date,localTime:time,timezone,profileId,accountId,reviewText:$("reviewText").value,note:$("note").value};
 }
 async function save(){
  if(loading)return;loading=true;$("save").disabled=true;
