@@ -2,10 +2,10 @@
 // NOT registered in wrangler.toml and NOT reachable from production routes.
 // The manual City's OrderReminder alarm is intentionally untouched.
 import {nextDiaryAlarm,dueDiaryNotifications,claimDiaryDelivery,
-  settleDiaryDelivery,acknowledgeDiaryDelivery,diaryReminderMessage} from "./city_diary_delivery.js";
+  settleDiaryDelivery,acknowledgeDiaryDelivery,diaryReminderMessage,diaryThanksCallback} from "./city_diary_delivery.js";
 
 const EVENTS="diary_scheduler_events_v1",DELIVERIES="diary_scheduler_deliveries_v1";
-const USER="diary_scheduler_owner_v1";
+const USER="diary_scheduler_owner_v1", SCHEDULE_REVISION="diary_scheduler_revision_v1";
 const SAFE_USER=/^[1-9]\d{4,15}$/;
 const TOKEN=/^[a-f0-9]{16,32}$/;
 const reply=(value,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store"}});
@@ -30,6 +30,13 @@ export class CityDiaryScheduler {
         return reply({ok:false,reason:"wrong_owner"},403);
       if(!owner)await storage.put(USER,String(input.userId));
       if(input.type==="replace_schedule"){
+        // The owner coordinator must provide a monotonically increasing snapshot
+        // revision. Old delayed snapshots may never revive cancelled reminders.
+        if(!Number.isSafeInteger(input.scheduleRevision)||input.scheduleRevision<1)
+          return reply({ok:false,reason:"invalid_schedule_revision"},400);
+        const lastRevision=await storage.get(SCHEDULE_REVISION)||0;
+        if(input.scheduleRevision<=lastRevision)
+          return reply({ok:false,reason:"stale_schedule",currentRevision:lastRevision},409);
         // This is a standalone transport snapshot; the cabinet remains authoritative.
         // Only reminder events may be sent; never schedule publication submissions here.
         const events=input.events;
@@ -49,8 +56,9 @@ export class CityDiaryScheduler {
           return !(old&&old.revision>e.revision);
         });
         await storage.put(EVENTS,copy(accepted));
+        await storage.put(SCHEDULE_REVISION,input.scheduleRevision);
         await this.rearm(accepted,delivered);
-        return reply({ok:true,count:accepted.length});
+        return reply({ok:true,count:accepted.length,scheduleRevision:input.scheduleRevision});
       }
       if(input.type==="status"){
         const deliveries=await storage.get(DELIVERIES)||{};
@@ -59,10 +67,10 @@ export class CityDiaryScheduler {
       }
       if(input.type==="acknowledge"){
         if(!TOKEN.test(String(input.eventId||""))||
-           !Number.isSafeInteger(input.messageId))return reply({ok:false,reason:"bad_request"},400);
+           !Number.isSafeInteger(input.messageId)||typeof input.callbackData!=="string")return reply({ok:false,reason:"bad_request"},400);
         const deliveries=await storage.get(DELIVERIES)||{};
         try{
-          const result=acknowledgeDiaryDelivery(deliveries,input.eventId,input.messageId);
+          const result=acknowledgeDiaryDelivery(deliveries,input.eventId,input.messageId,input.callbackData);
           await storage.put(DELIVERIES,result.deliveries);
           return reply({ok:true,replay:result.replay===true,record:result.record});
         }catch{return reply({ok:false,reason:"invalid_acknowledgement"},409);}
@@ -96,7 +104,7 @@ export class CityDiaryScheduler {
           const response=await fetch("https://api.telegram.org/bot"+this.env.BOT_TOKEN+"/sendMessage",{
             method:"POST",headers:{"Content-Type":"application/json"},
             body:JSON.stringify({chat_id:owner,text,protect_content:true,
-              reply_markup:{inline_keyboard:[[{text:"Спасибо ✨",callback_data:"citydiary:thanks:"+event.id}]]}}),
+              reply_markup:{inline_keyboard:[[{text:"Спасибо ✨",callback_data:diaryThanksCallback(event.id,attemptId)}]]}}),
             signal:AbortSignal.timeout(10000)
           });
           const body=await response.json();
