@@ -797,7 +797,7 @@ export default {
         return new Response("Forbidden",{status:403});
       let uid;
       try{uid=String(JSON.parse(new URLSearchParams(body.initData).get("user"))?.id||"");}catch{}
-      if(!/^[1-9]\\d{4,15}$/.test(uid||""))
+      if(!/^[1-9]\d{4,15}$/.test(uid||""))
         return new Response("Forbidden",{status:403});
       const allowed=new Set(["list","get","create","edit","cancel"]);
       if(!allowed.has(body?.action))
