@@ -197,3 +197,18 @@ test("a cancelled publication cannot be archived through reminder-only public ac
  assert.equal(attempted.reason,"archive_not_safe");
  assert.equal((await cityDiaryRequest(backing,{action:"list_archive"},opts)).events.length,0);
 });
+
+test("signed planning API restores form drafts without giving publication authority",async()=>{
+ const backing=storage(),opts={profileOwned:owned};
+ const form={mode:"publication",date:"2026-11-04",time:"13:30",profileId:"652282",
+  accountId:"yan_second",action:"review",reviewText:"Мой личный опыт",note:"",editingId:""};
+ const saved=await cityDiaryRequest(backing,{action:"save_form_draft",form},opts);
+ assert.equal(saved.ok,true);
+ const restored=await cityDiaryRequest(backing,{action:"get_form_draft"},opts);
+ assert.equal(restored.ok,true);
+ assert.deepEqual(restored.draft.form,form);
+ assert.equal((await cityDiaryRequest(backing,{action:"list"},opts)).events.length,0);
+ const cleared=await cityDiaryRequest(backing,{action:"clear_form_draft"},opts);
+ assert.equal(cleared.ok,true);
+ assert.equal((await cityDiaryRequest(backing,{action:"get_form_draft"},opts)).draft,null);
+});
