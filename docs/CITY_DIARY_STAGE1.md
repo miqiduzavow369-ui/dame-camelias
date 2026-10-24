@@ -83,3 +83,18 @@ Implemented:
 - CI result: isolated diary workflow **success** at https://github.com/miqiduzavow369-ui/dame-camelias/actions/runs/40081113880 (job 120834699107).
 - The code has NOT been deployed or tested in a real Telegram client; visual device testing, authenticated end-to-end Worker tests, DST scenarios, persistent reminders and full monthly-batch planner remain pending.
 - Explicit requirement: before real execution of a scheduled task, resolve IntimCity site/profile freshness and invalidate outdated account/proxy approvals. This calendar deliberately stores stable profile IDs, not pinned site hostnames.
+
+## Checkpoint 6 — reconciliation fixes (2026-10-24)
+
+After comparing the product specification and memory handoff with the branch code:
+
+- Calendar month arrows now update selected day to the first of the displayed month; the selected-day list and the date field stay consistent.
+- New events preserve both canonical UTC instant and client-local date plus an IANA timezone. The domain model checks that the provided local date agrees with the instant in that timezone, and supports edits to timezone/localDate. Earlier events lacking these fields still use legacy device-local presentation; migrate or explicitly address them before live scheduling.
+- The Mini App reuses operation/event identifiers across repeated submission attempts of the *same unchanged payload*, and reuses cancellation operation IDs for the same event/revision. This improves retry safety but refresh/restart reconciliation requires more engineering; do not regard this as durable end-to-end exactly-once delivery.
+- Tests added for timezones, invalid dates and UI retry/month behavior.
+
+**Still out of scope:** alarms, Telegram notifications, credit holds, real website checks, ADMIN orders, batch monthly creation, full list view, confirmed DST fold handling and real-device end-to-end tests.
+
+**Critical**: The signed preview uses browser timezone; timezone preference, DST ambiguity resolution, explicit notice before reminders and stable schedule semantics must be implemented before any notification dispatcher is turned on.
+
+**Critical domain-change rule:** planned events reference confirmed profile ID, not a fixed domain. On eventual execution require verified current profile location and renewed site identity/proxy/permission proofs for changed IntimCity domain. Never retry an uncertain external submission.
