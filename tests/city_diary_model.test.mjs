@@ -118,3 +118,24 @@ test("legacy plans without localTime remain editable for backward compatibility"
  assert.equal(updated.note,"old event");
  assert.equal(updated.localTime,undefined);
 });
+
+test("client restart with new id cannot duplicate an identical active plan",()=>{
+ const first=make();
+ const again=createDiaryEvent(plan,{id:"fedcba9876543210",now:NOW});
+ assert.throws(()=>addDiaryEvent([first],again),/duplicate_schedule/);
+});
+test("same day supports different times, actions, notes and men",()=>{
+ const first=make();
+ for(const patch of [
+  {at:"2026-10-28T16:30:00.000Z"},{action:"rating",reviewText:""},
+  {note:"Другое событие"},{accountId:"yan_first"}
+ ]){
+  const second=createDiaryEvent({...plan,...patch},{id:"fedcba9876543210",now:NOW});
+  assert.equal(addDiaryEvent([first],second).length,2);
+ }
+});
+test("a cancelled plan may be intentionally scheduled again",()=>{
+ const first=transitionDiaryEvent(make(),"cancelled",{expectedRevision:1,now:NOW});
+ const second=createDiaryEvent(plan,{id:"fedcba9876543210",now:NOW});
+ assert.equal(addDiaryEvent([first],second).length,2);
+});
