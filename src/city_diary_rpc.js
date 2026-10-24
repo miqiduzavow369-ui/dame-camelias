@@ -126,7 +126,7 @@ export async function cityDiaryRequest(storage,request,{profileOwned,manualStatu
   }catch(error){
     if(error instanceof DiaryError){
       const conflict=["operation_conflict","revision_conflict","event_locked","invalid_transition",
-        "duplicate_event","diary_full"].includes(error.code);
+        "duplicate_event","duplicate_schedule","diary_full"].includes(error.code);
       return {ok:false,status:conflict?409:400,reason:error.code};
     }
     return {ok:false,status:503,reason:"diary_unavailable"};
