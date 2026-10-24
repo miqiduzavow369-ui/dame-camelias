@@ -250,3 +250,18 @@ test("legacy form draft can be cleared only with its current revision",async()=>
  assert.deepEqual(await store.clearFormDraft({expectedRevision:0,now:NOW+1}),{cleared:true,revision:0});
  assert.equal(await store.readFormDraft({now:NOW+2}),null);
 });
+
+test("source revision and reminder snapshot track cancelled events without replay increment",async()=>{
+ const store=new CityDiaryStore(storage());
+ const item={mode:"reminder",action:"profile",profileId:null,reviewText:"",
+  at:"2026-10-28T15:30:00.000Z"};
+ assert.equal((await store.reminderSnapshot()).scheduleRevision,0);
+ await store.create(item,{id:ID,operation:OP,now:NOW});
+ assert.equal((await store.reminderSnapshot()).events.length,1);
+ await store.create(item,{id:ID,operation:OP,now:NOW});
+ assert.equal((await store.reminderSnapshot()).scheduleRevision,1);
+ await store.transition(ID,"cancelled",{expectedRevision:1,operation:"2222222222222222",now:NOW});
+ const after=await store.reminderSnapshot();
+ assert.equal(after.scheduleRevision,2);
+ assert.deepEqual(after.events,[]);
+});
