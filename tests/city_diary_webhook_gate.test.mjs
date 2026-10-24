@@ -20,6 +20,9 @@ function fixture(){
     calls++;
     const req=JSON.parse(opt.body);
     assert.equal(req.userId,USER);
+    if(req.type==="claim_cleanup")
+     return Response.json({ok:true,claimed:true,record:{eventId:EVENT,
+       telegramMessageId:777,cleanupStatus:"in_progress",cleanupAttempts:1}});
     if(req.type==="acknowledge")
      return Response.json({ok:true,record:{eventId:EVENT,telegramMessageId:777,
        state:"acknowledged"}});
@@ -44,7 +47,7 @@ test("authenticated Telegram update is verified before calling private diary han
  assert.equal(outcome.ok,true);
  assert.equal(outcome.deleted,true);
  assert.equal(outcome.cleanupRecorded,true);
- assert.equal(f.calls,2);
+ assert.equal(f.calls,3);
  assert.equal(f.answer,1);
  assert.equal(f.deleted,1);
 });
